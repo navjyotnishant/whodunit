@@ -1,0 +1,22 @@
+name: AI-Attribution trailer check
+
+on:
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+
+      - name: Build dun
+        run: go build -o /usr/local/bin/dun ./cmd/dun
+
+      - name: Check trailers
+        run: dun check --base "origin/${{ github.base_ref }}"
