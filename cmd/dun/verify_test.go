@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/navjyotnishant/whodunit/internal/journal"
+	"github.com/navjyotnishant/whodunit/internal/registry"
 )
 
 // NAV-77 criterion 6, and the one that decides whether this command is
@@ -235,5 +236,61 @@ func TestJournalReportsWhenItLastGrew(t *testing.T) {
 	}
 	if got := humanAge(time.Now().Add(-10 * time.Minute)); !strings.Contains(got, "less than") {
 		t.Errorf("humanAge(10m) = %q", got)
+	}
+}
+
+// Run outside a repository, verify must check each registered repository
+// rather than only counting them. "3 instrumented" says nothing about
+// whether any of them works, and this is the one view that reaches a
+// repository nobody has visited in months.
+func TestVerifyChecksEachRegisteredRepository(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("WHODUNIT_HOME", home)
+	t.Setenv("WHODUNIT_CODEX_PATH", t.TempDir())
+	t.Setenv("WHODUNIT_AGY_PATH", t.TempDir())
+
+	// One instrumented repository, and one registered without hooks.
+	good := newRepo(t, "instrumented")
+	bare := newRepo(t, "no-hooks")
+
+	wd, _ := os.Getwd()
+	defer os.Chdir(wd)
+
+	if err := os.Chdir(good); err != nil {
+		t.Fatal(err)
+	}
+	if err := runInit(newStatusTestCmd(&bytes.Buffer{}), ""); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chdir(bare); err != nil {
+		t.Fatal(err)
+	}
+	// Registered, but never given hooks — the state a repository is left
+	// in when a new hook is added after it was instrumented.
+	id, _, err := resolveRepo("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := registry.Add(id, bare, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+
+	outside := t.TempDir()
+	if err := os.Chdir(outside); err != nil {
+		t.Fatal(err)
+	}
+
+	var out bytes.Buffer
+	err = runVerify(&out, "")
+	s := out.String()
+
+	if !strings.Contains(s, "no-hooks") {
+		t.Fatalf("the repository with missing hooks was not named:\n%s", s)
+	}
+	if !strings.Contains(s, "dun init --repo") {
+		t.Fatalf("no per-repository fix was offered:\n%s", s)
+	}
+	if err == nil {
+		t.Fatalf("a repository with missing hooks did not fail the command:\n%s", s)
 	}
 }

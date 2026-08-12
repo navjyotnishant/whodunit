@@ -368,6 +368,14 @@ func checkAttribution(repoPath string) []finding {
 	}}
 }
 
+// checkRegisteredRepos checks every instrumented repository, not just that
+// they are registered.
+//
+// "3 instrumented" says nothing about whether any of them works. A
+// repository with a missing hook or a journal that stopped growing would
+// pass a count, and those are exactly the silent failures this command
+// exists to surface — in the one view that reaches a repository nobody has
+// visited in months.
 func checkRegisteredRepos() []finding {
 	entries, err := registry.List()
 	if err != nil {
@@ -382,24 +390,69 @@ func checkRegisteredRepos() []finding {
 		}}
 	}
 
-	var gone []string
+	var out []finding
 	for _, e := range entries {
+		name := shortRepoName(e.Path)
+
+		// A repository can move after init recorded it. Its journal rows
+		// outlive the working tree, so this is reported rather than
+		// dropped — but it is a fact about the machine, not a fault.
 		if !inGitRepo(e.Path) {
-			gone = append(gone, shortRepoName(e.Path))
+			out = append(out, finding{
+				Area:   name,
+				Level:  levelInfo,
+				Detail: "moved or deleted — " + e.Path,
+			})
+			continue
+		}
+
+		var problems []string
+		for _, f := range checkHooks(e.Path) {
+			if f.Level == levelBroken {
+				problems = append(problems, "hooks "+f.Detail)
+			}
+		}
+
+		if len(problems) > 0 {
+			out = append(out, finding{
+				Area:   name,
+				Level:  levelBroken,
+				Detail: strings.Join(problems, "; "),
+				Fix:    "dun init --repo " + e.Path,
+			})
+			continue
+		}
+		out = append(out, finding{Area: name, Level: levelOK, Detail: journalSummary(e.Path)})
+	}
+	return out
+}
+
+// journalSummary describes what a repository has recorded, leading with
+// recency: a journal that stopped growing is the shared symptom of nearly
+// every silent failure this tool has.
+func journalSummary(repoPath string) string {
+	dataDir, err := journalDataDir()
+	if err != nil {
+		return "journal unreadable"
+	}
+	repoID, _, err := resolveRepo(repoPath)
+	if err != nil {
+		return "could not identify this repository"
+	}
+	entries, err := journal.ReadRange(dataDir, repoID, time.Time{}, time.Time{})
+	if err != nil {
+		return "journal unreadable"
+	}
+	if len(entries) == 0 {
+		return "hooks installed, nothing recorded yet"
+	}
+	var last time.Time
+	for _, e := range entries {
+		if e.Timestamp.After(last) {
+			last = e.Timestamp
 		}
 	}
-	if len(gone) > 0 {
-		return []finding{{
-			Area:   "repositories",
-			Level:  levelInfo,
-			Detail: fmt.Sprintf("%d instrumented, %d moved or deleted: %s", len(entries), len(gone), strings.Join(gone, ", ")),
-		}}
-	}
-	return []finding{{
-		Area:   "repositories",
-		Level:  levelOK,
-		Detail: fmt.Sprintf("%d instrumented", len(entries)),
-	}}
+	return fmt.Sprintf("%d events, last %s", len(entries), humanAge(last))
 }
 
 func checkSync() []finding {
@@ -470,7 +523,7 @@ func render(w io.Writer, fs []finding) {
 		case levelBroken:
 			mark = c.S(termcolor.Warn, "!!")
 		}
-		fmt.Fprintf(w, "  %s  %-18s %s\n", mark, f.Area, f.Detail)
+		fmt.Fprintf(w, "  %s  %-30s %s\n", mark, f.Area, f.Detail)
 	}
 
 	// Fixes are collected at the end rather than inline, so someone with
