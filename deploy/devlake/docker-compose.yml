@@ -38,18 +38,15 @@ services:
       - 3002:3000
     volumes:
       - grafana-storage:/var/lib/grafana
-      # Provisioned so the dashboards in this repo are the source of truth
-      # rather than something imported by hand into a persisted volume.
-      # Grafana rescans this path every 5s, so adding a dashboard is just
-      # dropping a file into ./dashboards — no compose change, no restart.
+      # No dashboard mount. This is stock DevLake, so the same compose file
+      # works for anyone running their own instance, and the dashboards are
+      # imported through the UI from dashboards-import/ — the one path that
+      # works everywhere rather than only here.
       #
-      # Mounted into a SUBDIRECTORY on purpose. The image ships its own
-      # dashboards directly in /etc/grafana/dashboards (Linear, Rootly,
-      # ClaudeCodeAdoption, and a mysql/ folder); mounting over that path
-      # would hide all of them. The provider scans recursively and
-      # foldersFromFilesStructure is false, so ours still land alongside
-      # them in the same Grafana folder.
-      - ./dashboards:/etc/grafana/dashboards/whodunit:ro
+      # Provisioning was tried and removed. It kept this file diverged from
+      # upstream, needed a second generated artifact to stay in sync with,
+      # and made every dashboard read-only in the UI, which fights anyone
+      # who wants to adjust a panel and save it.
     environment:
       GF_SERVER_ROOT_URL: "http://localhost:4000/grafana"
       GF_USERS_DEFAULT_THEME: "light"

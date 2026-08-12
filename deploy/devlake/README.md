@@ -15,39 +15,47 @@ real database and Grafana to write into during development.
 
 ## The dashboards
 
-Three dashboards live in `dashboards/`, mounted into Grafana's dashboard
-directory, which it rescans every few seconds. Edit one and the change
-appears without an import, which is what keeps the files in this repository
-the source of truth rather than a copy of whatever was last pasted into
-Grafana. Adding a dashboard is dropping a file in — no compose change.
+Import them once through the Grafana UI: **Dashboards → New → Import**,
+upload a file from `dashboards-import/`, and pick your MySQL datasource when
+it asks.
 
-| | Answers |
+| File | Answers |
 |---|---|
 | `whodunit.json` | coverage, penetration, method mix |
 | `whodunit-adoption.json` | sessions, agents, tools, acceptance |
 | `whodunit-exec.json` | cycle time for AI-assisted work vs the rest |
 
-### Using them in your own Grafana
+They are also attached to every GitHub release, so a team can import them
+without cloning this repository.
 
-The mounted copies pin a datasource named literally `mysql`, because every
-stock DevLake dashboard does. That works here and nowhere else.
+### Why import rather than provision
 
-`dashboards-import/` holds the same dashboards exported for external use:
-the datasource is a placeholder Grafana asks you to fill in at import time.
-Take a file from there, **Dashboards → New → Import**, pick your MySQL
-datasource, done. They are also attached to every GitHub release, so a team
-can use them without cloning this repository.
+`docker-compose.yml` here is stock DevLake. An earlier version mounted the
+dashboards into Grafana so they appeared automatically, which was convenient
+and cost more than it was worth: it kept this file diverged from upstream so
+nobody with their own DevLake could use it, and it made every dashboard
+read-only in the UI — awkward if you want to adjust a panel and keep it.
 
-Those files are generated, never hand-edited:
+The import path works the same way on the bundled stack and on a Grafana
+that already exists, which is the point.
+
+### Editing them
+
+`dashboards/` holds the canonical files; `dashboards-import/` is generated
+from them, with the datasource replaced by a placeholder the import dialog
+fills in. Never hand-edit the generated ones.
 
 ```sh
 ./export-dashboards.py           # regenerate after changing a dashboard
 ./export-dashboards.py --check   # what CI runs
 ```
 
-CI fails if they are out of date. Two hand-maintained copies of a 22-panel
-dashboard drift within a month, and the drift is invisible until someone
-imports the stale one.
+Adjusted a panel in Grafana and want to keep it? **Share → Export → Save to
+file**, drop it into `dashboards/`, and regenerate.
+
+CI fails if the two are out of step. Two hand-maintained copies of a
+22-panel dashboard drift within a month, and the drift is invisible until
+someone imports the stale one.
 
 They need a MySQL datasource named **`mysql`** pointing at the `lake`
 database. That one step is still manual: the image's entrypoint rewrites
