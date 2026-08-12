@@ -155,10 +155,31 @@ adapter interface is open for a community contribution.
 - No prompt text, file contents, names, emails, hostnames, or remote URLs
   are ever recorded — the journal schema has no field that could hold
   them.
-- The journal lives outside your repo (`.git/dun/journal/journal.db`),
-  never committed, never pushed.
+- Everything is stored outside your repositories, under `~/.whodunit`:
+  the journal (`journal.db`), baseline snapshots (`baselines/`), and
+  config. Nothing is ever committed or pushed.
 - `dun journal show` prints exactly what's been recorded, in full.
-  `dun journal purge` deletes it.
+  `dun journal purge` deletes it — only for the current repository, even
+  though the store is shared.
+
+### Where data lives
+
+| Path | What |
+|---|---|
+| `~/.whodunit/journal.db` | Observations, one row per agent edit, scoped by repository |
+| `~/.whodunit/baselines/<repo>.json` | Pre-adoption snapshots (`dun baseline capture`) |
+| `~/.whodunit/config.json` | Global settings (subscription spend, retention) |
+
+The journal is one shared database rather than a file per repository, and
+rows carry a `repo_id` column. That identifier is the repository's **root
+commit SHA** — stable across clones, machines, and directory moves, and
+revealing nothing on its own. A filesystem path would break as soon as the
+repo moved; a remote URL would record the org and repo name, which this
+tool never stores.
+
+Scoping by column rather than by file also means the eventual move to a
+shared Postgres or Mongo backend is a driver change, not a redesign: a
+server has one table for everything either way.
 
 ## Status
 

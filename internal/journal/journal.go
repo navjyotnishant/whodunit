@@ -3,6 +3,16 @@
 // no CGO (pure-Go driver, so cross-compilation for release binaries stays
 // simple).
 //
+// The store is global (one database under ~/.whodunit) and rows are scoped
+// by repo_id rather than by which file they live in. Scoping by column
+// instead of by path is what makes a future move to Postgres or Mongo a
+// driver change rather than a redesign: a shared server has one table for
+// everything, so the repo has to be a value in the row either way.
+//
+// repo_id is the repository's root commit SHA (see internal/repoid) — stable
+// across clones, machines, and paths, and revealing nothing on its own,
+// unlike a filesystem path or a remote URL.
+//
 // Hard constraints, non-negotiable:
 //   - No network calls, ever.
 //   - Never writes to any git repository.
@@ -41,6 +51,7 @@ const SpecVersion = "0.2"
 
 const schema = `
 CREATE TABLE IF NOT EXISTS entries (
+	repo_id       TEXT NOT NULL,
 	ts            INTEGER NOT NULL,
 	agent         TEXT NOT NULL,
 	agent_version TEXT NOT NULL,
@@ -52,32 +63,39 @@ CREATE TABLE IF NOT EXISTS entries (
 	lines_removed INTEGER NOT NULL DEFAULT 0,
 	hunk_hash     TEXT NOT NULL DEFAULT '',
 	spec_version  TEXT NOT NULL,
-	UNIQUE(session, ts, tool, file, hunk_hash)
+	UNIQUE(repo_id, session, ts, tool, file, hunk_hash)
 );
-CREATE INDEX IF NOT EXISTS idx_entries_ts ON entries(ts);
-CREATE INDEX IF NOT EXISTS idx_entries_file ON entries(file);
+CREATE INDEX IF NOT EXISTS idx_entries_repo_ts ON entries(repo_id, ts);
+CREATE INDEX IF NOT EXISTS idx_entries_repo_file ON entries(repo_id, file);
 `
 
-// dbPath returns the SQLite file location for a journal rooted at dir.
-func dbPath(dir string) string {
-	return filepath.Join(dir, "journal.db")
+// DBPath returns the journal database location inside the given whodunit
+// home directory.
+func DBPath(home string) string {
+	return filepath.Join(home, "journal.db")
 }
 
-// Writer appends entries to the local journal database.
+// Writer appends entries for one repository to the global journal.
 type Writer struct {
-	db *sql.DB
+	db     *sql.DB
+	repoID string
 }
 
-// NewWriter opens (creating if needed) the journal database under dir.
-func NewWriter(dir string) (*Writer, error) {
-	if err := os.MkdirAll(dir, 0o700); err != nil {
-		return nil, fmt.Errorf("journal: create dir: %w", err)
+// NewWriter opens (creating if needed) the global journal database under
+// home, scoped to repoID. Every entry written through it belongs to that
+// repository; nothing can write across repos by accident.
+func NewWriter(home, repoID string) (*Writer, error) {
+	if repoID == "" {
+		return nil, fmt.Errorf("journal: repo id is required")
 	}
-	db, err := open(dir)
+	if err := os.MkdirAll(home, 0o700); err != nil {
+		return nil, fmt.Errorf("journal: create home: %w", err)
+	}
+	db, err := open(home)
 	if err != nil {
 		return nil, err
 	}
-	return &Writer{db: db}, nil
+	return &Writer{db: db, repoID: repoID}, nil
 }
 
 // Close releases the underlying database handle.
@@ -86,8 +104,8 @@ func (w *Writer) Close() error {
 }
 
 // Append writes one entry to the journal. Re-appending an entry already
-// present (same session, timestamp, tool, file, and hunk hash) is a no-op —
-// ingest can be re-run safely without duplicating history.
+// present (same repo, session, timestamp, tool, file, and hunk hash) is a
+// no-op — ingest can be re-run safely without duplicating history.
 func (w *Writer) Append(e Entry) error {
 	if e.SpecVersion == "" {
 		e.SpecVersion = SpecVersion
@@ -97,9 +115,9 @@ func (w *Writer) Append(e Entry) error {
 	}
 
 	_, err := w.db.Exec(
-		`INSERT OR IGNORE INTO entries (ts, agent, agent_version, session, event, tool, file, lines_added, lines_removed, hunk_hash, spec_version)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		e.Timestamp.UnixNano(), e.Agent, e.AgentVersion, e.Session, e.Event,
+		`INSERT OR IGNORE INTO entries (repo_id, ts, agent, agent_version, session, event, tool, file, lines_added, lines_removed, hunk_hash, spec_version)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		w.repoID, e.Timestamp.UnixNano(), e.Agent, e.AgentVersion, e.Session, e.Event,
 		e.Tool, e.File, e.LinesAdded, e.LinesRemoved, e.HunkHash, e.SpecVersion,
 	)
 	if err != nil {
@@ -108,23 +126,23 @@ func (w *Writer) Append(e Entry) error {
 	return nil
 }
 
-// ReadRange reads all entries with timestamps in [since, until).
-// until may be zero to mean "no upper bound". Returns an empty slice, not
-// an error, if no journal database exists yet at dir.
-func ReadRange(dir string, since, until time.Time) ([]Entry, error) {
-	if _, err := os.Stat(dbPath(dir)); os.IsNotExist(err) {
+// ReadRange reads one repository's entries with timestamps in [since, until).
+// until may be zero to mean "no upper bound". Returns nil, not an error, if
+// no journal database exists yet.
+func ReadRange(home, repoID string, since, until time.Time) ([]Entry, error) {
+	if _, err := os.Stat(DBPath(home)); os.IsNotExist(err) {
 		return nil, nil
 	}
 
-	db, err := open(dir)
+	db, err := open(home)
 	if err != nil {
 		return nil, err
 	}
 	defer db.Close()
 
 	query := `SELECT ts, agent, agent_version, session, event, tool, file, lines_added, lines_removed, hunk_hash, spec_version
-	          FROM entries WHERE ts >= ?`
-	args := []any{since.UnixNano()}
+	          FROM entries WHERE repo_id = ? AND ts >= ?`
+	args := []any{repoID, since.UnixNano()}
 	if !until.IsZero() {
 		query += " AND ts < ?"
 		args = append(args, until.UnixNano())
@@ -154,8 +172,33 @@ func ReadRange(dir string, since, until time.Time) ([]Entry, error) {
 	return entries, nil
 }
 
-func open(dir string) (*sql.DB, error) {
-	db, err := sql.Open("sqlite", dbPath(dir))
+// Purge deletes every entry for one repository, leaving other repositories
+// untouched. `dun journal purge` means "forget what I did in this repo" —
+// a global store must not turn that into forgetting everything.
+func Purge(home, repoID string) (int64, error) {
+	if _, err := os.Stat(DBPath(home)); os.IsNotExist(err) {
+		return 0, nil
+	}
+
+	db, err := open(home)
+	if err != nil {
+		return 0, err
+	}
+	defer db.Close()
+
+	res, err := db.Exec(`DELETE FROM entries WHERE repo_id = ?`, repoID)
+	if err != nil {
+		return 0, fmt.Errorf("journal: purge: %w", err)
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return 0, nil // the delete succeeded; a driver that won't report a count is not an error
+	}
+	return n, nil
+}
+
+func open(home string) (*sql.DB, error) {
+	db, err := sql.Open("sqlite", DBPath(home))
 	if err != nil {
 		return nil, fmt.Errorf("journal: open db: %w", err)
 	}

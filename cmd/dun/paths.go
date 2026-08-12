@@ -2,9 +2,13 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
+
+	"github.com/navjyotnishant/whodunit/internal/config"
+	"github.com/navjyotnishant/whodunit/internal/repoid"
 )
 
 // gitDir returns the .git directory for the current repo, resolving worktrees
@@ -17,11 +21,36 @@ func gitDir() (string, error) {
 	return strings.TrimSpace(string(out)), nil
 }
 
-// journalDir returns the local, gitignored journal directory for this repo.
-func journalDir() (string, error) {
-	gd, err := gitDir()
+// journalHome returns the directory holding the global journal database.
+// The journal is global and scoped by repo id rather than one file per
+// repo, so the same code path works whether the backend is the embedded
+// SQLite file or, later, a shared server.
+func journalHome() (string, error) {
+	return config.Dir()
+}
+
+// currentRepoID returns the stable identifier for the repository in the
+// current working directory.
+func currentRepoID() (string, error) {
+	return repoid.ForCurrentRepo()
+}
+
+// defaultBaselinePath returns where this repository's baseline snapshot
+// lives. It is kept outside the repo: a baseline measures a window that
+// cannot be recaptured, and anything under .git/ dies with a fresh clone
+// or a `git clean -xfd`.
+func defaultBaselinePath() (string, error) {
+	home, err := config.Dir()
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(gd, "dun", "journal"), nil
+	repoID, err := currentRepoID()
+	if err != nil {
+		return "", err
+	}
+	dir := filepath.Join(home, "baselines")
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return "", fmt.Errorf("create baselines dir: %w", err)
+	}
+	return filepath.Join(dir, repoID+".json"), nil
 }

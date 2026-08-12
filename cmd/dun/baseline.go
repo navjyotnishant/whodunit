@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"path/filepath"
 	"time"
 
 	"github.com/navjyotnishant/whodunit/internal/baseline"
@@ -60,11 +59,11 @@ func newBaselineCaptureCmd() *cobra.Command {
 			}
 
 			if out == "" {
-				dir, err := journalDir()
+				p, err := defaultBaselinePath()
 				if err != nil {
 					return err
 				}
-				out = filepath.Join(filepath.Dir(dir), "baseline.json")
+				out = p
 			}
 			if err := baseline.Write(out, snap); err != nil {
 				return err

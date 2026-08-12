@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"io"
-	"path/filepath"
 	"time"
 
 	"github.com/navjyotnishant/whodunit/internal/baseline"
@@ -32,11 +31,11 @@ func newDeltaCmd() *cobra.Command {
 			"arrives with more reverts is deferred rework, not speed.",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if baselinePath == "" {
-				dir, err := journalDir()
+				p, err := defaultBaselinePath()
 				if err != nil {
 					return err
 				}
-				baselinePath = filepath.Join(filepath.Dir(dir), "baseline.json")
+				baselinePath = p
 			}
 
 			base, err := baseline.Load(baselinePath)

@@ -1,0 +1,38 @@
+name: Test
+
+on:
+  push:
+    branches: [main, PRD]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+
+      - name: Verify formatting
+        run: |
+          unformatted="$(gofmt -l .)"
+          if [ -n "$unformatted" ]; then
+            echo "::error::gofmt needed for: $unformatted"
+            exit 1
+          fi
+
+      - name: Vet
+        run: go vet ./...
+
+      # Golden-fixture replay (NAV-30). testdata/ holds one transcript
+      # fixture per Claude Code version seen in the wild. If a format this
+      # adapter used to understand stops parsing, attribution silently
+      # degrades to undetermined everywhere downstream — these tests are
+      # what turn that into a loud failure.
+      - name: Adapter drift check
+        run: go test ./internal/adapter/... -run 'TestEveryFixtureVersionStillParses|TestUnrecognizedFormatYieldsNothingRatherThanGuessing|TestNoFixtureLeaksPromptText' -v
+
+      - name: Test
+        run: go test ./...

@@ -35,7 +35,7 @@ func TestParseRejectsMalformed(t *testing.T) {
 	cases := []string{
 		"status=bogus; method=declared",
 		"status=assisted; method=bogus",
-		"status=assisted",                    // missing method
+		"status=assisted",                             // missing method
 		"status=assisted; method=declared; ratio=1.5", // out of range
 		"status=assisted; method=declared; agent=has spaces",
 	}

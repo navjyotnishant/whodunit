@@ -13,7 +13,7 @@ type Method string
 const (
 	MethodUndetermined Method = "undetermined"
 	MethodDeclared     Method = "declared"
-	MethodInferred      Method = "inferred"
+	MethodInferred     Method = "inferred"
 	MethodObserved     Method = "observed"
 	MethodIntersected  Method = "intersected"
 )

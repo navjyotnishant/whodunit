@@ -3,7 +3,6 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"os"
 	"time"
 
 	"github.com/navjyotnishant/whodunit/internal/journal"
@@ -23,13 +22,17 @@ func newJournalCmd() *cobra.Command {
 func newJournalShowCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "show",
-		Short: "Print the full local journal in plain text.",
+		Short: "Print this repository's journal entries in plain text.",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			dir, err := journalDir()
+			home, err := journalHome()
 			if err != nil {
 				return err
 			}
-			entries, err := journal.ReadRange(dir, time.Time{}, time.Time{})
+			repoID, err := currentRepoID()
+			if err != nil {
+				return err
+			}
+			entries, err := journal.ReadRange(home, repoID, time.Time{}, time.Time{})
 			if err != nil {
 				return err
 			}
@@ -47,17 +50,33 @@ func newJournalShowCmd() *cobra.Command {
 func newJournalPurgeCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "purge",
-		Short: "Delete the entire local journal.",
+		Short: "Delete this repository's journal entries.",
+		Long: "Deletes every journal entry recorded for the current repository.\n\n" +
+			"The journal is a single global store shared by every repository, so\n" +
+			"this deletes only this repository's rows — other repositories are\n" +
+			"left untouched.",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			dir, err := journalDir()
+			home, err := journalHome()
 			if err != nil {
 				return err
 			}
-			if err := os.RemoveAll(dir); err != nil {
-				return fmt.Errorf("purge journal: %w", err)
+			repoID, err := currentRepoID()
+			if err != nil {
+				return err
 			}
-			fmt.Fprintln(cmd.OutOrStdout(), "journal purged")
+			n, err := journal.Purge(home, repoID)
+			if err != nil {
+				return err
+			}
+			fmt.Fprintf(cmd.OutOrStdout(), "purged %d entr%s for this repository\n", n, plural(n))
 			return nil
 		},
 	}
+}
+
+func plural(n int64) string {
+	if n == 1 {
+		return "y"
+	}
+	return "ies"
 }

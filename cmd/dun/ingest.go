@@ -65,11 +65,15 @@ func ingestSince(since time.Time, onSkip func(path string, err error)) (written,
 		return 0, 0, fmt.Errorf("find claude-code sessions: %w", err)
 	}
 
-	dir, err := journalDir()
+	home, err := journalHome()
 	if err != nil {
 		return 0, 0, err
 	}
-	w, err := journal.NewWriter(dir)
+	repoID, err := currentRepoID()
+	if err != nil {
+		return 0, 0, err
+	}
+	w, err := journal.NewWriter(home, repoID)
 	if err != nil {
 		return 0, 0, err
 	}
