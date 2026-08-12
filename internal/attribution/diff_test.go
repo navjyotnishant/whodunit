@@ -47,7 +47,7 @@ func TestHashAddedHunksMatchesSameTextSameFile(t *testing.T) {
 	}
 
 	for h := range ha {
-		if !hb[h] {
+		if _, ok := hb[h]; !ok {
 			t.Errorf("hash %s from diffA not found in diffB despite identical file+text", h)
 		}
 	}
@@ -70,7 +70,7 @@ func TestHashAddedHunksSameTextDifferentFileDoesNotMatch(t *testing.T) {
 	}
 
 	for h := range hx {
-		if hy[h] {
+		if _, ok := hy[h]; ok {
 			t.Errorf("hash %s matched across different files for identical text — false intersected match", h)
 		}
 	}
@@ -83,5 +83,23 @@ func TestHashAddedHunksEmptyDiff(t *testing.T) {
 	}
 	if len(hashes) != 0 {
 		t.Errorf("want 0 hashes for empty diff, got %d", len(hashes))
+	}
+}
+
+func TestHashAddedHunksRecordsLineCounts(t *testing.T) {
+	// The line count is what lets a caller measure the agent's share in
+	// staged lines rather than in journal line-touches.
+	diff := "diff --git a/x b/x\n--- a/x\n+++ b/x\n@@ -0,0 +1,3 @@\n+one\n+two\n+three\n"
+	hashes, err := hashAddedHunks(diff, "/repo")
+	if err != nil {
+		t.Fatalf("hashAddedHunks: %v", err)
+	}
+	if len(hashes) != 1 {
+		t.Fatalf("want 1 hunk, got %d", len(hashes))
+	}
+	for _, count := range hashes {
+		if count != 3 {
+			t.Errorf("hunk line count = %d, want 3", count)
+		}
 	}
 }

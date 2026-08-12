@@ -48,7 +48,14 @@ type Trailer struct {
 	Method  Method
 	Agent   string
 	Version string
-	Ratio   float64
+	// Ratio is the share of the commit's changed lines that overlap lines
+	// an agent touched — additions and deletions both counted (NAV-8).
+	//
+	// A pointer because "not computed" and "computed as zero" are different
+	// claims: methods with no line-level evidence (declared, inferred) can
+	// never have one, and emitting 0.00 there would assert the agent
+	// contributed nothing.
+	Ratio   *float64
 	Session string
 	Extra   map[string]string // unknown keys, preserved verbatim per spec
 }
@@ -73,8 +80,12 @@ func (t Trailer) Format() string {
 	if t.Version != "" {
 		fmt.Fprintf(&b, "; agent_version=%s", t.Version)
 	}
-	if t.Method == MethodIntersected || t.Method == MethodObserved {
-		fmt.Fprintf(&b, "; ratio=%.2f", t.Ratio)
+	// ratio is emitted only when it was actually computed. A method with no
+	// line-level evidence (declared, inferred) has nothing to compute it
+	// from, and an unknown ratio must be absent rather than reported as
+	// 0.00 — a fabricated zero reads as "the agent contributed nothing".
+	if t.Ratio != nil {
+		fmt.Fprintf(&b, "; ratio=%.2f", *t.Ratio)
 	}
 	if t.Session != "" {
 		fmt.Fprintf(&b, "; session=%s", t.Session)
@@ -127,7 +138,7 @@ func Parse(value string) (Trailer, error) {
 			if err != nil || r < 0 || r > 1 {
 				return Trailer{}, fmt.Errorf("spec: invalid ratio %q", val)
 			}
-			t.Ratio = r
+			t.Ratio = &r
 		default:
 			t.Extra[key] = val
 		}

@@ -24,7 +24,15 @@ const lookbackWindow = 7 * 24 * time.Hour
 // hunk matching and always get observed at best (e.g. when git diff isn't
 // available). Returns method=undetermined if the journal has no relevant
 // coverage — per NAV-21, absence must never be silently upgraded.
-func Determine(entries []journal.Entry, stagedFiles []string, stagedHunkHashes map[string]bool, now time.Time) spec.Trailer {
+// CommitLines carries the staged diff's own line counts, the denominator
+// for ratio. Zero values mean "unknown", and ratio is then omitted rather
+// than guessed.
+type CommitLines struct {
+	Added   int
+	Removed int
+}
+
+func Determine(entries []journal.Entry, stagedFiles []string, stagedHunkHashes map[string]int, commit CommitLines, now time.Time) spec.Trailer {
 	staged := map[string]bool{}
 	for _, f := range stagedFiles {
 		staged[f] = true
@@ -33,6 +41,10 @@ func Determine(entries []journal.Entry, stagedFiles []string, stagedHunkHashes m
 	since := now.Add(-lookbackWindow)
 	var relevant []journal.Entry
 	intersected := false
+
+	// Matched hunks are collected in a set so a block the agent rewrote
+	// several times counts once — the commit contains it once.
+	matchedHunks := map[string]bool{}
 	for _, e := range entries {
 		if e.Event != "tool_use" || e.Timestamp.Before(since) {
 			continue
@@ -41,8 +53,12 @@ func Determine(entries []journal.Entry, stagedFiles []string, stagedHunkHashes m
 			continue
 		}
 		relevant = append(relevant, e)
-		if e.HunkHash != "" && stagedHunkHashes[e.HunkHash] {
+		if e.HunkHash == "" {
+			continue
+		}
+		if _, ok := stagedHunkHashes[e.HunkHash]; ok {
 			intersected = true
+			matchedHunks[e.HunkHash] = true
 		}
 	}
 
@@ -51,15 +67,13 @@ func Determine(entries []journal.Entry, stagedFiles []string, stagedHunkHashes m
 	}
 
 	agent, version, session := relevant[0].Agent, relevant[0].AgentVersion, relevant[0].Session
-	var linesAdded, linesRemoved int
-	for _, e := range relevant {
-		linesAdded += e.LinesAdded
-		linesRemoved += e.LinesRemoved
-	}
 
-	ratio := 1.0
-	if linesAdded+linesRemoved == 0 {
-		ratio = 0
+	// The numerator is measured in STAGED lines, not journal lines: what
+	// the commit actually contains from the agent, not how many times the
+	// agent touched it.
+	agentLines := 0
+	for hash := range matchedHunks {
+		agentLines += stagedHunkHashes[hash]
 	}
 
 	method := spec.MethodObserved
@@ -67,13 +81,18 @@ func Determine(entries []journal.Entry, stagedFiles []string, stagedHunkHashes m
 		method = spec.MethodIntersected
 	}
 
-	return spec.Trailer{
+	trailer := spec.Trailer{
 		Status:  spec.StatusAssisted,
 		Method:  method,
 		Agent:   agent,
 		Version: version,
 		Session: session,
-		Ratio:   ratio,
 		Extra:   map[string]string{},
 	}
+
+	if r, ok := computeRatio(agentLines, commit.Added, commit.Removed); ok {
+		trailer.Ratio = &r
+	}
+
+	return trailer
 }

@@ -1,6 +1,11 @@
 package spec
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
+
+func ratioPtr(f float64) *float64 { return &f }
 
 func TestFormatParseRoundTrip(t *testing.T) {
 	orig := Trailer{
@@ -8,7 +13,7 @@ func TestFormatParseRoundTrip(t *testing.T) {
 		Method:  MethodIntersected,
 		Agent:   "claude-code",
 		Version: "2.1.0",
-		Ratio:   0.62,
+		Ratio:   ratioPtr(0.62),
 		Session: "a3f9e21c",
 		Extra:   map[string]string{},
 	}
@@ -21,6 +26,36 @@ func TestFormatParseRoundTrip(t *testing.T) {
 	}
 	if got.Status != orig.Status || got.Method != orig.Method || got.Agent != orig.Agent {
 		t.Errorf("round trip mismatch: got %+v, want %+v", got, orig)
+	}
+	if got.Ratio == nil {
+		t.Fatal("ratio lost in round trip")
+	}
+	if *got.Ratio != *orig.Ratio {
+		t.Errorf("ratio = %v, want %v", *got.Ratio, *orig.Ratio)
+	}
+}
+
+func TestFormatOmitsUncomputedRatio(t *testing.T) {
+	// An unknown ratio must be absent, not 0.00 — a fabricated zero reads
+	// as "the agent contributed nothing" (NAV-8).
+	tr := Trailer{
+		Status: StatusAssisted,
+		Method: MethodObserved,
+		Agent:  "claude-code",
+		Extra:  map[string]string{},
+	}
+	if got := tr.Format(); strings.Contains(got, "ratio=") {
+		t.Errorf("Format() = %q, want no ratio when it was not computed", got)
+	}
+}
+
+func TestParseOmittedRatioIsNil(t *testing.T) {
+	got, err := Parse("status=assisted; method=observed; agent=claude-code")
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
+	if got.Ratio != nil {
+		t.Errorf("Ratio = %v, want nil when the trailer carries no ratio", *got.Ratio)
 	}
 }
 

@@ -94,7 +94,12 @@ func determineTrailer() spec.Trailer {
 	// Determine still returns a valid observed-or-undetermined result with nil.
 	hunkHashes, _ := attribution.StagedHunkHashes()
 
-	return attribution.Determine(entries, staged, hunkHashes, now)
+	// Likewise for line counts: without them the ratio is simply omitted,
+	// which is the honest outcome rather than a guessed number.
+	added, removed, _ := attribution.StagedLineCounts()
+
+	return attribution.Determine(entries, staged, hunkHashes,
+		attribution.CommitLines{Added: added, Removed: removed}, now)
 }
 
 // stagedFiles returns repo-relative paths of files staged for this commit.
