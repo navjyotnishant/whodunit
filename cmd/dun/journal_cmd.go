@@ -20,15 +20,20 @@ func newJournalCmd() *cobra.Command {
 }
 
 func newJournalShowCmd() *cobra.Command {
-	return &cobra.Command{
+	var repoFlag string
+	cmd := &cobra.Command{
 		Use:   "show",
-		Short: "Print this repository's journal entries in plain text.",
+		Short: "Print a repository's journal entries in plain text.",
+		Long: "Prints journal entries as one JSON object per line.\n\n" +
+			"Defaults to the repository in the current directory. Use --repo to\n" +
+			"inspect another instrumented repository from anywhere; it accepts a\n" +
+			"path or a repo id as printed by `dun repos list`.",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			dataDir, err := journalDataDir()
 			if err != nil {
 				return err
 			}
-			repoID, err := currentRepoID()
+			repoID, _, err := resolveRepo(repoFlag)
 			if err != nil {
 				return err
 			}
@@ -45,33 +50,51 @@ func newJournalShowCmd() *cobra.Command {
 			return nil
 		},
 	}
+	cmd.Flags().StringVar(&repoFlag, "repo", "", "path or repo id to inspect (default: current directory)")
+	return cmd
 }
 
 func newJournalPurgeCmd() *cobra.Command {
-	return &cobra.Command{
+	var repoFlag string
+	cmd := &cobra.Command{
 		Use:   "purge",
-		Short: "Delete this repository's journal entries.",
-		Long: "Deletes every journal entry recorded for the current repository.\n\n" +
+		Short: "Delete a repository's journal entries.",
+		Long: "Deletes every journal entry recorded for a repository.\n\n" +
 			"The journal is a single global store shared by every repository, so\n" +
-			"this deletes only this repository's rows — other repositories are\n" +
-			"left untouched.",
+			"this deletes only the target repository's rows — other repositories\n" +
+			"are left untouched.\n\n" +
+			"Defaults to the repository in the current directory. With --repo it\n" +
+			"names the target before deleting, because purging the wrong\n" +
+			"repository cannot be undone.",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			dataDir, err := journalDataDir()
 			if err != nil {
 				return err
 			}
-			repoID, err := currentRepoID()
+			repoID, label, err := resolveRepo(repoFlag)
 			if err != nil {
 				return err
 			}
+
+			// Say what is about to be lost, before losing it. With a
+			// global store and a --repo flag, a typo deletes another
+			// project's history and there is no undo — so the target is
+			// named up front rather than only in the past tense after.
+			out := cmd.OutOrStdout()
+			if repoFlag != "" {
+				fmt.Fprintf(out, "purging journal entries for %s\n", label)
+			}
+
 			n, err := journal.Purge(dataDir, repoID)
 			if err != nil {
 				return err
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), "purged %d entr%s for this repository\n", n, plural(n))
+			fmt.Fprintf(out, "purged %d entr%s for %s\n", n, plural(n), label)
 			return nil
 		},
 	}
+	cmd.Flags().StringVar(&repoFlag, "repo", "", "path or repo id to purge (default: current directory)")
+	return cmd
 }
 
 func plural(n int64) string {
