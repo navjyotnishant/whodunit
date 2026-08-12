@@ -231,3 +231,51 @@ func writeTranscriptFor(tb testing.TB, repo, target, body string) {
 		tb.Fatal(err)
 	}
 }
+
+// NAV-7: the raw session id is the transcript filename. A commit carrying
+// it points at a file holding every prompt of that session, permanently, in
+// a message that gets pushed.
+//
+// Asserted at the hook rather than only on SessionToken: the derivation can
+// be correct while the hook still stamps the raw value.
+func TestTrailerCarriesAHashedSessionNotTheRawID(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("WHODUNIT_HOME", home)
+	t.Setenv("WHODUNIT_CODEX_PATH", filepath.Join(t.TempDir(), "none"))
+	t.Setenv("WHODUNIT_AGY_PATH", filepath.Join(t.TempDir(), "none"))
+
+	repo := t.TempDir()
+	git(t, repo, "init", "-q")
+	git(t, repo, "commit", "-q", "--allow-empty", "-m", "base")
+	realRepo, err := filepath.EvalSymlinks(repo)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	const body = "const z = 3\n"
+	target := filepath.Join(realRepo, "z.js")
+	if err := os.WriteFile(target, []byte(body), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	writeTranscriptFor(t, realRepo, target, body)
+	git(t, repo, "add", "-A")
+
+	wd, _ := os.Getwd()
+	defer os.Chdir(wd)
+	if err := os.Chdir(repo); err != nil {
+		t.Fatal(err)
+	}
+
+	trailer := determineTrailer()
+
+	// writeTranscriptFor records sessionId "test-session".
+	if trailer.Session == "test-session" {
+		t.Fatalf("the trailer carries the agent's raw session id:\n%s", trailer.Format())
+	}
+	if trailer.Session == "" {
+		t.Fatal("the trailer carries no session at all; grouping is lost")
+	}
+	if len(trailer.Session) != spec.SessionTokenLength {
+		t.Fatalf("session = %q, want a %d-char token", trailer.Session, spec.SessionTokenLength)
+	}
+}

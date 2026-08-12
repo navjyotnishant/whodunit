@@ -139,11 +139,34 @@ func determineTrailer() spec.Trailer {
 	lines, _ := attribution.StagedLines()
 	added, removed, _ := attribution.StagedLineCounts()
 
-	return attribution.Determine(entries, staged, agentLines,
+	trailer := attribution.Determine(entries, staged, agentLines,
 		attribution.StagedEvidence{
 			Lines:  lines,
 			Commit: attribution.CommitLines{Added: added, Removed: removed},
 		}, now)
+
+	// The commit carries a derived token, never the agent's own session id.
+	//
+	// That id is the transcript filename on disk, so stamping it verbatim
+	// would record a pointer into a file holding every prompt of the
+	// session — permanently, in a message that gets pushed. The token still
+	// groups commits from one working period, which is all the trailer
+	// needs it for (NAV-7).
+	//
+	// Done here rather than inside Determine because the repo id lives on
+	// this side, and hashing without it would let the same session be
+	// correlated across repositories.
+	if trailer.Session != "" {
+		if repoID, err := currentRepoID(); err == nil {
+			trailer.Session = spec.SessionToken(repoID, trailer.Session)
+		} else {
+			// No repo id means no repo-scoped token. Hash anyway rather
+			// than fall back to the raw id: an unscoped token is weaker
+			// than intended, a leaked filename is worse.
+			trailer.Session = spec.SessionToken("", trailer.Session)
+		}
+	}
+	return trailer
 }
 
 // agentLineHashes loads this repository's recorded agent line hashes.
