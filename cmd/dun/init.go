@@ -5,7 +5,10 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
+	"github.com/navjyotnishant/whodunit/internal/registry"
+	"github.com/navjyotnishant/whodunit/internal/repoid"
 	"github.com/spf13/cobra"
 )
 
@@ -14,17 +17,41 @@ const hookMarker = "# managed-by: whodunit"
 var trackedHooks = []string{"prepare-commit-msg", "commit-msg"}
 
 func newInitCmd() *cobra.Command {
-	return &cobra.Command{
+	var repoPath string
+
+	cmd := &cobra.Command{
 		Use:   "init",
-		Short: "Install AI-Attribution git hooks into this repository.",
+		Short: "Install AI-Attribution git hooks into a repository.",
+		Long: "Installs the prepare-commit-msg and commit-msg hooks into a repository\n" +
+			"and records it as instrumented.\n\n" +
+			"Instrumentation is per repository and always explicit. There is no\n" +
+			"flag to enrol every repository you have used an agent in: that set\n" +
+			"includes client work, throwaway experiments, and clones of other\n" +
+			"people's projects, and stamping attribution trailers into those is a\n" +
+			"decision that belongs to you, one repository at a time. Run\n" +
+			"`dun repos` to see candidates.",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runInit(cmd)
+			return runInit(cmd, repoPath)
 		},
 	}
+
+	cmd.Flags().StringVar(&repoPath, "repo", "", "repository to instrument (default: current directory)")
+	return cmd
 }
 
-func runInit(cmd *cobra.Command) error {
-	gd, err := gitDir()
+func runInit(cmd *cobra.Command, repoPath string) error {
+	if repoPath != "" {
+		abs, err := filepath.Abs(repoPath)
+		if err != nil {
+			return fmt.Errorf("resolve --repo path: %w", err)
+		}
+		if info, err := os.Stat(abs); err != nil || !info.IsDir() {
+			return fmt.Errorf("--repo %s is not a directory", repoPath)
+		}
+		repoPath = abs
+	}
+
+	gd, err := gitDirFor(repoPath)
 	if err != nil {
 		return err
 	}
@@ -44,6 +71,33 @@ func runInit(cmd *cobra.Command) error {
 		}
 		fmt.Fprintf(cmd.OutOrStdout(), "installed %s\n", hook)
 	}
+
+	// Record the repository so anything working across repos — a daemon,
+	// a cross-repo report — has an explicit list rather than discovering
+	// repositories nobody opted in.
+	//
+	// A repository with no commits yet has no stable identifier, so it
+	// cannot be registered. The hooks are still installed and will work;
+	// only the registry entry waits until there is a root commit.
+	repoID, idErr := repoid.ForRepo(repoPath)
+	if idErr != nil {
+		fmt.Fprintf(cmd.OutOrStdout(),
+			"\nhooks are installed, but this repository has no commits yet so it\n"+
+				"cannot be registered for cross-repo tooling. Re-run `dun init` after\n"+
+				"the first commit.\n")
+		return nil
+	}
+
+	recordPath := repoPath
+	if recordPath == "" {
+		if recordPath, err = os.Getwd(); err != nil {
+			return err
+		}
+	}
+	if err := registry.Add(repoID, recordPath, time.Now()); err != nil {
+		return err
+	}
+
 	return nil
 }
 

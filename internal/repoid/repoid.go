@@ -21,7 +21,15 @@ import (
 // ForCurrentRepo returns the identifier for the repository containing the
 // current working directory.
 func ForCurrentRepo() (string, error) {
-	out, err := exec.Command("git", "rev-list", "--max-parents=0", "HEAD").Output()
+	return ForRepo("")
+}
+
+// ForRepo returns the identifier for the repository at dir. An empty dir
+// means the current working directory.
+func ForRepo(dir string) (string, error) {
+	cmd := exec.Command("git", "rev-list", "--max-parents=0", "HEAD")
+	cmd.Dir = dir
+	out, err := cmd.Output()
 	if err != nil {
 		return "", fmt.Errorf("resolve repo root commit (unborn or not a git repo?): %w", err)
 	}

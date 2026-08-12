@@ -30,5 +30,6 @@ func newRootCmd() *cobra.Command {
 	root.AddCommand(newDaemonCmd())
 	root.AddCommand(newBaselineCmd())
 	root.AddCommand(newDeltaCmd())
+	root.AddCommand(newReposCmd())
 	return root
 }

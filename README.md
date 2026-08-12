@@ -66,7 +66,8 @@ clobbers existing `prepare-commit-msg`/`commit-msg` scripts.
 | Command | What it does |
 |---|---|
 | `dun baseline capture` | Snapshot delivery metrics **before** installing hooks — see below |
-| `dun init` | Install the git hooks into the current repo |
+| `dun init [--repo <path>]` | Install the git hooks into a repository |
+| `dun repos list` / `candidates` / `remove` | See what's instrumented, and what isn't |
 | `dun status` | Trailer coverage and method mix for recent commits |
 | `dun report` | Self-contained local HTML report — coverage, penetration, method mix, purpose distribution, per-commit detail |
 | `dun delta` | Velocity and revert-rate comparison, before/after adoption — see below |
@@ -74,6 +75,30 @@ clobbers existing `prepare-commit-msg`/`commit-msg` scripts.
 | `dun ingest [--since <time>]` | Read local agent session transcripts into the journal |
 | `dun daemon run` | Foreground watcher: re-ingests continuously as sessions change |
 | `dun journal show` / `dun journal purge` | Inspect or wipe the local journal |
+
+### Which repositories are instrumented
+
+Instrumentation is per repository and always explicit. `dun init` installs
+hooks into one repo and records it; there is no flag to enrol every
+repository you have ever used an agent in.
+
+That is deliberate. The set of repos with agent transcripts includes client
+work, throwaway experiments, and clones of other people's projects.
+Instrumenting a repo means its commits start carrying an AI-attribution
+trailer, which is a disclosure decision — it belongs to you, one repo at a
+time.
+
+```sh
+dun init                      # instrument the current repository
+dun init --repo ~/code/other  # instrument another one without cd'ing
+dun repos list                # what is instrumented
+dun repos candidates          # repos with agent activity and no hooks
+dun repos remove              # stop tracking this repo for cross-repo tooling
+```
+
+`dun repos candidates` only reports. Nothing enrols a repository except
+you running `dun init` in it — which also makes the registry a usable
+opt-in list for anything that later works across repositories.
 
 ### Capture a baseline first
 
@@ -167,6 +192,7 @@ adapter interface is open for a community contribution.
 | Path | What |
 |---|---|
 | `~/.whodunit/config.json` | Global settings (subscription spend, retention) |
+| `~/.whodunit/repos.json` | Which repositories you instrumented with `dun init` |
 | `~/.whodunit/data/journal.db` | Observations, one row per agent edit, scoped by repository |
 | `~/.whodunit/baselines/<repo>.json` | Pre-adoption snapshots (`dun baseline capture`) |
 
