@@ -16,6 +16,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/navjyotnishant/whodunit/internal/adapter"
 	"github.com/navjyotnishant/whodunit/internal/journal"
 	"github.com/navjyotnishant/whodunit/internal/linehash"
 )
@@ -23,8 +24,21 @@ import (
 const AgentName = "claude-code"
 
 // ProjectsDir returns the root directory Claude Code stores session
-// transcripts under, honoring CLAUDE_CONFIG_DIR like the CLI itself does.
+// transcripts under.
+//
+// Honors CLAUDE_CONFIG_DIR like the CLI itself does, and lets a whodunit
+// override win over both that and the built-in default — the escape hatch
+// for a machine where the convention is wrong (NAV-71). Windows is the
+// known case: the directory-name encoding below is unverified there.
 func ProjectsDir() string {
+	path, _ := adapter.ResolveRoot(AgentName, builtinProjectsDir())
+	return path
+}
+
+// builtinProjectsDir is the location Claude Code uses when nothing
+// overrides it. Kept separate so the override chain has a default to fall
+// back to rather than recomputing it.
+func builtinProjectsDir() string {
 	if d := os.Getenv("CLAUDE_CONFIG_DIR"); d != "" {
 		return filepath.Join(d, "projects")
 	}
@@ -204,35 +218,27 @@ func ParseSince(path string, since time.Time) ([]journal.Entry, error) {
 	return entries, nil
 }
 
-// SessionActivity is engagement for one session: how much conversation and
-// tool use it contained (NAV-55).
+// ParseSessionActivity summarises engagement per session in a transcript:
+// how much conversation and tool use it contained (NAV-55).
 //
 // Counts only. No message text, no tool arguments, nothing derived from
 // what was written — a message count needs no message content, which is
 // what makes this compatible with the no-prompt-text rule.
-type SessionActivity struct {
-	Session       string
-	Agent         string
-	AgentVersion  string
-	FirstSeen     time.Time
-	LastSeen      time.Time
-	UserMessages  int
-	AgentMessages int
-	ToolCalls     int
-	DistinctTools int
-	MCPCalls      int
-}
-
-// ParseSessionActivity summarises engagement per session in a transcript.
-func ParseSessionActivity(path string, since time.Time) ([]SessionActivity, error) {
+//
+// Returns journal.Session directly rather than an adapter-specific type.
+// An earlier SessionActivity struct duplicated it field for field, which
+// bought nothing and cost a copy loop at every call site.
+func ParseSessionActivity(path string, since time.Time) ([]journal.Session, error) {
 	f, err := os.Open(path)
 	if err != nil {
 		return nil, err
 	}
 	defer f.Close()
 
+	// Named rather than embedded: journal.Session has a field also called
+	// Session, and embedding makes `a.Session` ambiguous between the two.
 	type acc struct {
-		SessionActivity
+		s     journal.Session
 		tools map[string]bool
 	}
 	sessions := map[string]*acc{}
@@ -252,16 +258,16 @@ func ParseSessionActivity(path string, since time.Time) ([]SessionActivity, erro
 		a, ok := sessions[r.SessionID]
 		if !ok {
 			a = &acc{tools: map[string]bool{}}
-			a.Session = r.SessionID
-			a.Agent = AgentName
-			a.FirstSeen = r.Timestamp
+			a.s.Session = r.SessionID
+			a.s.Agent = AgentName
+			a.s.FirstSeen = r.Timestamp
 			sessions[r.SessionID] = a
 		}
 		if r.Version != "" {
-			a.AgentVersion = r.Version
+			a.s.AgentVersion = r.Version
 		}
-		if r.Timestamp.After(a.LastSeen) {
-			a.LastSeen = r.Timestamp
+		if r.Timestamp.After(a.s.LastSeen) {
+			a.s.LastSeen = r.Timestamp
 		}
 
 		switch r.Type {
@@ -269,20 +275,20 @@ func ParseSessionActivity(path string, since time.Time) ([]SessionActivity, erro
 			// A user record carrying only tool results is the harness
 			// replying to the agent, not a person typing.
 			if !hasToolResult(r) {
-				a.UserMessages++
+				a.s.UserMessages++
 			}
 		case "assistant":
-			a.AgentMessages++
+			a.s.AgentMessages++
 		}
 
 		for _, block := range r.Message.Content {
 			if block.Type != "tool_use" {
 				continue
 			}
-			a.ToolCalls++
+			a.s.ToolCalls++
 			a.tools[block.Name] = true
 			if strings.HasPrefix(block.Name, "mcp__") {
-				a.MCPCalls++
+				a.s.MCPCalls++
 			}
 		}
 	}
@@ -290,10 +296,10 @@ func ParseSessionActivity(path string, since time.Time) ([]SessionActivity, erro
 		return nil, err
 	}
 
-	out := make([]SessionActivity, 0, len(sessions))
+	out := make([]journal.Session, 0, len(sessions))
 	for _, a := range sessions {
-		a.DistinctTools = len(a.tools)
-		out = append(out, a.SessionActivity)
+		a.s.DistinctTools = len(a.tools)
+		out = append(out, a.s)
 	}
 	return out, nil
 }

@@ -31,6 +31,25 @@ type Config struct {
 
 	// RetentionDays is the default journal retention window (NAV-33).
 	RetentionDays int `json:"retention_days,omitempty"`
+
+	// Agents overrides where an agent's transcripts are looked for, keyed
+	// by the agent name that appears in the trailer ("claude-code",
+	// "codex"). Empty means "use the built-in default for that agent".
+	//
+	// This exists because a wrong path fails silently: no error, no
+	// sessions, every commit undetermined — which reads as "no AI was
+	// used" rather than "the collector could not look" (NAV-21). An
+	// override turns that from a dead end into a one-line fix.
+	Agents map[string]AgentConfig `json:"agents,omitempty"`
+}
+
+// AgentConfig is per-agent settings. One field today; a struct rather than
+// a bare string so adding another (enabled, poll interval) does not change
+// the file format for everyone.
+type AgentConfig struct {
+	// Path is the directory this agent stores transcripts under, replacing
+	// the built-in default.
+	Path string `json:"path,omitempty"`
 }
 
 const defaultRetentionDays = 14

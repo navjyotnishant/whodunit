@@ -9,7 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/navjyotnishant/whodunit/internal/adapter/claudecode"
+	"github.com/navjyotnishant/whodunit/internal/adapter"
+	_ "github.com/navjyotnishant/whodunit/internal/adapter/claudecode"
 	"github.com/navjyotnishant/whodunit/internal/attribution"
 	"github.com/navjyotnishant/whodunit/internal/journal"
 	"github.com/navjyotnishant/whodunit/internal/spec"
@@ -75,19 +76,23 @@ func determineTrailer() spec.Trailer {
 	for i, f := range staged {
 		staged[i] = filepath.Join(cwd, f)
 	}
-	sessionPaths, err := claudecode.SessionFiles(cwd)
-	if err != nil || len(sessionPaths) == 0 {
-		return spec.Undetermined()
-	}
-
 	since := now.Add(-7 * 24 * time.Hour)
 	var entries []journal.Entry
-	for _, p := range sessionPaths {
-		parsed, err := claudecode.ParseSince(p, since)
+	for _, ad := range adapter.All() {
+		sessionPaths, err := ad.SessionFiles(cwd)
 		if err != nil {
-			continue // one bad transcript doesn't block the whole determination
+			continue // an agent we cannot look at is not evidence of absence
 		}
-		entries = append(entries, parsed...)
+		for _, p := range sessionPaths {
+			parsed, err := ad.ParseSince(p, since)
+			if err != nil {
+				continue // one bad transcript doesn't block the whole determination
+			}
+			entries = append(entries, parsed...)
+		}
+	}
+	if len(entries) == 0 {
+		return spec.Undetermined()
 	}
 
 	// Line hashes come from the journal rather than the transcripts parsed

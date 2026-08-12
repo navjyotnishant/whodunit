@@ -5,7 +5,8 @@ import (
 	"os"
 	"time"
 
-	"github.com/navjyotnishant/whodunit/internal/adapter/claudecode"
+	"github.com/navjyotnishant/whodunit/internal/adapter"
+	_ "github.com/navjyotnishant/whodunit/internal/adapter/claudecode"
 	"github.com/navjyotnishant/whodunit/internal/journal"
 	"github.com/spf13/cobra"
 )
@@ -60,9 +61,25 @@ func ingestSince(since time.Time, onSkip func(path string, err error)) (written,
 	if err != nil {
 		return 0, 0, err
 	}
-	sessionPaths, err := claudecode.SessionFiles(cwd)
-	if err != nil {
-		return 0, 0, fmt.Errorf("find claude-code sessions: %w", err)
+	// Every registered agent, not one named here: an agent added later is
+	// ingested without this function changing. A failure to look for one
+	// agent's sessions must not stop the others, so it is reported through
+	// onSkip and the loop continues — otherwise a single misconfigured
+	// path would silence every agent on the machine.
+	type sessionFile struct {
+		path string
+		a    adapter.Adapter
+	}
+	var sessionFiles []sessionFile
+	for _, ad := range adapter.All() {
+		paths, err := ad.SessionFiles(cwd)
+		if err != nil {
+			onSkip(ad.Name(), err)
+			continue
+		}
+		for _, p := range paths {
+			sessionFiles = append(sessionFiles, sessionFile{path: p, a: ad})
+		}
 	}
 
 	dataDir, err := journalDataDir()
@@ -79,37 +96,33 @@ func ingestSince(since time.Time, onSkip func(path string, err error)) (written,
 	}
 	defer w.Close()
 
-	for _, p := range sessionPaths {
-		entries, err := claudecode.ParseSince(p, since)
+	for _, sf := range sessionFiles {
+		p := sf.path
+		entries, err := sf.a.ParseSince(p, since)
 		if err != nil {
 			onSkip(p, err)
 			continue
 		}
 		// Session engagement is per session, not per tool call, so it is
 		// summarised separately (NAV-55).
-		if acts, err := claudecode.ParseSessionActivity(p, since); err == nil {
+		if acts, err := sf.a.ParseSessionActivity(p, since); err == nil {
 			for _, a := range acts {
-				if err := w.UpsertSession(journal.Session{
-					Session: a.Session, Agent: a.Agent, AgentVersion: a.AgentVersion,
-					FirstSeen: a.FirstSeen, LastSeen: a.LastSeen,
-					UserMessages: a.UserMessages, AgentMessages: a.AgentMessages,
-					ToolCalls: a.ToolCalls, DistinctTools: a.DistinctTools, MCPCalls: a.MCPCalls,
-				}); err != nil {
-					return written, len(sessionPaths), fmt.Errorf("write session: %w", err)
+				if err := w.UpsertSession(a); err != nil {
+					return written, len(sessionFiles), fmt.Errorf("write session: %w", err)
 				}
 			}
 		}
 
 		for _, e := range entries {
 			if err := w.Append(e); err != nil {
-				return written, len(sessionPaths), fmt.Errorf("write journal entry: %w", err)
+				return written, len(sessionFiles), fmt.Errorf("write journal entry: %w", err)
 			}
 			if err := w.AppendLines(e.LineHashes, e.Timestamp); err != nil {
-				return written, len(sessionPaths), fmt.Errorf("write line hashes: %w", err)
+				return written, len(sessionFiles), fmt.Errorf("write line hashes: %w", err)
 			}
 			written++
 		}
 	}
 
-	return written, len(sessionPaths), nil
+	return written, len(sessionFiles), nil
 }

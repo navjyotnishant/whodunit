@@ -119,6 +119,17 @@ func runReposCandidates(cmd *cobra.Command) error {
 //
 // This is discovery only. The set is large — every project an agent has
 // ever been opened in — which is exactly why nothing here enrols anything.
+//
+// Claude Code only, deliberately. Discovery runs backwards from every other
+// operation: instead of "where does this agent keep sessions for this
+// repository", it asks "which repositories has this agent seen", which
+// needs a reversible path encoding. Claude Code has one; Codex records the
+// cwd inside each transcript, and Antigravity's CLI keys by workspace URI
+// in a SQLite payload. Neither is enumerable without reading every file.
+//
+// Generalising would mean a `Discover() ([]string, error)` method most
+// adapters implement as an expensive scan or a stub. Not worth it until a
+// second agent can actually answer it (NAV-45).
 func candidatePaths() ([]string, error) {
 	root := claudecode.ProjectsDir()
 	if root == "" {

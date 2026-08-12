@@ -73,6 +73,18 @@ func runInit(cmd *cobra.Command, repoPath string) error {
 		fmt.Fprintf(cmd.OutOrStdout(), "installed %s\n", hook)
 	}
 
+	// Report which agents were found, while the user is still watching.
+	//
+	// Installing hooks is only half of working: if no agent's transcripts
+	// can be found, every commit is stamped undetermined and that reads as
+	// "no AI was used" rather than "nothing was looked at" (NAV-21). Saying
+	// so here turns a silent dead end into something fixable, before the
+	// user walks away.
+	//
+	// Deliberately after the hooks are installed and never fatal: probing
+	// is a report, not a gate.
+	reportAgents(cmd.OutOrStdout(), repoPath)
+
 	// Record the repository so anything working across repos — a daemon,
 	// a cross-repo report — has an explicit list rather than discovering
 	// repositories nobody opted in.
