@@ -13,6 +13,7 @@ import (
 	"github.com/fsnotify/fsnotify"
 	"github.com/navjyotnishant/whodunit/internal/adapter"
 	_ "github.com/navjyotnishant/whodunit/internal/adapter/claudecode"
+	_ "github.com/navjyotnishant/whodunit/internal/adapter/codex"
 )
 
 // pollInterval is the fallback cadence when fsnotify isn't watching
