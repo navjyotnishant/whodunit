@@ -53,16 +53,20 @@ const TablePrefix = "whodunit_"
 // tool stores about them. Every column is either derived from git or from
 // the local journal; nothing is inferred about a person.
 //
-// Written for both SQLite (local DevLake) and MySQL (DevLake's default).
-// Types are chosen from the intersection that both accept with the same
-// meaning: TEXT, INTEGER, REAL.
+// Written for both SQLite and MySQL, which DevLake uses. Types come from
+// the intersection both accept with the same meaning — VARCHAR, BIGINT,
+// REAL. Note MySQL rejects DEFAULT on TEXT columns while SQLite allows it,
+// which is why bounded identifiers are VARCHAR rather than TEXT.
+//
+// Indexes are separate (see Indexes): MySQL has no
+// CREATE INDEX IF NOT EXISTS, and inline INDEX clauses are MySQL-only.
 const Schema = `
 -- One row per repository. Holds facts that do not vary per commit.
 CREATE TABLE IF NOT EXISTS whodunit_repos (
-	repo_id      TEXT NOT NULL,
-	contributor  TEXT NOT NULL DEFAULT '',
-	spec_version TEXT NOT NULL DEFAULT '',
-	synced_at    INTEGER NOT NULL,
+	repo_id      VARCHAR(64)  NOT NULL,
+	contributor  VARCHAR(320) NOT NULL DEFAULT '',
+	spec_version VARCHAR(16)  NOT NULL DEFAULT '',
+	synced_at    BIGINT       NOT NULL,
 	PRIMARY KEY (repo_id)
 );
 
@@ -76,27 +80,23 @@ CREATE TABLE IF NOT EXISTS whodunit_repos (
 -- no share to report, and 0.0 would assert the agent contributed nothing
 -- (NAV-8).
 CREATE TABLE IF NOT EXISTS whodunit_commits (
-	commit_sha    TEXT NOT NULL,
-	repo_id       TEXT NOT NULL,
-	committed_at  INTEGER NOT NULL,
-	status        TEXT NOT NULL,
-	method        TEXT NOT NULL,
-	agent         TEXT NOT NULL DEFAULT '',
-	agent_version TEXT NOT NULL DEFAULT '',
-	purpose       TEXT NOT NULL DEFAULT '',
+	commit_sha    VARCHAR(64)  NOT NULL,
+	repo_id       VARCHAR(64)  NOT NULL,
+	committed_at  BIGINT       NOT NULL,
+	status        VARCHAR(32)  NOT NULL,
+	method        VARCHAR(32)  NOT NULL,
+	agent         VARCHAR(64)  NOT NULL DEFAULT '',
+	agent_version VARCHAR(64)  NOT NULL DEFAULT '',
+	purpose       VARCHAR(32)  NOT NULL DEFAULT '',
 	ratio         REAL,
-	lines_added   INTEGER NOT NULL DEFAULT 0,
-	lines_removed INTEGER NOT NULL DEFAULT 0,
-	files_changed INTEGER NOT NULL DEFAULT 0,
-	spec_version  TEXT NOT NULL DEFAULT '',
-	schema_version INTEGER NOT NULL,
-	synced_at     INTEGER NOT NULL,
+	lines_added   BIGINT       NOT NULL DEFAULT 0,
+	lines_removed BIGINT       NOT NULL DEFAULT 0,
+	files_changed BIGINT       NOT NULL DEFAULT 0,
+	spec_version  VARCHAR(16)  NOT NULL DEFAULT '',
+	schema_version BIGINT      NOT NULL,
+	synced_at     BIGINT       NOT NULL,
 	PRIMARY KEY (commit_sha, repo_id)
 );
-CREATE INDEX IF NOT EXISTS idx_whodunit_commits_repo_time
-	ON whodunit_commits (repo_id, committed_at);
-CREATE INDEX IF NOT EXISTS idx_whodunit_commits_method
-	ON whodunit_commits (repo_id, method);
 
 -- One row per observed agent edit: the journal, mirrored.
 --
@@ -104,25 +104,27 @@ CREATE INDEX IF NOT EXISTS idx_whodunit_commits_method
 -- touching a file that never reached a commit leaves a row here and
 -- nothing in whodunit_commits.
 CREATE TABLE IF NOT EXISTS whodunit_events (
-	repo_id       TEXT NOT NULL,
-	observed_at   INTEGER NOT NULL,
-	agent         TEXT NOT NULL,
-	agent_version TEXT NOT NULL DEFAULT '',
-	session       TEXT NOT NULL DEFAULT '',
-	event         TEXT NOT NULL,
-	tool          TEXT NOT NULL DEFAULT '',
-	file          TEXT NOT NULL DEFAULT '',
-	lines_added   INTEGER NOT NULL DEFAULT 0,
-	lines_removed INTEGER NOT NULL DEFAULT 0,
-	hunk_hash     TEXT NOT NULL DEFAULT '',
-	spec_version  TEXT NOT NULL DEFAULT '',
-	synced_at     INTEGER NOT NULL,
-	PRIMARY KEY (repo_id, session, observed_at, tool, file, hunk_hash)
+	-- Identity is a hash of (repo, session, timestamp, tool, file, hunk),
+	-- not those columns directly. A file path can be 512 characters, and
+	-- MySQL caps a key at 3072 bytes — four such columns exceed it. The
+	-- hash also makes re-syncing the same event a no-op, which is what
+	-- keeps sync idempotent.
+	event_id      VARCHAR(64)  NOT NULL,
+	repo_id       VARCHAR(64)  NOT NULL,
+	observed_at   BIGINT       NOT NULL,
+	agent         VARCHAR(64)  NOT NULL,
+	agent_version VARCHAR(64)  NOT NULL DEFAULT '',
+	session       VARCHAR(128) NOT NULL DEFAULT '',
+	event         VARCHAR(32)  NOT NULL,
+	tool          VARCHAR(64)  NOT NULL DEFAULT '',
+	file          VARCHAR(512) NOT NULL DEFAULT '',
+	lines_added   BIGINT       NOT NULL DEFAULT 0,
+	lines_removed BIGINT       NOT NULL DEFAULT 0,
+	hunk_hash     VARCHAR(80)  NOT NULL DEFAULT '',
+	spec_version  VARCHAR(16)  NOT NULL DEFAULT '',
+	synced_at     BIGINT       NOT NULL,
+	PRIMARY KEY (event_id)
 );
-CREATE INDEX IF NOT EXISTS idx_whodunit_events_repo_time
-	ON whodunit_events (repo_id, observed_at);
-CREATE INDEX IF NOT EXISTS idx_whodunit_events_file
-	ON whodunit_events (repo_id, file);
 
 -- Hashes of lines an agent produced (NAV-52).
 --
@@ -130,10 +132,25 @@ CREATE INDEX IF NOT EXISTS idx_whodunit_events_file
 -- this table cannot reconstruct anyone's source — which is what makes it
 -- safe to hold centrally at all.
 CREATE TABLE IF NOT EXISTS whodunit_event_lines (
-	repo_id   TEXT NOT NULL,
-	line_hash INTEGER NOT NULL,
-	first_at  INTEGER NOT NULL,
-	synced_at INTEGER NOT NULL,
+	repo_id   VARCHAR(64) NOT NULL,
+	line_hash BIGINT      NOT NULL,
+	first_at  BIGINT      NOT NULL,
+	synced_at BIGINT      NOT NULL,
 	PRIMARY KEY (repo_id, line_hash)
 );
 `
+
+// Indexes are applied separately from Schema because the two engines
+// disagree about how to declare them idempotently: SQLite supports
+// CREATE INDEX IF NOT EXISTS but not inline INDEX clauses, and MySQL is
+// exactly the reverse.
+//
+// A caller applies these and tolerates failure. The only realistic error is
+// "already exists", and an index that could not be created costs query
+// speed rather than correctness — not a reason to fail a sync.
+var Indexes = []string{
+	`CREATE INDEX idx_whodunit_commits_repo_time ON whodunit_commits (repo_id, committed_at)`,
+	`CREATE INDEX idx_whodunit_commits_method ON whodunit_commits (repo_id, method)`,
+	`CREATE INDEX idx_whodunit_events_repo_time ON whodunit_events (repo_id, observed_at)`,
+	`CREATE INDEX idx_whodunit_events_file ON whodunit_events (repo_id, file)`,
+}

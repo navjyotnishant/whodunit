@@ -31,6 +31,37 @@ func TestSchemaExecutes(t *testing.T) {
 	if _, err := db.Exec(Schema); err != nil {
 		t.Fatalf("schema does not execute: %v", err)
 	}
+	for _, stmt := range Indexes {
+		if _, err := db.Exec(stmt); err != nil {
+			t.Errorf("index does not execute: %v\n%s", err, stmt)
+		}
+	}
+}
+
+func TestSchemaAvoidsMySQLIncompatibilities(t *testing.T) {
+	// These are portability bugs found by applying the schema to a real
+	// DevLake MySQL, not hypotheses. SQLite accepts all three, so only an
+	// assertion on the DDL text catches a regression here.
+
+	// MySQL rejects DEFAULT on TEXT/BLOB columns.
+	if strings.Contains(Schema, "TEXT NOT NULL DEFAULT") {
+		t.Error("a TEXT column has a DEFAULT; MySQL rejects that")
+	}
+
+	// MySQL has no CREATE INDEX IF NOT EXISTS, and inline INDEX clauses
+	// are MySQL-only — so neither may appear in the shared DDL.
+	if strings.Contains(Schema, "CREATE INDEX") {
+		t.Error("Schema declares an index; indexes belong in Indexes so each engine can apply them its own way")
+	}
+	if strings.Contains(Schema, "\tINDEX ") {
+		t.Error("Schema uses an inline INDEX clause, which SQLite rejects")
+	}
+
+	// A file path in a composite primary key blows MySQL's 3072-byte key
+	// limit, which is why events are keyed on a derived hash.
+	if strings.Contains(Schema, "PRIMARY KEY (repo_id, session, observed_at") {
+		t.Error("events are keyed on a composite including the file path; that exceeds MySQL's key length limit")
+	}
 }
 
 func TestSchemaIsIdempotent(t *testing.T) {
@@ -259,10 +290,10 @@ func TestSchemaAcceptsEveryRowType(t *testing.T) {
 	}}, "repo", now)[0]
 
 	if _, err := db.Exec(`INSERT INTO whodunit_events
-		(repo_id, observed_at, agent, agent_version, session, event, tool, file,
+		(event_id, repo_id, observed_at, agent, agent_version, session, event, tool, file,
 		 lines_added, lines_removed, hunk_hash, spec_version, synced_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		er.RepoID, er.ObservedAt.UnixNano(), er.Agent, er.AgentVersion, er.Session,
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		er.EventID, er.RepoID, er.ObservedAt.UnixNano(), er.Agent, er.AgentVersion, er.Session,
 		er.Event, er.Tool, er.File, er.LinesAdded, er.LinesRemoved, er.HunkHash,
 		er.SpecVersion, er.SyncedAt.UnixNano()); err != nil {
 		t.Fatalf("insert event: %v", err)
@@ -273,5 +304,49 @@ func TestSchemaAcceptsEveryRowType(t *testing.T) {
 		VALUES (?, ?, ?, ?)`,
 		lr.RepoID, int64(lr.Hash), lr.FirstAt.UnixNano(), lr.SyncedAt.UnixNano()); err != nil {
 		t.Fatalf("insert line: %v", err)
+	}
+}
+
+func TestEventIDIsStableAndDistinguishing(t *testing.T) {
+	// Sync must be re-runnable: the same observation has to produce the
+	// same id so it collides on the primary key instead of duplicating.
+	now := time.Date(2026, 8, 12, 10, 0, 0, 0, time.UTC)
+	e := journal.Entry{
+		Timestamp: now, Session: "s1", Tool: "Edit",
+		File: "/repo/main.go", HunkHash: "sha256:abc",
+	}
+
+	if eventID("repo", e) != eventID("repo", e) {
+		t.Error("the same observation produced two different ids")
+	}
+
+	// Every component of the identity must actually change the id.
+	variants := map[string]journal.Entry{
+		"session":   {Timestamp: now, Session: "s2", Tool: "Edit", File: "/repo/main.go", HunkHash: "sha256:abc"},
+		"timestamp": {Timestamp: now.Add(time.Second), Session: "s1", Tool: "Edit", File: "/repo/main.go", HunkHash: "sha256:abc"},
+		"tool":      {Timestamp: now, Session: "s1", Tool: "Write", File: "/repo/main.go", HunkHash: "sha256:abc"},
+		"file":      {Timestamp: now, Session: "s1", Tool: "Edit", File: "/repo/other.go", HunkHash: "sha256:abc"},
+		"hunk":      {Timestamp: now, Session: "s1", Tool: "Edit", File: "/repo/main.go", HunkHash: "sha256:xyz"},
+	}
+	base := eventID("repo", e)
+	for field, variant := range variants {
+		if eventID("repo", variant) == base {
+			t.Errorf("changing %s did not change the event id", field)
+		}
+	}
+
+	// And the repository must scope it, or two repos' events collide.
+	if eventID("repo-b", e) == base {
+		t.Error("the same observation in two repositories produced the same id")
+	}
+}
+
+func TestEventIDSeparatesFields(t *testing.T) {
+	// Without a separator, ("ab","c") and ("a","bc") would hash alike.
+	now := time.Now()
+	a := journal.Entry{Timestamp: now, Session: "ab", Tool: "c"}
+	b := journal.Entry{Timestamp: now, Session: "a", Tool: "bc"}
+	if eventID("repo", a) == eventID("repo", b) {
+		t.Error("adjacent fields collided; the id is not separator-delimited")
 	}
 }

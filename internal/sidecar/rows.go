@@ -1,6 +1,9 @@
 package sidecar
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
+	"strconv"
 	"time"
 
 	"github.com/navjyotnishant/whodunit/internal/journal"
@@ -37,6 +40,12 @@ type CommitRow struct {
 
 // EventRow is one row of whodunit_events — the journal grain.
 type EventRow struct {
+	// EventID identifies the observation, derived from the fields that
+	// make it unique rather than assigned. Re-syncing the same event
+	// therefore collides on the primary key instead of duplicating, which
+	// is what lets a sync be re-run safely.
+	EventID string
+
 	RepoID       string
 	ObservedAt   time.Time
 	Agent        string
@@ -107,6 +116,7 @@ func EventRowsFrom(entries []journal.Entry, repoID string, syncedAt time.Time) [
 	rows := make([]EventRow, 0, len(entries))
 	for _, e := range entries {
 		rows = append(rows, EventRow{
+			EventID:      eventID(repoID, e),
 			RepoID:       repoID,
 			ObservedAt:   e.Timestamp,
 			Agent:        e.Agent,
@@ -123,6 +133,31 @@ func EventRowsFrom(entries []journal.Entry, repoID string, syncedAt time.Time) [
 		})
 	}
 	return rows
+}
+
+// eventID derives an observation's identity from the fields that make it
+// unique: the same tuple the table would otherwise have used as a
+// composite primary key, hashed so it fits within MySQL's key length limit
+// and does not put a file path in an index.
+//
+// Deriving rather than assigning is what makes sync idempotent — the same
+// observation always produces the same id, so re-syncing collides instead
+// of duplicating.
+func eventID(repoID string, e journal.Entry) string {
+	h := sha256.New()
+	for _, part := range []string{
+		repoID,
+		e.Session,
+		strconv.FormatInt(e.Timestamp.UnixNano(), 10),
+		e.Tool,
+		e.File,
+		e.HunkHash,
+	} {
+		h.Write([]byte(part))
+		// A separator, so ("ab", "c") and ("a", "bc") cannot collide.
+		h.Write([]byte{0})
+	}
+	return hex.EncodeToString(h.Sum(nil))
 }
 
 // LineRowsFrom maps line hashes onto their row type.

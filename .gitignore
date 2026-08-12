@@ -2,3 +2,4 @@
 /dist/
 *.test
 /dun-report.html
+deploy/devlake/.env
