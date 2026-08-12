@@ -31,5 +31,6 @@ func newRootCmd() *cobra.Command {
 	root.AddCommand(newBaselineCmd())
 	root.AddCommand(newDeltaCmd())
 	root.AddCommand(newReposCmd())
+	root.AddCommand(newSyncCmd())
 	return root
 }
