@@ -177,16 +177,22 @@ func isToken(s string) bool {
 // Written from the reader's side — what the evidence shows — rather than
 // from the collector's. "The agent's exact lines are in this commit" tells
 // someone what they can conclude; "line hashes intersected" does not.
+//
+// Each gloss names its position on the ladder, because the names alone
+// read like workflow states rather than confidence levels — "observed"
+// was taken to mean "recorded, awaiting sync" rather than "seen, but the
+// text changed". Every method is equally recorded and equally synced; the
+// only thing that varies is how much the evidence supports.
 func (m Method) Explain() string {
 	switch m {
 	case MethodIntersected:
-		return "the agent's exact lines are in the commit"
+		return "strongest — the agent's exact lines survived into the commit"
 	case MethodObserved:
-		return "the agent edited these files"
+		return "weaker — the agent edited these files, but its text was changed before committing"
 	case MethodInferred:
-		return "inferred from surrounding evidence"
+		return "weaker still — inferred from surrounding evidence"
 	case MethodDeclared:
-		return "the author declared it, unverified"
+		return "weakest — the author declared it, nothing verified it"
 	case MethodUndetermined:
 		return "no evidence either way"
 	default:
