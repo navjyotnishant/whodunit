@@ -170,6 +170,55 @@ func TestWriteProducesReadableJSON(t *testing.T) {
 	}
 }
 
+func TestLoadReturnsNilWhenAbsent(t *testing.T) {
+	// A repo that never captured a baseline is a normal state to report,
+	// not an error to fail on.
+	snap, err := Load(filepath.Join(t.TempDir(), "nope.json"))
+	if err != nil {
+		t.Fatalf("Load on missing file = %v, want nil error", err)
+	}
+	if snap != nil {
+		t.Errorf("Load on missing file = %+v, want nil snapshot", snap)
+	}
+}
+
+func TestLoadRejectsUnknownSchemaVersion(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "baseline.json")
+	if err := os.WriteFile(path, []byte(`{"schema_version":"999","git":{}}`), 0o644); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+
+	// Comparing across schema versions would silently compare different
+	// definitions of the same metric names.
+	if _, err := Load(path); err == nil {
+		t.Error("Load with an unknown schema version = nil error, want a refusal")
+	}
+}
+
+func TestLoadRoundTripsWrite(t *testing.T) {
+	initRepo(t)
+	path := filepath.Join(t.TempDir(), "baseline.json")
+
+	snap, err := Capture(90, nil, time.Now())
+	if err != nil {
+		t.Fatalf("Capture: %v", err)
+	}
+	if err := Write(path, snap); err != nil {
+		t.Fatalf("Write: %v", err)
+	}
+
+	loaded, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if loaded == nil {
+		t.Fatal("Load returned nil for a file that exists")
+	}
+	if loaded.Git.Commits != snap.Git.Commits || loaded.HeadSHA != snap.HeadSHA {
+		t.Errorf("round trip mismatch: got %+v, want %+v", loaded.Git, snap.Git)
+	}
+}
+
 func TestCaptureOnEmptyRepoErrors(t *testing.T) {
 	dir := t.TempDir()
 	cmd := exec.Command("git", "init", "-q")

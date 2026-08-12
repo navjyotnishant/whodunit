@@ -69,6 +69,7 @@ clobbers existing `prepare-commit-msg`/`commit-msg` scripts.
 | `dun init` | Install the git hooks into the current repo |
 | `dun status` | Trailer coverage and method mix for recent commits |
 | `dun report` | Self-contained local HTML report — coverage, penetration, method mix, purpose distribution, per-commit detail |
+| `dun delta` | Velocity and revert-rate comparison, before/after adoption — see below |
 | `dun check --base <ref>` | Fail if any commit since `--base` lacks a valid trailer — the CI gate |
 | `dun ingest [--since <time>]` | Read local agent session transcripts into the journal |
 | `dun daemon run` | Foreground watcher: re-ingests continuously as sessions change |
@@ -93,6 +94,30 @@ so they're optional flags you supply from GitHub Insights or your CI
 dashboard (`--prs-merged`, `--median-cycle-hours`, `--change-failure-rate`).
 Anything you don't pass is omitted from the snapshot rather than recorded
 as zero.
+
+### Did it change how we ship?
+
+```sh
+dun delta
+```
+
+Reports two independent cuts, because either alone misleads:
+
+- **Within-period** — assisted commits vs undetermined commits in the same
+  window. Controls for calendar effects, but the two groups are
+  self-selected: people reach for an agent on some kinds of work more than
+  others.
+- **Cross-period** — the baseline window vs a recent one. Shows change over
+  time, but attributes *every* difference to adoption. It's a correlation,
+  never a cause, and the output says so and lists what else moves the same
+  numbers.
+
+Revert rate is always printed next to throughput. A velocity gain that
+arrives with more reverts is deferred rework, not speed, and the two
+numbers only mean something together.
+
+Thin data is flagged rather than quietly reported: under 20 commits in
+either group, a rate moves several points on one or two commits.
 
 ### CI
 

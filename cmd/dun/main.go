@@ -29,5 +29,6 @@ func newRootCmd() *cobra.Command {
 	root.AddCommand(newIngestCmd())
 	root.AddCommand(newDaemonCmd())
 	root.AddCommand(newBaselineCmd())
+	root.AddCommand(newDeltaCmd())
 	return root
 }

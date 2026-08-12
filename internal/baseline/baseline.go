@@ -249,6 +249,30 @@ func meanGapHours(timestamps []time.Time) float64 {
 	return total.Hours() / float64(len(sorted)-1)
 }
 
+// Load reads a snapshot written by Write. Returns (nil, nil) when no
+// baseline exists at path — a repo that never captured one is a normal
+// state to report, not an error to fail on.
+func Load(path string) (*Snapshot, error) {
+	data, err := os.ReadFile(path)
+	if os.IsNotExist(err) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("read baseline: %w", err)
+	}
+
+	var snap Snapshot
+	if err := json.Unmarshal(data, &snap); err != nil {
+		return nil, fmt.Errorf("parse baseline at %s: %w", path, err)
+	}
+	if snap.SchemaVersion != SchemaVersion {
+		return nil, fmt.Errorf("baseline at %s uses schema version %q, this build understands %q — "+
+			"comparing across schema versions would silently compare different definitions",
+			path, snap.SchemaVersion, SchemaVersion)
+	}
+	return &snap, nil
+}
+
 // Write saves the snapshot as indented JSON. It refuses to overwrite an
 // existing file: a baseline is immutable by definition, and silently
 // replacing one destroys the only copy of a window that cannot be recaptured.
