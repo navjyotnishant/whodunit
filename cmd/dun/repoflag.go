@@ -30,10 +30,24 @@ import (
 func resolveRepo(flag string) (repoID string, label string, err error) {
 	if flag == "" {
 		id, err := currentRepoID()
-		if err != nil {
+		if err == nil {
+			return id, "this repository", nil
+		}
+		// repoid returns one hedged message — "unborn or not a git repo?"
+		// — because it cannot tell which. resolveRepoPath can, and it also
+		// names --repo, which is the actual way out of standing in the
+		// wrong directory. Surfacing git's exit status here told the
+		// reader nothing they could act on.
+		cwd, cwdErr := os.Getwd()
+		if cwdErr != nil {
 			return "", "", err
 		}
-		return id, "this repository", nil
+		_, _, pathErr := resolveRepoPath(cwd)
+		if pathErr != nil {
+			return "", "", fmt.Errorf("%s\nuse --repo <path> to name a repository from anywhere",
+				strings.TrimPrefix(pathErr.Error(), "--repo "+cwd+": "))
+		}
+		return "", "", err
 	}
 
 	// An id before a path: ids are 40-char hex and cannot collide with a
