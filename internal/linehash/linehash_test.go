@@ -58,15 +58,15 @@ func TestOfTextOnEmptyInput(t *testing.T) {
 
 func TestSubstantive(t *testing.T) {
 	cases := map[string]bool{
-		"":                false,
-		"   ":             false,
-		"}":               false,
-		"\t}":             false,
-		")":               false,
-		"end":             false, // 3 chars, below the threshold
-		"doWork()":        true,
-		"return nil":      true,
-		"x := 1":          true,
+		"":                 false,
+		"   ":              false,
+		"}":                false,
+		"\t}":              false,
+		")":                false,
+		"end":              false, // 3 chars, below the threshold
+		"doWork()":         true,
+		"return nil":       true,
+		"x := 1":           true,
 		"\timport \"fmt\"": true,
 	}
 	for line, want := range cases {
