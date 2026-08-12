@@ -122,8 +122,28 @@ CREATE TABLE IF NOT EXISTS whodunit_events (
 	lines_removed BIGINT       NOT NULL DEFAULT 0,
 	hunk_hash     VARCHAR(80)  NOT NULL DEFAULT '',
 	spec_version  VARCHAR(16)  NOT NULL DEFAULT '',
+	outcome       VARCHAR(16)  NOT NULL DEFAULT '',
 	synced_at     BIGINT       NOT NULL,
 	PRIMARY KEY (event_id)
+);
+
+-- Engagement per session (NAV-55): counts only, never message content.
+-- A message count needs no message text, which is what keeps this
+-- compatible with the no-prompt-text rule.
+CREATE TABLE IF NOT EXISTS whodunit_sessions (
+	repo_id        VARCHAR(64)  NOT NULL,
+	session        VARCHAR(128) NOT NULL,
+	agent          VARCHAR(64)  NOT NULL DEFAULT '',
+	agent_version  VARCHAR(64)  NOT NULL DEFAULT '',
+	first_seen     BIGINT       NOT NULL,
+	last_seen      BIGINT       NOT NULL,
+	user_messages  BIGINT       NOT NULL DEFAULT 0,
+	agent_messages BIGINT       NOT NULL DEFAULT 0,
+	tool_calls     BIGINT       NOT NULL DEFAULT 0,
+	distinct_tools BIGINT       NOT NULL DEFAULT 0,
+	mcp_calls      BIGINT       NOT NULL DEFAULT 0,
+	synced_at      BIGINT       NOT NULL,
+	PRIMARY KEY (repo_id, session)
 );
 
 -- Hashes of lines an agent produced (NAV-52).
@@ -148,6 +168,16 @@ CREATE TABLE IF NOT EXISTS whodunit_event_lines (
 // A caller applies these and tolerates failure. The only realistic error is
 // "already exists", and an index that could not be created costs query
 // speed rather than correctness — not a reason to fail a sync.
+// Migrations bring a table created by an earlier version up to date.
+//
+// CREATE TABLE IF NOT EXISTS silently does nothing when the table already
+// exists, so a new column never appears on a database that has already
+// been synced to. Each statement is applied best-effort: the expected
+// failure is "column already exists", which is the desired end state.
+var Migrations = []string{
+	`ALTER TABLE whodunit_events ADD COLUMN outcome VARCHAR(16) NOT NULL DEFAULT ''`,
+}
+
 var Indexes = []string{
 	`CREATE INDEX idx_whodunit_commits_repo_time ON whodunit_commits (repo_id, committed_at)`,
 	`CREATE INDEX idx_whodunit_commits_method ON whodunit_commits (repo_id, method)`,

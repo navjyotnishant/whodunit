@@ -153,3 +153,48 @@ func versionFromFixtureName(path string) string {
 	base = strings.TrimPrefix(base, "claude-code-")
 	return strings.TrimSuffix(base, ".jsonl")
 }
+
+func TestFixturesStillDetectRejection(t *testing.T) {
+	// Rejection is detected by matching prose in a tool result, which is
+	// fragile in a specific and dangerous way: if the wording changes,
+	// every rejection silently becomes an acceptance and the rate climbs
+	// to a flattering 100%. One fixture carries a rejected call so that
+	// failure is loud (NAV-54).
+	found := false
+	for _, path := range fixturePaths(t) {
+		entries, err := ParseSince(path, time.Time{})
+		if err != nil {
+			t.Fatalf("ParseSince %s: %v", path, err)
+		}
+		for _, e := range entries {
+			if e.Outcome == string(OutcomeRejected) {
+				found = true
+			}
+		}
+	}
+	if !found {
+		t.Error("no fixture produced a rejected outcome: either the rejection markers " +
+			"no longer match real transcripts, or the fixture lost its rejected call")
+	}
+}
+
+func TestFixturesProduceAcceptedOutcomes(t *testing.T) {
+	// The complement: if results stop being joined to calls at all, every
+	// outcome becomes unknown and no line is ever attributed.
+	accepted := 0
+	for _, path := range fixturePaths(t) {
+		entries, err := ParseSince(path, time.Time{})
+		if err != nil {
+			t.Fatalf("ParseSince %s: %v", path, err)
+		}
+		for _, e := range entries {
+			if e.Outcome == string(OutcomeAccepted) {
+				accepted++
+			}
+		}
+	}
+	if accepted == 0 {
+		t.Error("no fixture produced an accepted outcome: tool results are no longer " +
+			"being joined to their calls")
+	}
+}

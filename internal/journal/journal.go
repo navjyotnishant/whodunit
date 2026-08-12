@@ -46,6 +46,12 @@ type Entry struct {
 	HunkHash     string    `json:"hunk_hash,omitempty"`
 	SpecVersion  string    `json:"spec_version"`
 
+	// Outcome is what happened to the tool call: accepted, rejected,
+	// failed, or unknown (NAV-54). A rejected call is a human declining,
+	// which is the denominator an acceptance rate needs; a failed one is
+	// the tool erroring, which is a different thing entirely.
+	Outcome string `json:"outcome,omitempty"`
+
 	// LineHashes are the hashes of individual lines this event produced
 	// (NAV-52). Not serialized in `dun journal show`: there can be hundreds
 	// per event, and they are lookup keys rather than something a human
@@ -70,6 +76,7 @@ CREATE TABLE IF NOT EXISTS entries (
 	lines_removed INTEGER NOT NULL DEFAULT 0,
 	hunk_hash     TEXT NOT NULL DEFAULT '',
 	spec_version  TEXT NOT NULL,
+	outcome       TEXT NOT NULL DEFAULT '',
 	UNIQUE(repo_id, session, ts, tool, file, hunk_hash)
 );
 CREATE INDEX IF NOT EXISTS idx_entries_repo_ts ON entries(repo_id, ts);
@@ -97,6 +104,27 @@ CREATE INDEX IF NOT EXISTS idx_agent_lines_repo_ts ON agent_lines(repo_id, first
 --
 -- Central aggregation joins on this rather than transforming per row: a
 -- sync reads one metadata row and one set of entries.
+-- Engagement per session: how much conversation and tool use it held
+-- (NAV-55). Counts only — no message text, no tool arguments. A message
+-- count needs no message content.
+--
+-- Its own table because the grain is per session, while entries are per
+-- tool call.
+CREATE TABLE IF NOT EXISTS sessions (
+	repo_id        TEXT NOT NULL,
+	session        TEXT NOT NULL,
+	agent          TEXT NOT NULL DEFAULT '',
+	agent_version  TEXT NOT NULL DEFAULT '',
+	first_seen     INTEGER NOT NULL,
+	last_seen      INTEGER NOT NULL,
+	user_messages  INTEGER NOT NULL DEFAULT 0,
+	agent_messages INTEGER NOT NULL DEFAULT 0,
+	tool_calls     INTEGER NOT NULL DEFAULT 0,
+	distinct_tools INTEGER NOT NULL DEFAULT 0,
+	mcp_calls      INTEGER NOT NULL DEFAULT 0,
+	PRIMARY KEY (repo_id, session)
+);
+
 CREATE TABLE IF NOT EXISTS repo_metadata (
 	repo_id      TEXT PRIMARY KEY,
 	contributor  TEXT NOT NULL DEFAULT '',
@@ -104,6 +132,16 @@ CREATE TABLE IF NOT EXISTS repo_metadata (
 	updated_at   INTEGER NOT NULL
 );
 `
+
+// migrations are columns added to tables that may already exist on disk.
+//
+// Each is applied unconditionally and its error ignored: SQLite has no
+// ADD COLUMN IF NOT EXISTS, and "duplicate column name" is the expected
+// result on every run after the first. A genuinely broken statement would
+// surface as a failing read immediately afterwards.
+var migrations = []string{
+	`ALTER TABLE entries ADD COLUMN outcome TEXT NOT NULL DEFAULT ''`,
+}
 
 // DBPath returns the journal database location inside the given data
 // directory.
@@ -170,15 +208,98 @@ func (w *Writer) Append(e Entry) error {
 	}
 
 	_, err := w.db.Exec(
-		`INSERT OR IGNORE INTO entries (repo_id, ts, agent, agent_version, session, event, tool, file, lines_added, lines_removed, hunk_hash, spec_version)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		// Outcome is updated on conflict rather than ignored: an entry
+		// written before outcomes were collected must be able to gain one,
+		// and a call whose result arrives in a later ingest must be able to
+		// change from unknown to accepted. Everything else about the row is
+		// immutable, so re-ingest stays idempotent.
+		`INSERT INTO entries (repo_id, ts, agent, agent_version, session, event, tool, file, lines_added, lines_removed, hunk_hash, spec_version, outcome)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		 ON CONFLICT(repo_id, session, ts, tool, file, hunk_hash) DO UPDATE SET
+		   outcome=excluded.outcome,
+		   lines_added=excluded.lines_added,
+		   lines_removed=excluded.lines_removed`,
 		w.repoID, e.Timestamp.UnixNano(), e.Agent, e.AgentVersion, e.Session, e.Event,
-		e.Tool, e.File, e.LinesAdded, e.LinesRemoved, e.HunkHash, e.SpecVersion,
+		e.Tool, e.File, e.LinesAdded, e.LinesRemoved, e.HunkHash, e.SpecVersion, e.Outcome,
 	)
 	if err != nil {
 		return fmt.Errorf("journal: insert entry: %w", err)
 	}
 	return nil
+}
+
+// Session is engagement for one agent session (NAV-55).
+type Session struct {
+	Session       string
+	Agent         string
+	AgentVersion  string
+	FirstSeen     time.Time
+	LastSeen      time.Time
+	UserMessages  int
+	AgentMessages int
+	ToolCalls     int
+	DistinctTools int
+	MCPCalls      int
+}
+
+// UpsertSession records or updates one session's activity. A session grows
+// as work continues, so a later ingest overwrites the earlier counts rather
+// than adding to them.
+func (w *Writer) UpsertSession(s Session) error {
+	if s.Session == "" {
+		return nil
+	}
+	_, err := w.db.Exec(
+		`INSERT INTO sessions (repo_id, session, agent, agent_version, first_seen, last_seen,
+		   user_messages, agent_messages, tool_calls, distinct_tools, mcp_calls)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		 ON CONFLICT(repo_id, session) DO UPDATE SET
+		   agent_version=excluded.agent_version, last_seen=excluded.last_seen,
+		   user_messages=excluded.user_messages, agent_messages=excluded.agent_messages,
+		   tool_calls=excluded.tool_calls, distinct_tools=excluded.distinct_tools,
+		   mcp_calls=excluded.mcp_calls`,
+		w.repoID, s.Session, s.Agent, s.AgentVersion,
+		s.FirstSeen.UnixNano(), s.LastSeen.UnixNano(),
+		s.UserMessages, s.AgentMessages, s.ToolCalls, s.DistinctTools, s.MCPCalls)
+	if err != nil {
+		return fmt.Errorf("journal: upsert session: %w", err)
+	}
+	return nil
+}
+
+// ReadSessions returns a repository's session activity.
+func ReadSessions(dataDir, repoID string) ([]Session, error) {
+	if _, err := os.Stat(DBPath(dataDir)); os.IsNotExist(err) {
+		return nil, nil
+	}
+	db, err := open(dataDir)
+	if err != nil {
+		return nil, err
+	}
+	defer db.Close()
+
+	rows, err := db.Query(
+		`SELECT session, agent, agent_version, first_seen, last_seen,
+		        user_messages, agent_messages, tool_calls, distinct_tools, mcp_calls
+		 FROM sessions WHERE repo_id = ? ORDER BY first_seen`, repoID)
+	if err != nil {
+		return nil, fmt.Errorf("journal: query sessions: %w", err)
+	}
+	defer rows.Close()
+
+	var out []Session
+	for rows.Next() {
+		var s Session
+		var first, last int64
+		if err := rows.Scan(&s.Session, &s.Agent, &s.AgentVersion, &first, &last,
+			&s.UserMessages, &s.AgentMessages, &s.ToolCalls, &s.DistinctTools, &s.MCPCalls); err != nil {
+			return nil, fmt.Errorf("journal: scan session: %w", err)
+		}
+		s.FirstSeen = time.Unix(0, first).UTC()
+		s.LastSeen = time.Unix(0, last).UTC()
+		out = append(out, s)
+	}
+	return out, rows.Err()
 }
 
 // Metadata describes a repository's journal rather than any event within
@@ -344,7 +465,7 @@ func ReadRange(dataDir, repoID string, since, until time.Time) ([]Entry, error) 
 	}
 	defer db.Close()
 
-	query := `SELECT ts, agent, agent_version, session, event, tool, file, lines_added, lines_removed, hunk_hash, spec_version
+	query := `SELECT ts, agent, agent_version, session, event, tool, file, lines_added, lines_removed, hunk_hash, spec_version, outcome
 	          FROM entries WHERE repo_id = ? AND ts >= ?`
 	args := []any{repoID, since.UnixNano()}
 	if !until.IsZero() {
@@ -364,7 +485,8 @@ func ReadRange(dataDir, repoID string, since, until time.Time) ([]Entry, error) 
 		var e Entry
 		var ts int64
 		if err := rows.Scan(&ts, &e.Agent, &e.AgentVersion, &e.Session, &e.Event,
-			&e.Tool, &e.File, &e.LinesAdded, &e.LinesRemoved, &e.HunkHash, &e.SpecVersion); err != nil {
+			&e.Tool, &e.File, &e.LinesAdded, &e.LinesRemoved, &e.HunkHash, &e.SpecVersion,
+			&e.Outcome); err != nil {
 			return nil, fmt.Errorf("journal: scan row: %w", err)
 		}
 		e.Timestamp = time.Unix(0, ts).UTC()
@@ -408,6 +530,10 @@ func Purge(dataDir, repoID string) (int64, error) {
 		return 0, fmt.Errorf("journal: purge metadata: %w", err)
 	}
 
+	if _, err := db.Exec(`DELETE FROM sessions WHERE repo_id = ?`, repoID); err != nil {
+		return 0, fmt.Errorf("journal: purge sessions: %w", err)
+	}
+
 	n, err := res.RowsAffected()
 	if err != nil {
 		return 0, nil // the delete succeeded; a driver that won't report a count is not an error
@@ -431,6 +557,13 @@ func open(dataDir string) (*sql.DB, error) {
 		db.Close()
 		return nil, fmt.Errorf("journal: init schema: %w", err)
 	}
+	// Columns added after a journal already exists are not created by
+	// CREATE TABLE IF NOT EXISTS, so they are added here. An error means
+	// the column is already present, which is the normal case.
+	for _, alter := range migrations {
+		_, _ = db.Exec(alter)
+	}
+
 	// The schema exec is what actually creates the file, so the mode can
 	// only be fixed after it.
 	if err := tightenDBPerms(dataDir); err != nil {

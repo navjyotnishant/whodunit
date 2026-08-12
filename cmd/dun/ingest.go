@@ -85,6 +85,21 @@ func ingestSince(since time.Time, onSkip func(path string, err error)) (written,
 			onSkip(p, err)
 			continue
 		}
+		// Session engagement is per session, not per tool call, so it is
+		// summarised separately (NAV-55).
+		if acts, err := claudecode.ParseSessionActivity(p, since); err == nil {
+			for _, a := range acts {
+				if err := w.UpsertSession(journal.Session{
+					Session: a.Session, Agent: a.Agent, AgentVersion: a.AgentVersion,
+					FirstSeen: a.FirstSeen, LastSeen: a.LastSeen,
+					UserMessages: a.UserMessages, AgentMessages: a.AgentMessages,
+					ToolCalls: a.ToolCalls, DistinctTools: a.DistinctTools, MCPCalls: a.MCPCalls,
+				}); err != nil {
+					return written, len(sessionPaths), fmt.Errorf("write session: %w", err)
+				}
+			}
+		}
+
 		for _, e := range entries {
 			if err := w.Append(e); err != nil {
 				return written, len(sessionPaths), fmt.Errorf("write journal entry: %w", err)

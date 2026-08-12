@@ -58,7 +58,24 @@ type EventRow struct {
 	LinesRemoved int
 	HunkHash     string
 	SpecVersion  string
+	Outcome      string
 	SyncedAt     time.Time
+}
+
+// SessionRow is one row of whodunit_sessions (NAV-55).
+type SessionRow struct {
+	RepoID        string
+	Session       string
+	Agent         string
+	AgentVersion  string
+	FirstSeen     time.Time
+	LastSeen      time.Time
+	UserMessages  int
+	AgentMessages int
+	ToolCalls     int
+	DistinctTools int
+	MCPCalls      int
+	SyncedAt      time.Time
 }
 
 // LineRow is one row of whodunit_event_lines.
@@ -71,10 +88,11 @@ type LineRow struct {
 
 // Payload is everything one repository contributes to a sync.
 type Payload struct {
-	Repo    RepoRow
-	Commits []CommitRow
-	Events  []EventRow
-	Lines   []LineRow
+	Repo     RepoRow
+	Commits  []CommitRow
+	Events   []EventRow
+	Lines    []LineRow
+	Sessions []SessionRow
 }
 
 // CommitRowsFrom maps analysed commits onto the dashboard grain.
@@ -129,6 +147,7 @@ func EventRowsFrom(entries []journal.Entry, repoID string, syncedAt time.Time) [
 			LinesRemoved: e.LinesRemoved,
 			HunkHash:     e.HunkHash,
 			SpecVersion:  e.SpecVersion,
+			Outcome:      e.Outcome,
 			SyncedAt:     syncedAt,
 		})
 	}
@@ -158,6 +177,21 @@ func eventID(repoID string, e journal.Entry) string {
 		h.Write([]byte{0})
 	}
 	return hex.EncodeToString(h.Sum(nil))
+}
+
+// SessionRowsFrom maps session activity onto its row type.
+func SessionRowsFrom(sessions []journal.Session, repoID string, syncedAt time.Time) []SessionRow {
+	rows := make([]SessionRow, 0, len(sessions))
+	for _, s := range sessions {
+		rows = append(rows, SessionRow{
+			RepoID: repoID, Session: s.Session, Agent: s.Agent,
+			AgentVersion: s.AgentVersion, FirstSeen: s.FirstSeen, LastSeen: s.LastSeen,
+			UserMessages: s.UserMessages, AgentMessages: s.AgentMessages,
+			ToolCalls: s.ToolCalls, DistinctTools: s.DistinctTools,
+			MCPCalls: s.MCPCalls, SyncedAt: syncedAt,
+		})
+	}
+	return rows
 }
 
 // LineRowsFrom maps line hashes onto their row type.

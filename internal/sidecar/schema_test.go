@@ -102,8 +102,8 @@ func TestEveryTableIsNamespaced(t *testing.T) {
 		}
 		count++
 	}
-	if count != 4 {
-		t.Errorf("found %d tables, want 4", count)
+	if count != 5 {
+		t.Errorf("found %d tables, want 5", count)
 	}
 }
 

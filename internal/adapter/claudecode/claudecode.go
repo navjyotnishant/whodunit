@@ -70,19 +70,63 @@ type record struct {
 type toolUseBlock struct {
 	Type  string `json:"type"`
 	Name  string `json:"name"`
+	ID    string `json:"id"`          // on tool_use blocks
+	UseID string `json:"tool_use_id"` // on tool_result blocks, links back to the call
+	Error bool   `json:"is_error"`
 	Input struct {
 		FilePath  string `json:"file_path"`
 		Content   string `json:"content"`    // Write
 		OldString string `json:"old_string"` // Edit
 		NewString string `json:"new_string"` // Edit
 	} `json:"input"`
+
+	// Content of a tool_result, which Claude Code writes either as a plain
+	// string or as an array of blocks depending on the tool.
+	Result resultContent `json:"content"`
+}
+
+// resultContent accepts both shapes a tool_result's content can take.
+type resultContent struct{ Text string }
+
+func (r *resultContent) UnmarshalJSON(data []byte) error {
+	var s string
+	if err := json.Unmarshal(data, &s); err == nil {
+		r.Text = s
+		return nil
+	}
+	var blocks []struct {
+		Text string `json:"text"`
+	}
+	if err := json.Unmarshal(data, &blocks); err == nil {
+		var sb strings.Builder
+		for _, b := range blocks {
+			sb.WriteString(b.Text)
+			sb.WriteByte(' ')
+		}
+		r.Text = sb.String()
+		return nil
+	}
+	// An unrecognised shape is not an error: outcome degrades to unknown
+	// rather than failing the whole transcript.
+	return nil
 }
 
 // ParseSince reads every tool_use (Edit/Write) event at or after `since`
-// from the given transcript file. Unrecognized lines are skipped, never
-// fatal — a malformed or future transcript format degrades to fewer
-// entries rather than a hard failure (fail to undetermined, not error).
+// from the given transcript file, along with what happened to each call.
+//
+// Two passes: a tool call and its result are separate records, and the
+// result arrives later in the file, so outcomes are collected first and
+// then joined by tool_use_id. One pass would mean guessing at ordering.
+//
+// Unrecognized lines are skipped, never fatal — a malformed or future
+// transcript format degrades to fewer entries rather than a hard failure
+// (fail to undetermined, not error).
 func ParseSince(path string, since time.Time) ([]journal.Entry, error) {
+	outcomes, err := collectOutcomes(path)
+	if err != nil {
+		return nil, err
+	}
+
 	f, err := os.Open(path)
 	if err != nil {
 		return nil, err
@@ -121,6 +165,23 @@ func ParseSince(path string, since time.Time) ([]journal.Entry, error) {
 				produced = block.Input.Content
 			}
 
+			outcome, ok := outcomes[block.ID]
+			if !ok {
+				// No result found: the transcript may be truncated, or the
+				// session still running. Recorded as unknown rather than
+				// assumed accepted, which would flatter the rate.
+				outcome = OutcomeUnknown
+			}
+
+			// A rejected or failed call never reached the file, so its text
+			// must not count as agent-authored code. Carrying line hashes
+			// for it would attribute lines that do not exist.
+			lineHashes := linehash.OfText(block.Input.FilePath, produced)
+			if outcome != OutcomeAccepted {
+				lineHashes = nil
+				added, removed = 0, 0
+			}
+
 			entries = append(entries, journal.Entry{
 				Timestamp:    r.Timestamp,
 				Agent:        AgentName,
@@ -132,7 +193,8 @@ func ParseSince(path string, since time.Time) ([]journal.Entry, error) {
 				LinesAdded:   added,
 				LinesRemoved: removed,
 				HunkHash:     hunkHash(block.Input.FilePath, block.Name, block.Input.Content, block.Input.NewString),
-				LineHashes:   linehash.OfText(block.Input.FilePath, produced),
+				LineHashes:   lineHashes,
+				Outcome:      string(outcome),
 			})
 		}
 	}
@@ -140,6 +202,140 @@ func ParseSince(path string, since time.Time) ([]journal.Entry, error) {
 		return nil, err
 	}
 	return entries, nil
+}
+
+// SessionActivity is engagement for one session: how much conversation and
+// tool use it contained (NAV-55).
+//
+// Counts only. No message text, no tool arguments, nothing derived from
+// what was written — a message count needs no message content, which is
+// what makes this compatible with the no-prompt-text rule.
+type SessionActivity struct {
+	Session       string
+	Agent         string
+	AgentVersion  string
+	FirstSeen     time.Time
+	LastSeen      time.Time
+	UserMessages  int
+	AgentMessages int
+	ToolCalls     int
+	DistinctTools int
+	MCPCalls      int
+}
+
+// ParseSessionActivity summarises engagement per session in a transcript.
+func ParseSessionActivity(path string, since time.Time) ([]SessionActivity, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	type acc struct {
+		SessionActivity
+		tools map[string]bool
+	}
+	sessions := map[string]*acc{}
+
+	scanner := bufio.NewScanner(f)
+	scanner.Buffer(make([]byte, 0, 64*1024), 8*1024*1024)
+
+	for scanner.Scan() {
+		var r record
+		if err := json.Unmarshal(scanner.Bytes(), &r); err != nil {
+			continue
+		}
+		if r.SessionID == "" || r.Timestamp.Before(since) {
+			continue
+		}
+
+		a, ok := sessions[r.SessionID]
+		if !ok {
+			a = &acc{tools: map[string]bool{}}
+			a.Session = r.SessionID
+			a.Agent = AgentName
+			a.FirstSeen = r.Timestamp
+			sessions[r.SessionID] = a
+		}
+		if r.Version != "" {
+			a.AgentVersion = r.Version
+		}
+		if r.Timestamp.After(a.LastSeen) {
+			a.LastSeen = r.Timestamp
+		}
+
+		switch r.Type {
+		case "user":
+			// A user record carrying only tool results is the harness
+			// replying to the agent, not a person typing.
+			if !hasToolResult(r) {
+				a.UserMessages++
+			}
+		case "assistant":
+			a.AgentMessages++
+		}
+
+		for _, block := range r.Message.Content {
+			if block.Type != "tool_use" {
+				continue
+			}
+			a.ToolCalls++
+			a.tools[block.Name] = true
+			if strings.HasPrefix(block.Name, "mcp__") {
+				a.MCPCalls++
+			}
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		return nil, err
+	}
+
+	out := make([]SessionActivity, 0, len(sessions))
+	for _, a := range sessions {
+		a.DistinctTools = len(a.tools)
+		out = append(out, a.SessionActivity)
+	}
+	return out, nil
+}
+
+func hasToolResult(r record) bool {
+	for _, b := range r.Message.Content {
+		if b.Type == "tool_result" {
+			return true
+		}
+	}
+	return false
+}
+
+// collectOutcomes maps each tool call's id to what happened to it, from the
+// tool_result blocks scattered through the transcript.
+func collectOutcomes(path string) (map[string]Outcome, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	outcomes := map[string]Outcome{}
+	scanner := bufio.NewScanner(f)
+	scanner.Buffer(make([]byte, 0, 64*1024), 8*1024*1024)
+
+	for scanner.Scan() {
+		var r record
+		if err := json.Unmarshal(scanner.Bytes(), &r); err != nil {
+			continue
+		}
+		for _, block := range r.Message.Content {
+			if block.Type != "tool_result" || block.UseID == "" {
+				continue
+			}
+			outcomes[block.UseID] = classifyResult(block.Error, block.Result.Text)
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		return nil, err
+	}
+	return outcomes, nil
 }
 
 func diffStat(tool, content, oldString, newString string) (added, removed int) {

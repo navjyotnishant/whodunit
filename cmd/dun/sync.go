@@ -79,8 +79,8 @@ func runSync(cmd *cobra.Command, dsn string, limit int, dryRun bool) error {
 		return err
 	}
 
-	fmt.Fprintf(w, "\nsent %d commit(s), %d event(s), %d line hash(es)\n",
-		counts.Commits, counts.Events, counts.Lines)
+	fmt.Fprintf(w, "\nsent %d commit(s), %d event(s), %d session(s), %d line hash(es)\n",
+		counts.Commits, counts.Events, counts.Sessions, counts.Lines)
 	return nil
 }
 
@@ -114,6 +114,11 @@ func buildPayload(limit int) (sidecar.Payload, error) {
 		return p, err
 	}
 
+	sessions, err := journal.ReadSessions(dataDir, repoID)
+	if err != nil {
+		return p, err
+	}
+
 	// Metadata may be absent for a repository initialised before it
 	// existed. That is a state to carry honestly — an empty contributor —
 	// rather than a reason to refuse to sync.
@@ -127,6 +132,7 @@ func buildPayload(limit int) (sidecar.Payload, error) {
 	p.Commits = sidecar.CommitRowsFrom(stats.Commits, repoID, now)
 	p.Events = sidecar.EventRowsFrom(entries, repoID, now)
 	p.Lines = sidecar.LineRowsFrom(lines, repoID, now)
+	p.Sessions = sidecar.SessionRowsFrom(sessions, repoID, now)
 	return p, nil
 }
 
@@ -143,6 +149,7 @@ func describePayload(w io.Writer, p sidecar.Payload) {
 	fmt.Fprintln(w)
 	fmt.Fprintf(w, "  %-14s %d\n", "commits", len(p.Commits))
 	fmt.Fprintf(w, "  %-14s %d\n", "agent events", len(p.Events))
+	fmt.Fprintf(w, "  %-14s %d\n", "sessions", len(p.Sessions))
 	fmt.Fprintf(w, "  %-14s %d\n", "line hashes", len(p.Lines))
 
 	files := map[string]bool{}

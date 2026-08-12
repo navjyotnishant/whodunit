@@ -74,6 +74,9 @@ func EnsureSchema(db *Store) error {
 			return fmt.Errorf("apply schema: %w\nstatement: %s", err, stmt)
 		}
 	}
+	for _, stmt := range Migrations {
+		_, _ = db.Exec(stmt)
+	}
 	for _, stmt := range Indexes {
 		_, _ = db.Exec(stmt)
 	}
@@ -139,10 +142,21 @@ func Write(db *Store, p Payload) (Counts, error) {
 		if _, err := tx.Exec(upsertEvent(mysql),
 			e.EventID, e.RepoID, e.ObservedAt.UnixNano(), e.Agent, e.AgentVersion,
 			e.Session, e.Event, e.Tool, e.File, e.LinesAdded, e.LinesRemoved,
-			e.HunkHash, e.SpecVersion, e.SyncedAt.UnixNano()); err != nil {
+			e.HunkHash, e.SpecVersion, e.Outcome, e.SyncedAt.UnixNano()); err != nil {
 			return counts, fmt.Errorf("write event: %w", err)
 		}
 		counts.Events++
+	}
+
+	for _, s := range p.Sessions {
+		if _, err := tx.Exec(upsertSession(mysql),
+			s.RepoID, s.Session, s.Agent, s.AgentVersion,
+			s.FirstSeen.UnixNano(), s.LastSeen.UnixNano(),
+			s.UserMessages, s.AgentMessages, s.ToolCalls, s.DistinctTools,
+			s.MCPCalls, s.SyncedAt.UnixNano()); err != nil {
+			return counts, fmt.Errorf("write session: %w", err)
+		}
+		counts.Sessions++
 	}
 
 	for _, l := range p.Lines {
@@ -161,10 +175,11 @@ func Write(db *Store, p Payload) (Counts, error) {
 
 // Counts is what a sync moved.
 type Counts struct {
-	Repos   int
-	Commits int
-	Events  int
-	Lines   int
+	Repos    int
+	Commits  int
+	Events   int
+	Lines    int
+	Sessions int
 }
 
 // The two engines spell "insert or replace" differently and neither
@@ -206,12 +221,39 @@ func upsertCommit(mysql bool) string {
 func upsertEvent(mysql bool) string {
 	cols := `INSERT INTO whodunit_events
 		(event_id, repo_id, observed_at, agent, agent_version, session, event,
-		 tool, file, lines_added, lines_removed, hunk_hash, spec_version, synced_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+		 tool, file, lines_added, lines_removed, hunk_hash, spec_version, outcome, synced_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+	// outcome is refreshed on conflict, unlike the rest of the row: an
+	// event's identity is fixed but its outcome can be backfilled by a
+	// later ingest that finally saw the tool result.
 	if mysql {
-		return cols + ` ON DUPLICATE KEY UPDATE synced_at=VALUES(synced_at)`
+		return cols + ` ON DUPLICATE KEY UPDATE outcome=VALUES(outcome),
+			lines_added=VALUES(lines_added), lines_removed=VALUES(lines_removed),
+			synced_at=VALUES(synced_at)`
 	}
-	return cols + ` ON CONFLICT(event_id) DO UPDATE SET synced_at=excluded.synced_at`
+	return cols + ` ON CONFLICT(event_id) DO UPDATE SET outcome=excluded.outcome,
+		lines_added=excluded.lines_added, lines_removed=excluded.lines_removed,
+		synced_at=excluded.synced_at`
+}
+
+func upsertSession(mysql bool) string {
+	cols := `INSERT INTO whodunit_sessions
+		(repo_id, session, agent, agent_version, first_seen, last_seen,
+		 user_messages, agent_messages, tool_calls, distinct_tools, mcp_calls, synced_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+	// A session grows while it is open, so every counter is refreshed.
+	if mysql {
+		return cols + ` ON DUPLICATE KEY UPDATE
+			last_seen=VALUES(last_seen), user_messages=VALUES(user_messages),
+			agent_messages=VALUES(agent_messages), tool_calls=VALUES(tool_calls),
+			distinct_tools=VALUES(distinct_tools), mcp_calls=VALUES(mcp_calls),
+			synced_at=VALUES(synced_at)`
+	}
+	return cols + ` ON CONFLICT(repo_id, session) DO UPDATE SET
+		last_seen=excluded.last_seen, user_messages=excluded.user_messages,
+		agent_messages=excluded.agent_messages, tool_calls=excluded.tool_calls,
+		distinct_tools=excluded.distinct_tools, mcp_calls=excluded.mcp_calls,
+		synced_at=excluded.synced_at`
 }
 
 func upsertLine(mysql bool) string {
