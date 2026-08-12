@@ -89,6 +89,9 @@ func ingestSince(since time.Time, onSkip func(path string, err error)) (written,
 			if err := w.Append(e); err != nil {
 				return written, len(sessionPaths), fmt.Errorf("write journal entry: %w", err)
 			}
+			if err := w.AppendLines(e.LineHashes, e.Timestamp); err != nil {
+				return written, len(sessionPaths), fmt.Errorf("write line hashes: %w", err)
+			}
 			written++
 		}
 	}

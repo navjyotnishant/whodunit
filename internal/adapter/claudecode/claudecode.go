@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/navjyotnishant/whodunit/internal/journal"
+	"github.com/navjyotnishant/whodunit/internal/linehash"
 )
 
 const AgentName = "claude-code"
@@ -110,6 +111,16 @@ func ParseSince(path string, since time.Time) ([]journal.Entry, error) {
 			}
 
 			added, removed := diffStat(block.Name, block.Input.Content, block.Input.OldString, block.Input.NewString)
+
+			// Hash each line the agent produced, not just the whole output
+			// (NAV-52). A Write's content or an Edit's replacement text is
+			// what ends up in the file, so those lines are what a staged
+			// diff can be matched against line by line.
+			produced := block.Input.NewString
+			if block.Name == "Write" {
+				produced = block.Input.Content
+			}
+
 			entries = append(entries, journal.Entry{
 				Timestamp:    r.Timestamp,
 				Agent:        AgentName,
@@ -121,6 +132,7 @@ func ParseSince(path string, since time.Time) ([]journal.Entry, error) {
 				LinesAdded:   added,
 				LinesRemoved: removed,
 				HunkHash:     hunkHash(block.Input.FilePath, block.Name, block.Input.Content, block.Input.NewString),
+				LineHashes:   linehash.OfText(block.Input.FilePath, produced),
 			})
 		}
 	}

@@ -32,33 +32,31 @@ type CommitLines struct {
 	Removed int
 }
 
-func Determine(entries []journal.Entry, stagedFiles []string, stagedHunkHashes map[string]int, commit CommitLines, now time.Time) spec.Trailer {
-	staged := map[string]bool{}
+// StagedEvidence is what the staged diff itself contributes to a
+// determination: the lines it adds, hashed per line, plus its total line
+// counts.
+type StagedEvidence struct {
+	// Lines are the hashes of substantive added lines, in diff order.
+	Lines []uint64
+
+	// Commit counts every changed line, the ratio's denominator.
+	Commit CommitLines
+}
+
+func Determine(entries []journal.Entry, stagedFiles []string, agentLineHashes map[uint64]struct{}, staged StagedEvidence, now time.Time) spec.Trailer {
+	stagedSet := map[string]bool{}
 	for _, f := range stagedFiles {
-		staged[f] = true
+		stagedSet[f] = true
 	}
 
 	since := now.Add(-lookbackWindow)
 	var relevant []journal.Entry
-	intersected := false
-
-	// Matched hunks are collected in a set so a block the agent rewrote
-	// several times counts once — the commit contains it once.
-	matchedHunks := map[string]bool{}
 	for _, e := range entries {
 		if e.Event != "tool_use" || e.Timestamp.Before(since) {
 			continue
 		}
-		if !staged[e.File] {
-			continue
-		}
-		relevant = append(relevant, e)
-		if e.HunkHash == "" {
-			continue
-		}
-		if _, ok := stagedHunkHashes[e.HunkHash]; ok {
-			intersected = true
-			matchedHunks[e.HunkHash] = true
+		if stagedSet[e.File] {
+			relevant = append(relevant, e)
 		}
 	}
 
@@ -68,16 +66,28 @@ func Determine(entries []journal.Entry, stagedFiles []string, stagedHunkHashes m
 
 	agent, version, session := relevant[0].Agent, relevant[0].AgentVersion, relevant[0].Session
 
-	// The numerator is measured in STAGED lines, not journal lines: what
-	// the commit actually contains from the agent, not how many times the
-	// agent touched it.
+	// Count staged lines that match a line the agent produced. Distinct
+	// hashes only: a file that legitimately repeats a line should not let
+	// one agent-written line claim several.
+	//
+	// This is the intersected signal too. Line-level overlap is what the
+	// method was always meant to mean — matching whole tool outputs against
+	// whole diff hunks only ever fired when a file was created whole and
+	// committed untouched (NAV-52).
+	counted := map[uint64]bool{}
 	agentLines := 0
-	for hash := range matchedHunks {
-		agentLines += stagedHunkHashes[hash]
+	for _, h := range staged.Lines {
+		if counted[h] {
+			continue
+		}
+		if _, ok := agentLineHashes[h]; ok {
+			counted[h] = true
+			agentLines++
+		}
 	}
 
 	method := spec.MethodObserved
-	if intersected {
+	if agentLines > 0 {
 		method = spec.MethodIntersected
 	}
 
@@ -90,7 +100,7 @@ func Determine(entries []journal.Entry, stagedFiles []string, stagedHunkHashes m
 		Extra:   map[string]string{},
 	}
 
-	if r, ok := computeRatio(agentLines, commit.Added, commit.Removed); ok {
+	if r, ok := computeRatio(agentLines, staged.Commit.Added, staged.Commit.Removed); ok {
 		trailer.Ratio = &r
 	}
 

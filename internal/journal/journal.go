@@ -45,6 +45,12 @@ type Entry struct {
 	LinesRemoved int       `json:"lines_removed,omitempty"`
 	HunkHash     string    `json:"hunk_hash,omitempty"`
 	SpecVersion  string    `json:"spec_version"`
+
+	// LineHashes are the hashes of individual lines this event produced
+	// (NAV-52). Not serialized in `dun journal show`: there can be hundreds
+	// per event, and they are lookup keys rather than something a human
+	// reads. They are stored in their own table, not on the entry row.
+	LineHashes []uint64 `json:"-"`
 }
 
 // SpecVersion is the journal schema version this package writes.
@@ -68,6 +74,21 @@ CREATE TABLE IF NOT EXISTS entries (
 );
 CREATE INDEX IF NOT EXISTS idx_entries_repo_ts ON entries(repo_id, ts);
 CREATE INDEX IF NOT EXISTS idx_entries_repo_file ON entries(repo_id, file);
+
+-- One row per distinct line an agent produced, scoped by repository
+-- (NAV-52). Separate from entries because the relationship is one entry to
+-- many lines, and because the primary key deduplicates for free: an agent
+-- rewriting the same block a dozen times contributes those lines once.
+--
+-- Only the hash is stored, never the line itself. The journal must not
+-- hold file contents, and a hash cannot be read back into code.
+CREATE TABLE IF NOT EXISTS agent_lines (
+	repo_id   TEXT NOT NULL,
+	line_hash INTEGER NOT NULL,
+	first_ts  INTEGER NOT NULL,
+	PRIMARY KEY (repo_id, line_hash)
+);
+CREATE INDEX IF NOT EXISTS idx_agent_lines_repo_ts ON agent_lines(repo_id, first_ts);
 `
 
 // DBPath returns the journal database location inside the given data
@@ -146,6 +167,74 @@ func (w *Writer) Append(e Entry) error {
 	return nil
 }
 
+// AppendLines records the hashes of lines an agent produced. Re-recording
+// a line already present is a no-op, so an agent rewriting the same block
+// contributes those lines once (NAV-52).
+func (w *Writer) AppendLines(hashes []uint64, ts time.Time) error {
+	if len(hashes) == 0 {
+		return nil
+	}
+	if ts.IsZero() {
+		ts = time.Now().UTC()
+	}
+
+	tx, err := w.db.Begin()
+	if err != nil {
+		return fmt.Errorf("journal: begin: %w", err)
+	}
+	defer tx.Rollback()
+
+	stmt, err := tx.Prepare(`INSERT OR IGNORE INTO agent_lines (repo_id, line_hash, first_ts) VALUES (?, ?, ?)`)
+	if err != nil {
+		return fmt.Errorf("journal: prepare line insert: %w", err)
+	}
+	defer stmt.Close()
+
+	for _, h := range hashes {
+		// SQLite INTEGER is signed 64-bit; the hash is unsigned. The bit
+		// pattern round-trips, which is all a lookup key needs.
+		if _, err := stmt.Exec(w.repoID, int64(h), ts.UnixNano()); err != nil {
+			return fmt.Errorf("journal: insert line hash: %w", err)
+		}
+	}
+	return tx.Commit()
+}
+
+// ReadLineHashes returns every line hash recorded for a repository since
+// the given time.
+func ReadLineHashes(dataDir, repoID string, since time.Time) (map[uint64]struct{}, error) {
+	if _, err := os.Stat(DBPath(dataDir)); os.IsNotExist(err) {
+		return nil, nil
+	}
+
+	db, err := open(dataDir)
+	if err != nil {
+		return nil, err
+	}
+	defer db.Close()
+
+	rows, err := db.Query(
+		`SELECT line_hash FROM agent_lines WHERE repo_id = ? AND first_ts >= ?`,
+		repoID, since.UnixNano())
+	if err != nil {
+		return nil, fmt.Errorf("journal: query line hashes: %w", err)
+	}
+	defer rows.Close()
+
+	out := map[uint64]struct{}{}
+	for rows.Next() {
+		var h int64
+		if err := rows.Scan(&h); err != nil {
+			return nil, fmt.Errorf("journal: scan line hash: %w", err)
+		}
+		out[uint64(h)] = struct{}{}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("journal: line hash rows: %w", err)
+	}
+	return out, nil
+}
+
 // ReadRange reads one repository's entries with timestamps in [since, until).
 // until may be zero to mean "no upper bound". Returns nil, not an error, if
 // no journal database exists yet.
@@ -210,6 +299,14 @@ func Purge(dataDir, repoID string) (int64, error) {
 	if err != nil {
 		return 0, fmt.Errorf("journal: purge: %w", err)
 	}
+
+	// Line hashes are part of what was recorded about this repository, so
+	// "forget what I did here" has to take them too — leaving them behind
+	// would make purge a half-truth.
+	if _, err := db.Exec(`DELETE FROM agent_lines WHERE repo_id = ?`, repoID); err != nil {
+		return 0, fmt.Errorf("journal: purge line hashes: %w", err)
+	}
+
 	n, err := res.RowsAffected()
 	if err != nil {
 		return 0, nil // the delete succeeded; a driver that won't report a count is not an error

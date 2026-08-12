@@ -284,3 +284,131 @@ func TestExistingPermissiveDataDirIsTightened(t *testing.T) {
 		t.Errorf("data dir mode = %o, want 700 (owner only)", perm)
 	}
 }
+
+func TestAppendAndReadLineHashes(t *testing.T) {
+	dataDir := t.TempDir()
+	w, err := NewWriter(dataDir, testRepo)
+	if err != nil {
+		t.Fatalf("NewWriter: %v", err)
+	}
+	defer w.Close()
+
+	now := time.Now().UTC()
+	if err := w.AppendLines([]uint64{1, 2, 3}, now); err != nil {
+		t.Fatalf("AppendLines: %v", err)
+	}
+
+	got, err := ReadLineHashes(dataDir, testRepo, now.Add(-time.Hour))
+	if err != nil {
+		t.Fatalf("ReadLineHashes: %v", err)
+	}
+	if len(got) != 3 {
+		t.Fatalf("want 3 line hashes, got %d", len(got))
+	}
+}
+
+func TestAppendLinesDeduplicates(t *testing.T) {
+	// An agent rewriting the same block contributes those lines once —
+	// this is what stops the rewrite inflation NAV-8 hit.
+	dataDir := t.TempDir()
+	w, err := NewWriter(dataDir, testRepo)
+	if err != nil {
+		t.Fatalf("NewWriter: %v", err)
+	}
+	defer w.Close()
+
+	now := time.Now().UTC()
+	for i := 0; i < 3; i++ {
+		if err := w.AppendLines([]uint64{7, 8}, now); err != nil {
+			t.Fatalf("AppendLines #%d: %v", i, err)
+		}
+	}
+
+	got, err := ReadLineHashes(dataDir, testRepo, time.Time{})
+	if err != nil {
+		t.Fatalf("ReadLineHashes: %v", err)
+	}
+	if len(got) != 2 {
+		t.Errorf("want 2 distinct hashes after 3 identical appends, got %d", len(got))
+	}
+}
+
+func TestLineHashesAreScopedByRepo(t *testing.T) {
+	dataDir := t.TempDir()
+	now := time.Now().UTC()
+
+	for _, repo := range []string{"repo-a", "repo-b"} {
+		w, err := NewWriter(dataDir, repo)
+		if err != nil {
+			t.Fatalf("NewWriter: %v", err)
+		}
+		if err := w.AppendLines([]uint64{42}, now); err != nil {
+			t.Fatalf("AppendLines: %v", err)
+		}
+		w.Close()
+	}
+
+	// The same hash in two repos is two rows; neither repo sees the other's.
+	for _, repo := range []string{"repo-a", "repo-b"} {
+		got, err := ReadLineHashes(dataDir, repo, time.Time{})
+		if err != nil {
+			t.Fatalf("ReadLineHashes(%s): %v", repo, err)
+		}
+		if len(got) != 1 {
+			t.Errorf("%s: want 1 hash, got %d", repo, len(got))
+		}
+	}
+}
+
+func TestPurgeRemovesLineHashesToo(t *testing.T) {
+	// "Forget what I did in this repo" has to take the line hashes as
+	// well, or purge is a half-truth.
+	dataDir := t.TempDir()
+	now := time.Now().UTC()
+
+	w, _ := NewWriter(dataDir, testRepo)
+	w.Append(Entry{Timestamp: now, Agent: "claude-code", Event: "tool_use", File: "x.go"})
+	w.AppendLines([]uint64{1, 2, 3}, now)
+	w.Close()
+
+	other, _ := NewWriter(dataDir, "other-repo")
+	other.AppendLines([]uint64{9}, now)
+	other.Close()
+
+	if _, err := Purge(dataDir, testRepo); err != nil {
+		t.Fatalf("Purge: %v", err)
+	}
+
+	got, _ := ReadLineHashes(dataDir, testRepo, time.Time{})
+	if len(got) != 0 {
+		t.Errorf("purge left %d line hashes behind", len(got))
+	}
+
+	survived, _ := ReadLineHashes(dataDir, "other-repo", time.Time{})
+	if len(survived) != 1 {
+		t.Errorf("purge destroyed another repository's line hashes: %d survived, want 1", len(survived))
+	}
+}
+
+func TestReadLineHashesOnMissingJournal(t *testing.T) {
+	got, err := ReadLineHashes(t.TempDir(), testRepo, time.Time{})
+	if err != nil {
+		t.Fatalf("ReadLineHashes on missing journal = %v, want nil error", err)
+	}
+	if len(got) != 0 {
+		t.Errorf("want no hashes, got %d", len(got))
+	}
+}
+
+func TestAppendLinesWithNoHashesIsANoop(t *testing.T) {
+	dataDir := t.TempDir()
+	w, err := NewWriter(dataDir, testRepo)
+	if err != nil {
+		t.Fatalf("NewWriter: %v", err)
+	}
+	defer w.Close()
+
+	if err := w.AppendLines(nil, time.Now()); err != nil {
+		t.Errorf("AppendLines(nil) = %v, want nil", err)
+	}
+}

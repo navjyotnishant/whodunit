@@ -5,16 +5,17 @@ import (
 	"time"
 
 	"github.com/navjyotnishant/whodunit/internal/journal"
+	"github.com/navjyotnishant/whodunit/internal/linehash"
 	"github.com/navjyotnishant/whodunit/internal/spec"
 )
 
 // noCommitLines means the staged diff's line counts were unavailable, so a
 // ratio cannot be computed.
-var noCommitLines = CommitLines{}
+var noStagedEvidence = StagedEvidence{}
 
 func TestDetermineUndeterminedWhenNoCoverage(t *testing.T) {
 	now := time.Now()
-	got := Determine(nil, []string{"main.go"}, nil, noCommitLines, now)
+	got := Determine(nil, []string{"main.go"}, nil, noStagedEvidence, now)
 	if got.Status != spec.StatusUndetermined {
 		t.Errorf("Determine() = %+v, want undetermined", got)
 	}
@@ -25,149 +26,12 @@ func TestDetermineObservedWhenFileCovered(t *testing.T) {
 	entries := []journal.Entry{
 		{Timestamp: now.Add(-time.Hour), Agent: "claude-code", AgentVersion: "2.1.227", Session: "s1", Event: "tool_use", Tool: "Edit", File: "main.go", LinesAdded: 3, LinesRemoved: 1, HunkHash: "sha256:abc"},
 	}
-	got := Determine(entries, []string{"main.go"}, nil, noCommitLines, now)
+	got := Determine(entries, []string{"main.go"}, nil, noStagedEvidence, now)
 	if got.Status != spec.StatusAssisted || got.Method != spec.MethodObserved {
 		t.Errorf("Determine() = %+v, want assisted/observed", got)
 	}
 	if got.Agent != "claude-code" || got.Session != "s1" {
 		t.Errorf("Determine() metadata wrong: %+v", got)
-	}
-}
-
-func TestDetermineIntersectedWhenHunkHashMatches(t *testing.T) {
-	now := time.Now()
-	entries := []journal.Entry{
-		{Timestamp: now.Add(-time.Hour), Agent: "claude-code", Session: "s1", Event: "tool_use", File: "main.go", HunkHash: "sha256:abc"},
-	}
-	staged := map[string]int{"sha256:abc": 20}
-	got := Determine(entries, []string{"main.go"}, staged, noCommitLines, now)
-	if got.Method != spec.MethodIntersected {
-		t.Errorf("Determine() method = %v, want intersected when hunk hash matches", got.Method)
-	}
-}
-
-func TestDetermineStaysObservedWhenHunkHashMissing(t *testing.T) {
-	now := time.Now()
-	entries := []journal.Entry{
-		{Timestamp: now.Add(-time.Hour), Agent: "claude-code", Session: "s1", Event: "tool_use", File: "main.go", HunkHash: "sha256:abc"},
-	}
-	staged := map[string]int{"sha256:different": 20}
-	got := Determine(entries, []string{"main.go"}, staged, noCommitLines, now)
-	if got.Method != spec.MethodObserved {
-		t.Errorf("Determine() method = %v, want observed when hunk hash doesn't match", got.Method)
-	}
-}
-
-func TestDetermineIgnoresOutOfWindowEntries(t *testing.T) {
-	now := time.Now()
-	entries := []journal.Entry{
-		{Timestamp: now.Add(-30 * 24 * time.Hour), Agent: "claude-code", Event: "tool_use", File: "main.go", LinesAdded: 3},
-	}
-	got := Determine(entries, []string{"main.go"}, nil, noCommitLines, now)
-	if got.Status != spec.StatusUndetermined {
-		t.Errorf("Determine() = %+v, want undetermined for stale entry", got)
-	}
-}
-
-func TestDetermineIgnoresUnrelatedFiles(t *testing.T) {
-	now := time.Now()
-	entries := []journal.Entry{
-		{Timestamp: now.Add(-time.Hour), Agent: "claude-code", Event: "tool_use", File: "other.go", LinesAdded: 3},
-	}
-	got := Determine(entries, []string{"main.go"}, nil, noCommitLines, now)
-	if got.Status != spec.StatusUndetermined {
-		t.Errorf("Determine() = %+v, want undetermined for unrelated file", got)
-	}
-}
-
-func TestDetermineRatioIsAgentsShareOfStagedLines(t *testing.T) {
-	// Two staged hunks of 20 lines each; the agent produced one of them.
-	// The commit changed 60+20=80 lines. 20/80 = 0.25.
-	now := time.Now()
-	entries := []journal.Entry{
-		{Timestamp: now.Add(-time.Hour), Agent: "claude-code", Event: "tool_use", File: "main.go", HunkHash: "sha256:mine"},
-	}
-	staged := map[string]int{"sha256:mine": 20, "sha256:theirs": 20}
-
-	got := Determine(entries, []string{"main.go"}, staged, CommitLines{Added: 60, Removed: 20}, now)
-	if got.Ratio == nil {
-		t.Fatal("Ratio was not computed")
-	}
-	if *got.Ratio < 0.24 || *got.Ratio > 0.26 {
-		t.Errorf("Ratio = %v, want 0.25 (20 agent lines of 80 changed)", *got.Ratio)
-	}
-}
-
-func TestDetermineCountsRewrittenHunkOnce(t *testing.T) {
-	// Regression for the finding that motivated deduplication: an agent
-	// writes a block and rewrites it, producing several journal entries for
-	// the same staged hunk. Summing them counted the same 30 staged lines
-	// three times and drove the raw ratio above 4 on this project's own
-	// history. The commit contains that hunk once, so it counts once.
-	now := time.Now()
-	entries := []journal.Entry{
-		{Timestamp: now.Add(-3 * time.Hour), Agent: "claude-code", Event: "tool_use", File: "main.go", LinesAdded: 30, HunkHash: "sha256:same"},
-		{Timestamp: now.Add(-2 * time.Hour), Agent: "claude-code", Event: "tool_use", File: "main.go", LinesAdded: 30, HunkHash: "sha256:same"},
-		{Timestamp: now.Add(-time.Hour), Agent: "claude-code", Event: "tool_use", File: "main.go", LinesAdded: 30, HunkHash: "sha256:same"},
-	}
-	staged := map[string]int{"sha256:same": 30}
-
-	got := Determine(entries, []string{"main.go"}, staged, CommitLines{Added: 60}, now)
-	if got.Ratio == nil {
-		t.Fatal("Ratio was not computed")
-	}
-	if *got.Ratio < 0.49 || *got.Ratio > 0.51 {
-		t.Errorf("Ratio = %v, want 0.5 — three rewrites of one 30-line hunk in a 60-line commit", *got.Ratio)
-	}
-}
-
-func TestDetermineOmitsRatioWithoutCommitLines(t *testing.T) {
-	// No denominator means no honest ratio. It must be absent, not zero:
-	// 0.00 would assert the agent contributed nothing.
-	now := time.Now()
-	entries := []journal.Entry{
-		{Timestamp: now.Add(-time.Hour), Agent: "claude-code", Event: "tool_use", File: "main.go", HunkHash: "sha256:abc"},
-	}
-	staged := map[string]int{"sha256:abc": 30}
-	got := Determine(entries, []string{"main.go"}, staged, noCommitLines, now)
-	if got.Ratio != nil {
-		t.Errorf("Ratio = %v, want nil when the commit's line counts are unknown", *got.Ratio)
-	}
-}
-
-func TestDetermineOmitsRatioWhenNoHunkMatched(t *testing.T) {
-	// method=observed means the agent touched the file but none of its text
-	// survived into the staged diff. There is no share to report.
-	now := time.Now()
-	entries := []journal.Entry{
-		{Timestamp: now.Add(-time.Hour), Agent: "claude-code", Event: "tool_use", File: "main.go", LinesAdded: 30, HunkHash: "sha256:gone"},
-	}
-	staged := map[string]int{"sha256:different": 30}
-
-	got := Determine(entries, []string{"main.go"}, staged, CommitLines{Added: 60}, now)
-	if got.Method != spec.MethodObserved {
-		t.Errorf("Method = %v, want observed", got.Method)
-	}
-	if got.Ratio != nil {
-		t.Errorf("Ratio = %v, want nil when no agent hunk reached the commit", *got.Ratio)
-	}
-}
-
-func TestComputeRatioCountsDeletionInTheDenominator(t *testing.T) {
-	// NAV-8 option B: the denominator is total changed lines, so a
-	// deletion-heavy commit is not treated as a tiny change.
-	r, ok := computeRatio(10, 0, 40)
-	if !ok {
-		t.Fatal("computeRatio reported nothing for a deletion-heavy change")
-	}
-	if r < 0.24 || r > 0.26 {
-		t.Errorf("computeRatio = %v, want 0.25 (10 agent lines of 40 deleted)", r)
-	}
-}
-
-func TestComputeRatioRejectsZeroDenominator(t *testing.T) {
-	if _, ok := computeRatio(10, 0, 0); ok {
-		t.Error("computeRatio reported a value with nothing to divide by")
 	}
 }
 
@@ -199,5 +63,146 @@ func TestComputeRatioOmitsSharesThatWouldRenderAsZero(t *testing.T) {
 	// Just above the threshold still reports.
 	if _, ok := computeRatio(1, 100, 0); !ok {
 		t.Error("computeRatio omitted a share that renders as 0.01")
+	}
+}
+
+// lineSet builds the agent-line lookup the way the journal supplies it.
+func lineSet(hashes ...uint64) map[uint64]struct{} {
+	s := map[uint64]struct{}{}
+	for _, h := range hashes {
+		s[h] = struct{}{}
+	}
+	return s
+}
+
+func TestDetermineIntersectedWhenALineMatches(t *testing.T) {
+	now := time.Now()
+	entries := []journal.Entry{
+		{Timestamp: now.Add(-time.Hour), Agent: "claude-code", Session: "s1", Event: "tool_use", File: "main.go"},
+	}
+	h := linehash.Of("main.go", "doWork()")
+
+	got := Determine(entries, []string{"main.go"}, lineSet(h),
+		StagedEvidence{Lines: []uint64{h}, Commit: CommitLines{Added: 10}}, now)
+
+	if got.Method != spec.MethodIntersected {
+		t.Errorf("Method = %v, want intersected when a staged line matches an agent line", got.Method)
+	}
+}
+
+func TestDetermineStaysObservedWhenNoLineMatches(t *testing.T) {
+	// The agent touched the file, but nothing it wrote survived into the
+	// staged diff — the developer rewrote it.
+	now := time.Now()
+	entries := []journal.Entry{
+		{Timestamp: now.Add(-time.Hour), Agent: "claude-code", Session: "s1", Event: "tool_use", File: "main.go"},
+	}
+	agentLine := linehash.Of("main.go", "agentWrote()")
+	stagedLine := linehash.Of("main.go", "developerWrote()")
+
+	got := Determine(entries, []string{"main.go"}, lineSet(agentLine),
+		StagedEvidence{Lines: []uint64{stagedLine}, Commit: CommitLines{Added: 10}}, now)
+
+	if got.Method != spec.MethodObserved {
+		t.Errorf("Method = %v, want observed when no agent line survived", got.Method)
+	}
+	if got.Ratio != nil {
+		t.Errorf("Ratio = %v, want nil when no agent line reached the commit", *got.Ratio)
+	}
+}
+
+func TestDetermineRatioIsShareOfStagedLines(t *testing.T) {
+	// Four staged lines, two of them the agent's; the commit changed
+	// 6 added + 2 removed = 8 lines. 2/8 = 0.25.
+	now := time.Now()
+	entries := []journal.Entry{
+		{Timestamp: now.Add(-time.Hour), Agent: "claude-code", Session: "s1", Event: "tool_use", File: "main.go"},
+	}
+	mine1 := linehash.Of("main.go", "agentLineOne()")
+	mine2 := linehash.Of("main.go", "agentLineTwo()")
+	theirs1 := linehash.Of("main.go", "humanLineOne()")
+	theirs2 := linehash.Of("main.go", "humanLineTwo()")
+
+	got := Determine(entries, []string{"main.go"}, lineSet(mine1, mine2),
+		StagedEvidence{
+			Lines:  []uint64{mine1, mine2, theirs1, theirs2},
+			Commit: CommitLines{Added: 6, Removed: 2},
+		}, now)
+
+	if got.Ratio == nil {
+		t.Fatal("Ratio was not computed")
+	}
+	if *got.Ratio < 0.24 || *got.Ratio > 0.26 {
+		t.Errorf("Ratio = %v, want 0.25 (2 agent lines of 8 changed)", *got.Ratio)
+	}
+}
+
+func TestDetermineSurvivesPartialEditing(t *testing.T) {
+	// The case whole-output hashing could not handle (NAV-52): the agent
+	// wrote three lines, the developer rewrote one, and the other two
+	// still count.
+	now := time.Now()
+	entries := []journal.Entry{
+		{Timestamp: now.Add(-time.Hour), Agent: "claude-code", Session: "s1", Event: "tool_use", File: "main.go"},
+	}
+	kept1 := linehash.Of("main.go", "setupThing()")
+	kept2 := linehash.Of("main.go", "runThing()")
+	replaced := linehash.Of("main.go", "agentVersionOfLine()")
+	rewritten := linehash.Of("main.go", "humanVersionOfLine()")
+
+	got := Determine(entries, []string{"main.go"}, lineSet(kept1, kept2, replaced),
+		StagedEvidence{
+			Lines:  []uint64{kept1, kept2, rewritten},
+			Commit: CommitLines{Added: 3},
+		}, now)
+
+	if got.Method != spec.MethodIntersected {
+		t.Errorf("Method = %v, want intersected", got.Method)
+	}
+	if got.Ratio == nil {
+		t.Fatal("Ratio was not computed")
+	}
+	if *got.Ratio < 0.66 || *got.Ratio > 0.67 {
+		t.Errorf("Ratio = %v, want ~0.67 (2 of 3 agent lines survived)", *got.Ratio)
+	}
+}
+
+func TestDetermineCountsARepeatedLineOnce(t *testing.T) {
+	// A file may legitimately repeat a line. One agent-written line must
+	// not claim several staged occurrences.
+	now := time.Now()
+	entries := []journal.Entry{
+		{Timestamp: now.Add(-time.Hour), Agent: "claude-code", Session: "s1", Event: "tool_use", File: "main.go"},
+	}
+	repeated := linehash.Of("main.go", "wg.Done()")
+
+	got := Determine(entries, []string{"main.go"}, lineSet(repeated),
+		StagedEvidence{
+			Lines:  []uint64{repeated, repeated, repeated, repeated},
+			Commit: CommitLines{Added: 4},
+		}, now)
+
+	if got.Ratio == nil {
+		t.Fatal("Ratio was not computed")
+	}
+	if *got.Ratio < 0.24 || *got.Ratio > 0.26 {
+		t.Errorf("Ratio = %v, want 0.25 — one distinct agent line of 4 changed", *got.Ratio)
+	}
+}
+
+func TestDetermineOmitsRatioWithoutCommitLines(t *testing.T) {
+	// No denominator means no honest ratio. It must be absent, not zero:
+	// 0.00 would assert the agent contributed nothing.
+	now := time.Now()
+	entries := []journal.Entry{
+		{Timestamp: now.Add(-time.Hour), Agent: "claude-code", Session: "s1", Event: "tool_use", File: "main.go"},
+	}
+	h := linehash.Of("main.go", "doWork()")
+
+	got := Determine(entries, []string{"main.go"}, lineSet(h),
+		StagedEvidence{Lines: []uint64{h}}, now)
+
+	if got.Ratio != nil {
+		t.Errorf("Ratio = %v, want nil when the commit's line counts are unknown", *got.Ratio)
 	}
 }

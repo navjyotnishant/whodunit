@@ -90,16 +90,40 @@ func determineTrailer() spec.Trailer {
 		entries = append(entries, parsed...)
 	}
 
-	// A failed hunk-hash lookup just means we can't upgrade to intersected —
-	// Determine still returns a valid observed-or-undetermined result with nil.
-	hunkHashes, _ := attribution.StagedHunkHashes()
+	// Line hashes come from the journal rather than the transcripts parsed
+	// above: the journal accumulates across sessions and deduplicates, so a
+	// line written in an earlier session still matches. A failure here only
+	// costs the intersected upgrade and the ratio; Determine still returns a
+	// valid observed-or-undetermined result.
+	agentLines := agentLineHashes(now.Add(-7 * 24 * time.Hour))
 
-	// Likewise for line counts: without them the ratio is simply omitted,
-	// which is the honest outcome rather than a guessed number.
+	lines, _ := attribution.StagedLines()
 	added, removed, _ := attribution.StagedLineCounts()
 
-	return attribution.Determine(entries, staged, hunkHashes,
-		attribution.CommitLines{Added: added, Removed: removed}, now)
+	return attribution.Determine(entries, staged, agentLines,
+		attribution.StagedEvidence{
+			Lines:  lines,
+			Commit: attribution.CommitLines{Added: added, Removed: removed},
+		}, now)
+}
+
+// agentLineHashes loads this repository's recorded agent line hashes.
+// Returns nil on any failure — the hook must never block a commit, and a
+// missing lookup degrades the determination rather than failing it.
+func agentLineHashes(since time.Time) map[uint64]struct{} {
+	dataDir, err := journalDataDir()
+	if err != nil {
+		return nil
+	}
+	repoID, err := currentRepoID()
+	if err != nil {
+		return nil
+	}
+	hashes, err := journal.ReadLineHashes(dataDir, repoID, since)
+	if err != nil {
+		return nil
+	}
+	return hashes
 }
 
 // stagedFiles returns repo-relative paths of files staged for this commit.

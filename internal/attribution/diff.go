@@ -2,29 +2,26 @@ package attribution
 
 import (
 	"bufio"
-	"crypto/sha256"
-	"encoding/hex"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
+
+	"github.com/navjyotnishant/whodunit/internal/linehash"
 )
 
-// StagedHunkHashes returns the hunks present in the current staged diff,
-// keyed the same way claudecode.hunkHash keys a journal entry: sha256 of
-// (absolute file path, added text a single hunk introduces). This is what
-// lets Determine promote a match from method=observed (same file touched)
-// to method=intersected (the exact text the agent wrote is what got
-// staged) without a false match when two different files happen to gain
-// identical fragments.
+// StagedLines returns every substantive added line in the staged diff,
+// hashed per line and scoped to its file (NAV-52).
 //
-// The value is the hunk's line count, so a caller can measure the agent's
-// share of the commit in STAGED lines. Counting journal lines instead
-// would count every rewrite of the same block: on this project's own
-// history that inflated the numerator more than fourfold, because an agent
-// writes a file, rewrites it, and rewrites it again while the commit holds
-// only the final state.
-func StagedHunkHashes() (map[string]int, error) {
+// This is the unit that survives ordinary editing. Hashing whole tool
+// outputs against whole diff hunks only matched when a file was created
+// whole and committed untouched — 1 of 28 hunks on this project's own
+// history. Per line, an agent's 200-line write still matches on the 150
+// lines a developer kept.
+//
+// The returned slice may contain the same hash twice when a file legitimately
+// repeats a line; callers that need a share should count distinct hashes.
+func StagedLines() ([]uint64, error) {
 	out, err := exec.Command("git", "diff", "--cached", "--unified=0").Output()
 	if err != nil {
 		return nil, err
@@ -33,55 +30,36 @@ func StagedHunkHashes() (map[string]int, error) {
 	if err != nil {
 		return nil, err
 	}
-	return hashAddedHunks(string(out), cwd)
+	return stagedLineHashes(string(out), cwd), nil
 }
 
-// hashAddedHunks walks a unified diff and hashes each hunk's contiguous
-// block of added ('+') lines together with the file it belongs to
-// (resolved against root, since journal entries store absolute paths). A
-// hunk with mixed add/remove lines separated by context still produces one
-// hash per contiguous added block, matching how claudecode hashes one
-// edit's resulting text as a single unit.
-//
-// Each hash maps to the number of lines that hunk contributes.
-func hashAddedHunks(diff, root string) (map[string]int, error) {
-	hashes := map[string]int{}
+// stagedLineHashes walks a unified diff and hashes each added line against
+// the file it belongs to.
+func stagedLineHashes(diff, root string) []uint64 {
+	var hashes []uint64
 	scanner := bufio.NewScanner(strings.NewReader(diff))
 	scanner.Buffer(make([]byte, 0, 64*1024), 8*1024*1024)
 
 	var currentFile string
-	var added []string
-	flush := func() {
-		if len(added) == 0 {
-			return
-		}
-		sum := sha256.Sum256([]byte(currentFile + "\x00" + strings.Join(added, "\n")))
-		hashes["sha256:"+hex.EncodeToString(sum[:])] = len(added)
-		added = nil
-	}
-
 	for scanner.Scan() {
 		line := scanner.Text()
 		switch {
 		case strings.HasPrefix(line, "+++ "):
-			flush()
 			currentFile = resolveDiffPath(line[4:], root)
-		case strings.HasPrefix(line, "--- "):
+		case strings.HasPrefix(line, "--- "), strings.HasPrefix(line, "@@"):
 			continue
-		case strings.HasPrefix(line, "@@"):
-			flush()
 		case strings.HasPrefix(line, "+"):
-			added = append(added, line[1:])
-		default:
-			flush()
+			if currentFile == "" {
+				continue
+			}
+			content := line[1:]
+			if !linehash.Substantive(content) {
+				continue
+			}
+			hashes = append(hashes, linehash.Of(currentFile, content))
 		}
 	}
-	flush()
-
-	if err := scanner.Err(); err != nil {
-		return nil, err
-	}
-	return hashes, nil
+	return hashes
 }
 
 // resolveDiffPath turns a unified-diff "+++ b/some/path.go" target (or
