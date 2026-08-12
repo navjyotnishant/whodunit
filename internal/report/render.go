@@ -22,34 +22,42 @@ var purposeOrder = []purpose.Purpose{
 	purpose.Config, purpose.Chore, purpose.Migration, purpose.Dependency, purpose.Other,
 }
 
-// Render writes a self-contained HTML report for stats to w.
+// Render writes a self-contained HTML report to w, using the default
+// template. Kept for callers that do not choose one.
 func Render(w *strings.Builder, stats Stats) {
+	RenderTemplate(w, stats, Activity{}, TemplateExec)
+}
+
+// RenderTemplate writes a self-contained HTML report for one preset.
+//
+// Two inputs rather than one: stats comes from git history and is always
+// available, act comes from the journal and may legitimately be empty. A
+// single merged type would lose that distinction, and with it the ability
+// to say "nothing was recorded" instead of showing zeros (NAV-21).
+func RenderTemplate(w *strings.Builder, stats Stats, act Activity, tmpl Template) {
 	w.WriteString("<!doctype html><html><head><meta charset=\"utf-8\">")
+	w.WriteString("<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">")
 	w.WriteString("<title>Whodunit report</title>")
 	w.WriteString(styleBlock)
 	w.WriteString("</head><body>")
+
 	fmt.Fprintf(w, "<h1>Whodunit report</h1>")
-	fmt.Fprintf(w, "<p class=\"muted\">%d commits examined</p>", stats.TotalCommits)
+	fmt.Fprintf(w, `<p class="muted">%s &middot; %d commits examined</p>`,
+		html.EscapeString(tmpl.Describe()), stats.TotalCommits)
 
-	renderStatTile(w, "Coverage", fmt.Sprintf("%.0f%%", stats.Coverage()*100),
-		fmt.Sprintf("%d of %d commits carry a valid trailer", stats.Covered, stats.TotalCommits))
-	renderStatTile(w, "Penetration", fmt.Sprintf("%.0f%%", stats.Penetration()*100),
-		fmt.Sprintf("of covered commits, %d are AI-assisted (undetermined excluded from denominator)", stats.Assisted))
-
-	if stats.MonthlySpend > 0 && stats.Assisted > 0 {
-		perCommit := stats.MonthlySpend / float64(stats.Assisted)
-		renderStatTile(w, "Cost per assisted commit", fmt.Sprintf("$%.2f", perCommit),
-			"monthly subscription spend divided by assisted commits in this window — a rough proxy, not a precise unit cost")
+	switch tmpl {
+	case TemplateAdoption:
+		renderAdoption(w, stats, act)
+	case TemplateDetail:
+		renderDetail(w, stats, act)
+	default:
+		renderExec(w, stats, act)
 	}
 
-	renderMethodMixChart(w, stats)
-	renderPurposeBreakdown(w, stats)
-	renderCommitTable(w, stats)
-
-	w.WriteString("<p class=\"muted\">Velocity and revert-rate deltas are not shown: they require a pre-adoption baseline " +
-		"(NAV-14) that has not been captured for this repo yet. A bare velocity number without that baseline " +
-		"would overstate confidence this report does not have.</p>")
-
+	w.WriteString(`<p class="muted">Velocity and revert-rate deltas are not shown: ` +
+		`they require a pre-adoption baseline (NAV-14) that has not been captured ` +
+		`for this repo yet. A bare velocity number without that baseline would ` +
+		`overstate confidence this report does not have.</p>`)
 	w.WriteString("</body></html>")
 }
 
@@ -180,6 +188,22 @@ const styleBlock = `<style>
 body { background:var(--bg); color:var(--fg); font-family:-apple-system,system-ui,sans-serif; max-width:820px; margin:2rem auto; padding:0 1rem; }
 .muted { color:var(--muted); font-size:0.9rem; }
 .mono { font-family:ui-monospace,monospace; font-size:0.85rem; }
+:root { --accent:#2563eb; }
+@media (prefers-color-scheme: dark) { :root { --accent:#60a5fa; } }
+.chart { width:100%; height:140px; display:block; margin:0.5rem 0 0.25rem; }
+.chart-axis { display:flex; justify-content:space-between; color:var(--muted); font-size:0.8rem; margin-bottom:1rem; }
+.stack { display:flex; height:28px; border-radius:4px; overflow:hidden; margin:0.5rem 0; }
+.stack-seg { height:100%; }
+.stack-key { display:flex; flex-wrap:wrap; gap:1rem; font-size:0.85rem; color:var(--muted); margin-bottom:1rem; }
+.key i { display:inline-block; width:10px; height:10px; border-radius:2px; margin-right:0.35rem; }
+table.bars { width:100%; border-collapse:collapse; }
+table.bars td { border:none; padding:0.2rem 0.4rem 0.2rem 0; vertical-align:middle; }
+.bar-label { white-space:nowrap; font-size:0.9rem; }
+.bar-count { text-align:right; font-variant-numeric:tabular-nums; color:var(--muted); width:4rem; }
+.bar-cell { width:100%; }
+.bar { height:14px; border-radius:3px; min-width:2px; }
+.notice { border:1px solid var(--border); border-radius:8px; padding:1rem; margin:1.5rem 0; background:var(--card); }
+.notice h2 { margin-top:0; }
 .tile { background:var(--card); border:1px solid var(--border); border-radius:8px; padding:1rem; margin:1rem 0; display:inline-block; min-width:180px; margin-right:0.75rem; }
 .tile-value { font-size:2rem; font-weight:600; }
 .tile-label { font-weight:600; margin-top:0.25rem; }

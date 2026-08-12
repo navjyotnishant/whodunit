@@ -78,8 +78,10 @@ func TestRenderIncludesCommitTable(t *testing.T) {
 			{SHA: "abcdef1234567890", Subject: "feat: add thing", Trailer: &tr, Purpose: purpose.Feature},
 		},
 	}
+	// The commit table lives in the detail template. The default (exec)
+	// answers "is adoption growing", which a per-commit list does not.
 	var b strings.Builder
-	Render(&b, s)
+	RenderTemplate(&b, s, Activity{}, TemplateDetail)
 	out := b.String()
 
 	if !strings.Contains(out, "abcdef12") {
