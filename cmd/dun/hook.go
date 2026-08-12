@@ -79,6 +79,20 @@ func determineTrailer() spec.Trailer {
 		staged[i] = filepath.Join(cwd, f)
 	}
 	since := now.Add(-7 * 24 * time.Hour)
+
+	// Record what the agents did before deciding what to stamp.
+	//
+	// Commit time is when the evidence is needed, so it is also when it is
+	// written — no background daemon, and no `dun ingest` a user has to
+	// remember. Without this the journal stays empty on a normal install,
+	// and the line-hash lookup below finds nothing, capping every commit at
+	// observed no matter how much the agent actually wrote.
+	//
+	// Failure here is deliberately ignored: a full journal makes the
+	// attribution better, an empty one makes it weaker, and neither is a
+	// reason to fail someone's commit.
+	_, _, _ = ingestSince(since, func(string, error) {})
+
 	var entries []journal.Entry
 	for _, ad := range adapter.All() {
 		sessionPaths, err := ad.SessionFiles(cwd)
@@ -97,12 +111,25 @@ func determineTrailer() spec.Trailer {
 		return spec.Undetermined()
 	}
 
-	// Line hashes come from the journal rather than the transcripts parsed
-	// above: the journal accumulates across sessions and deduplicates, so a
-	// line written in an earlier session still matches. A failure here only
-	// costs the intersected upgrade and the ratio; Determine still returns a
-	// valid observed-or-undetermined result.
-	agentLines := agentLineHashes(now.Add(-7 * 24 * time.Hour))
+	// Line hashes come from two places, and both matter.
+	//
+	// The journal accumulates across sessions and deduplicates, so a line
+	// written weeks ago in a transcript since deleted still matches. The
+	// entries just parsed carry hashes the journal may not have yet — a
+	// session still being written, or a first commit on a machine where
+	// the ingest above failed.
+	//
+	// Reading only the journal was the original bug: the hook held the
+	// hashes it needed and queried an empty database instead.
+	agentLines := agentLineHashes(since)
+	if agentLines == nil {
+		agentLines = map[uint64]struct{}{}
+	}
+	for _, e := range entries {
+		for _, h := range e.LineHashes {
+			agentLines[h] = struct{}{}
+		}
+	}
 
 	lines, _ := attribution.StagedLines()
 	added, removed, _ := attribution.StagedLineCounts()
