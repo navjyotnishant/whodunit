@@ -23,6 +23,12 @@ func newStatusCmd() *cobra.Command {
 func runStatus(cmd *cobra.Command) error {
 	out, err := exec.Command("git", "log", "-n", "100", "--format=%B%x00").Output()
 	if err != nil {
+		// An empty/unborn repo (no commits yet) is a valid zero-commit
+		// status, not a failure — anything else genuinely is.
+		if exitErr, ok := err.(*exec.ExitError); ok && strings.Contains(string(exitErr.Stderr), "does not have any commits") {
+			fmt.Fprintln(cmd.OutOrStdout(), "commits examined:  0")
+			return nil
+		}
 		return fmt.Errorf("read git log: %w", err)
 	}
 
