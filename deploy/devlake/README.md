@@ -10,8 +10,30 @@ real database and Grafana to write into during development.
 | | |
 |---|---|
 | Config UI | http://localhost:4000 |
-| Grafana | http://localhost:3002 — `admin` / `admin` |
+| Grafana | http://localhost:3002 — `admin` / `admin` on first start |
 | MySQL | `127.0.0.1:3306` — `merico` / `merico`, database `lake` |
+
+## The dashboard
+
+`up.sh` does not import it — Grafana's admin password may have been changed,
+so importing needs credentials only you have:
+
+```sh
+curl -u admin:YOUR_PASSWORD -X POST http://localhost:3002/api/dashboards/db \
+  -H 'Content-Type: application/json' \
+  -d "$(python3 -c "import json;print(json.dumps({'dashboard':json.load(open('dashboard.json')),'overwrite':True}))")"
+```
+
+It needs a MySQL datasource pointing at the `lake` database. DevLake's own
+provisioning leaves one unconfigured in this setup, so create it once:
+
+```sh
+curl -u admin:YOUR_PASSWORD -X POST http://localhost:3002/api/datasources \
+  -H 'Content-Type: application/json' \
+  -d '{"name":"whodunit","type":"mysql","access":"proxy","url":"mysql:3306",
+       "database":"lake","user":"merico",
+       "secureJsonData":{"password":"merico"},"isDefault":true}'
+```
 
 ## What this is not
 
