@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/navjyotnishant/whodunit/internal/adapter"
+	_ "github.com/navjyotnishant/whodunit/internal/adapter/agy"
 	_ "github.com/navjyotnishant/whodunit/internal/adapter/claudecode"
 	_ "github.com/navjyotnishant/whodunit/internal/adapter/codex"
 	"github.com/navjyotnishant/whodunit/internal/journal"

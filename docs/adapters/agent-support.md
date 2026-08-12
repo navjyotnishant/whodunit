@@ -16,7 +16,7 @@ guessing.
 |---|---|---|
 | [Claude Code](#claude-code) | `intersected` | Shipped |
 | [Codex CLI](#codex-cli) | `intersected` | Shipped |
-| [`agy` (Antigravity CLI)](#agy-antigravity-cli) | `intersected` | Ready to build |
+| [`agy` (Antigravity CLI)](#agy-antigravity-cli) | `intersected` | Shipped |
 | [Cursor](#cursor) | unverified | Blocked — no edit sample |
 | [Antigravity IDE](#antigravity-ide) | `inferred` | Bodies encrypted |
 | [Gemini CLI](#gemini-cli) | unverified | Blocked — tier removed |
@@ -110,8 +110,10 @@ give prompt counts without touching prose.
 
 ### `agy` (Antigravity CLI)
 
-**Not yet built.** Distinct from the Antigravity IDE despite sharing a
-parent directory — see [below](#antigravity-ide).
+Shipped: [`internal/adapter/agy`](../../internal/adapter/agy).
+
+Distinct from the Antigravity IDE despite sharing a parent directory — see
+[below](#antigravity-ide).
 
 One SQLite database per conversation. The `steps` table is one row per agent
 action, and `step_payload` is **plaintext protobuf** (entropy 5.4–7.8,
@@ -129,10 +131,28 @@ outright, so added and removed counts need no diffing.
 
 **Reading these databases requires the write-ahead log.** Opening with
 `?immutable=1` returned **zero rows** from a conversation that plainly had
-twelve steps — they were still in `-wal`. Copy `.db`, `.db-wal` and
-`.db-shm` together, or open in a mode that replays the WAL. Reading the main
-database alone under-reports a live session to nothing, which looks like "no
-AI activity" rather than an error.
+twelve steps — they were still in `-wal`. The adapter copies `.db`,
+`.db-wal` and `.db-shm` to a temporary directory before reading: opening the
+original read-write would let SQLite checkpoint and modify a user's file,
+and opening it immutable silently under-reports a live session to nothing,
+which looks like "no AI activity" rather than an error.
+
+**Repository scoping is by edited path.** `agy` records no workspace
+directory this adapter can trust — its conversations do not appear in
+`conversation_summaries.db` (that index covers the IDE), and the `file:///`
+URIs in its prose are embedded in prose. The absolute `TargetFile` on each
+edit is reliable, so a conversation belongs to a repository when it edited a
+file inside it.
+
+**No accept/reject signal exists.** A declined call simply does not appear
+in the store, so every entry is recorded `unknown` rather than `accepted` —
+claiming acceptance would assert something the data does not say. `agy` is
+therefore the one shipped adapter that cannot contribute to an acceptance
+rate.
+
+**A call and its result carry identical arguments**, so each edit appears
+twice in `steps`. Entries are deduplicated on the produced text; counting
+both would double every line the agent wrote.
 
 ## Blocked, and why
 
