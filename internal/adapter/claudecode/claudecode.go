@@ -136,6 +136,21 @@ func (r *resultContent) UnmarshalJSON(data []byte) error {
 // transcript format degrades to fewer entries rather than a hard failure
 // (fail to undetermined, not error).
 func ParseSince(path string, since time.Time) ([]journal.Entry, error) {
+	// A transcript untouched since the cutoff has nothing to contribute, so
+	// it is not opened at all.
+	//
+	// This is the common case, not an optimisation for a rare one: the
+	// daemon re-runs ingest on a timer and the hook runs on every commit,
+	// both over every transcript on the machine. Without this, collecting
+	// outcomes below reads the whole file before the cutoff is ever
+	// consulted — making a no-op ingest cost *more* than a real one, since
+	// it pays for the outcome pass and then discards every event.
+	if !since.IsZero() {
+		if info, err := os.Stat(path); err == nil && info.ModTime().Before(since) {
+			return nil, nil
+		}
+	}
+
 	outcomes, err := collectOutcomes(path)
 	if err != nil {
 		return nil, err

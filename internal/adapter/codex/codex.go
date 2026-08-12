@@ -180,6 +180,17 @@ func normalizeDir(p string) string {
 // separate records and the result arrives later, so outcomes are collected
 // first and joined by call_id.
 func ParseSince(path string, since time.Time) ([]journal.Entry, error) {
+	// A transcript untouched since the cutoff has nothing to contribute.
+	// Checked before anything is read: collecting outcomes below is a full
+	// pass over the file, so without this a no-op ingest costs more than a
+	// real one. That matters here more than anywhere — Codex keeps every
+	// session on the machine in one tree, and ingest walks all of them.
+	if !since.IsZero() {
+		if info, err := os.Stat(path); err == nil && info.ModTime().Before(since) {
+			return nil, nil
+		}
+	}
+
 	meta, _ := readMeta(path)
 	outcomes, err := collectOutcomes(path)
 	if err != nil {
