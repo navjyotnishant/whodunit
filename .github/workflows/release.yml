@@ -24,7 +24,10 @@ jobs:
 
       - uses: actions/setup-go@v5
         with:
-          go-version: "1.22"
+          # Read from go.mod so a toolchain bump cannot leave CI behind:
+          # pinning a literal here is how this ended up on 1.22 while
+          # go.mod required 1.26.5, which CI could not build at all.
+          go-version-file: go.mod
 
       - name: Build release artifacts
         run: ./scripts/release.sh "${GITHUB_REF_NAME}"
