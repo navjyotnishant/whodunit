@@ -173,6 +173,22 @@ an undocumented SQLite blob with no compatibility contract, and reverse-
 engineering it isn't a maintenance burden this project is taking on. The
 adapter interface is open for a community contribution.
 
+## Compared with vendor usage APIs
+
+If you have an enterprise plan, Anthropic, GitHub, and AWS all expose usage
+APIs, and Apache DevLake has plugins for them. They answer a different
+question from this tool, and the difference is worth understanding before
+choosing either — see [docs/comparison.md](docs/comparison.md).
+
+In short: a vendor API sees **everyone with a seat**, without anyone
+installing anything — that coverage is the real difference. whodunit
+tells you **which code came from an agent** — attribution attached to specific
+commits and lines, work that never shipped, purpose classification, and
+before-and-after delivery comparison.
+
+whodunit also needs no enterprise plan, no organization, and no admin token.
+It reads local files and git.
+
 ## Privacy
 
 - No network calls. Ever. The whole tool is a handful of files reading
