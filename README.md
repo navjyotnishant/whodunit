@@ -65,13 +65,34 @@ clobbers existing `prepare-commit-msg`/`commit-msg` scripts.
 
 | Command | What it does |
 |---|---|
+| `dun baseline capture` | Snapshot delivery metrics **before** installing hooks — see below |
 | `dun init` | Install the git hooks into the current repo |
 | `dun status` | Trailer coverage and method mix for recent commits |
-| `dun report` | Self-contained local HTML report — coverage, penetration, method mix, cost per assisted commit |
+| `dun report` | Self-contained local HTML report — coverage, penetration, method mix, purpose distribution, per-commit detail |
 | `dun check --base <ref>` | Fail if any commit since `--base` lacks a valid trailer — the CI gate |
 | `dun ingest [--since <time>]` | Read local agent session transcripts into the journal |
 | `dun daemon run` | Foreground watcher: re-ingests continuously as sessions change |
 | `dun journal show` / `dun journal purge` | Inspect or wipe the local journal |
+
+### Capture a baseline first
+
+If you ever want to answer "did this change how we ship?", run this
+*before* `dun init`:
+
+```sh
+dun baseline capture
+```
+
+It records commit volume, median diff size, revert rate, commit cadence,
+and purpose distribution over the last 90 days, as a dated immutable
+snapshot. The pre-adoption window closes the moment hooks start stamping
+trailers, and it cannot be recaptured afterwards.
+
+PR throughput, cycle time, and change-failure rate can't be read from git,
+so they're optional flags you supply from GitHub Insights or your CI
+dashboard (`--prs-merged`, `--median-cycle-hours`, `--change-failure-rate`).
+Anything you don't pass is omitted from the snapshot rather than recorded
+as zero.
 
 ### CI
 
