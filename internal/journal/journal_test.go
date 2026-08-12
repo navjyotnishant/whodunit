@@ -412,3 +412,115 @@ func TestAppendLinesWithNoHashesIsANoop(t *testing.T) {
 		t.Errorf("AppendLines(nil) = %v, want nil", err)
 	}
 }
+
+func TestSetAndGetMetadata(t *testing.T) {
+	dataDir := t.TempDir()
+	now := time.Now().UTC()
+
+	if err := SetMetadata(dataDir, Metadata{
+		RepoID:      testRepo,
+		Contributor: "dev@example.com",
+		UpdatedAt:   now,
+	}); err != nil {
+		t.Fatalf("SetMetadata: %v", err)
+	}
+
+	got, err := GetMetadata(dataDir, testRepo)
+	if err != nil {
+		t.Fatalf("GetMetadata: %v", err)
+	}
+	if got == nil {
+		t.Fatal("GetMetadata returned nil for a repo that has metadata")
+	}
+	if got.Contributor != "dev@example.com" {
+		t.Errorf("Contributor = %q, want dev@example.com", got.Contributor)
+	}
+	if got.SpecVersion != SpecVersion {
+		t.Errorf("SpecVersion = %q, want %q", got.SpecVersion, SpecVersion)
+	}
+}
+
+func TestSetMetadataIsIdempotentPerRepo(t *testing.T) {
+	// Re-running init must update the row, not accumulate rows: a repo has
+	// one contributor, not a history of them.
+	dataDir := t.TempDir()
+
+	for _, email := range []string{"old@example.com", "new@example.com"} {
+		if err := SetMetadata(dataDir, Metadata{RepoID: testRepo, Contributor: email}); err != nil {
+			t.Fatalf("SetMetadata(%s): %v", email, err)
+		}
+	}
+
+	got, err := GetMetadata(dataDir, testRepo)
+	if err != nil {
+		t.Fatalf("GetMetadata: %v", err)
+	}
+	if got.Contributor != "new@example.com" {
+		t.Errorf("Contributor = %q, want the updated value", got.Contributor)
+	}
+}
+
+func TestMetadataIsScopedByRepo(t *testing.T) {
+	dataDir := t.TempDir()
+	SetMetadata(dataDir, Metadata{RepoID: "repo-a", Contributor: "a@example.com"})
+	SetMetadata(dataDir, Metadata{RepoID: "repo-b", Contributor: "b@example.com"})
+
+	a, _ := GetMetadata(dataDir, "repo-a")
+	b, _ := GetMetadata(dataDir, "repo-b")
+	if a.Contributor != "a@example.com" || b.Contributor != "b@example.com" {
+		t.Errorf("metadata crossed repos: a=%q b=%q", a.Contributor, b.Contributor)
+	}
+}
+
+func TestGetMetadataForUnknownRepo(t *testing.T) {
+	// A journal written before metadata existed is a normal state, not an
+	// error.
+	dataDir := t.TempDir()
+	SetMetadata(dataDir, Metadata{RepoID: "known", Contributor: "x@example.com"})
+
+	got, err := GetMetadata(dataDir, "never-seen")
+	if err != nil {
+		t.Fatalf("GetMetadata for unknown repo = %v, want nil error", err)
+	}
+	if got != nil {
+		t.Errorf("GetMetadata for unknown repo = %+v, want nil", got)
+	}
+}
+
+func TestGetMetadataOnMissingJournal(t *testing.T) {
+	got, err := GetMetadata(t.TempDir(), testRepo)
+	if err != nil {
+		t.Fatalf("GetMetadata on missing journal = %v, want nil error", err)
+	}
+	if got != nil {
+		t.Errorf("got %+v, want nil", got)
+	}
+}
+
+func TestSetMetadataRequiresRepoID(t *testing.T) {
+	if err := SetMetadata(t.TempDir(), Metadata{Contributor: "x@example.com"}); err == nil {
+		t.Error("SetMetadata with no repo id = nil error, want a refusal")
+	}
+}
+
+func TestPurgeRemovesMetadataToo(t *testing.T) {
+	// Metadata holds the contributor identity — the most identifying thing
+	// recorded — so purge must take it.
+	dataDir := t.TempDir()
+	SetMetadata(dataDir, Metadata{RepoID: testRepo, Contributor: "dev@example.com"})
+	SetMetadata(dataDir, Metadata{RepoID: "other-repo", Contributor: "other@example.com"})
+
+	if _, err := Purge(dataDir, testRepo); err != nil {
+		t.Fatalf("Purge: %v", err)
+	}
+
+	got, _ := GetMetadata(dataDir, testRepo)
+	if got != nil {
+		t.Errorf("purge left metadata behind: %+v", got)
+	}
+
+	survived, _ := GetMetadata(dataDir, "other-repo")
+	if survived == nil {
+		t.Error("purge destroyed another repository's metadata")
+	}
+}

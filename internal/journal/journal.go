@@ -89,6 +89,20 @@ CREATE TABLE IF NOT EXISTS agent_lines (
 	PRIMARY KEY (repo_id, line_hash)
 );
 CREATE INDEX IF NOT EXISTS idx_agent_lines_repo_ts ON agent_lines(repo_id, first_ts);
+
+-- Facts about a repository's journal rather than observations within it:
+-- one row per repository, not one per event. The contributor lives here
+-- rather than on every entry because locally it is always the same person,
+-- so repeating it per row would be storage spent on a constant.
+--
+-- Central aggregation joins on this rather than transforming per row: a
+-- sync reads one metadata row and one set of entries.
+CREATE TABLE IF NOT EXISTS repo_metadata (
+	repo_id      TEXT PRIMARY KEY,
+	contributor  TEXT NOT NULL DEFAULT '',
+	spec_version TEXT NOT NULL,
+	updated_at   INTEGER NOT NULL
+);
 `
 
 // DBPath returns the journal database location inside the given data
@@ -165,6 +179,87 @@ func (w *Writer) Append(e Entry) error {
 		return fmt.Errorf("journal: insert entry: %w", err)
 	}
 	return nil
+}
+
+// Metadata describes a repository's journal rather than any event within
+// it. Central aggregation reads one of these per repository instead of
+// carrying the same values on every row.
+type Metadata struct {
+	RepoID string
+
+	// Contributor is the git committer identity for this repository,
+	// captured at `dun init`. Empty locally means it was never captured —
+	// a repository initialised before this existed, or one where git has
+	// no user.email configured.
+	//
+	// It is stored once per repository rather than per event because
+	// locally it is always the same person: repeating it per row would be
+	// storage spent on a constant.
+	Contributor string
+
+	SpecVersion string
+	UpdatedAt   time.Time
+}
+
+// SetMetadata records or updates a repository's metadata.
+func SetMetadata(dataDir string, m Metadata) error {
+	if m.RepoID == "" {
+		return fmt.Errorf("journal: repo id is required")
+	}
+	if m.SpecVersion == "" {
+		m.SpecVersion = SpecVersion
+	}
+	if m.UpdatedAt.IsZero() {
+		m.UpdatedAt = time.Now().UTC()
+	}
+
+	db, err := open(dataDir)
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+
+	_, err = db.Exec(
+		`INSERT INTO repo_metadata (repo_id, contributor, spec_version, updated_at)
+		 VALUES (?, ?, ?, ?)
+		 ON CONFLICT(repo_id) DO UPDATE SET
+		   contributor = excluded.contributor,
+		   spec_version = excluded.spec_version,
+		   updated_at = excluded.updated_at`,
+		m.RepoID, m.Contributor, m.SpecVersion, m.UpdatedAt.UnixNano())
+	if err != nil {
+		return fmt.Errorf("journal: write metadata: %w", err)
+	}
+	return nil
+}
+
+// GetMetadata reads a repository's metadata. Returns (nil, nil) when the
+// repository has none — a journal written before metadata existed, or one
+// never initialised.
+func GetMetadata(dataDir, repoID string) (*Metadata, error) {
+	if _, err := os.Stat(DBPath(dataDir)); os.IsNotExist(err) {
+		return nil, nil
+	}
+
+	db, err := open(dataDir)
+	if err != nil {
+		return nil, err
+	}
+	defer db.Close()
+
+	var m Metadata
+	var updated int64
+	err = db.QueryRow(
+		`SELECT repo_id, contributor, spec_version, updated_at FROM repo_metadata WHERE repo_id = ?`,
+		repoID).Scan(&m.RepoID, &m.Contributor, &m.SpecVersion, &updated)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("journal: read metadata: %w", err)
+	}
+	m.UpdatedAt = time.Unix(0, updated).UTC()
+	return &m, nil
 }
 
 // AppendLines records the hashes of lines an agent produced. Re-recording
@@ -305,6 +400,12 @@ func Purge(dataDir, repoID string) (int64, error) {
 	// would make purge a half-truth.
 	if _, err := db.Exec(`DELETE FROM agent_lines WHERE repo_id = ?`, repoID); err != nil {
 		return 0, fmt.Errorf("journal: purge line hashes: %w", err)
+	}
+
+	// Metadata carries the contributor identity, so it goes too — leaving
+	// it would keep the most identifying part of what was recorded.
+	if _, err := db.Exec(`DELETE FROM repo_metadata WHERE repo_id = ?`, repoID); err != nil {
+		return 0, fmt.Errorf("journal: purge metadata: %w", err)
 	}
 
 	n, err := res.RowsAffected()

@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/navjyotnishant/whodunit/internal/journal"
 	"github.com/navjyotnishant/whodunit/internal/registry"
 	"github.com/navjyotnishant/whodunit/internal/repoid"
 	"github.com/spf13/cobra"
@@ -96,6 +97,27 @@ func runInit(cmd *cobra.Command, repoPath string) error {
 	}
 	if err := registry.Add(repoID, recordPath, time.Now()); err != nil {
 		return err
+	}
+
+	// Record who this journal belongs to, once per repository rather than
+	// on every event. Central aggregation reads this instead of carrying
+	// the same identity on every row.
+	dataDir, err := journalDataDir()
+	if err != nil {
+		return err
+	}
+	contributor := contributorFor(repoPath)
+	if err := journal.SetMetadata(dataDir, journal.Metadata{
+		RepoID:      repoID,
+		Contributor: contributor,
+		UpdatedAt:   time.Now(),
+	}); err != nil {
+		return err
+	}
+	if contributor == "" {
+		fmt.Fprintln(cmd.OutOrStdout(),
+			"\nnote: git has no user.email configured here, so commits from this\n"+
+				"repository will not carry a contributor identity.")
 	}
 
 	return nil

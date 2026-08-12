@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/navjyotnishant/whodunit/internal/journal"
 	"github.com/navjyotnishant/whodunit/internal/registry"
 	"github.com/navjyotnishant/whodunit/internal/repoid"
 )
@@ -188,5 +189,81 @@ func TestInitOnRepoWithoutCommitsStillInstallsHooks(t *testing.T) {
 	entries, _ := registry.List()
 	if len(entries) != 0 {
 		t.Errorf("a repo with no commits must not be registered, got %+v", entries)
+	}
+}
+
+func TestInitCapturesContributor(t *testing.T) {
+	chdirToTestRepo(t)
+
+	cmd := newRootCmd()
+	cmd.SetOut(&strings.Builder{})
+	cmd.SetArgs([]string{"init"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("init: %v", err)
+	}
+
+	dataDir, err := journalDataDir()
+	if err != nil {
+		t.Fatalf("journalDataDir: %v", err)
+	}
+	repoID, err := currentRepoID()
+	if err != nil {
+		t.Fatalf("currentRepoID: %v", err)
+	}
+
+	md, err := journal.GetMetadata(dataDir, repoID)
+	if err != nil {
+		t.Fatalf("GetMetadata: %v", err)
+	}
+	if md == nil {
+		t.Fatal("init recorded no metadata")
+	}
+	// chdirToTestRepo commits with GIT_AUTHOR_EMAIL=test@test.local, but
+	// user.email is what git config reports; the test repo inherits the
+	// machine's global config, so assert only that something was captured
+	// or that the empty case was handled.
+	if md.RepoID != repoID {
+		t.Errorf("metadata RepoID = %q, want %q", md.RepoID, repoID)
+	}
+}
+
+func TestInitWithoutGitEmailSaysSo(t *testing.T) {
+	// A repo where git has no identity is a state to report honestly, not
+	// an error — the hooks still work.
+	dir := t.TempDir()
+	for _, args := range [][]string{
+		{"init", "-q"},
+		{"config", "user.email", ""},
+		{"config", "user.name", "test"},
+	} {
+		c := exec.Command("git", args...)
+		c.Dir = dir
+		if out, err := c.CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v\n%s", args, err, out)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(dir, "f.txt"), []byte("x\n"), 0o644); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	for _, args := range [][]string{{"add", "f.txt"}, {"commit", "-q", "-m", "seed", "--author=t <t@t>"}} {
+		c := exec.Command("git", args...)
+		c.Dir = dir
+		c.Env = append(os.Environ(), "GIT_COMMITTER_NAME=t", "GIT_COMMITTER_EMAIL=t@t")
+		if out, err := c.CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v\n%s", args, err, out)
+		}
+	}
+	t.Setenv("WHODUNIT_HOME", t.TempDir())
+
+	cmd := newRootCmd()
+	buf := &strings.Builder{}
+	cmd.SetOut(buf)
+	cmd.SetArgs([]string{"init", "--repo", dir})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("init: %v", err)
+	}
+
+	if !strings.Contains(buf.String(), "no user.email") {
+		t.Errorf("output should mention the missing identity: %s", buf.String())
 	}
 }

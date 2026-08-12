@@ -50,6 +50,26 @@ func journalDataDir() (string, error) {
 	return config.DataDir()
 }
 
+// contributorFor returns the git committer identity configured for the
+// repository at dir (empty dir means the current directory).
+//
+// This is the same value git will stamp on the commits themselves, read
+// from git rather than collected separately — so the metadata records
+// nothing that was not already going into every commit.
+//
+// Returns empty when git has no user.email configured, which is a state to
+// record honestly rather than an error: the hooks still work, and the
+// contributor simply is not known.
+func contributorFor(dir string) string {
+	cmd := exec.Command("git", "config", "user.email")
+	cmd.Dir = dir
+	out, err := cmd.Output()
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(out))
+}
+
 // currentRepoID returns the stable identifier for the repository in the
 // current working directory.
 func currentRepoID() (string, error) {
