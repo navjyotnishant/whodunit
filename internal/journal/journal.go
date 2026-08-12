@@ -26,6 +26,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/navjyotnishant/whodunit/internal/config"
 	_ "modernc.org/sqlite"
 )
 
@@ -69,10 +70,32 @@ CREATE INDEX IF NOT EXISTS idx_entries_repo_ts ON entries(repo_id, ts);
 CREATE INDEX IF NOT EXISTS idx_entries_repo_file ON entries(repo_id, file);
 `
 
-// DBPath returns the journal database location inside the given whodunit
-// home directory.
-func DBPath(home string) string {
-	return filepath.Join(home, "journal.db")
+// DBPath returns the journal database location inside the given data
+// directory.
+func DBPath(dataDir string) string {
+	return filepath.Join(dataDir, "journal.db")
+}
+
+// dbPerm is owner-only. The journal records which files were edited and
+// when; the SQLite driver creates the file 0644 by default, which is
+// world-readable on a shared machine.
+const dbPerm = 0o600
+
+// tightenDBPerms fixes the database file's mode after the driver creates
+// it, and repairs a file created before this rule existed.
+func tightenDBPerms(dataDir string) error {
+	path := DBPath(dataDir)
+	info, err := os.Stat(path)
+	if os.IsNotExist(err) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if info.Mode().Perm() == dbPerm {
+		return nil
+	}
+	return os.Chmod(path, dbPerm)
 }
 
 // Writer appends entries for one repository to the global journal.
@@ -81,17 +104,14 @@ type Writer struct {
 	repoID string
 }
 
-// NewWriter opens (creating if needed) the global journal database under
-// home, scoped to repoID. Every entry written through it belongs to that
+// NewWriter opens (creating if needed) the global journal database in
+// dataDir, scoped to repoID. Every entry written through it belongs to that
 // repository; nothing can write across repos by accident.
-func NewWriter(home, repoID string) (*Writer, error) {
+func NewWriter(dataDir, repoID string) (*Writer, error) {
 	if repoID == "" {
 		return nil, fmt.Errorf("journal: repo id is required")
 	}
-	if err := os.MkdirAll(home, 0o700); err != nil {
-		return nil, fmt.Errorf("journal: create home: %w", err)
-	}
-	db, err := open(home)
+	db, err := open(dataDir)
 	if err != nil {
 		return nil, err
 	}
@@ -129,12 +149,12 @@ func (w *Writer) Append(e Entry) error {
 // ReadRange reads one repository's entries with timestamps in [since, until).
 // until may be zero to mean "no upper bound". Returns nil, not an error, if
 // no journal database exists yet.
-func ReadRange(home, repoID string, since, until time.Time) ([]Entry, error) {
-	if _, err := os.Stat(DBPath(home)); os.IsNotExist(err) {
+func ReadRange(dataDir, repoID string, since, until time.Time) ([]Entry, error) {
+	if _, err := os.Stat(DBPath(dataDir)); os.IsNotExist(err) {
 		return nil, nil
 	}
 
-	db, err := open(home)
+	db, err := open(dataDir)
 	if err != nil {
 		return nil, err
 	}
@@ -175,12 +195,12 @@ func ReadRange(home, repoID string, since, until time.Time) ([]Entry, error) {
 // Purge deletes every entry for one repository, leaving other repositories
 // untouched. `dun journal purge` means "forget what I did in this repo" —
 // a global store must not turn that into forgetting everything.
-func Purge(home, repoID string) (int64, error) {
-	if _, err := os.Stat(DBPath(home)); os.IsNotExist(err) {
+func Purge(dataDir, repoID string) (int64, error) {
+	if _, err := os.Stat(DBPath(dataDir)); os.IsNotExist(err) {
 		return 0, nil
 	}
 
-	db, err := open(home)
+	db, err := open(dataDir)
 	if err != nil {
 		return 0, err
 	}
@@ -197,14 +217,27 @@ func Purge(home, repoID string) (int64, error) {
 	return n, nil
 }
 
-func open(home string) (*sql.DB, error) {
-	db, err := sql.Open("sqlite", DBPath(home))
+func open(dataDir string) (*sql.DB, error) {
+	// Every path into the database goes through here, so this is where the
+	// directory guarantee belongs — doing it only in NewWriter would leave
+	// a directory created by hand, or by an older version, permissive.
+	if err := config.EnsureDir(dataDir); err != nil {
+		return nil, fmt.Errorf("journal: %w", err)
+	}
+
+	db, err := sql.Open("sqlite", DBPath(dataDir))
 	if err != nil {
 		return nil, fmt.Errorf("journal: open db: %w", err)
 	}
 	if _, err := db.Exec(schema); err != nil {
 		db.Close()
 		return nil, fmt.Errorf("journal: init schema: %w", err)
+	}
+	// The schema exec is what actually creates the file, so the mode can
+	// only be fixed after it.
+	if err := tightenDBPerms(dataDir); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("journal: %w", err)
 	}
 	return db, nil
 }

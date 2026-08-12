@@ -24,7 +24,7 @@ func newJournalShowCmd() *cobra.Command {
 		Use:   "show",
 		Short: "Print this repository's journal entries in plain text.",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			home, err := journalHome()
+			dataDir, err := journalDataDir()
 			if err != nil {
 				return err
 			}
@@ -32,7 +32,7 @@ func newJournalShowCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			entries, err := journal.ReadRange(home, repoID, time.Time{}, time.Time{})
+			entries, err := journal.ReadRange(dataDir, repoID, time.Time{}, time.Time{})
 			if err != nil {
 				return err
 			}
@@ -56,7 +56,7 @@ func newJournalPurgeCmd() *cobra.Command {
 			"this deletes only this repository's rows — other repositories are\n" +
 			"left untouched.",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			home, err := journalHome()
+			dataDir, err := journalDataDir()
 			if err != nil {
 				return err
 			}
@@ -64,7 +64,7 @@ func newJournalPurgeCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			n, err := journal.Purge(home, repoID)
+			n, err := journal.Purge(dataDir, repoID)
 			if err != nil {
 				return err
 			}

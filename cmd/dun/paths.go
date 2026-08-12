@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -21,12 +20,12 @@ func gitDir() (string, error) {
 	return strings.TrimSpace(string(out)), nil
 }
 
-// journalHome returns the directory holding the global journal database.
+// journalDataDir returns the directory holding the global journal database.
 // The journal is global and scoped by repo id rather than one file per
 // repo, so the same code path works whether the backend is the embedded
 // SQLite file or, later, a shared server.
-func journalHome() (string, error) {
-	return config.Dir()
+func journalDataDir() (string, error) {
+	return config.DataDir()
 }
 
 // currentRepoID returns the stable identifier for the repository in the
@@ -40,7 +39,7 @@ func currentRepoID() (string, error) {
 // cannot be recaptured, and anything under .git/ dies with a fresh clone
 // or a `git clean -xfd`.
 func defaultBaselinePath() (string, error) {
-	home, err := config.Dir()
+	dir, err := config.BaselinesDir()
 	if err != nil {
 		return "", err
 	}
@@ -48,9 +47,8 @@ func defaultBaselinePath() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	dir := filepath.Join(home, "baselines")
-	if err := os.MkdirAll(dir, 0o700); err != nil {
-		return "", fmt.Errorf("create baselines dir: %w", err)
+	if err := config.EnsureDir(dir); err != nil {
+		return "", err
 	}
 	return filepath.Join(dir, repoID+".json"), nil
 }

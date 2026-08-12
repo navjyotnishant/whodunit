@@ -166,9 +166,18 @@ adapter interface is open for a community contribution.
 
 | Path | What |
 |---|---|
-| `~/.whodunit/journal.db` | Observations, one row per agent edit, scoped by repository |
-| `~/.whodunit/baselines/<repo>.json` | Pre-adoption snapshots (`dun baseline capture`) |
 | `~/.whodunit/config.json` | Global settings (subscription spend, retention) |
+| `~/.whodunit/data/journal.db` | Observations, one row per agent edit, scoped by repository |
+| `~/.whodunit/baselines/<repo>.json` | Pre-adoption snapshots (`dun baseline capture`) |
+
+Everything is owner-only (`0700` directories, `0600` files) and repaired on
+open if it was ever created more permissively — the journal records which
+files you edited and when, which is nobody else's business on a shared
+machine.
+
+Baselines sit apart from `data/` because they are the one thing here that
+is *not* regenerable: `dun ingest` can rebuild the journal at any time, but
+a pre-adoption window closes permanently.
 
 The journal is one shared database rather than a file per repository, and
 rows carry a `repo_id` column. That identifier is the repository's **root

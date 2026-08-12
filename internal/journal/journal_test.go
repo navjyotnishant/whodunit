@@ -2,6 +2,7 @@ package journal
 
 import (
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 )
@@ -205,5 +206,81 @@ func TestNewWriterRequiresRepoID(t *testing.T) {
 	// An empty repo id would write rows no repo-scoped query could find.
 	if _, err := NewWriter(t.TempDir(), ""); err == nil {
 		t.Error("NewWriter with an empty repo id = nil error, want a refusal")
+	}
+}
+
+func TestDatabaseIsNotWorldReadable(t *testing.T) {
+	// The journal records which files were edited and when. The SQLite
+	// driver creates the file 0644 by default, which is readable by every
+	// user on a shared machine.
+	dataDir := t.TempDir()
+	w, err := NewWriter(dataDir, testRepo)
+	if err != nil {
+		t.Fatalf("NewWriter: %v", err)
+	}
+	if err := w.Append(Entry{Timestamp: time.Now(), Agent: "claude-code", Event: "tool_use", File: "x.go"}); err != nil {
+		t.Fatalf("Append: %v", err)
+	}
+	w.Close()
+
+	info, err := os.Stat(DBPath(dataDir))
+	if err != nil {
+		t.Fatalf("stat db: %v", err)
+	}
+	if perm := info.Mode().Perm(); perm != 0o600 {
+		t.Errorf("journal.db mode = %o, want 600 (owner only)", perm)
+	}
+}
+
+func TestExistingWorldReadableDatabaseIsTightened(t *testing.T) {
+	// A database created before this rule existed must be repaired, not
+	// left permissive forever.
+	dataDir := t.TempDir()
+	w, err := NewWriter(dataDir, testRepo)
+	if err != nil {
+		t.Fatalf("NewWriter: %v", err)
+	}
+	w.Close()
+
+	if err := os.Chmod(DBPath(dataDir), 0o644); err != nil {
+		t.Fatalf("chmod: %v", err)
+	}
+
+	w2, err := NewWriter(dataDir, testRepo)
+	if err != nil {
+		t.Fatalf("NewWriter (reopen): %v", err)
+	}
+	w2.Close()
+
+	info, err := os.Stat(DBPath(dataDir))
+	if err != nil {
+		t.Fatalf("stat db: %v", err)
+	}
+	if perm := info.Mode().Perm(); perm != 0o600 {
+		t.Errorf("journal.db mode after reopen = %o, want 600", perm)
+	}
+}
+
+func TestExistingPermissiveDataDirIsTightened(t *testing.T) {
+	// A data directory created by hand (or by an older version) must be
+	// repaired on the next open, not left readable by everyone.
+	parent := t.TempDir()
+	dataDir := filepath.Join(parent, "data")
+	if err := os.MkdirAll(dataDir, 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+
+	w, err := NewWriter(dataDir, testRepo)
+	if err != nil {
+		t.Fatalf("NewWriter: %v", err)
+	}
+	w.Close()
+
+	info, err := os.Stat(dataDir)
+	if err != nil {
+		t.Fatalf("stat: %v", err)
+	}
+	if perm := info.Mode().Perm(); perm != 0o700 {
+		t.Errorf("data dir mode = %o, want 700 (owner only)", perm)
 	}
 }

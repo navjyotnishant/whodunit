@@ -74,15 +74,15 @@ func TestJournalShowOnEmptyJournal(t *testing.T) {
 func TestJournalShowPrintsEntries(t *testing.T) {
 	chdirToTestRepo(t)
 
-	home, err := journalHome()
+	dataDir, err := journalDataDir()
 	if err != nil {
-		t.Fatalf("journalHome: %v", err)
+		t.Fatalf("journalDataDir: %v", err)
 	}
 	repoID, err := currentRepoID()
 	if err != nil {
 		t.Fatalf("currentRepoID: %v", err)
 	}
-	w, err := journal.NewWriter(home, repoID)
+	w, err := journal.NewWriter(dataDir, repoID)
 	if err != nil {
 		t.Fatalf("NewWriter: %v", err)
 	}
@@ -107,13 +107,13 @@ func TestJournalShowPrintsEntries(t *testing.T) {
 func TestJournalShowIsScopedToThisRepo(t *testing.T) {
 	chdirToTestRepo(t)
 
-	home, err := journalHome()
+	dataDir, err := journalDataDir()
 	if err != nil {
-		t.Fatalf("journalHome: %v", err)
+		t.Fatalf("journalDataDir: %v", err)
 	}
 
 	// An entry belonging to a different repository must not appear.
-	other, err := journal.NewWriter(home, "some-other-repo-root-sha")
+	other, err := journal.NewWriter(dataDir, "some-other-repo-root-sha")
 	if err != nil {
 		t.Fatalf("NewWriter: %v", err)
 	}
@@ -138,20 +138,20 @@ func TestJournalShowIsScopedToThisRepo(t *testing.T) {
 func TestJournalPurgeRemovesOnlyThisRepo(t *testing.T) {
 	chdirToTestRepo(t)
 
-	home, err := journalHome()
+	dataDir, err := journalDataDir()
 	if err != nil {
-		t.Fatalf("journalHome: %v", err)
+		t.Fatalf("journalDataDir: %v", err)
 	}
 	repoID, err := currentRepoID()
 	if err != nil {
 		t.Fatalf("currentRepoID: %v", err)
 	}
 
-	mine, _ := journal.NewWriter(home, repoID)
+	mine, _ := journal.NewWriter(dataDir, repoID)
 	mine.Append(journal.Entry{Timestamp: time.Now(), Agent: "claude-code", Event: "tool_use", File: "mine.go"})
 	mine.Close()
 
-	theirs, _ := journal.NewWriter(home, "other-repo")
+	theirs, _ := journal.NewWriter(dataDir, "other-repo")
 	theirs.Append(journal.Entry{Timestamp: time.Now(), Agent: "claude-code", Event: "tool_use", File: "theirs.go"})
 	theirs.Close()
 
@@ -163,13 +163,13 @@ func TestJournalPurgeRemovesOnlyThisRepo(t *testing.T) {
 		t.Fatalf("journal purge: %v", err)
 	}
 
-	got, _ := journal.ReadRange(home, repoID, time.Time{}, time.Time{})
+	got, _ := journal.ReadRange(dataDir, repoID, time.Time{}, time.Time{})
 	if len(got) != 0 {
 		t.Errorf("this repo should be empty after purge, got %d entries", len(got))
 	}
 
 	// Purging one repo in a shared store must never take another with it.
-	survived, _ := journal.ReadRange(home, "other-repo", time.Time{}, time.Time{})
+	survived, _ := journal.ReadRange(dataDir, "other-repo", time.Time{}, time.Time{})
 	if len(survived) != 1 {
 		t.Errorf("purge destroyed another repository's entries: %d survived, want 1", len(survived))
 	}

@@ -40,17 +40,21 @@ func TestGitDirOutsideRepo(t *testing.T) {
 	}
 }
 
-func TestJournalHomeIsGlobalNotPerRepo(t *testing.T) {
+func TestJournalDataDirIsGlobalNotPerRepo(t *testing.T) {
 	chdirToTestRepo(t)
 
-	home, err := journalHome()
+	dataDir, err := journalDataDir()
 	if err != nil {
-		t.Fatalf("journalHome: %v", err)
+		t.Fatalf("journalDataDir: %v", err)
 	}
 	// The journal is a single global store scoped by repo id, so its
 	// location must not depend on which repository we happen to be in.
-	if strings.Contains(home, ".git") {
-		t.Errorf("journalHome() = %q, want a global path outside any repository", home)
+	if strings.Contains(dataDir, ".git") {
+		t.Errorf("journalDataDir() = %q, want a global path outside any repository", dataDir)
+	}
+	// Data belongs in its own subdirectory, not loose alongside config.
+	if filepath.Base(dataDir) != "data" {
+		t.Errorf("journalDataDir() = %q, want it under a data/ directory", dataDir)
 	}
 }
 
