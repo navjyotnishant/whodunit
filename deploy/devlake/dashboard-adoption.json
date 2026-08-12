@@ -19,8 +19,8 @@
         "query": "mysql",
         "current": {
           "selected": true,
-          "text": "whodunit",
-          "value": "whodunit"
+          "text": "mysql",
+          "value": "mysql"
         },
         "hide": 0,
         "label": "Database"

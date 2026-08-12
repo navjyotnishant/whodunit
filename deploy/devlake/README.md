@@ -13,33 +13,38 @@ real database and Grafana to write into during development.
 | Grafana | http://localhost:3002 — `admin` / `admin` on first start |
 | MySQL | `127.0.0.1:3306` — `merico` / `merico`, database `lake` |
 
-## The dashboard
+## The dashboards
 
-`up.sh` does not import it — Grafana's admin password may have been changed,
-so importing needs credentials only you have:
+Both are provisioned: `docker-compose.yml` mounts `dashboard.json` and
+`dashboard-adoption.json` into Grafana's dashboard directory, which it
+rescans every few seconds. Edit either file and the change appears without
+an import, which is what keeps the files in this repository the source of
+truth rather than a copy of whatever was last pasted into Grafana.
 
-```sh
-curl -u admin:YOUR_PASSWORD -X POST http://localhost:3002/api/dashboards/db \
-  -H 'Content-Type: application/json' \
-  -d "$(python3 -c "import json;print(json.dumps({'dashboard':json.load(open('dashboard.json')),'overwrite':True}))")"
-```
-
-It needs a MySQL datasource pointing at the `lake` database. DevLake's own
-provisioning leaves one unconfigured in this setup, so create it once:
+They need a MySQL datasource named **`mysql`** pointing at the `lake`
+database. That one step is still manual: the image's entrypoint rewrites
+`/etc/grafana/provisioning/datasources/datasource.yml` on every start, so
+mounting our own file there read-only makes Grafana crash-loop. Create it
+once:
 
 ```sh
 curl -u admin:YOUR_PASSWORD -X POST http://localhost:3002/api/datasources \
   -H 'Content-Type: application/json' \
-  -d '{"name":"whodunit","type":"mysql","access":"proxy","url":"mysql:3306",
+  -d '{"name":"mysql","type":"mysql","access":"proxy","url":"mysql:3306",
        "database":"lake","user":"merico",
        "secureJsonData":{"password":"merico"},"isDefault":true}'
 ```
 
+The name matters. Every stock DevLake dashboard references its datasource by
+the literal name `mysql`, so a datasource called anything else leaves them
+reporting *"datasource mysql wasn't found"* on every panel.
+
 ## What this is not
 
-**Not a supported deployment.** It is upstream's compose file, vendored
-unmodified so it stays diffable against theirs, plus a script that generates
-the encryption secret DevLake refuses to start without.
+**Not a supported deployment.** It is upstream's compose file plus a script
+that generates the encryption secret DevLake refuses to start without. The
+only change to their file is the Grafana volume mounts that provision the two
+dashboards, kept to one block so it stays diffable against theirs.
 
 **Not secure.** The credentials above are DevLake's published defaults and are
 in this repository. MySQL is bound to `3306` on your machine. Fine for

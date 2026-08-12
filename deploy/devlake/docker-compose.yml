@@ -38,6 +38,14 @@ services:
       - 3002:3000
     volumes:
       - grafana-storage:/var/lib/grafana
+      # Provisioned so the dashboards in this repo are the source of truth
+      # rather than something imported by hand into a persisted volume.
+      #
+      # Mount the files individually: the image's entrypoint rewrites
+      # datasource.yml on every start, so mounting the whole provisioning
+      # directory read-only makes Grafana crash-loop.
+      - ./dashboard.json:/etc/grafana/dashboards/whodunit.json:ro
+      - ./dashboard-adoption.json:/etc/grafana/dashboards/whodunit-adoption.json:ro
     environment:
       GF_SERVER_ROOT_URL: "http://localhost:4000/grafana"
       GF_USERS_DEFAULT_THEME: "light"
