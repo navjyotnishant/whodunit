@@ -126,6 +126,11 @@ func statusAcrossRepos(w io.Writer) error {
 	fmt.Fprintf(w, "%d instrumented repositor%s\n\n", len(entries), plural2(len(entries)))
 
 	var available int
+	// Methods actually seen, gathered while listing: the legend below
+	// explains only these, and rescanning every repository to find them
+	// again would double the git calls this command makes.
+	seen := map[spec.Method]bool{}
+
 	for _, e := range entries {
 		name := shortRepoName(e.Path)
 
@@ -150,15 +155,45 @@ func statusAcrossRepos(w io.Writer) error {
 			continue
 		}
 
+		for m, n := range s.MethodCount {
+			if n > 0 {
+				seen[m] = true
+			}
+		}
 		fmt.Fprintf(w, "  %-28s %3.0f%% coverage  %s\n",
 			name, s.CoveragePct(), c.S(termcolor.Muted, methodSummary(s)))
 	}
 
 	if available > 0 {
+		// The per-method gloss the single-repository view prints does not
+		// fit on a line shared with several repositories, so the meanings
+		// are given once underneath rather than dropped entirely — the
+		// names mean nothing to someone meeting them here first.
+		printMethodLegend(w, seen)
 		fmt.Fprintf(w, "\n%s\n", c.S(termcolor.Muted,
 			"one repository in detail:  dun status --repo <path>"))
 	}
 	return nil
+}
+
+// printMethodLegend explains the methods that actually appear above.
+// Listing all five would explain levels this machine has never produced.
+func printMethodLegend(w io.Writer, seen map[spec.Method]bool) {
+	if len(seen) == 0 {
+		return
+	}
+	c := termcolor.New(w)
+
+	fmt.Fprintln(w)
+	for _, m := range methodDisplayOrder {
+		if !seen[m] {
+			continue
+		}
+		label := fmt.Sprintf("%-13s", m)
+		fmt.Fprintf(w, "  %s %s\n",
+			c.S(termcolor.MethodStyle(string(m)), label),
+			c.S(termcolor.Muted, m.Explain()))
+	}
 }
 
 // coverageStats is one repository's trailer coverage.
