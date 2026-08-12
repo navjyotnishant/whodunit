@@ -32,6 +32,12 @@ jobs:
       - name: Vet
         run: go vet ./...
 
+      # The importable dashboards are generated from the mounted ones, so
+      # they cannot drift silently — a stale export is only discovered when
+      # someone imports it and finds a panel missing.
+      - name: Dashboards are exportable and current
+        run: deploy/devlake/export-dashboards.py --check
+
   # Tests run on all three platforms.
   #
   # Everything in this project resolves filesystem paths — where each agent

@@ -15,11 +15,39 @@ real database and Grafana to write into during development.
 
 ## The dashboards
 
-Both are provisioned: `docker-compose.yml` mounts `dashboard.json` and
-`dashboard-adoption.json` into Grafana's dashboard directory, which it
-rescans every few seconds. Edit either file and the change appears without
-an import, which is what keeps the files in this repository the source of
-truth rather than a copy of whatever was last pasted into Grafana.
+Three dashboards live in `dashboards/`, mounted into Grafana's dashboard
+directory, which it rescans every few seconds. Edit one and the change
+appears without an import, which is what keeps the files in this repository
+the source of truth rather than a copy of whatever was last pasted into
+Grafana. Adding a dashboard is dropping a file in — no compose change.
+
+| | Answers |
+|---|---|
+| `whodunit.json` | coverage, penetration, method mix |
+| `whodunit-adoption.json` | sessions, agents, tools, acceptance |
+| `whodunit-exec.json` | cycle time for AI-assisted work vs the rest |
+
+### Using them in your own Grafana
+
+The mounted copies pin a datasource named literally `mysql`, because every
+stock DevLake dashboard does. That works here and nowhere else.
+
+`dashboards-import/` holds the same dashboards exported for external use:
+the datasource is a placeholder Grafana asks you to fill in at import time.
+Take a file from there, **Dashboards → New → Import**, pick your MySQL
+datasource, done. They are also attached to every GitHub release, so a team
+can use them without cloning this repository.
+
+Those files are generated, never hand-edited:
+
+```sh
+./export-dashboards.py           # regenerate after changing a dashboard
+./export-dashboards.py --check   # what CI runs
+```
+
+CI fails if they are out of date. Two hand-maintained copies of a 22-panel
+dashboard drift within a month, and the drift is invisible until someone
+imports the stale one.
 
 They need a MySQL datasource named **`mysql`** pointing at the `lake`
 database. That one step is still manual: the image's entrypoint rewrites

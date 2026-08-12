@@ -32,9 +32,17 @@ jobs:
       - name: Build release artifacts
         run: ./scripts/release.sh "${GITHUB_REF_NAME}"
 
+      # Dashboards ship with the release so a team can import them without
+      # cloning the repository or running the bundled DevLake stack.
+      - name: Bundle dashboards
+        run: |
+          deploy/devlake/export-dashboards.py --check
+          tar -czf "dist/whodunit_dashboards_${GITHUB_REF_NAME}.tar.gz" \
+            -C deploy/devlake/dashboards-import .
+
       - name: Publish GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "${GITHUB_REF_NAME}" dist/dun_* dist/checksums.txt \
+          gh release create "${GITHUB_REF_NAME}" dist/dun_* dist/whodunit_dashboards_* dist/checksums.txt \
             --title "${GITHUB_REF_NAME}" --generate-notes
