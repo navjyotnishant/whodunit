@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/navjyotnishant/whodunit/internal/report"
@@ -25,11 +26,16 @@ func newReportCmd() *cobra.Command {
 			if err := os.WriteFile(out, []byte(b.String()), 0o644); err != nil {
 				return fmt.Errorf("write report: %w", err)
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), "wrote %s\n", out)
+
+			absOut, err := filepath.Abs(out)
+			if err != nil {
+				absOut = out // fall back to whatever was given rather than fail the report
+			}
+			fmt.Fprintf(cmd.OutOrStdout(), "wrote %s\n\nopen in browser:\nfile://%s\n", absOut, absOut)
 			return nil
 		},
 	}
-	cmd.Flags().StringVar(&out, "out", "dun-report.html", "output file path")
+	cmd.Flags().StringVar(&out, "out", filepath.Join(os.TempDir(), "dun-report.html"), "output file path")
 	cmd.Flags().IntVar(&limit, "limit", 500, "number of recent commits to examine")
 	return cmd
 }

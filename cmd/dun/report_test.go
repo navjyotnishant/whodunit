@@ -14,6 +14,8 @@ func TestReportCommandWritesHTMLFile(t *testing.T) {
 	cmd := newRootCmd()
 	cmd.SetArgs([]string{"report", "--out", out})
 
+	buf := &strings.Builder{}
+	cmd.SetOut(buf)
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("report command: %v", err)
 	}
@@ -25,10 +27,21 @@ func TestReportCommandWritesHTMLFile(t *testing.T) {
 	if !strings.Contains(string(data), "<!doctype html>") {
 		t.Errorf("report file missing doctype: %s", data)
 	}
+
+	absOut, _ := filepath.Abs(out)
+	if !strings.Contains(buf.String(), "file://"+absOut) {
+		t.Errorf("output missing pastable file:// URL: %s", buf.String())
+	}
 }
 
 func TestReportCommandDefaultOutputPath(t *testing.T) {
-	dir := chdirToTestRepo(t)
+	chdirToTestRepo(t)
+
+	// A stray dun-report.html left in the repo tree from a prior run of
+	// this test (or a real `dun report`) shouldn't make this test pass
+	// vacuously — start from a clean slate for the default path.
+	defaultOut := filepath.Join(os.TempDir(), "dun-report.html")
+	os.Remove(defaultOut)
 
 	cmd := newRootCmd()
 	cmd.SetArgs([]string{"report"})
@@ -37,7 +50,8 @@ func TestReportCommandDefaultOutputPath(t *testing.T) {
 		t.Fatalf("report command: %v", err)
 	}
 
-	if _, err := os.Stat(filepath.Join(dir, "dun-report.html")); err != nil {
-		t.Errorf("default report path not written: %v", err)
+	if _, err := os.Stat(defaultOut); err != nil {
+		t.Errorf("default report path (%s) not written: %v", defaultOut, err)
 	}
+	os.Remove(defaultOut)
 }

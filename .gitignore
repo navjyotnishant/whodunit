@@ -1,3 +1,4 @@
 /dun
 /dist/
 *.test
+/dun-report.html
