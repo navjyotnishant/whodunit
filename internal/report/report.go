@@ -7,6 +7,7 @@ import (
 	"bufio"
 	"fmt"
 	"os/exec"
+	"strconv"
 	"strings"
 	"time"
 
@@ -24,6 +25,12 @@ type Commit struct {
 	Files     []string
 	Trailer   *spec.Trailer // nil if no valid trailer was found
 	Purpose   purpose.Purpose
+
+	// LinesAdded and LinesRemoved are the commit's own diff size. Binary
+	// files contribute nothing rather than zero, since git reports no line
+	// count for them.
+	LinesAdded   int
+	LinesRemoved int
 }
 
 // Stats is the aggregate computed from git history for one report run.
@@ -87,6 +94,11 @@ func Collect(limit int) (Stats, error) {
 		return Stats{}, err
 	}
 
+	sizesBySHA, err := commitSizes(limit)
+	if err != nil {
+		return Stats{}, err
+	}
+
 	for _, record := range strings.Split(string(metaOut), recordSep) {
 		record = strings.TrimLeft(record, "\n")
 		if record == "" {
@@ -102,12 +114,15 @@ func Collect(limit int) (Stats, error) {
 		ts, _ := time.Parse(time.RFC3339, dateStr) // zero time on parse failure, sorts as oldest
 		files := filesBySHA[sha]
 
+		size := sizesBySHA[sha]
 		c := Commit{
-			SHA:       sha,
-			Timestamp: ts,
-			Subject:   subject,
-			Files:     files,
-			Purpose:   purpose.Classify(rest, files),
+			SHA:          sha,
+			Timestamp:    ts,
+			Subject:      subject,
+			Files:        files,
+			Purpose:      purpose.Classify(rest, files),
+			LinesAdded:   size.added,
+			LinesRemoved: size.removed,
 		}
 		if t, ok := findTrailer(rest, prefix); ok {
 			c.Trailer = &t
@@ -123,6 +138,51 @@ func Collect(limit int) (Stats, error) {
 	}
 
 	return withSpend(stats), nil
+}
+
+type commitSize struct{ added, removed int }
+
+// commitSizes returns each commit's diff size, keyed by sha.
+//
+// A separate pass for the same reason as commitFiles: git interleaves
+// --numstat output awkwardly with a custom --format, and two clean streams
+// beat one fragile positional parse.
+func commitSizes(limit int) (map[string]commitSize, error) {
+	out, err := exec.Command("git", "log", "-n", fmt.Sprint(limit),
+		"--format=COMMIT %H", "--numstat").Output()
+	if err != nil {
+		if exitErr, ok := err.(*exec.ExitError); ok &&
+			strings.Contains(string(exitErr.Stderr), "does not have any commits") {
+			return map[string]commitSize{}, nil
+		}
+		return nil, fmt.Errorf("read git log --numstat: %w", err)
+	}
+
+	result := map[string]commitSize{}
+	var sha string
+	for _, line := range strings.Split(string(out), "\n") {
+		if strings.HasPrefix(line, "COMMIT ") {
+			sha = strings.TrimPrefix(line, "COMMIT ")
+			continue
+		}
+		fields := strings.Fields(line)
+		if len(fields) < 3 || sha == "" {
+			continue
+		}
+		// Binary files report "-" for both counts. Skipping them is
+		// correct: they have no line count, and counting them as zero
+		// would be indistinguishable from an empty text change.
+		a, errA := strconv.Atoi(fields[0])
+		r, errR := strconv.Atoi(fields[1])
+		if errA != nil || errR != nil {
+			continue
+		}
+		size := result[sha]
+		size.added += a
+		size.removed += r
+		result[sha] = size
+	}
+	return result, nil
 }
 
 // commitFiles returns, for each of the last `limit` commits, the list of
