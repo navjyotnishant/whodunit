@@ -1,0 +1,840 @@
+{
+  "uid": "whodunit-exec",
+  "title": "Whodunit — Executive Summary",
+  "tags": [
+    "whodunit"
+  ],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "",
+  "time": {
+    "from": "now-90d",
+    "to": "now"
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "datasource",
+        "type": "datasource",
+        "query": "mysql",
+        "current": {
+          "selected": true,
+          "text": "mysql",
+          "value": "mysql"
+        },
+        "hide": 0,
+        "label": "Data source"
+      },
+      {
+        "name": "board",
+        "type": "query",
+        "datasource": "${datasource}",
+        "query": "SELECT name AS __text, id AS __value FROM boards WHERE id LIKE 'linear:%' ORDER BY name",
+        "current": {
+          "selected": true,
+          "text": "Navjyot's Lab-1",
+          "value": "linear:LinearTeam:1:8842e00a-9b06-4aad-9b27-591ef9990e7b"
+        },
+        "refresh": 1,
+        "hide": 0,
+        "label": "Issue board",
+        "includeAll": false,
+        "multi": false
+      },
+      {
+        "name": "grain",
+        "type": "custom",
+        "label": "Granularity",
+        "query": "%Y-%m-%d : Daily, %x-W%v : Weekly, %Y-%m : Monthly",
+        "options": [
+          {
+            "text": "Daily",
+            "value": "%Y-%m-%d",
+            "selected": true
+          },
+          {
+            "text": "Weekly",
+            "value": "%x-W%v",
+            "selected": false
+          },
+          {
+            "text": "Monthly",
+            "value": "%Y-%m",
+            "selected": false
+          }
+        ],
+        "current": {
+          "selected": true,
+          "text": "Daily",
+          "value": "%Y-%m-%d"
+        },
+        "hide": 0,
+        "includeAll": false,
+        "multi": false
+      },
+      {
+        "name": "contributor",
+        "type": "query",
+        "datasource": "${datasource}",
+        "query": "SELECT DISTINCT contributor FROM whodunit_repos WHERE contributor <> ''",
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "__all__"
+        },
+        "refresh": 1,
+        "hide": 0,
+        "label": "Contributor",
+        "includeAll": true,
+        "allValue": "__all__",
+        "multi": false
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "text",
+      "title": "",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 3
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "## GenAI Adoption — Executive Summary\n*How much of this team's delivery is AI-assisted, and what it costs or saves.* Every number below is measured from git history and the agent's own session records — none of it is self-reported or estimated."
+      }
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "AI-assisted commits",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "x": 0,
+        "y": 3,
+        "w": 5,
+        "h": 5
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT COUNT(*) v FROM whodunit_commits c JOIN whodunit_repos r ON r.repo_id=c.repo_id WHERE c.status='assisted' AND ('$contributor' = '__all__' OR r.contributor = '$contributor') AND c.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "graphMode": "none",
+        "textMode": "value_and_name",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Attribution coverage",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "x": 5,
+        "y": 3,
+        "w": 5,
+        "h": 5
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT ROUND(100.0*SUM(c.status<>'undetermined')/NULLIF(COUNT(*),0),0) v FROM whodunit_commits c JOIN whodunit_repos r ON r.repo_id=c.repo_id WHERE ('$contributor' = '__all__' OR r.contributor = '$contributor') AND c.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "graphMode": "none",
+        "textMode": "value_and_name",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Code acceptance",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "x": 10,
+        "y": 3,
+        "w": 5,
+        "h": 5
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT ROUND(100.0*SUM(e.outcome='accepted')/NULLIF(SUM(e.outcome IN ('accepted','rejected','failed')),0),1) v FROM whodunit_events e JOIN whodunit_repos r ON r.repo_id=e.repo_id WHERE ('$contributor' = '__all__' OR r.contributor = '$contributor') AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "purple",
+                "value": null
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "graphMode": "none",
+        "textMode": "value_and_name",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 5,
+      "type": "stat",
+      "title": "Decided tool calls",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "x": 15,
+        "y": 3,
+        "w": 4,
+        "h": 5
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT COUNT(*) v FROM whodunit_events e JOIN whodunit_repos r ON r.repo_id=e.repo_id WHERE e.outcome IN ('accepted','rejected','failed') AND ('$contributor' = '__all__' OR r.contributor = '$contributor') AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "graphMode": "none",
+        "textMode": "value_and_name",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 6,
+      "type": "stat",
+      "title": "Agent sessions",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "x": 19,
+        "y": 3,
+        "w": 5,
+        "h": 5
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT COUNT(DISTINCT e.session) v FROM whodunit_events e JOIN whodunit_repos r ON r.repo_id=e.repo_id WHERE e.session<>'' AND ('$contributor' = '__all__' OR r.contributor = '$contributor') AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "orange",
+                "value": null
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "graphMode": "none",
+        "textMode": "value_and_name",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 7,
+      "type": "text",
+      "title": "",
+      "gridPos": {
+        "x": 0,
+        "y": 8,
+        "w": 24,
+        "h": 2
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "### Does AI-assisted work ship faster?\nCycle time for issues whose commits carry an AI-attribution trailer, against those that don't. **A measured comparison, not an estimate** — if the *Not AI-assisted* count is zero there is no control group yet and the delta means nothing. That count is shown deliberately."
+      }
+    },
+    {
+      "id": 8,
+      "type": "stat",
+      "title": "Median cycle — AI-assisted",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "x": 0,
+        "y": 10,
+        "w": 6,
+        "h": 5
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT ROUND(AVG(ltm)/60,1) v FROM (\nSELECT i.issue_key,\n       i.lead_time_minutes AS ltm,\n       i.resolution_date,\n       MAX(w.status = 'assisted') AS ai\nFROM issues i\nJOIN board_issues bi ON bi.issue_id = i.id\nLEFT JOIN commits c\n       ON c.message REGEXP CONCAT('(^|[^A-Za-z0-9])', i.issue_key, '([^0-9]|$)')\nLEFT JOIN whodunit_commits w ON w.commit_sha = c.sha\nWHERE bi.board_id = '$board'\n  AND i.lead_time_minutes IS NOT NULL\nGROUP BY i.issue_key, i.lead_time_minutes, i.resolution_date\n) t WHERE ai=1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "h",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "graphMode": "none",
+        "textMode": "value_and_name",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 9,
+      "type": "stat",
+      "title": "Median cycle — not AI-assisted",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "x": 6,
+        "y": 10,
+        "w": 6,
+        "h": 5
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT ROUND(AVG(ltm)/60,1) v FROM (\nSELECT i.issue_key,\n       i.lead_time_minutes AS ltm,\n       i.resolution_date,\n       MAX(w.status = 'assisted') AS ai\nFROM issues i\nJOIN board_issues bi ON bi.issue_id = i.id\nLEFT JOIN commits c\n       ON c.message REGEXP CONCAT('(^|[^A-Za-z0-9])', i.issue_key, '([^0-9]|$)')\nLEFT JOIN whodunit_commits w ON w.commit_sha = c.sha\nWHERE bi.board_id = '$board'\n  AND i.lead_time_minutes IS NOT NULL\nGROUP BY i.issue_key, i.lead_time_minutes, i.resolution_date\n) t WHERE ai=0"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "h",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "orange",
+                "value": null
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "graphMode": "none",
+        "textMode": "value_and_name",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 10,
+      "type": "stat",
+      "title": "Issues compared (AI)",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "x": 12,
+        "y": 10,
+        "w": 3,
+        "h": 5
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT COUNT(*) v FROM (\nSELECT i.issue_key,\n       i.lead_time_minutes AS ltm,\n       i.resolution_date,\n       MAX(w.status = 'assisted') AS ai\nFROM issues i\nJOIN board_issues bi ON bi.issue_id = i.id\nLEFT JOIN commits c\n       ON c.message REGEXP CONCAT('(^|[^A-Za-z0-9])', i.issue_key, '([^0-9]|$)')\nLEFT JOIN whodunit_commits w ON w.commit_sha = c.sha\nWHERE bi.board_id = '$board'\n  AND i.lead_time_minutes IS NOT NULL\nGROUP BY i.issue_key, i.lead_time_minutes, i.resolution_date\n) t WHERE ai=1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "graphMode": "none",
+        "textMode": "value_and_name",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 11,
+      "type": "stat",
+      "title": "Issues compared (non-AI)",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "x": 15,
+        "y": 10,
+        "w": 3,
+        "h": 5
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT COUNT(*) v FROM (\nSELECT i.issue_key,\n       i.lead_time_minutes AS ltm,\n       i.resolution_date,\n       MAX(w.status = 'assisted') AS ai\nFROM issues i\nJOIN board_issues bi ON bi.issue_id = i.id\nLEFT JOIN commits c\n       ON c.message REGEXP CONCAT('(^|[^A-Za-z0-9])', i.issue_key, '([^0-9]|$)')\nLEFT JOIN whodunit_commits w ON w.commit_sha = c.sha\nWHERE bi.board_id = '$board'\n  AND i.lead_time_minutes IS NOT NULL\nGROUP BY i.issue_key, i.lead_time_minutes, i.resolution_date\n) t WHERE ai=0"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "graphMode": "none",
+        "textMode": "value_and_name",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 12,
+      "type": "stat",
+      "title": "Delta",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "x": 18,
+        "y": 10,
+        "w": 6,
+        "h": 5
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT ROUND(\n   (SELECT AVG(ltm) FROM (\nSELECT i.issue_key,\n       i.lead_time_minutes AS ltm,\n       i.resolution_date,\n       MAX(w.status = 'assisted') AS ai\nFROM issues i\nJOIN board_issues bi ON bi.issue_id = i.id\nLEFT JOIN commits c\n       ON c.message REGEXP CONCAT('(^|[^A-Za-z0-9])', i.issue_key, '([^0-9]|$)')\nLEFT JOIN whodunit_commits w ON w.commit_sha = c.sha\nWHERE bi.board_id = '$board'\n  AND i.lead_time_minutes IS NOT NULL\nGROUP BY i.issue_key, i.lead_time_minutes, i.resolution_date\n) a WHERE ai=0)\n - (SELECT AVG(ltm) FROM (\nSELECT i.issue_key,\n       i.lead_time_minutes AS ltm,\n       i.resolution_date,\n       MAX(w.status = 'assisted') AS ai\nFROM issues i\nJOIN board_issues bi ON bi.issue_id = i.id\nLEFT JOIN commits c\n       ON c.message REGEXP CONCAT('(^|[^A-Za-z0-9])', i.issue_key, '([^0-9]|$)')\nLEFT JOIN whodunit_commits w ON w.commit_sha = c.sha\nWHERE bi.board_id = '$board'\n  AND i.lead_time_minutes IS NOT NULL\nGROUP BY i.issue_key, i.lead_time_minutes, i.resolution_date\n) b WHERE ai=1), 0) / 60 v"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "h",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "graphMode": "none",
+        "textMode": "value_and_name",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 13,
+      "type": "table",
+      "title": "Cycle time by issue",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "x": 0,
+        "y": 15,
+        "w": 24,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "\nSELECT issue_key AS `Issue`,\n       CASE ai WHEN 1 THEN 'AI-assisted' ELSE 'not AI-assisted' END AS `Attribution`,\n       ROUND(ltm/60, 1) AS `Cycle hours`,\n       resolution_date AS `Resolved`\nFROM (\nSELECT i.issue_key,\n       i.lead_time_minutes AS ltm,\n       i.resolution_date,\n       MAX(w.status = 'assisted') AS ai\nFROM issues i\nJOIN board_issues bi ON bi.issue_id = i.id\nLEFT JOIN commits c\n       ON c.message REGEXP CONCAT('(^|[^A-Za-z0-9])', i.issue_key, '([^0-9]|$)')\nLEFT JOIN whodunit_commits w ON w.commit_sha = c.sha\nWHERE bi.board_id = '$board'\n  AND i.lead_time_minutes IS NOT NULL\nGROUP BY i.issue_key, i.lead_time_minutes, i.resolution_date\n) t\nORDER BY resolution_date DESC\n"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto"
+          }
+        }
+      },
+      "options": {
+        "showHeader": true
+      }
+    },
+    {
+      "id": 14,
+      "type": "text",
+      "title": "",
+      "gridPos": {
+        "x": 0,
+        "y": 23,
+        "w": 24,
+        "h": 2
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "### Trend\nUse the **Granularity** control above to switch between daily, weekly and monthly buckets."
+      }
+    },
+    {
+      "id": 15,
+      "type": "timeseries",
+      "title": "AI-assisted commits over time",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "x": 0,
+        "y": 25,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "\nSELECT DATE_FORMAT(FROM_UNIXTIME(c.committed_at/1000000000), '$grain') AS `bucket`,\n       SUM(c.status='assisted') AS `assisted`,\n       SUM(c.status='undetermined') AS `undetermined`\nFROM whodunit_commits c JOIN whodunit_repos r ON r.repo_id=c.repo_id\nWHERE ('$contributor' = '__all__' OR r.contributor = '$contributor') AND c.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nGROUP BY bucket ORDER BY bucket\n"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 70,
+            "stacking": {
+              "mode": "normal"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": 16,
+      "type": "timeseries",
+      "title": "Agent edits & lines written over time",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "x": 12,
+        "y": 25,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "\nSELECT DATE_FORMAT(FROM_UNIXTIME(e.observed_at/1000000000), '$grain') AS `bucket`,\n       COUNT(*) AS `agent edits`,\n       SUM(e.lines_added) AS `lines added`\nFROM whodunit_events e JOIN whodunit_repos r ON r.repo_id=e.repo_id\nWHERE ('$contributor' = '__all__' OR r.contributor = '$contributor') AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nGROUP BY bucket ORDER BY bucket\n"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 70
+          }
+        }
+      }
+    },
+    {
+      "id": 17,
+      "type": "timeseries",
+      "title": "Acceptance rate over time",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "x": 0,
+        "y": 33,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "\nSELECT DATE_FORMAT(FROM_UNIXTIME(e.observed_at/1000000000), '$grain') AS `bucket`,\n       ROUND(100.0*SUM(e.outcome='accepted')\n             /NULLIF(SUM(e.outcome IN ('accepted','rejected','failed')),0),1) AS `accept %`\nFROM whodunit_events e JOIN whodunit_repos r ON r.repo_id=e.repo_id\nWHERE ('$contributor' = '__all__' OR r.contributor = '$contributor') AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nGROUP BY bucket ORDER BY bucket\n"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "max": 100,
+          "min": 0,
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineWidth": 2,
+            "pointSize": 6
+          }
+        }
+      }
+    },
+    {
+      "id": 18,
+      "type": "timeseries",
+      "title": "Issues resolved over time",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "x": 12,
+        "y": 33,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "\nSELECT DATE_FORMAT(i.resolution_date, '$grain') AS `bucket`,\n       SUM(t.ai = 1) AS `AI-assisted`,\n       SUM(t.ai = 0) AS `not AI-assisted`\nFROM issues i\nJOIN board_issues bi ON bi.issue_id = i.id\nLEFT JOIN (\nSELECT i.issue_key,\n       i.lead_time_minutes AS ltm,\n       i.resolution_date,\n       MAX(w.status = 'assisted') AS ai\nFROM issues i\nJOIN board_issues bi ON bi.issue_id = i.id\nLEFT JOIN commits c\n       ON c.message REGEXP CONCAT('(^|[^A-Za-z0-9])', i.issue_key, '([^0-9]|$)')\nLEFT JOIN whodunit_commits w ON w.commit_sha = c.sha\nWHERE bi.board_id = '$board'\n  AND i.lead_time_minutes IS NOT NULL\nGROUP BY i.issue_key, i.lead_time_minutes, i.resolution_date\n) t ON t.issue_key = i.issue_key\nWHERE bi.board_id = '$board' AND i.resolution_date IS NOT NULL\nGROUP BY bucket ORDER BY bucket\n"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 70,
+            "stacking": {
+              "mode": "normal"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": 19,
+      "type": "text",
+      "title": "",
+      "gridPos": {
+        "x": 0,
+        "y": 41,
+        "w": 24,
+        "h": 2
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "### Where the AI is being applied\nPurpose is classified from the commit itself, not self-reported."
+      }
+    },
+    {
+      "id": 20,
+      "type": "piechart",
+      "title": "AI-assisted work by purpose",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "x": 0,
+        "y": 43,
+        "w": 8,
+        "h": 9
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "\nSELECT c.purpose AS `metric`, COUNT(*) AS `value`\nFROM whodunit_commits c JOIN whodunit_repos r ON r.repo_id=c.repo_id\nWHERE c.status='assisted' AND c.purpose<>'' AND ('$contributor' = '__all__' OR r.contributor = '$contributor')\n  AND c.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nGROUP BY c.purpose ORDER BY `value` DESC\n"
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "values": [
+            "value",
+            "percent"
+          ]
+        },
+        "pieType": "donut",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": true
+        }
+      }
+    },
+    {
+      "id": 21,
+      "type": "table",
+      "title": "Acceptance by tool",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "x": 8,
+        "y": 43,
+        "w": 8,
+        "h": 9
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "\nSELECT e.tool AS `Tool`,\n       SUM(e.outcome='accepted') AS `Accepted`,\n       SUM(e.outcome='rejected') AS `Rejected`,\n       SUM(e.outcome IN ('accepted','rejected','failed')) AS `Decided`,\n       ROUND(100.0*SUM(e.outcome='accepted')\n             /NULLIF(SUM(e.outcome IN ('accepted','rejected','failed')),0),1) AS `Accept %`\nFROM whodunit_events e JOIN whodunit_repos r ON r.repo_id=e.repo_id\nWHERE e.tool<>'' AND ('$contributor' = '__all__' OR r.contributor = '$contributor') AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nGROUP BY e.tool ORDER BY `Decided` DESC\n"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto"
+          }
+        }
+      },
+      "options": {
+        "showHeader": true
+      }
+    },
+    {
+      "id": 22,
+      "type": "table",
+      "title": "Session engagement",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "x": 16,
+        "y": 43,
+        "w": 8,
+        "h": 9
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "\nSELECT LEFT(s.session,8) AS `Session`,\n       ROUND((s.last_seen-s.first_seen)/60000000000) AS `Minutes`,\n       s.user_messages AS `Prompts`,\n       s.tool_calls AS `Tool calls`,\n       s.distinct_tools AS `Tools`\nFROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id=s.repo_id\nWHERE ('$contributor' = '__all__' OR r.contributor = '$contributor') AND s.first_seen BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nORDER BY s.first_seen DESC\n"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto"
+          }
+        }
+      },
+      "options": {
+        "showHeader": true
+      }
+    }
+  ]
+}

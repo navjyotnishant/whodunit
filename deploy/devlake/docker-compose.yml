@@ -40,12 +40,16 @@ services:
       - grafana-storage:/var/lib/grafana
       # Provisioned so the dashboards in this repo are the source of truth
       # rather than something imported by hand into a persisted volume.
+      # Grafana rescans this path every 5s, so adding a dashboard is just
+      # dropping a file into ./dashboards — no compose change, no restart.
       #
-      # Mount the files individually: the image's entrypoint rewrites
-      # datasource.yml on every start, so mounting the whole provisioning
-      # directory read-only makes Grafana crash-loop.
-      - ./dashboard.json:/etc/grafana/dashboards/whodunit.json:ro
-      - ./dashboard-adoption.json:/etc/grafana/dashboards/whodunit-adoption.json:ro
+      # Mounted into a SUBDIRECTORY on purpose. The image ships its own
+      # dashboards directly in /etc/grafana/dashboards (Linear, Rootly,
+      # ClaudeCodeAdoption, and a mysql/ folder); mounting over that path
+      # would hide all of them. The provider scans recursively and
+      # foldersFromFilesStructure is false, so ours still land alongside
+      # them in the same Grafana folder.
+      - ./dashboards:/etc/grafana/dashboards/whodunit:ro
     environment:
       GF_SERVER_ROOT_URL: "http://localhost:4000/grafana"
       GF_USERS_DEFAULT_THEME: "light"
