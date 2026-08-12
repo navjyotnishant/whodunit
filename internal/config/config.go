@@ -18,6 +18,7 @@ package config
 import (
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 )
@@ -41,6 +42,94 @@ type Config struct {
 	// used" rather than "the collector could not look" (NAV-21). An
 	// override turns that from a dead end into a one-line fix.
 	Agents map[string]AgentConfig `json:"agents,omitempty"`
+
+	// Sync is where attribution is published, and whether pushing does it
+	// automatically. Absent means local-only: the journal, the reports and
+	// the CLI all work, and nothing leaves the machine.
+	Sync *SyncConfig `json:"sync,omitempty"`
+}
+
+// SyncConfig points at a shared database — typically a DevLake instance.
+//
+// A pointer on Config rather than a value, so "never configured" and
+// "configured and then emptied" stay distinguishable in the file.
+type SyncConfig struct {
+	// DSN identifies the target: driver, host, port, user, database. It
+	// deliberately carries no password.
+	DSN string `json:"dsn,omitempty"`
+
+	// PasswordEnv names the environment variable holding the password.
+	//
+	// The password itself is never written here. config.json is already
+	// owner-only, but a credential in it still ends up in backups, in
+	// synced dotfiles, and pasted into issue reports — none of which the
+	// file permissions cover.
+	PasswordEnv string `json:"password_env,omitempty"`
+
+	// OnPush syncs automatically from the pre-push hook.
+	OnPush bool `json:"on_push,omitempty"`
+}
+
+// Configured reports whether a sync target exists.
+func (s *SyncConfig) Configured() bool {
+	return s != nil && s.DSN != ""
+}
+
+// Resolve returns the DSN with the password from PasswordEnv filled in.
+//
+// Returns the DSN unchanged when no password variable is named, since a
+// target may legitimately need no password — a local database, or a DSN
+// that already carries its own credentials.
+//
+// Reports an error when a variable is named but unset: that is a
+// misconfiguration worth stating rather than a connection failure to
+// puzzle over later.
+func (s *SyncConfig) Resolve() (string, error) {
+	if !s.Configured() {
+		return "", fmt.Errorf("no sync target configured")
+	}
+	if s.PasswordEnv == "" {
+		return s.DSN, nil
+	}
+	password := os.Getenv(s.PasswordEnv)
+	if password == "" {
+		return "", fmt.Errorf("%s is not set (the sync password comes from that environment variable)", s.PasswordEnv)
+	}
+	return injectPassword(s.DSN, password)
+}
+
+// injectPassword puts the password into a DSN's userinfo, leaving every
+// other part untouched.
+func injectPassword(dsn, password string) (string, error) {
+	u, err := url.Parse(dsn)
+	if err != nil {
+		return "", fmt.Errorf("sync dsn is not a valid url: %w", err)
+	}
+	user := ""
+	if u.User != nil {
+		user = u.User.Username()
+	}
+	u.User = url.UserPassword(user, password)
+	return u.String(), nil
+}
+
+// Redacted returns the DSN with any password replaced, for printing.
+// Nothing should ever print a resolved DSN: it goes into terminal
+// scrollback, CI logs, and screenshots.
+func (s *SyncConfig) Redacted() string {
+	if !s.Configured() {
+		return ""
+	}
+	u, err := url.Parse(s.DSN)
+	if err != nil {
+		return s.DSN
+	}
+	if u.User != nil {
+		if _, hasPassword := u.User.Password(); hasPassword {
+			u.User = url.UserPassword(u.User.Username(), "****")
+		}
+	}
+	return u.String()
 }
 
 // AgentConfig is per-agent settings. One field today; a struct rather than

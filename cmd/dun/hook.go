@@ -31,6 +31,11 @@ func newHookCmd() *cobra.Command {
 				return runPrepareCommitMsg(args[1:])
 			case "commit-msg":
 				return runCommitMsg(args[1:])
+			case "pre-push":
+				// stderr, not stdout: git captures a pre-push hook's stdout
+				// rather than showing it, so a warning written there is
+				// invisible at exactly the moment someone needs to read it.
+				return runPrePush(cmd.ErrOrStderr())
 			default:
 				return nil // unknown hook name: no-op, never block the commit
 			}

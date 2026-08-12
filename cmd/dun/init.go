@@ -15,7 +15,12 @@ import (
 
 const hookMarker = "# managed-by: whodunit"
 
-var trackedHooks = []string{"prepare-commit-msg", "commit-msg"}
+// trackedHooks are the git hooks dun installs.
+//
+// pre-push publishes to a shared database when one is configured, and does
+// nothing at all when one is not — so installing it unconditionally costs
+// an unconfigured user nothing but saves them a second `dun init` later.
+var trackedHooks = []string{"prepare-commit-msg", "commit-msg", "pre-push"}
 
 func newInitCmd() *cobra.Command {
 	var repoPath string
@@ -84,6 +89,11 @@ func runInit(cmd *cobra.Command, repoPath string) error {
 	// Deliberately after the hooks are installed and never fatal: probing
 	// is a report, not a gate.
 	reportAgents(cmd.OutOrStdout(), repoPath)
+
+	// Report an existing publishing target, or offer to set one up once.
+	// Skipped silently when stdin is not a terminal — init runs in CI and
+	// in scripts, where a prompt is a hung build rather than a question.
+	offerDatalakeSetup(cmd.OutOrStdout(), cmd.InOrStdin())
 
 	// Record the repository so anything working across repos — a daemon,
 	// a cross-repo report — has an explicit list rather than discovering

@@ -28,7 +28,7 @@ func newConfigCmd() *cobra.Command {
 			"  dun config set agent.claude-code.path /path/to/projects\n\n" +
 			"Run `dun config agents` to see what was found and where it looked.",
 	}
-	root.AddCommand(newConfigGetCmd(), newConfigSetCmd(), newConfigAgentsCmd())
+	root.AddCommand(newConfigGetCmd(), newConfigSetCmd(), newConfigAgentsCmd(), newConfigDatalakeCmd())
 	return root
 }
 
