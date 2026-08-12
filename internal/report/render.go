@@ -111,11 +111,16 @@ func renderMethodMixChart(w *strings.Builder, stats Stats) {
 	}
 	w.WriteString("</svg>")
 
-	w.WriteString(`<table><tr><th>method</th><th>count</th><th></th></tr>`)
+	// The method column explains itself. These names are spec vocabulary
+	// and cannot be renamed without breaking the trailer, the dashboards
+	// and every commit already stamped — but a reader meeting them for the
+	// first time should not have to look them up.
+	w.WriteString(`<table><tr><th>method</th><th>count</th><th></th><th>what it means</th></tr>`)
 	for _, m := range methodOrder {
 		if n := stats.MethodCount[m]; n > 0 {
-			fmt.Fprintf(w, `<tr><td><span class="swatch" style="background:%s"></span>%s</td><td>%d</td><td class="muted">%.0f%%</td></tr>`,
-				methodColor(m), html.EscapeString(string(m)), n, 100*float64(n)/float64(stats.Covered))
+			fmt.Fprintf(w, `<tr><td><span class="swatch" style="background:%s"></span>%s</td><td>%d</td><td class="muted">%.0f%%</td><td class="muted">%s</td></tr>`,
+				methodColor(m), html.EscapeString(string(m)), n,
+				100*float64(n)/float64(stats.Covered), html.EscapeString(m.Explain()))
 		}
 	}
 	w.WriteString("</table>")

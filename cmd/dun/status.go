@@ -87,12 +87,20 @@ func statusFor(w io.Writer, dir, label string) error {
 	fmt.Fprintf(w, "coverage:          %d/%d (%.0f%%)\n", s.Covered, s.Total, s.CoveragePct())
 	fmt.Fprintln(w, "method mix:")
 	for _, m := range methodDisplayOrder {
-		if n := s.MethodCount[m]; n > 0 {
-			// Pad before styling: the escape sequences are zero-width on
-			// screen but not to %-13s, so styling first breaks alignment.
-			label := fmt.Sprintf("%-13s", m)
-			fmt.Fprintf(w, "  %s %d\n", c.S(termcolor.MethodStyle(string(m)), label), n)
+		n := s.MethodCount[m]
+		if n == 0 {
+			continue
 		}
+		// Pad before styling: the escape sequences are zero-width on
+		// screen but not to %-13s, so styling first breaks alignment.
+		label := fmt.Sprintf("%-13s", m)
+		// Each line explains itself. "intersected 21" means nothing to
+		// someone meeting the vocabulary for the first time, and the
+		// person reading their own coverage is exactly who needs to know
+		// what it claims.
+		fmt.Fprintf(w, "  %s %4d   %s\n",
+			c.S(termcolor.MethodStyle(string(m)), label), n,
+			c.S(termcolor.Muted, m.Explain()))
 	}
 	return nil
 }

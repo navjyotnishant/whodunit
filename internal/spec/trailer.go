@@ -165,3 +165,31 @@ func isToken(s string) bool {
 	}
 	return true
 }
+
+// Explain returns a plain-English gloss for a method.
+//
+// The method names are spec vocabulary: they appear in the trailer, in the
+// dashboards, and in every commit already stamped, so they cannot be
+// renamed to something friendlier without either breaking that or keeping
+// two names for one concept. What they can do is explain themselves at the
+// point they are displayed.
+//
+// Written from the reader's side — what the evidence shows — rather than
+// from the collector's. "The agent's exact lines are in this commit" tells
+// someone what they can conclude; "line hashes intersected" does not.
+func (m Method) Explain() string {
+	switch m {
+	case MethodIntersected:
+		return "the agent's exact lines are in the commit"
+	case MethodObserved:
+		return "the agent edited these files"
+	case MethodInferred:
+		return "inferred from surrounding evidence"
+	case MethodDeclared:
+		return "the author declared it, unverified"
+	case MethodUndetermined:
+		return "no evidence either way"
+	default:
+		return ""
+	}
+}
