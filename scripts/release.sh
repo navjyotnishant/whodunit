@@ -7,6 +7,8 @@
 #   scripts/release.sh <version>            build cross-platform binaries + checksums into dist/
 #   scripts/release.sh <version> --publish  also create a git tag and a GitHub release (needs gh)
 #
+# --publish requires being on the PRD branch — releases are only cut from PRD.
+#
 # Example: scripts/release.sh v0.1.0
 #
 # This exists so a release can be cut with only go, git, and (for --publish)
@@ -61,6 +63,13 @@ if [ "$PUBLISH" = "--publish" ]; then
     echo "gh not found on PATH — cannot publish. Artifacts are still in dist/." >&2
     exit 1
   fi
+
+  CURRENT_BRANCH="$(cd "$ROOT" && git rev-parse --abbrev-ref HEAD)"
+  if [ "$CURRENT_BRANCH" != "PRD" ]; then
+    echo "releases are only cut from PRD, currently on '$CURRENT_BRANCH'. Checkout PRD first." >&2
+    exit 1
+  fi
+
   echo "tagging and creating GitHub release $VERSION"
   ( cd "$ROOT" && git tag "$VERSION" && git push origin "$VERSION" )
   ( cd "$ROOT" && gh release create "$VERSION" "$DIST"/dun_* "$DIST"/checksums.txt \
