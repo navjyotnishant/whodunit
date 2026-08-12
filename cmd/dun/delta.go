@@ -7,6 +7,7 @@ import (
 
 	"github.com/navjyotnishant/whodunit/internal/baseline"
 	"github.com/navjyotnishant/whodunit/internal/delta"
+	"github.com/navjyotnishant/whodunit/internal/termcolor"
 	"github.com/spf13/cobra"
 )
 
@@ -85,9 +86,13 @@ func renderDelta(w io.Writer, res delta.Result) {
 	}
 
 	if len(res.Warnings) > 0 {
+		// Warnings qualify every number above them, so they have to be
+		// distinguishable from the data rows at a glance rather than
+		// reading as one more line of output.
+		c := termcolor.New(w)
 		fmt.Fprintln(w)
 		for _, warn := range res.Warnings {
-			fmt.Fprintf(w, "! %s\n", warn)
+			fmt.Fprintf(w, "%s %s\n", c.S(termcolor.Warn, "!"), c.S(termcolor.Warn, warn))
 		}
 	}
 }

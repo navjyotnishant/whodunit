@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/navjyotnishant/whodunit/internal/spec"
+	"github.com/navjyotnishant/whodunit/internal/termcolor"
 	"github.com/spf13/cobra"
 )
 
@@ -61,6 +62,7 @@ func runStatus(cmd *cobra.Command) error {
 	}
 
 	w := cmd.OutOrStdout()
+	c := termcolor.New(w)
 	fmt.Fprintf(w, "commits examined:  %d\n", total)
 	if total == 0 {
 		return nil
@@ -69,7 +71,10 @@ func runStatus(cmd *cobra.Command) error {
 	fmt.Fprintln(w, "method mix:")
 	for _, m := range []spec.Method{spec.MethodIntersected, spec.MethodObserved, spec.MethodInferred, spec.MethodDeclared, spec.MethodUndetermined} {
 		if n := methodCount[m]; n > 0 {
-			fmt.Fprintf(w, "  %-13s %d\n", m, n)
+			// Pad before styling: the escape sequences are zero-width on
+			// screen but not to %-13s, so styling first breaks alignment.
+			label := fmt.Sprintf("%-13s", m)
+			fmt.Fprintf(w, "  %s %d\n", c.S(termcolor.MethodStyle(string(m)), label), n)
 		}
 	}
 	return nil
