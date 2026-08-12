@@ -12,6 +12,15 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Require tag to be on PRD
+        run: |
+          if ! git merge-base --is-ancestor "${GITHUB_SHA}" origin/PRD; then
+            echo "::error::Tag ${GITHUB_REF_NAME} is not on PRD - releases are only cut from PRD."
+            exit 1
+          fi
 
       - uses: actions/setup-go@v5
         with:
