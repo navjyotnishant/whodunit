@@ -6,8 +6,8 @@ collector that fills it in automatically.
 Yes, the name invites the surveillance joke. The suspect is the commit, not
 the developer — `whodunit` answers "which agent touched this code," not
 "who wrote this line." Nothing here reads prompts, keystrokes, or file
-contents, and nothing ever leaves your machine unless you push it yourself
-(see [Privacy](#privacy)).
+contents. Collection is entirely local; data leaves your machine only if you
+configure `dun sync` and run it yourself (see [Privacy](#privacy)).
 
 ## The trailer
 
@@ -191,17 +191,55 @@ It reads local files and git.
 
 ## Privacy
 
-- No network calls. Ever. The whole tool is a handful of files reading
-  git, reading local transcripts, and writing a local SQLite journal.
-- No prompt text, file contents, names, emails, hostnames, or remote URLs
-  are ever recorded — the journal schema has no field that could hold
-  them.
+- **Collection makes no network calls.** The hooks, the daemon, and
+  `dun ingest` read git and local transcripts and write a local SQLite
+  journal. Nothing contacts the network.
+- **One command sends data, and only when you configure it.** `dun sync`
+  pushes to a database you specify with `--to`. It is never run for you,
+  never scheduled, and does nothing until a target is set. `dun sync
+  --dry-run` prints exactly what would be sent, and every run prints a
+  summary before sending. See [What `dun sync` sends](#what-dun-sync-sends).
+- No prompt text, file *contents*, hostnames, or remote URLs are ever
+  recorded — the journal schema has no field that could hold them.
+- **File paths and a contributor identity are recorded.** The journal
+  stores which files an agent edited, and `repo_metadata` stores the git
+  committer email for the repository. Both stay local until you sync.
 - Everything is stored outside your repositories, under `~/.whodunit`:
   the journal (`journal.db`), baseline snapshots (`baselines/`), and
-  config. Nothing is ever committed or pushed.
+  config. Nothing is ever committed or pushed to git.
 - `dun journal show` prints exactly what's been recorded, in full.
   `dun journal purge` deletes it — only for the current repository, even
   though the store is shared.
+
+### What `dun sync` sends
+
+Collection is local. `dun sync --to <database-url>` is the one command that
+transmits anything, and it sends only what is listed here — five tables,
+enumerated in full so there is no need to take this on trust:
+
+| Table | Contents |
+|---|---|
+| `whodunit_repos` | Repository id, **contributor email**, spec version |
+| `whodunit_commits` | Commit SHA, timestamp, status, method, agent, version, purpose, ratio, line and file counts |
+| `whodunit_events` | Per-edit: timestamp, agent, session, tool, **file path**, lines added/removed, hunk hash, outcome |
+| `whodunit_sessions` | Per-session counts: messages, tool calls, distinct tools, MCP calls, start and end |
+| `whodunit_lines` | Line hashes and first-seen timestamps |
+
+The repository id is the root commit SHA — stable across clones, and it
+identifies the repository without revealing its name or remote.
+
+**The two identifying fields are the contributor email and the file paths.**
+An email is required for a shared database to attribute anything to anyone,
+and it is the same address already in every commit you author. File paths
+reveal what someone worked on, not merely how much. Neither leaves your
+machine until you run `dun sync` against a target you chose.
+
+What is *not* sent: prompt text, message content, file contents, and the
+lines themselves. Line hashes are one-way — they confirm a line an agent
+produced is the line that shipped, and cannot reconstruct it.
+
+Run `dun sync --dry-run` to print the exact payload before any target is
+contacted.
 
 ### Where data lives
 
