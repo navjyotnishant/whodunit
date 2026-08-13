@@ -7,6 +7,7 @@ package main
 
 import (
 	"bytes"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -15,6 +16,7 @@ import (
 
 	"github.com/navjyotnishant/whodunit/internal/journal"
 	"github.com/navjyotnishant/whodunit/internal/registry"
+	"github.com/navjyotnishant/whodunit/internal/termcolor"
 )
 
 // NAV-77 criterion 6, and the one that decides whether this command is
@@ -100,7 +102,7 @@ func TestAllProblemsAreReportedNotJustTheFirst(t *testing.T) {
 	_ = runVerify(&out, "")
 	s := out.String()
 
-	if strings.Count(s, "!!") < 2 {
+	if strings.Count(s, marker(termcolor.New(io.Discard), levelBroken)) < 2 {
 		t.Fatalf("verify stopped at the first problem; expected several:\n%s", s)
 	}
 }

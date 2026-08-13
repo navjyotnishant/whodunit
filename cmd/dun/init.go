@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/navjyotnishant/whodunit/internal/journal"
@@ -14,6 +15,9 @@ import (
 )
 
 const hookMarker = "# managed-by: whodunit"
+
+// hookVersionMarker prefixes the line recording which version wrote a hook.
+const hookVersionMarker = "# whodunit-version:"
 
 // trackedHooks are the git hooks dun installs.
 //
@@ -164,9 +168,56 @@ func installHook(hooksDir, name, dunPath string) error {
 		}
 	}
 
+	// The version that wrote this hook, recorded so staleness is
+	// detectable. Without it nothing can distinguish a hook written by an
+	// old release from a current one, and a repository sits on an
+	// outdated hook set indefinitely with no signal — which is how a
+	// repository ends up missing a hook added months earlier.
 	script := fmt.Sprintf(
-		"#!/bin/sh\n%s\nDUN=\"$(command -v dun || echo \"%s\")\"\n\"$DUN\" hook %s \"$@\"\nstatus=$?\nif [ -x \"%s\" ]; then \"%s\" \"$@\" || exit $?; fi\nexit $status\n",
-		hookMarker, dunPath, name, chainPath, chainPath)
+		"#!/bin/sh\n%s\n%s %s\nDUN=\"$(command -v dun || echo \"%s\")\"\n\"$DUN\" hook %s \"$@\"\nstatus=$?\nif [ -x \"%s\" ]; then \"%s\" \"$@\" || exit $?; fi\nexit $status\n",
+		hookMarker, hookVersionMarker, version, dunPath, name, chainPath, chainPath)
 
 	return os.WriteFile(path, []byte(script), 0o755)
+}
+
+// hookVersionOf returns the version of dun that wrote a hook, and whether
+// it carries a stamp at all.
+//
+// A hook written before stamping existed has none, which is itself
+// information: it predates this mechanism and is therefore stale.
+func hookVersionOf(path string) (string, bool) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return "", false
+	}
+	for _, line := range strings.Split(string(data), "\n") {
+		if rest, ok := strings.CutPrefix(line, hookVersionMarker+" "); ok {
+			return strings.TrimSpace(rest), true
+		}
+	}
+	return "", false
+}
+
+// staleHooks returns the hooks in a repository that are missing or were
+// written by a different version of dun.
+//
+// A dev build reports nothing stale: it has no meaningful version, and
+// telling someone their hooks disagree with an unversioned local build is
+// noise rather than a finding.
+func staleHooks(gitDir string) (missing, stale []string) {
+	for _, name := range trackedHooks {
+		path := filepath.Join(gitDir, "hooks", name)
+		if _, err := os.Stat(path); err != nil {
+			missing = append(missing, name)
+			continue
+		}
+		if !IsRelease() {
+			continue
+		}
+		got, ok := hookVersionOf(path)
+		if !ok || got != version {
+			stale = append(stale, name)
+		}
+	}
+	return missing, stale
 }

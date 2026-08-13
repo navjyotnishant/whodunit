@@ -21,6 +21,7 @@ func newReposCmd() *cobra.Command {
 	root.AddCommand(newReposListCmd())
 	root.AddCommand(newReposCandidatesCmd())
 	root.AddCommand(newReposRemoveCmd())
+	root.AddCommand(newReposUpdateCmd())
 	return root
 }
 

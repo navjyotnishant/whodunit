@@ -291,14 +291,14 @@ func checkHooks(repoPath string) []finding {
 		}}
 	}
 
-	var missing []string
+	missing, stale := staleHooks(gitDir)
+
 	var notExecutable []string
 	for _, name := range trackedHooks {
 		path := filepath.Join(gitDir, "hooks", name)
 		info, err := os.Stat(path)
 		if err != nil {
-			missing = append(missing, name)
-			continue
+			continue // already counted as missing
 		}
 		if info.Mode()&0o111 == 0 {
 			// A hook git cannot execute is the same as no hook, and gives
@@ -322,6 +322,18 @@ func checkHooks(repoPath string) []finding {
 			Level:  levelBroken,
 			Detail: "not executable: " + strings.Join(notExecutable, ", "),
 			Fix:    "dun init",
+		})
+	}
+	if len(stale) > 0 {
+		// Stale is not broken: the hooks still run, and the binary they
+		// call is current because they resolve it from PATH. What they may
+		// lack is a change to the script itself, so this is worth saying
+		// without failing the command over it.
+		out = append(out, finding{
+			Area:   "hooks",
+			Level:  levelInfo,
+			Detail: fmt.Sprintf("written by an older version: %s", strings.Join(stale, ", ")),
+			Fix:    "dun repos update",
 		})
 	}
 	if len(out) == 0 {
