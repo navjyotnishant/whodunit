@@ -74,9 +74,19 @@ func runVerify(w io.Writer, repoFlag string) error {
 	var findings []finding
 
 	findings = append(findings, checkInstall()...)
-	findings = append(findings, checkAgents(repoFlag)...)
 
 	repoPath, inRepo := verifyRepoPath(repoFlag)
+
+	// Agent checks are only meaningful inside a repository: their counts
+	// are per-repository, and reporting "3 sessions for this repository"
+	// while standing in a directory that is not one is simply wrong.
+	// Outside, each registered repository reports its own state below.
+	if inRepo {
+		findings = append(findings, checkAgents(repoPath)...)
+	} else {
+		findings = append(findings, checkAgentsInstalled()...)
+	}
+
 	if inRepo {
 		findings = append(findings, checkHooks(repoPath)...)
 		findings = append(findings, checkJournal(repoPath)...)
@@ -149,6 +159,49 @@ func checkInstall() []finding {
 		Level:  levelOK,
 		Detail: path,
 	})
+	return out
+}
+
+// checkAgentsInstalled reports which agents exist on this machine, with no
+// per-repository counts.
+//
+// Run outside a repository, "0 sessions" would be meaningless and "not
+// installed" would be a lie about an agent with hundreds of sessions
+// elsewhere — the question there is which agents whodunit can read at all.
+func checkAgentsInstalled() []finding {
+	var out []finding
+	var installed []string
+
+	for _, a := range adapter.All() {
+		root := a.Root()
+		if root == "" {
+			continue
+		}
+		info, err := os.Stat(root)
+		if err != nil || !info.IsDir() {
+			out = append(out, finding{
+				Area:   "agent: " + a.Name(),
+				Level:  levelInfo,
+				Detail: "not installed",
+			})
+			continue
+		}
+		installed = append(installed, a.Name())
+		out = append(out, finding{
+			Area:   "agent: " + a.Name(),
+			Level:  levelOK,
+			Detail: root,
+		})
+	}
+
+	if len(installed) == 0 {
+		out = append(out, finding{
+			Area:   "agents",
+			Level:  levelBroken,
+			Detail: "none found on this machine — nothing can be attributed",
+			Fix:    "dun config agents",
+		})
+	}
 	return out
 }
 

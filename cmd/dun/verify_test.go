@@ -294,3 +294,42 @@ func TestVerifyChecksEachRegisteredRepository(t *testing.T) {
 		t.Fatalf("a repository with missing hooks did not fail the command:\n%s", s)
 	}
 }
+
+// Outside a repository, per-repository session counts are meaningless and
+// "not installed" is a lie about an agent with hundreds of sessions
+// elsewhere. Reported from a directory that was not a repository, verify
+// claimed "3 session(s) for this repository" and called an installed agent
+// missing — both wrong in the same breath.
+func TestAgentCountsAreNotClaimedOutsideARepository(t *testing.T) {
+	t.Setenv("WHODUNIT_HOME", t.TempDir())
+
+	// A real transcript root, so the agent is genuinely installed.
+	claudeHome := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(claudeHome, "projects"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("CLAUDE_CONFIG_DIR", claudeHome)
+	t.Setenv("WHODUNIT_CODEX_PATH", t.TempDir())
+	t.Setenv("WHODUNIT_AGY_PATH", t.TempDir())
+
+	outside := t.TempDir()
+	wd, _ := os.Getwd()
+	defer os.Chdir(wd)
+	if err := os.Chdir(outside); err != nil {
+		t.Fatal(err)
+	}
+
+	var out bytes.Buffer
+	if err := runVerify(&out, ""); err != nil {
+		t.Fatalf("verify failed outside a repository: %v\n%s", err, out.String())
+	}
+	s := out.String()
+
+	if strings.Contains(s, "for this repository") {
+		t.Errorf("verify claimed a per-repository count while not in a "+
+			"repository:\n%s", s)
+	}
+	if strings.Contains(s, "claude-code             not installed") {
+		t.Errorf("an installed agent was reported missing:\n%s", s)
+	}
+}
