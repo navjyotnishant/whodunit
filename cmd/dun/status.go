@@ -15,6 +15,7 @@ import (
 	"github.com/navjyotnishant/whodunit/internal/journal"
 	"github.com/navjyotnishant/whodunit/internal/registry"
 	"github.com/navjyotnishant/whodunit/internal/repoid"
+	"github.com/navjyotnishant/whodunit/internal/sidecar"
 	"github.com/navjyotnishant/whodunit/internal/spec"
 	"github.com/navjyotnishant/whodunit/internal/termcolor"
 	"github.com/spf13/cobra"
@@ -157,6 +158,66 @@ func printSyncStatus(w io.Writer, dir string) {
 	fmt.Fprintf(w, "  %-13s %s\n", c.S(termcolor.Muted, "would send"),
 		fmt.Sprintf("%d commit(s), %d event(s), %d session(s)",
 			len(payload.Commits), len(payload.Events), len(payload.Sessions)))
+
+	if last, ok := lastSyncedAt(cfg.Sync, payload.Repo.RepoID); ok {
+		fmt.Fprintf(w, "  %-13s %s\n", c.S(termcolor.Muted, "last synced"),
+			fmt.Sprintf("%s (%s)", humanAge(last), last.Format("2006-01-02 15:04")))
+	} else {
+		fmt.Fprintf(w, "  %-13s %s\n", c.S(termcolor.Muted, "last synced"),
+			c.S(termcolor.Muted, "never, or the target could not be reached"))
+	}
+}
+
+// lastSyncedAt asks the target when this repository last published.
+//
+// The answer lives in the store's synced_at column rather than in a local
+// file, because the remote is what actually knows: a local timestamp would
+// record that a sync was attempted, not that the rows arrived, and those
+// diverge precisely when it matters — a half-failed write, or a database
+// restored from an older backup.
+//
+// The cost is a connection, so this is bounded and never fatal. `dun status`
+// runs constantly and must not hang because a database is down; an
+// unreachable target reports as unknown, which is honest.
+func lastSyncedAt(sync *config.SyncConfig, repoID string) (time.Time, bool) {
+	if repoID == "" {
+		return time.Time{}, false
+	}
+	dsn, err := sync.Resolve()
+	if err != nil {
+		return time.Time{}, false
+	}
+
+	done := make(chan struct {
+		t  time.Time
+		ok bool
+	}, 1)
+	go func() {
+		db, err := sidecar.Open(dsn)
+		if err != nil {
+			done <- struct {
+				t  time.Time
+				ok bool
+			}{}
+			return
+		}
+		defer db.Close()
+		t, err := sidecar.LastSync(db, repoID)
+		done <- struct {
+			t  time.Time
+			ok bool
+		}{t, err == nil && !t.IsZero()}
+	}()
+
+	select {
+	case r := <-done:
+		return r.t, r.ok
+	case <-time.After(2 * time.Second):
+		// The goroutine finishes on its own and its result is dropped. A
+		// status command that stalls on a slow network is worse than one
+		// that says it could not tell.
+		return time.Time{}, false
+	}
 }
 
 // truncate shortens s to n characters, marking that it did.
@@ -231,7 +292,8 @@ func statusAcrossRepos(w io.Writer) error {
 	// widths below are shared with the rows; changing one means changing
 	// both, which is why they sit next to each other.
 	fmt.Fprintf(w, "  %s\n", c.S(termcolor.Muted,
-		fmt.Sprintf("%-30s %9s  %-34s %s", "repository", "coverage", "method mix", "to sync")))
+		fmt.Sprintf("%-30s %9s  %-26s %-22s %s",
+			"repository", "coverage", "method mix", "to sync", "last synced")))
 
 	var available int
 	// Methods actually seen, gathered while listing: the legend below
@@ -263,22 +325,30 @@ func statusAcrossRepos(w io.Writer) error {
 		// anything", which is the question a cross-repo view is for. It is
 		// journal rows, not commits: a repository can have plenty of
 		// recorded agent activity and no commits carrying it yet.
-		pending := ""
+		pending, synced := "", ""
 		if syncOn {
 			events, sessions, ok := syncCounts(e.Path)
 			switch {
 			case !ok:
-				pending = c.S(termcolor.Muted, "—")
+				pending = "—"
 			case events == 0:
-				pending = c.S(termcolor.Muted, "nothing")
+				pending = "nothing"
 			default:
-				pending = fmt.Sprintf("%d event(s), %d session(s)", events, sessions)
+				pending = fmt.Sprintf("%d ev, %d sess", events, sessions)
+			}
+			if id, err := repoid.ForRepo(e.Path); err == nil {
+				if last, ok := lastSyncedAt(cfg.Sync, id); ok {
+					synced = humanAge(last)
+				} else {
+					synced = "never"
+				}
 			}
 		}
 
 		if s.Total == 0 {
-			fmt.Fprintf(w, "  %-30s %9s  %-34s %s\n", name,
-				c.S(termcolor.Muted, "—"), c.S(termcolor.Muted, "no commits yet"), pending)
+			fmt.Fprintf(w, "  %-30s %9s  %-26s %-22s %s\n", name,
+				c.S(termcolor.Muted, "—"), c.S(termcolor.Muted, "no commits yet"),
+				c.S(termcolor.Muted, pending), c.S(termcolor.Muted, synced))
 			continue
 		}
 
@@ -291,9 +361,10 @@ func statusAcrossRepos(w io.Writer) error {
 		// but not to %-34s, so styling first breaks every column after it.
 		// Truncated too — one long mix would push every later column out of
 		// line for every row, and the full breakdown is one --repo away.
-		mix := fmt.Sprintf("%-34s", truncate(methodSummary(s), 34))
-		fmt.Fprintf(w, "  %-30s %8.0f%%  %s %s\n",
-			name, s.CoveragePct(), c.S(termcolor.Muted, mix), pending)
+		mix := fmt.Sprintf("%-26s", truncate(methodSummary(s), 26))
+		fmt.Fprintf(w, "  %-30s %8.0f%%  %s %-22s %s\n",
+			name, s.CoveragePct(), c.S(termcolor.Muted, mix),
+			pending, c.S(termcolor.Muted, synced))
 	}
 
 	// Where the numbers in the last column would go, stated once rather

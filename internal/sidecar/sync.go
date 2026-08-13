@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/url"
 	"strings"
+	"time"
 
 	_ "github.com/go-sql-driver/mysql"
 	_ "modernc.org/sqlite"
@@ -262,4 +263,28 @@ func upsertLine(mysql bool) string {
 		return cols + ` ON DUPLICATE KEY UPDATE synced_at=VALUES(synced_at)`
 	}
 	return cols + ` ON CONFLICT(repo_id, line_hash) DO UPDATE SET synced_at=excluded.synced_at`
+}
+
+// LastSync reports when a repository last published, from the store's own
+// synced_at column.
+//
+// Read from the target rather than tracked locally on purpose. The remote is
+// where the answer actually lives: a local timestamp would say a sync
+// happened, not that the rows arrived, and the two diverge exactly when it
+// matters — a write that failed halfway, or a database restored from an
+// older backup.
+//
+// Returns the zero time when the repository has never synced. That is a
+// state worth reporting, not an error.
+func LastSync(db *Store, repoID string) (time.Time, error) {
+	var ns sql.NullInt64
+	err := db.QueryRow(
+		`SELECT MAX(synced_at) FROM whodunit_commits WHERE repo_id = ?`, repoID).Scan(&ns)
+	if err != nil {
+		return time.Time{}, err
+	}
+	if !ns.Valid || ns.Int64 == 0 {
+		return time.Time{}, nil
+	}
+	return time.Unix(0, ns.Int64), nil
 }
