@@ -96,7 +96,7 @@
       },
       "options": {
         "mode": "markdown",
-        "content": "## When and how the agent is used\n*Working rhythm, tool mix and session shape \u2014 from the agent's own session records.*\n\nModelled on DevLake's **Developer AI Productivity Hours** dashboard, which reads Amazon Q Developer telemetry. This reads whodunit's journal instead, so it works for Claude Code, Codex and `agy` without a vendor API.\n\n**No prompt or response text is recorded anywhere** \u2014 whodunit stores counts, file paths and line hashes, never message content. Q Dev's prompt-length panels have no equivalent here, and that is the design, not a gap. Message *volume* is the honest substitute.\n\nSet **Timezone** below to read hours in your own working day rather than UTC."
+        "content": "## When and how the agent is used\n*Working rhythm, tool mix and session shape \u2014 from the agent's own session records.*\n\nEvery figure is measured from what the agent did on this machine. Nothing is self-reported, and no vendor API is involved, so this works the same for Claude Code, Codex and `agy`.\n\n**No prompt or response text is recorded anywhere** \u2014 whodunit stores counts, file paths and line hashes, never message content. Message *volume* is as close as this gets to measuring conversation, and that is deliberate.\n\nSet **Timezone** below to read hours in your own working day rather than UTC, and **Agent** to narrow to one tool."
       }
     },
     {
@@ -433,7 +433,7 @@
         "barWidth": 0.9,
         "orientation": "auto"
       },
-      "description": "Which agent reaches for which tool. Copilot's dashboard cannot ask this \u2014 it only knows one tool.",
+      "description": "Which agent reaches for which tool, from the tool calls recorded in each session \u2014 not a fixed list of features.",
       "fieldConfig": {
         "defaults": {
           "unit": "short",
