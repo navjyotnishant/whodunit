@@ -174,8 +174,8 @@
       "targets": [
         {
           "refId": "A",
-          "format": "table",
-          "rawSql": "SELECT DATE_FORMAT(FROM_UNIXTIME(c.committed_at/1000000000), '$grain') AS `bucket`,\n       ROUND(SUM(c.status='assisted')*100.0/NULLIF(COUNT(*),0),1) AS `assisted %`\nFROM whodunit_commits c JOIN whodunit_repos r ON r.repo_id=c.repo_id\nWHERE ('$contributor'='__all__' OR r.contributor='$contributor') AND c.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nGROUP BY bucket ORDER BY bucket"
+          "format": "time_series",
+          "rawSql": "SELECT DATE(FROM_UNIXTIME(c.committed_at/1000000000)) AS `time`,\n       ROUND(SUM(c.status='assisted')*100.0/NULLIF(COUNT(*),0),1) AS `assisted %`\nFROM whodunit_commits c JOIN whodunit_repos r ON r.repo_id=c.repo_id\nWHERE ('$contributor'='__all__' OR r.contributor='$contributor') AND c.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nGROUP BY `time` ORDER BY `time`"
         }
       ],
       "fieldConfig": {
@@ -280,8 +280,8 @@
       "targets": [
         {
           "refId": "A",
-          "format": "table",
-          "rawSql": "SELECT DATE_FORMAT(FROM_UNIXTIME(c.committed_at/1000000000), '$grain') AS `bucket`,\n       ROUND(AVG(CASE WHEN c.status='assisted' THEN c.lines_added+c.lines_removed END),0) AS `assisted`,\n       ROUND(AVG(CASE WHEN c.status<>'assisted' THEN c.lines_added+c.lines_removed END),0) AS `undetermined`\nFROM whodunit_commits c JOIN whodunit_repos r ON r.repo_id=c.repo_id\nWHERE ('$contributor'='__all__' OR r.contributor='$contributor') AND c.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nGROUP BY bucket ORDER BY bucket"
+          "format": "time_series",
+          "rawSql": "SELECT DATE(FROM_UNIXTIME(c.committed_at/1000000000)) AS `time`,\n       ROUND(AVG(CASE WHEN c.status='assisted' THEN c.lines_added+c.lines_removed END),0) AS `assisted`,\n       ROUND(AVG(CASE WHEN c.status<>'assisted' THEN c.lines_added+c.lines_removed END),0) AS `undetermined`\nFROM whodunit_commits c JOIN whodunit_repos r ON r.repo_id=c.repo_id\nWHERE ('$contributor'='__all__' OR r.contributor='$contributor') AND c.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nGROUP BY `time` ORDER BY `time`"
         }
       ],
       "fieldConfig": {
@@ -658,8 +658,8 @@
       "targets": [
         {
           "refId": "A",
-          "format": "table",
-          "rawSql": "SELECT DATE_FORMAT(cdc.finished_date, '$grain') AS `bucket`,\n       COUNT(DISTINCT cdc.cicd_deployment_id) AS `deployments`\nFROM cicd_deployment_commits cdc\nJOIN project_mapping pm ON cdc.cicd_scope_id = pm.row_id AND pm.`table` = 'cicd_scopes'\nWHERE cdc.result='SUCCESS' AND cdc.environment='PRODUCTION'\n  AND $__timeFilter(cdc.finished_date)\nGROUP BY bucket ORDER BY bucket"
+          "format": "time_series",
+          "rawSql": "SELECT DATE(cdc.finished_date) AS `time`,\n       COUNT(DISTINCT cdc.cicd_deployment_id) AS `deployments`\nFROM cicd_deployment_commits cdc\nJOIN project_mapping pm ON cdc.cicd_scope_id = pm.row_id AND pm.`table` = 'cicd_scopes'\nWHERE cdc.result='SUCCESS' AND cdc.environment='PRODUCTION'\n  AND $__timeFilter(cdc.finished_date)\nGROUP BY `time` ORDER BY `time`"
         }
       ],
       "fieldConfig": {
@@ -687,8 +687,8 @@
       "targets": [
         {
           "refId": "A",
-          "format": "table",
-          "rawSql": "SELECT DATE_FORMAT(cdc.finished_date, '$grain') AS `bucket`,\n       SUM(cdc.result='SUCCESS') AS `succeeded`,\n       SUM(cdc.result='FAILURE') AS `failed`\nFROM cicd_deployment_commits cdc\nJOIN project_mapping pm ON cdc.cicd_scope_id = pm.row_id AND pm.`table` = 'cicd_scopes'\nWHERE cdc.environment='PRODUCTION' AND $__timeFilter(cdc.finished_date)\nGROUP BY bucket ORDER BY bucket"
+          "format": "time_series",
+          "rawSql": "SELECT DATE(cdc.finished_date) AS `time`,\n       SUM(cdc.result='SUCCESS') AS `succeeded`,\n       SUM(cdc.result='FAILURE') AS `failed`\nFROM cicd_deployment_commits cdc\nJOIN project_mapping pm ON cdc.cicd_scope_id = pm.row_id AND pm.`table` = 'cicd_scopes'\nWHERE cdc.environment='PRODUCTION' AND $__timeFilter(cdc.finished_date)\nGROUP BY `time` ORDER BY `time`"
         }
       ],
       "fieldConfig": {
@@ -767,7 +767,7 @@
     },
     {
       "id": 20,
-      "type": "timeseries",
+      "type": "barchart",
       "title": "Adoption vs deployment frequency",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
@@ -779,8 +779,8 @@
       "targets": [
         {
           "refId": "A",
-          "format": "table",
-          "rawSql": "WITH a AS (SELECT DATE_FORMAT(FROM_UNIXTIME(committed_at/1000000000), '%x-W%v') AS wk,\n       SUM(status='assisted')*100.0/NULLIF(COUNT(*),0) AS adoption\nFROM whodunit_commits GROUP BY wk),\n     m AS (SELECT DATE_FORMAT(cdc.finished_date, '%x-W%v') AS wk,\n       COUNT(DISTINCT cdc.cicd_deployment_id) AS metric\nFROM cicd_deployment_commits cdc\nJOIN project_mapping pm ON cdc.cicd_scope_id = pm.row_id AND pm.`table` = 'cicd_scopes'\nWHERE cdc.result='SUCCESS' AND cdc.environment='PRODUCTION' GROUP BY wk)\nSELECT a.wk AS `week`, ROUND(a.adoption,1) AS `adoption %`, ROUND(m.metric,1) AS `deployments/wk`\nFROM a JOIN m ON a.wk = m.wk ORDER BY a.wk"
+          "rawSql": "WITH a AS (SELECT DATE_FORMAT(FROM_UNIXTIME(committed_at/1000000000), '%x-W%v') AS wk,\n       SUM(status='assisted')*100.0/NULLIF(COUNT(*),0) AS adoption\nFROM whodunit_commits GROUP BY wk),\n     m AS (SELECT DATE_FORMAT(cdc.finished_date, '%x-W%v') AS wk,\n       COUNT(DISTINCT cdc.cicd_deployment_id) AS metric\nFROM cicd_deployment_commits cdc\nJOIN project_mapping pm ON cdc.cicd_scope_id = pm.row_id AND pm.`table` = 'cicd_scopes'\nWHERE cdc.result='SUCCESS' AND cdc.environment='PRODUCTION' GROUP BY wk)\nSELECT a.wk AS `week`, ROUND(a.adoption,1) AS `adoption %`, ROUND(m.metric,1) AS `deployments/wk`\nFROM a JOIN m ON a.wk = m.wk ORDER BY a.wk",
+          "format": "table"
         }
       ],
       "fieldConfig": {
@@ -837,7 +837,24 @@
           }
         ]
       },
-      "description": "Weekly adoption against deployment frequency, on the weeks where both exist."
+      "description": "Weekly adoption against deployment frequency, on the weeks where both exist.",
+      "options": {
+        "xField": "week",
+        "stacking": "none",
+        "groupWidth": 0.7,
+        "barWidth": 0.9,
+        "showValue": "never",
+        "orientation": "auto",
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
     },
     {
       "id": 21,
@@ -937,7 +954,7 @@
     },
     {
       "id": 23,
-      "type": "timeseries",
+      "type": "barchart",
       "title": "Adoption vs change failure rate",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
@@ -949,8 +966,8 @@
       "targets": [
         {
           "refId": "A",
-          "format": "table",
-          "rawSql": "WITH a AS (SELECT DATE_FORMAT(FROM_UNIXTIME(committed_at/1000000000), '%x-W%v') AS wk,\n       SUM(status='assisted')*100.0/NULLIF(COUNT(*),0) AS adoption\nFROM whodunit_commits GROUP BY wk),\n     m AS (SELECT DATE_FORMAT(cdc.finished_date, '%x-W%v') AS wk,\n       SUM(cdc.result='FAILURE')*100.0/NULLIF(COUNT(*),0) AS metric\nFROM cicd_deployment_commits cdc\nJOIN project_mapping pm ON cdc.cicd_scope_id = pm.row_id AND pm.`table` = 'cicd_scopes'\nWHERE cdc.environment='PRODUCTION' GROUP BY wk)\nSELECT a.wk AS `week`, ROUND(a.adoption,1) AS `adoption %`, ROUND(m.metric,1) AS `failure rate %`\nFROM a JOIN m ON a.wk = m.wk ORDER BY a.wk"
+          "rawSql": "WITH a AS (SELECT DATE_FORMAT(FROM_UNIXTIME(committed_at/1000000000), '%x-W%v') AS wk,\n       SUM(status='assisted')*100.0/NULLIF(COUNT(*),0) AS adoption\nFROM whodunit_commits GROUP BY wk),\n     m AS (SELECT DATE_FORMAT(cdc.finished_date, '%x-W%v') AS wk,\n       SUM(cdc.result='FAILURE')*100.0/NULLIF(COUNT(*),0) AS metric\nFROM cicd_deployment_commits cdc\nJOIN project_mapping pm ON cdc.cicd_scope_id = pm.row_id AND pm.`table` = 'cicd_scopes'\nWHERE cdc.environment='PRODUCTION' GROUP BY wk)\nSELECT a.wk AS `week`, ROUND(a.adoption,1) AS `adoption %`, ROUND(m.metric,1) AS `failure rate %`\nFROM a JOIN m ON a.wk = m.wk ORDER BY a.wk",
+          "format": "table"
         }
       ],
       "fieldConfig": {
@@ -1007,7 +1024,24 @@
           }
         ]
       },
-      "description": "Weekly adoption against change failure rate, on the weeks where both exist."
+      "description": "Weekly adoption against change failure rate, on the weeks where both exist.",
+      "options": {
+        "xField": "week",
+        "stacking": "none",
+        "groupWidth": 0.7,
+        "barWidth": 0.9,
+        "showValue": "never",
+        "orientation": "auto",
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
     },
     {
       "id": 24,
@@ -1107,7 +1141,7 @@
     },
     {
       "id": 26,
-      "type": "timeseries",
+      "type": "barchart",
       "title": "Adoption vs pr cycle time",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
@@ -1119,8 +1153,8 @@
       "targets": [
         {
           "refId": "A",
-          "format": "table",
-          "rawSql": "WITH a AS (SELECT DATE_FORMAT(FROM_UNIXTIME(committed_at/1000000000), '%x-W%v') AS wk,\n       SUM(status='assisted')*100.0/NULLIF(COUNT(*),0) AS adoption\nFROM whodunit_commits GROUP BY wk),\n     m AS (SELECT DATE_FORMAT(pr_merged_date, '%x-W%v') AS wk,\n       AVG(pr_cycle_time)/60.0 AS metric\nFROM project_pr_metrics WHERE pr_cycle_time IS NOT NULL GROUP BY wk)\nSELECT a.wk AS `week`, ROUND(a.adoption,1) AS `adoption %`, ROUND(m.metric,1) AS `cycle time hrs`\nFROM a JOIN m ON a.wk = m.wk ORDER BY a.wk"
+          "rawSql": "WITH a AS (SELECT DATE_FORMAT(FROM_UNIXTIME(committed_at/1000000000), '%x-W%v') AS wk,\n       SUM(status='assisted')*100.0/NULLIF(COUNT(*),0) AS adoption\nFROM whodunit_commits GROUP BY wk),\n     m AS (SELECT DATE_FORMAT(pr_merged_date, '%x-W%v') AS wk,\n       AVG(pr_cycle_time)/60.0 AS metric\nFROM project_pr_metrics WHERE pr_cycle_time IS NOT NULL GROUP BY wk)\nSELECT a.wk AS `week`, ROUND(a.adoption,1) AS `adoption %`, ROUND(m.metric,1) AS `cycle time hrs`\nFROM a JOIN m ON a.wk = m.wk ORDER BY a.wk",
+          "format": "table"
         }
       ],
       "fieldConfig": {
@@ -1177,7 +1211,24 @@
           }
         ]
       },
-      "description": "Weekly adoption against pr cycle time, on the weeks where both exist."
+      "description": "Weekly adoption against pr cycle time, on the weeks where both exist.",
+      "options": {
+        "xField": "week",
+        "stacking": "none",
+        "groupWidth": 0.7,
+        "barWidth": 0.9,
+        "showValue": "never",
+        "orientation": "auto",
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
     },
     {
       "id": 27,

@@ -454,8 +454,8 @@
       "targets": [
         {
           "refId": "A",
-          "format": "table",
-          "rawSql": "SELECT DATE_FORMAT(FROM_UNIXTIME(e.observed_at/1000000000), '$grain') AS `bucket`,\n       COUNT(*) AS `file edits`,\n       COUNT(DISTINCT e.session) AS `sessions`\nFROM whodunit_events e JOIN whodunit_repos r ON r.repo_id=e.repo_id\nWHERE 1=1 AND ('$contributor'='__all__' OR r.contributor='$contributor') AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nGROUP BY `bucket` ORDER BY `bucket`"
+          "format": "time_series",
+          "rawSql": "SELECT DATE(FROM_UNIXTIME(e.observed_at/1000000000)) AS `time`,\n       COUNT(*) AS `file edits`,\n       COUNT(DISTINCT e.session) AS `sessions`\nFROM whodunit_events e JOIN whodunit_repos r ON r.repo_id=e.repo_id\nWHERE 1=1 AND ('$contributor'='__all__' OR r.contributor='$contributor') AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nGROUP BY `time` ORDER BY `time`"
         }
       ],
       "fieldConfig": {
@@ -485,8 +485,8 @@
       "targets": [
         {
           "refId": "A",
-          "format": "table",
-          "rawSql": "SELECT DATE_FORMAT(FROM_UNIXTIME(e.observed_at/1000000000), '$grain') AS `bucket`,\n       SUM(e.lines_added) AS `lines added`,\n       SUM(e.lines_removed) AS `lines removed`\nFROM whodunit_events e JOIN whodunit_repos r ON r.repo_id=e.repo_id\nWHERE 1=1 AND ('$contributor'='__all__' OR r.contributor='$contributor') AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nGROUP BY `bucket` ORDER BY `bucket`"
+          "format": "time_series",
+          "rawSql": "SELECT DATE(FROM_UNIXTIME(e.observed_at/1000000000)) AS `time`,\n       SUM(e.lines_added) AS `lines added`,\n       SUM(e.lines_removed) AS `lines removed`\nFROM whodunit_events e JOIN whodunit_repos r ON r.repo_id=e.repo_id\nWHERE 1=1 AND ('$contributor'='__all__' OR r.contributor='$contributor') AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nGROUP BY `time` ORDER BY `time`"
         }
       ],
       "fieldConfig": {

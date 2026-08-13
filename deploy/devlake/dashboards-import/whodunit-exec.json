@@ -617,8 +617,8 @@
       "targets": [
         {
           "refId": "A",
-          "format": "table",
-          "rawSql": "\nSELECT DATE_FORMAT(FROM_UNIXTIME(c.committed_at/1000000000), '$grain') AS `bucket`,\n       SUM(c.status='assisted') AS `assisted`,\n       SUM(c.status='undetermined') AS `undetermined`\nFROM whodunit_commits c JOIN whodunit_repos r ON r.repo_id=c.repo_id\nWHERE ('$contributor' = '__all__' OR r.contributor = '$contributor') AND c.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nGROUP BY bucket ORDER BY bucket\n"
+          "format": "time_series",
+          "rawSql": "\nSELECT DATE(FROM_UNIXTIME(c.committed_at/1000000000)) AS `time`,\n       SUM(c.status='assisted') AS `assisted`,\n       SUM(c.status='undetermined') AS `undetermined`\nFROM whodunit_commits c JOIN whodunit_repos r ON r.repo_id=c.repo_id\nWHERE ('$contributor' = '__all__' OR r.contributor = '$contributor') AND c.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nGROUP BY `time` ORDER BY `time`\n"
         }
       ],
       "fieldConfig": {
@@ -647,8 +647,8 @@
       "targets": [
         {
           "refId": "A",
-          "format": "table",
-          "rawSql": "\nSELECT DATE_FORMAT(FROM_UNIXTIME(e.observed_at/1000000000), '$grain') AS `bucket`,\n       COUNT(*) AS `agent edits`,\n       SUM(e.lines_added) AS `lines added`\nFROM whodunit_events e JOIN whodunit_repos r ON r.repo_id=e.repo_id\nWHERE ('$contributor' = '__all__' OR r.contributor = '$contributor') AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nGROUP BY bucket ORDER BY bucket\n"
+          "format": "time_series",
+          "rawSql": "\nSELECT DATE(FROM_UNIXTIME(e.observed_at/1000000000)) AS `time`,\n       COUNT(*) AS `agent edits`,\n       SUM(e.lines_added) AS `lines added`\nFROM whodunit_events e JOIN whodunit_repos r ON r.repo_id=e.repo_id\nWHERE ('$contributor' = '__all__' OR r.contributor = '$contributor') AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nGROUP BY `time` ORDER BY `time`\n"
         }
       ],
       "fieldConfig": {
@@ -674,8 +674,8 @@
       "targets": [
         {
           "refId": "A",
-          "format": "table",
-          "rawSql": "\nSELECT DATE_FORMAT(FROM_UNIXTIME(e.observed_at/1000000000), '$grain') AS `bucket`,\n       ROUND(100.0*SUM(e.outcome='accepted')\n             /NULLIF(SUM(e.outcome IN ('accepted','rejected','failed')),0),1) AS `accept %`\nFROM whodunit_events e JOIN whodunit_repos r ON r.repo_id=e.repo_id\nWHERE ('$contributor' = '__all__' OR r.contributor = '$contributor') AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nGROUP BY bucket ORDER BY bucket\n"
+          "format": "time_series",
+          "rawSql": "\nSELECT DATE(FROM_UNIXTIME(e.observed_at/1000000000)) AS `time`,\n       ROUND(100.0*SUM(e.outcome='accepted')\n             /NULLIF(SUM(e.outcome IN ('accepted','rejected','failed')),0),1) AS `accept %`\nFROM whodunit_events e JOIN whodunit_repos r ON r.repo_id=e.repo_id\nWHERE ('$contributor' = '__all__' OR r.contributor = '$contributor') AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nGROUP BY `time` ORDER BY `time`\n"
         }
       ],
       "fieldConfig": {
@@ -706,8 +706,8 @@
       "targets": [
         {
           "refId": "A",
-          "format": "table",
-          "rawSql": "\nSELECT DATE_FORMAT(i.resolution_date, '$grain') AS `bucket`,\n       SUM(t.ai = 1) AS `AI-assisted`,\n       SUM(t.ai = 0) AS `not AI-assisted`\nFROM issues i\nJOIN board_issues bi ON bi.issue_id = i.id\nLEFT JOIN (\nSELECT i.issue_key,\n       i.lead_time_minutes AS ltm,\n       i.resolution_date,\n       MAX(w.status = 'assisted') AS ai\nFROM issues i\nJOIN board_issues bi ON bi.issue_id = i.id\nLEFT JOIN commits c\n       ON c.message REGEXP CONCAT('(^|[^A-Za-z0-9])', i.issue_key, '([^0-9]|$)')\nLEFT JOIN whodunit_commits w ON w.commit_sha = c.sha\nWHERE bi.board_id = '$board'\n  AND i.lead_time_minutes IS NOT NULL\nGROUP BY i.issue_key, i.lead_time_minutes, i.resolution_date\n) t ON t.issue_key = i.issue_key\nWHERE bi.board_id = '$board' AND i.resolution_date IS NOT NULL\nGROUP BY bucket ORDER BY bucket\n"
+          "format": "time_series",
+          "rawSql": "\nSELECT DATE(i.resolution_date) AS `time`,\n       SUM(t.ai = 1) AS `AI-assisted`,\n       SUM(t.ai = 0) AS `not AI-assisted`\nFROM issues i\nJOIN board_issues bi ON bi.issue_id = i.id\nLEFT JOIN (\nSELECT i.issue_key,\n       i.lead_time_minutes AS ltm,\n       i.resolution_date,\n       MAX(w.status = 'assisted') AS ai\nFROM issues i\nJOIN board_issues bi ON bi.issue_id = i.id\nLEFT JOIN commits c\n       ON c.message REGEXP CONCAT('(^|[^A-Za-z0-9])', i.issue_key, '([^0-9]|$)')\nLEFT JOIN whodunit_commits w ON w.commit_sha = c.sha\nWHERE bi.board_id = '$board'\n  AND i.lead_time_minutes IS NOT NULL\nGROUP BY i.issue_key, i.lead_time_minutes, i.resolution_date\n) t ON t.issue_key = i.issue_key\nWHERE bi.board_id = '$board' AND i.resolution_date IS NOT NULL\nGROUP BY `time` ORDER BY `time`\n"
         }
       ],
       "fieldConfig": {
