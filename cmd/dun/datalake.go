@@ -1,6 +1,6 @@
 // Author: Navjyot Nishant
 // Created: 2026-08-12
-// Last updated: 2026-08-12
+// Last updated: 2026-08-13
 // Description: The guided setup for a shared attribution database, used by
 // `dun config datalake` and offered once by `dun init`.
 
@@ -12,9 +12,11 @@ import (
 	"io"
 	"net/url"
 	"os"
+	"os/exec"
 	"strings"
 
 	"github.com/navjyotnishant/whodunit/internal/config"
+	"github.com/navjyotnishant/whodunit/internal/secret"
 	"github.com/navjyotnishant/whodunit/internal/sidecar"
 	"github.com/navjyotnishant/whodunit/internal/termcolor"
 	"github.com/spf13/cobra"
@@ -30,8 +32,11 @@ func newConfigDatalakeCmd() *cobra.Command {
 			"This is optional. Without it everything still works locally: the\n" +
 			"journal records normally, `dun report` renders, `dun status` reports.\n" +
 			"Only the shared dashboards need a target.\n\n" +
-			"The password is never written to disk. You name an environment\n" +
-			"variable and whodunit reads it when it syncs.",
+			"The password is encrypted on this machine — never in the config\n" +
+			"file, and never exported from your shell profile. It is bound to\n" +
+			"this host, so a copied home directory or a restored backup cannot\n" +
+			"decrypt it. In CI, set WHODUNIT_SYNC_PASSWORD instead; the\n" +
+			"environment always takes precedence.",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runDatalakeSetup(cmd.OutOrStdout(), cmd.InOrStdin())
 		},
@@ -62,15 +67,35 @@ func runDatalakeSetup(w io.Writer, in io.Reader) error {
 
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, c.S(termcolor.Muted,
-		"The password is not stored in the config file. Name an environment"))
+		"The password is encrypted on this machine, not written to the config"))
 	fmt.Fprintln(w, c.S(termcolor.Muted,
-		"variable holding it, and whodunit will read that when it syncs."))
-	passwordEnv := ask(w, r, "password variable", "WHODUNIT_SYNC_PASSWORD")
+		"file and not exported from your shell profile."))
+	password, err := askSecret(w, r, "password")
+	if err != nil {
+		return err
+	}
 
 	sync := &config.SyncConfig{
-		DSN:         fmt.Sprintf("mysql://%s@%s/%s", url.QueryEscape(username), host, database),
-		PasswordEnv: passwordEnv,
+		DSN: fmt.Sprintf("mysql://%s@%s/%s", url.QueryEscape(username), host, database),
+		// Named but normally unset. The everyday password is the encrypted
+		// one; this exists so CI can inject its own, which it must be able
+		// to do — a runner has no encrypted store to read from.
+		PasswordEnv: "WHODUNIT_SYNC_PASSWORD",
 		OnPush:      true,
+	}
+
+	// Stored before the connection test, because the test resolves the DSN
+	// through the same path a real sync uses. Testing against a password
+	// held only in a local variable would exercise a path that does not
+	// exist in production and pass while the stored one was unreadable.
+	if password != "" {
+		dir, err := config.Dir()
+		if err != nil {
+			return err
+		}
+		if err := secret.Store(dir, password); err != nil {
+			return fmt.Errorf("store the sync password: %w", err)
+		}
 	}
 
 	// Test before saving, so a typo surfaces here rather than as a warning
@@ -97,9 +122,12 @@ func runDatalakeSetup(w io.Writer, in io.Reader) error {
 	fmt.Fprintln(w)
 	fmt.Fprintf(w, "%s attribution will be sent when you push.\n",
 		c.S(termcolor.Good, "sync configured."))
-	if passwordEnv != "" && os.Getenv(passwordEnv) == "" {
+	if password != "" {
+		fmt.Fprintf(w, "%s\n", c.S(termcolor.Muted,
+			"the password is encrypted on this machine and unreadable elsewhere."))
+	} else {
 		fmt.Fprintf(w, "\n%s\n", c.S(termcolor.Warn,
-			"note: "+passwordEnv+" is not set in this shell yet."))
+			"note: no password stored — set "+sync.PasswordEnv+" or re-run this to store one."))
 	}
 	return nil
 }
@@ -207,6 +235,72 @@ func confirm(w io.Writer, r *bufio.Reader, question string, def bool) bool {
 	default:
 		return def
 	}
+}
+
+// askSecret reads a password without echoing it.
+//
+// A password typed in the clear survives in terminal scrollback, in a
+// screen recording, and over the shoulder of whoever is standing there,
+// which undoes much of the point of encrypting it a moment later.
+//
+// Echo is suppressed with stty rather than golang.org/x/term to avoid a new
+// dependency for one prompt; the package already shells out to ioreg and
+// reg for the same reason. On a non-terminal input — a test, a script — the
+// read is plain, since there is no echo to suppress.
+func askSecret(w io.Writer, r *bufio.Reader, label string) (string, error) {
+	fmt.Fprintf(w, "  %s: ", label)
+
+	if isTerminal(os.Stdin) {
+		restore, err := suppressEcho()
+		if err == nil {
+			defer restore()
+		}
+		// A failure to suppress echo is not fatal: refusing to configure
+		// sync because a terminal is unusual would be worse than one
+		// visible password. It is said out loud rather than hidden.
+		if err != nil {
+			fmt.Fprintln(w)
+			fmt.Fprintf(w, "  (input will be visible: %v)\n  %s: ", err, label)
+		}
+	}
+
+	line, err := r.ReadString('\n')
+	if isTerminal(os.Stdin) {
+		fmt.Fprintln(w)
+	}
+	if err != nil && line == "" {
+		return "", err
+	}
+	return strings.TrimSpace(line), nil
+}
+
+// suppressEcho turns terminal echo off and returns a function restoring
+// the previous state.
+func suppressEcho() (func(), error) {
+	// Linux stty spells the flag -F; macOS and the BSDs use -f. Which one
+	// works is discovered by trying, rather than branched on GOOS, so a
+	// system that disagrees with its own family still works.
+	for _, flag := range []string{"-f", "-F"} {
+		saved, err := exec.Command("stty", flag, "/dev/tty", "-g").Output()
+		if err != nil {
+			continue
+		}
+		if err := sttyRun(flag, "-echo"); err != nil {
+			return nil, err
+		}
+		return sttyRestore(flag, string(saved)), nil
+	}
+	return nil, fmt.Errorf("stty unavailable")
+}
+
+func sttyRun(flag, arg string) error {
+	cmd := exec.Command("stty", flag, "/dev/tty", arg)
+	cmd.Stdin = os.Stdin
+	return cmd.Run()
+}
+
+func sttyRestore(flag, saved string) func() {
+	return func() { _ = sttyRun(flag, strings.TrimSpace(saved)) }
 }
 
 // isTerminal reports whether r is an interactive terminal. Anything that

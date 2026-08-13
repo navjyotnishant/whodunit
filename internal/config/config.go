@@ -17,10 +17,13 @@ package config
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/url"
 	"os"
 	"path/filepath"
+
+	"github.com/navjyotnishant/whodunit/internal/secret"
 )
 
 // Config is the global settings file at ~/.whodunit/config.json.
@@ -64,6 +67,12 @@ type SyncConfig struct {
 	// owner-only, but a credential in it still ends up in backups, in
 	// synced dotfiles, and pasted into issue reports — none of which the
 	// file permissions cover.
+	//
+	// This is now the CI path rather than the everyday one. A developer's
+	// password lives encrypted in the whodunit home (internal/secret); the
+	// environment variable exists because a CI runner has no such store and
+	// injects credentials as variables by design. It still takes
+	// precedence, so a runner can override without touching config.
 	PasswordEnv string `json:"password_env,omitempty"`
 
 	// OnPush syncs automatically from the pre-push hook.
@@ -75,27 +84,48 @@ func (s *SyncConfig) Configured() bool {
 	return s != nil && s.DSN != ""
 }
 
-// Resolve returns the DSN with the password from PasswordEnv filled in.
+// Resolve returns the DSN with the sync password filled in.
 //
-// Returns the DSN unchanged when no password variable is named, since a
-// target may legitimately need no password — a local database, or a DSN
-// that already carries its own credentials.
+// The password comes from the environment first and the encrypted store
+// second. That order is deliberate: CI injects credentials as environment
+// variables by design, and a runner has no encrypted store to read, so the
+// environment has to be able to override. On a developer machine the
+// variable is normally unset and the encrypted file answers.
 //
-// Reports an error when a variable is named but unset: that is a
-// misconfiguration worth stating rather than a connection failure to
-// puzzle over later.
+// Returns the DSN unchanged when neither source holds anything and no
+// variable was named, since a target may legitimately need no password — a
+// local database, or a DSN that already carries its own credentials.
 func (s *SyncConfig) Resolve() (string, error) {
 	if !s.Configured() {
 		return "", fmt.Errorf("no sync target configured")
 	}
-	if s.PasswordEnv == "" {
+
+	if s.PasswordEnv != "" {
+		if password := os.Getenv(s.PasswordEnv); password != "" {
+			return injectPassword(s.DSN, password)
+		}
+	}
+
+	dir, err := Dir()
+	if err != nil {
+		return "", err
+	}
+	password, err := secret.Load(dir)
+	switch {
+	case err == nil:
+		return injectPassword(s.DSN, password)
+	case errors.Is(err, secret.ErrNotStored):
+		// Nothing stored. A named variable that is also unset is a
+		// misconfiguration worth stating plainly rather than leaving as a
+		// connection failure to puzzle over later.
+		if s.PasswordEnv != "" {
+			return "", fmt.Errorf("no sync password found: %s is not set, and none is stored "+
+				"(run `dun config datalake` to store one)", s.PasswordEnv)
+		}
 		return s.DSN, nil
+	default:
+		return "", err
 	}
-	password := os.Getenv(s.PasswordEnv)
-	if password == "" {
-		return "", fmt.Errorf("%s is not set (the sync password comes from that environment variable)", s.PasswordEnv)
-	}
-	return injectPassword(s.DSN, password)
 }
 
 // injectPassword puts the password into a DSN's userinfo, leaving every

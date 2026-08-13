@@ -18,6 +18,7 @@ import (
 	"github.com/navjyotnishant/whodunit/internal/config"
 	"github.com/navjyotnishant/whodunit/internal/journal"
 	"github.com/navjyotnishant/whodunit/internal/registry"
+	"github.com/navjyotnishant/whodunit/internal/secret"
 	"github.com/navjyotnishant/whodunit/internal/sidecar"
 	"github.com/navjyotnishant/whodunit/internal/termcolor"
 	"github.com/spf13/cobra"
@@ -538,34 +539,46 @@ func checkSync() []finding {
 	if err != nil {
 		return []finding{{Area: "sync", Level: levelUnknown, Detail: err.Error()}}
 	}
+	// Before the configured check, not after: a stored secret is exposed by
+	// a world-readable keyfile whether or not a sync target is set. Someone
+	// who configured sync, stored a password and later removed the target
+	// still has the credential on disk.
+	out := checkSecret(cfg)
+
 	if !cfg.Sync.Configured() {
 		// Not a failure. Local-only is a supported way to use this tool,
 		// offered by the setup wizard itself.
-		return []finding{{
+		return append(out, finding{
 			Area:   "sync",
 			Level:  levelInfo,
 			Detail: "not configured — attribution stays on this machine",
 			Fix:    "dun config datalake",
-		}}
+		})
 	}
 
 	dsn, err := cfg.Sync.Resolve()
 	if err != nil {
-		return []finding{{
+		// A password problem checkSecret already named is not repeated
+		// here: Resolve fails *because* of it, and printing the same
+		// sentence twice under two headings reads as two faults.
+		if countBroken(out) > 0 {
+			return out
+		}
+		return append(out, finding{
 			Area:   "sync",
 			Level:  levelBroken,
 			Detail: err.Error(),
 			Fix:    "dun config datalake",
-		}}
+		})
 	}
 
 	db, err := sidecar.Open(dsn)
 	if err != nil {
-		return []finding{{
+		return append(out, finding{
 			Area:   "sync",
 			Level:  levelUnknown,
 			Detail: "could not open " + cfg.Sync.Redacted() + ": " + err.Error(),
-		}}
+		})
 	}
 	defer db.Close()
 
@@ -573,17 +586,83 @@ func checkSync() []finding {
 		// Unreachable is "could not check", not "broken": the database
 		// may simply be down right now, and the push hook already handles
 		// that without losing anything.
-		return []finding{{
+		return append(out, finding{
 			Area:   "sync",
 			Level:  levelUnknown,
 			Detail: "unreachable: " + cfg.Sync.Redacted(),
-		}}
+		})
 	}
-	return []finding{{
+	return append(out, finding{
 		Area:   "sync",
 		Level:  levelOK,
 		Detail: cfg.Sync.Redacted(),
-	}}
+	})
+}
+
+// checkSecret reports where the sync password is kept, and whether the
+// files holding it are still owner-only.
+//
+// Where it lives is worth saying out loud because the answer changes what
+// happens on another machine: an encrypted secret does not travel, so
+// someone whose sync works here and fails on a second laptop should be able
+// to see why without reading the source.
+//
+// The permission check exists because a widened mode is silent. `chmod -R`
+// across a home directory turns the encryption into theatre — the key sits
+// next to the ciphertext, readable by anyone — and nothing else in the
+// system would notice.
+func checkSecret(cfg config.Config) []finding {
+	dir, err := config.Dir()
+	if err != nil {
+		return nil
+	}
+
+	var out []finding
+	for _, f := range secret.CheckPermissions(dir) {
+		out = append(out, finding{
+			Area:   "password",
+			Level:  levelBroken,
+			Detail: "readable by others — " + f,
+			Fix:    "chmod 600 " + filepath.Join(dir, "sync.*"),
+		})
+	}
+
+	// Sync is a pointer and is nil until configured. This runs before that
+	// check, so the variable name is read defensively rather than off a
+	// struct that may not exist.
+	var passwordEnv string
+	if cfg.Sync != nil {
+		passwordEnv = cfg.Sync.PasswordEnv
+	}
+
+	switch {
+	case passwordEnv != "" && os.Getenv(passwordEnv) != "":
+		out = append(out, finding{
+			Area:   "password",
+			Level:  levelOK,
+			Detail: "from " + passwordEnv + " (the environment wins over the stored one)",
+		})
+	case secret.Stored(dir):
+		// Decrypted, not merely present. A stored file that this machine
+		// cannot read is the restored-backup case, and reporting it as
+		// "encrypted on this machine" directly above the failure it causes
+		// reads as a contradiction.
+		if _, err := secret.Load(dir); err != nil {
+			out = append(out, finding{
+				Area:   "password",
+				Level:  levelBroken,
+				Detail: err.Error(),
+				Fix:    "dun config datalake",
+			})
+			break
+		}
+		out = append(out, finding{
+			Area:   "password",
+			Level:  levelOK,
+			Detail: "encrypted on this machine",
+		})
+	}
+	return out
 }
 
 // marker returns the emoji for a level, padded to a fixed cell width.
@@ -618,7 +697,7 @@ func sectionFor(f finding) string {
 		return "machine"
 	case strings.HasPrefix(f.Area, "agent"):
 		return "agents"
-	case f.Area == "sync":
+	case f.Area == "sync", f.Area == "password":
 		return "sync"
 	case f.Area == "hooks", f.Area == "journal", f.Area == "attribution":
 		return "this repository"

@@ -16,6 +16,7 @@ import (
 
 	"github.com/navjyotnishant/whodunit/internal/journal"
 	"github.com/navjyotnishant/whodunit/internal/registry"
+	"github.com/navjyotnishant/whodunit/internal/secret"
 	"github.com/navjyotnishant/whodunit/internal/termcolor"
 )
 
@@ -333,5 +334,43 @@ func TestAgentCountsAreNotClaimedOutsideARepository(t *testing.T) {
 	}
 	if strings.Contains(s, "claude-code             not installed") {
 		t.Errorf("an installed agent was reported missing:\n%s", s)
+	}
+}
+
+// NAV-80: encryption whose keyfile is world-readable is theatre — the key
+// sits beside the ciphertext. Nothing else in the system notices a widened
+// mode, so verify has to.
+func TestWidenedSecretPermissionsFailVerify(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("WHODUNIT_HOME", home)
+	t.Setenv("WHODUNIT_CODEX_PATH", t.TempDir())
+	t.Setenv("WHODUNIT_AGY_PATH", t.TempDir())
+
+	if err := secret.Store(home, "a-stored-password"); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(filepath.Join(home, "sync.key"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	outside := t.TempDir()
+	wd, _ := os.Getwd()
+	defer os.Chdir(wd)
+	if err := os.Chdir(outside); err != nil {
+		t.Fatal(err)
+	}
+
+	var out bytes.Buffer
+	err := runVerify(&out, "")
+	s := out.String()
+
+	if !strings.Contains(s, "readable by others") {
+		t.Fatalf("a world-readable keyfile was not reported:\n%s", s)
+	}
+	if !strings.Contains(s, "chmod 600") {
+		t.Errorf("the fix was not given:\n%s", s)
+	}
+	if err == nil {
+		t.Error("a world-readable keyfile did not fail the command")
 	}
 }
