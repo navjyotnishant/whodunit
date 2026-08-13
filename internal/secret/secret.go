@@ -291,14 +291,25 @@ func realMachineID() (string, error) {
 
 	switch runtime.GOOS {
 	case "darwin":
-		out, err := exec.Command("ioreg", "-rd1", "-c", "IOPlatformExpertDevice").Output()
+		// An absolute path, not a bare name. A hook runs with whatever
+		// PATH git hands it, which on a minimal environment need not
+		// include /usr/sbin — and a lookup failure here would report "no
+		// machine identifier" on a machine that plainly has one.
+		out, err := exec.Command("/usr/sbin/ioreg", "-rd1", "-c", "IOPlatformExpertDevice").Output()
+		if err != nil {
+			out, err = exec.Command("ioreg", "-rd1", "-c", "IOPlatformExpertDevice").Output()
+		}
 		if err == nil {
 			id = between(string(out), `"IOPlatformUUID" = "`, `"`)
 		}
 	case "windows":
 		// MachineGuid is written at install time and survives hardware
 		// changes, unlike anything WMI reports about the motherboard.
-		out, err := exec.Command("reg", "query",
+		reg := filepath.Join(os.Getenv("SystemRoot"), "System32", "reg.exe")
+		if os.Getenv("SystemRoot") == "" {
+			reg = "reg"
+		}
+		out, err := exec.Command(reg, "query",
 			`HKLM\SOFTWARE\Microsoft\Cryptography`, "/v", "MachineGuid").Output()
 		if err == nil {
 			if i := strings.LastIndex(string(out), "REG_SZ"); i >= 0 {

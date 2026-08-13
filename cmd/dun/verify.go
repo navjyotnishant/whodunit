@@ -139,10 +139,18 @@ func verifyRepoPath(repoFlag string) (string, bool) {
 	return "", false
 }
 
+// lookDun finds the dun binary on PATH.
+//
+// A variable so tests can supply an answer rather than depending on
+// whether a dun happens to be installed on the machine running them. The
+// verify tests passed locally and failed in CI for exactly that reason:
+// they were asserting about the developer's laptop, not about the code.
+var lookDun = func() (string, error) { return exec.LookPath("dun") }
+
 func checkInstall() []finding {
 	var out []finding
 
-	path, err := exec.LookPath("dun")
+	path, err := lookDun()
 	if err != nil {
 		// The hooks resolve `dun` from PATH at run time, so a binary that
 		// is not on PATH means every hook silently does nothing.

@@ -4,8 +4,21 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 )
+
+// outputIn runs git in dir and returns its stdout.
+func outputIn(t *testing.T, dir string, args ...string) string {
+	t.Helper()
+	cmd := exec.Command("git", args...)
+	cmd.Dir = dir
+	out, err := cmd.Output()
+	if err != nil {
+		t.Fatalf("git %v: %v", args, err)
+	}
+	return string(out)
+}
 
 func newRepo(t *testing.T) string {
 	t.Helper()
@@ -160,7 +173,12 @@ func TestMultipleRootsPickDeterministically(t *testing.T) {
 
 	runIn(t, main, "remote", "add", "other", other)
 	runIn(t, main, "fetch", "-q", "other")
-	runIn(t, main, "merge", "--allow-unrelated-histories", "-q", "-m", "merge unrelated", "other/main")
+	// Ask the other repository what its branch is called rather than
+	// assuming "main". git's default depends on its version and on
+	// init.defaultBranch, so a hardcoded name passes on a machine
+	// configured one way and fails on CI configured the other.
+	branch := strings.TrimSpace(outputIn(t, other, "rev-parse", "--abbrev-ref", "HEAD"))
+	runIn(t, main, "merge", "--allow-unrelated-histories", "-q", "-m", "merge unrelated", "other/"+branch)
 
 	chdir(t, main)
 

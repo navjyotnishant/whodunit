@@ -20,11 +20,24 @@ import (
 	"github.com/navjyotnishant/whodunit/internal/termcolor"
 )
 
+// installedDun makes `dun` appear to be on PATH for the duration of a test.
+//
+// Without this, every verify test asserts about whichever machine runs it:
+// they passed locally because a dun was installed and failed in CI because
+// none was. A test that depends on ambient state is testing the machine.
+func installedDun(t *testing.T) {
+	t.Helper()
+	restore := lookDun
+	t.Cleanup(func() { lookDun = restore })
+	lookDun = func() (string, error) { return "/usr/local/bin/dun", nil }
+}
+
 // NAV-77 criterion 6, and the one that decides whether this command is
 // useful or ignored. Local-only is a supported way to run whodunit — the
 // setup wizard offers it — so an unconfigured sync must be a fact, not a
 // failure, and must not fail CI.
 func TestUnconfiguredSyncIsNotAFailure(t *testing.T) {
+	installedDun(t)
 	t.Setenv("WHODUNIT_HOME", t.TempDir())
 	// Real but empty directories: "installed, not used here" rather than
 	// a configured path that does not exist, which verify correctly
@@ -58,6 +71,7 @@ func TestUnconfiguredSyncIsNotAFailure(t *testing.T) {
 
 // Criterion 2: a problem without its remedy has done half the job.
 func TestBrokenConfigNamesItsFix(t *testing.T) {
+	installedDun(t)
 	t.Setenv("WHODUNIT_HOME", t.TempDir())
 	missing := filepath.Join(t.TempDir(), "nowhere")
 	t.Setenv("WHODUNIT_CODEX_PATH", missing)
@@ -87,6 +101,7 @@ func TestBrokenConfigNamesItsFix(t *testing.T) {
 // Criterion 3: someone fixing a setup wants the whole list, not one item
 // per run.
 func TestAllProblemsAreReportedNotJustTheFirst(t *testing.T) {
+	installedDun(t)
 	t.Setenv("WHODUNIT_HOME", t.TempDir())
 	t.Setenv("WHODUNIT_CODEX_PATH", filepath.Join(t.TempDir(), "nowhere-1"))
 	t.Setenv("WHODUNIT_AGY_PATH", filepath.Join(t.TempDir(), "nowhere-2"))
@@ -112,6 +127,7 @@ func TestAllProblemsAreReportedNotJustTheFirst(t *testing.T) {
 // ingests into the journal as a side effect. Someone debugging runs verify
 // repeatedly, and a health check must not change what it measures.
 func TestVerifyWritesNothing(t *testing.T) {
+	installedDun(t)
 	home := t.TempDir()
 	t.Setenv("WHODUNIT_HOME", home)
 	// Real but empty directories: "installed, not used here" rather than
@@ -166,6 +182,7 @@ func TestVerifyWritesNothing(t *testing.T) {
 // Criterion 5: outside a repository it still reports the machine and the
 // registered repositories, rather than failing.
 func TestVerifyOutsideARepository(t *testing.T) {
+	installedDun(t)
 	t.Setenv("WHODUNIT_HOME", t.TempDir())
 	// Real but empty directories: "installed, not used here" rather than
 	// a configured path that does not exist, which verify correctly
@@ -191,6 +208,7 @@ func TestVerifyOutsideARepository(t *testing.T) {
 
 // Criterion 1: a healthy setup says so and exits zero.
 func TestHealthySetupExitsZero(t *testing.T) {
+	installedDun(t)
 	t.Setenv("WHODUNIT_HOME", t.TempDir())
 	// Real but empty directories: "installed, not used here" rather than
 	// a configured path that does not exist, which verify correctly
@@ -304,6 +322,7 @@ func TestVerifyChecksEachRegisteredRepository(t *testing.T) {
 // claimed "3 session(s) for this repository" and called an installed agent
 // missing — both wrong in the same breath.
 func TestAgentCountsAreNotClaimedOutsideARepository(t *testing.T) {
+	installedDun(t)
 	t.Setenv("WHODUNIT_HOME", t.TempDir())
 
 	// A real transcript root, so the agent is genuinely installed.
@@ -341,6 +360,7 @@ func TestAgentCountsAreNotClaimedOutsideARepository(t *testing.T) {
 // sits beside the ciphertext. Nothing else in the system notices a widened
 // mode, so verify has to.
 func TestWidenedSecretPermissionsFailVerify(t *testing.T) {
+	installedDun(t)
 	home := t.TempDir()
 	t.Setenv("WHODUNIT_HOME", home)
 	t.Setenv("WHODUNIT_CODEX_PATH", t.TempDir())
