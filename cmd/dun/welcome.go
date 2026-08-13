@@ -132,9 +132,13 @@ func renderWordmark(out io.Writer, w *termcolor.Writer) {
 	if IsRelease() {
 		version = "v" + version
 	}
-	fmt.Fprintf(out, "  %s  %s\n",
+	// The name in text as well as in the wordmark. Figlet letters are not
+	// a string: they do not survive a grep, a screen reader, or a terminal
+	// that renders the box-drawing characters as boxes.
+	fmt.Fprintf(out, "  %s %s  %s\n",
+		w.S(termcolor.Bold, "whodunit"),
 		w.S(termcolor.Muted, version),
-		w.S(termcolor.Muted, "which agent touched this code, and how sure we are"))
+		w.S(termcolor.Muted, "— which agent touched this code, and how sure we are"))
 	fmt.Fprintln(out)
 }
 
