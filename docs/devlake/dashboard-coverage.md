@@ -175,3 +175,31 @@ somewhere this document has not looked — worth adding.
   depends on, and how each fails silently.
 - `deploy/devlake/dashboards/whodunit-dora.json` — reads `whodunit_*` plus
   DevLake's deployment tables; unaffected by gaps 2–11.
+
+## Why the funnel's last stages are empty
+
+`whodunit-funnel.json` lays out six stages — adoption, engagement, AI-assisted
+work, efficiency, productivity, business value — and deliberately leaves the
+last two blank.
+
+Stages 5 and 6 both divide by a **pre-adoption baseline**. `dun baseline
+capture` exists to record one, but none was captured here, and the window
+before the hooks were installed cannot be recovered. `dun delta` reports the
+same limit and refuses to compute a before/after without it.
+
+A productivity percentage derived without that baseline would be arithmetic on
+an assumption — and it would be the figure people quoted. The stages state
+what is missing instead.
+
+**Stage 4 is measurable but must stay board-scoped.** Pooled across boards the
+comparison inverts: assisted issues read 2.5× *slower* (94.6h vs 38.3h) while
+being faster within every board taken individually (98.6h vs 173.6h on one).
+One board contributes 148 fast unassisted issues that dominate the pooled
+average. That is Simpson's paradox, not an AI effect, and a panel showing the
+pooled figure would be confidently wrong.
+
+**The issue-to-commit link is a text match.** GitHub issue keys are bare
+integers, so matching them against commit messages makes issue `1` match every
+commit containing a "1" — 57 of 57 assisted commits. The panel guards with
+`issue_key REGEXP '^[A-Z][A-Z0-9]+-[0-9]+$'`, which restricts it to
+tracker-style keys and reproduces the correct count.
