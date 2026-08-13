@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/navjyotnishant/whodunit/internal/report"
 	"github.com/spf13/cobra"
@@ -75,7 +76,17 @@ func newReportCmd() *cobra.Command {
 			if err != nil {
 				absOut = out // fall back to whatever was given rather than fail the report
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), "wrote %s\n\nopen in browser:\nfile://%s\n", absOut, absOut)
+			// A fragment carrying the write time, so the URL differs on
+			// every run.
+			//
+			// The report is written to the same filename each time, which
+			// means a browser serves its cached copy and a regenerated
+			// report looks identical to the one before it. That has cost
+			// real confusion — the file was right and the screen was
+			// stale. The fragment is ignored by the file itself and is
+			// enough to make the address new.
+			fmt.Fprintf(cmd.OutOrStdout(), "wrote %s\n\nopen in browser:\nfile://%s#%d\n",
+				absOut, absOut, time.Now().Unix())
 			return nil
 		},
 	}
