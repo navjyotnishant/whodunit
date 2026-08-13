@@ -8,7 +8,7 @@ from vendor documentation, which describes intent rather than what lands on
 disk. Where something could not be verified, the row says so instead of
 guessing.
 
-**Last surveyed: 2026-08-12.**
+**Last surveyed: 2026-08-13.**
 
 ## The short version
 
@@ -44,6 +44,8 @@ survived to the commit.
 | Produced text | `content` / `new_string` | unified-diff `+` lines | `ReplacementContent` |
 | Line numbers | derived | derived | given (`StartLine`/`EndLine`) |
 | Call/result pairing | `tool_use_id` | `call_id` | step type 15 → 5/8/9/21 |
+| Other tool calls | `tool_use.name` | call payload `name` | payload, after `call_<id>` |
+| MCP calls | named — `mcp__<server>__<method>` | named as its own call type | none — shells out via `run_command` |
 | Agent version | `version` field | `session_meta.cli_version` | not yet located |
 | **Ceiling** | **`intersected`** | **`intersected`** | **`intersected`** |
 
@@ -153,6 +155,23 @@ rate.
 **A call and its result carry identical arguments**, so each edit appears
 twice in `steps`. Entries are deduplicated on the produced text; counting
 both would double every line the agent wrote.
+
+**MCP calls are invisible, because `agy` does not make them.** Asked to read
+a Linear issue with the Linear MCP server configured, it shelled out
+instead: six `run_command` steps spawning
+`npx -y mcp-remote https://mcp.linear.app/mcp` and speaking JSON-RPC over
+stdio from a hand-written Node script.
+
+So there is no MCP tool name to record — the tool `agy` used was
+`run_command`, which is what the adapter stores. Per-server MCP usage is
+therefore Claude Code only. Recovering it for `agy` would mean parsing shell
+command lines, which is exactly the payload this package does not read
+(NAV-25): a command line routinely carries file contents through a heredoc.
+
+Observed 2026-08-13 with `mcp_config.json` already listing the server. This
+may be a fallback rather than a design — `agy` had written that config
+minutes earlier in the same session, and a restart may enable native MCP
+calls. Worth re-checking before treating it as permanent.
 
 ## Blocked, and why
 
