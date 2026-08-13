@@ -10,6 +10,7 @@ import (
 	"io"
 	"strings"
 
+	"github.com/navjyotnishant/whodunit/internal/config"
 	"github.com/navjyotnishant/whodunit/internal/registry"
 	"github.com/navjyotnishant/whodunit/internal/termcolor"
 )
@@ -72,6 +73,19 @@ func runWelcome(out io.Writer) error {
 		fmt.Fprintf(out, "    %s %s\n",
 			w.S(termcolor.Bold, fmt.Sprintf("%-9s", c[0])),
 			w.S(termcolor.Muted, c[1]))
+	}
+
+	// One line, not the twelve `dun status` prints. This screen is seen on
+	// every bare invocation, and a warning that fills it gets scrolled past
+	// — which is how a warning stops working. The detail is one command
+	// away and named here.
+	if cfg, err := config.Load(); err == nil && !cfg.Sync.Configured() {
+		fmt.Fprintln(out)
+		fmt.Fprintf(out, "  %s %s\n",
+			w.S(termcolor.Bad, "!"),
+			w.S(termcolor.Muted, "nothing is published — this machine holds the only copy"))
+		fmt.Fprintf(out, "    %s\n",
+			w.S(termcolor.Muted, "dun status   what that risks, and what would fix it"))
 	}
 
 	fmt.Fprintln(out)
