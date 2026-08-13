@@ -179,6 +179,19 @@ func checkAgentsInstalled() []finding {
 		}
 		info, err := os.Stat(root)
 		if err != nil || !info.IsDir() {
+			// A path someone configured that does not exist is a mistake
+			// to fix; a default path that is absent means the agent is
+			// simply not installed. Collapsing the two would report a
+			// typo as a fact about the machine (NAV-71).
+			if _, src := adapter.ResolveRoot(a.Name(), root); src != adapter.SourceDefault {
+				out = append(out, finding{
+					Area:   "agent: " + a.Name(),
+					Level:  levelBroken,
+					Detail: "configured path does not exist: " + root,
+					Fix:    "dun config set agent." + a.Name() + ".path <dir>",
+				})
+				continue
+			}
 			out = append(out, finding{
 				Area:   "agent: " + a.Name(),
 				Level:  levelInfo,
@@ -561,22 +574,76 @@ func checkSync() []finding {
 	}}
 }
 
+// marker returns the emoji for a level, padded to a fixed cell width.
+//
+// Padded explicitly rather than by rune count: these glyphs are one rune
+// each but render at different widths — ✅ takes two terminal cells, ⚠ takes
+// one — so counting runes would misalign every column after the marker.
+//
+// The variation-selector forms (⚠️, ℹ️) are avoided deliberately: they are
+// two runes and their rendered width varies by terminal, which is exactly
+// the unpredictability this padding exists to remove.
+func marker(c *termcolor.Writer, l level) string {
+	switch l {
+	case levelOK:
+		return c.S(termcolor.Good, "✅")
+	case levelInfo:
+		return c.S(termcolor.Muted, "•") + " "
+	case levelUnknown:
+		return c.S(termcolor.Warn, "⚠") + " "
+	case levelBroken:
+		return c.S(termcolor.Warn, "❌")
+	}
+	return "  "
+}
+
+// sectionFor groups a finding under a heading. Grouping beats a flat list
+// as the number of checks grows: a reader scanning for what is wrong wants
+// the areas, not eleven undifferentiated lines.
+func sectionFor(f finding) string {
+	switch {
+	case f.Area == "install":
+		return "machine"
+	case strings.HasPrefix(f.Area, "agent"):
+		return "agents"
+	case f.Area == "sync":
+		return "sync"
+	case f.Area == "hooks", f.Area == "journal", f.Area == "attribution":
+		return "this repository"
+	default:
+		return "repositories"
+	}
+}
+
+var sectionOrder = []string{"machine", "agents", "this repository", "repositories", "sync"}
+
 func render(w io.Writer, fs []finding) {
 	c := termcolor.New(w)
 
+	grouped := map[string][]finding{}
 	for _, f := range fs {
-		var mark string
-		switch f.Level {
-		case levelOK:
-			mark = c.S(termcolor.Good, "ok")
-		case levelInfo:
-			mark = c.S(termcolor.Muted, "--")
-		case levelUnknown:
-			mark = c.S(termcolor.Warn, "??")
-		case levelBroken:
-			mark = c.S(termcolor.Warn, "!!")
+		s := sectionFor(f)
+		grouped[s] = append(grouped[s], f)
+	}
+
+	for _, section := range sectionOrder {
+		items := grouped[section]
+		if len(items) == 0 {
+			continue
 		}
-		fmt.Fprintf(w, "  %s  %-30s %s\n", mark, f.Area, f.Detail)
+		fmt.Fprintf(w, "\n%s\n", c.S(termcolor.Bold, section))
+		for _, f := range items {
+			// The area is trimmed of its section prefix: under "agents",
+			// "agent: codex" is just "codex".
+			label := strings.TrimPrefix(f.Area, "agent: ")
+			if label == section {
+				// "sync / sync" reads as a mistake. A section with one
+				// item that shares its name needs no label.
+				fmt.Fprintf(w, "  %s  %s\n", marker(c, f.Level), f.Detail)
+				continue
+			}
+			fmt.Fprintf(w, "  %s  %-28s %s\n", marker(c, f.Level), label, f.Detail)
+		}
 	}
 
 	// Fixes are collected at the end rather than inline, so someone with
@@ -589,17 +656,21 @@ func render(w io.Writer, fs []finding) {
 		}
 	}
 	if len(fixes) > 0 {
-		fmt.Fprintln(w)
+		fmt.Fprintf(w, "\n%s\n", c.S(termcolor.Bold, "to fix"))
 		for _, f := range fixes {
-			fmt.Fprintf(w, "  %s  %s\n", c.S(termcolor.Muted, f.Area+":"), c.S(termcolor.Bold, f.Fix))
+			fmt.Fprintf(w, "  %s\n      %s\n",
+				c.S(termcolor.Muted, strings.TrimPrefix(f.Area, "agent: ")),
+				c.S(termcolor.Bold, f.Fix))
 		}
 	}
 
 	fmt.Fprintln(w)
 	if n := countBroken(fs); n > 0 {
-		fmt.Fprintf(w, "%s\n", c.S(termcolor.Warn, fmt.Sprintf("%d problem(s) need attention", n)))
+		fmt.Fprintf(w, "%s %s\n", c.S(termcolor.Warn, "❌"),
+			c.S(termcolor.Warn, fmt.Sprintf("%d problem(s) need attention", n)))
 	} else {
-		fmt.Fprintf(w, "%s\n", c.S(termcolor.Good, "attribution is working"))
+		fmt.Fprintf(w, "%s %s\n", c.S(termcolor.Good, "✅"),
+			c.S(termcolor.Good, "attribution is working"))
 	}
 }
 
