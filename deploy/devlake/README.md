@@ -25,6 +25,7 @@ it asks.
 | `whodunit-adoption.json` | sessions, agents, tools, acceptance |
 | `whodunit-exec.json` | cycle time for AI-assisted work vs the rest |
 | `whodunit-dora.json` | does adoption move delivery — DORA against attribution |
+| `whodunit-hours.json` | when and how the agent is used — rhythm, tools, session shape |
 
 They are also attached to every GitHub release, so a team can import them
 without cloning this repository.

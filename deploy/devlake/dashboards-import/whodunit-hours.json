@@ -1,0 +1,626 @@
+{
+  "uid": "",
+  "title": "Whodunit — Agent Activity Hours",
+  "tags": [
+    "whodunit",
+    "adoption"
+  ],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "",
+  "time": {
+    "from": "now-90d",
+    "to": "now"
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "datasource",
+        "type": "datasource",
+        "query": "mysql",
+        "current": {},
+        "hide": 0,
+        "label": "Data source"
+      },
+      {
+        "name": "tz",
+        "type": "custom",
+        "label": "Timezone",
+        "query": "+00:00 : UTC, -05:00 : US Central, -08:00 : US Pacific, +05:30 : India, +01:00 : Central Europe",
+        "options": [
+          {
+            "text": "UTC",
+            "value": "+00:00",
+            "selected": false
+          },
+          {
+            "text": "US Central",
+            "value": "-05:00",
+            "selected": true
+          },
+          {
+            "text": "US Pacific",
+            "value": "-08:00",
+            "selected": false
+          },
+          {
+            "text": "India",
+            "value": "+05:30",
+            "selected": false
+          },
+          {
+            "text": "Central Europe",
+            "value": "+01:00",
+            "selected": false
+          }
+        ],
+        "current": {
+          "selected": true,
+          "text": "US Central",
+          "value": "-05:00"
+        }
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "text",
+      "title": "",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 5
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "## When and how the agent is used\n*Working rhythm, tool mix and session shape — from the agent's own session records.*\n\nModelled on DevLake's **Developer AI Productivity Hours** dashboard, which reads Amazon Q Developer telemetry. This reads whodunit's journal instead, so it works for Claude Code, Codex and `agy` without a vendor API.\n\n**No prompt or response text is recorded anywhere** — whodunit stores counts, file paths and line hashes, never message content. Q Dev's prompt-length panels have no equivalent here, and that is the design, not a gap. Message *volume* is the honest substitute.\n\nSet **Timezone** below to read hours in your own working day rather than UTC."
+      }
+    },
+    {
+      "id": 2,
+      "type": "row",
+      "title": "Working rhythm",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 5,
+        "w": 24,
+        "h": 1
+      },
+      "panels": []
+    },
+    {
+      "id": 3,
+      "type": "barchart",
+      "title": "Agent activity by hour of day",
+      "datasource": "${DS_WHODUNIT}",
+      "gridPos": {
+        "x": 0,
+        "y": 6,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT LPAD(HOUR(CONVERT_TZ(FROM_UNIXTIME(e.observed_at/1000000000), '+00:00', '$tz')),2,'0') AS `hour`,\n       SUM(e.event='tool_use') AS `file edits`,\n       SUM(e.event<>'tool_use') AS `other activity`\nFROM whodunit_events e\nWHERE e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nGROUP BY `hour` ORDER BY `hour`"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "fillOpacity": 80,
+            "stacking": {
+              "mode": "normal"
+            }
+          }
+        }
+      },
+      "options": {
+        "xTickLabelRotation": 0,
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "description": "Hours with no bar are hours nobody worked — not missing data."
+    },
+    {
+      "id": 4,
+      "type": "barchart",
+      "title": "Agent activity by day of week",
+      "datasource": "${DS_WHODUNIT}",
+      "gridPos": {
+        "x": 12,
+        "y": 6,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT CASE DAYOFWEEK(CONVERT_TZ(FROM_UNIXTIME(e.observed_at/1000000000), '+00:00', '$tz'))\n         WHEN 1 THEN 'Sun' WHEN 2 THEN 'Mon' WHEN 3 THEN 'Tue' WHEN 4 THEN 'Wed'\n         WHEN 5 THEN 'Thu' WHEN 6 THEN 'Fri' ELSE 'Sat' END AS `day`,\n       COUNT(*) AS `events`\nFROM whodunit_events e\nWHERE e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nGROUP BY DAYOFWEEK(CONVERT_TZ(FROM_UNIXTIME(e.observed_at/1000000000), '+00:00', '$tz')), `day`\nORDER BY DAYOFWEEK(CONVERT_TZ(FROM_UNIXTIME(e.observed_at/1000000000), '+00:00', '$tz'))"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "fillOpacity": 80
+          }
+        }
+      },
+      "options": {
+        "xTickLabelRotation": 0,
+        "legend": {
+          "displayMode": "hidden"
+        }
+      },
+      "description": "Weekday distribution. A flat weekend is normal; a flat Monday may be worth asking about."
+    },
+    {
+      "id": 5,
+      "type": "barchart",
+      "title": "Code churn by hour",
+      "datasource": "${DS_WHODUNIT}",
+      "gridPos": {
+        "x": 0,
+        "y": 14,
+        "w": 12,
+        "h": 7
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT LPAD(HOUR(CONVERT_TZ(FROM_UNIXTIME(e.observed_at/1000000000), '+00:00', '$tz')),2,'0') AS `hour`,\n       SUM(e.lines_added) AS `lines added`,\n       SUM(e.lines_removed) AS `lines removed`\nFROM whodunit_events e\nWHERE e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nGROUP BY `hour` ORDER BY `hour`"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "fillOpacity": 80
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "lines removed"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "orange"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "description": "Volume of change, not value of it. A high-churn hour is a busy hour, not necessarily a productive one."
+    },
+    {
+      "id": 6,
+      "type": "piechart",
+      "title": "Tools used",
+      "datasource": "${DS_WHODUNIT}",
+      "gridPos": {
+        "x": 12,
+        "y": 14,
+        "w": 12,
+        "h": 7
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT e.tool AS `tool`, COUNT(*) AS `calls`\nFROM whodunit_events e\nWHERE e.tool <> '' AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nGROUP BY e.tool ORDER BY `calls` DESC"
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "values": [
+            "value",
+            "percent"
+          ]
+        },
+        "pieType": "donut",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": true
+        }
+      },
+      "description": "The real analogue of Q Dev's 'feature usage', which only knew three flags. This reports whichever tools the agent actually called."
+    },
+    {
+      "id": 7,
+      "type": "row",
+      "title": "Session shape",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 21,
+        "w": 24,
+        "h": 1
+      },
+      "panels": []
+    },
+    {
+      "id": 8,
+      "type": "stat",
+      "title": "Sessions",
+      "datasource": "${DS_WHODUNIT}",
+      "gridPos": {
+        "x": 0,
+        "y": 22,
+        "w": 4,
+        "h": 5
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT COUNT(*) v FROM whodunit_sessions s\nWHERE s.last_seen BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "0",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 9,
+      "type": "stat",
+      "title": "Tool calls per session",
+      "datasource": "${DS_WHODUNIT}",
+      "gridPos": {
+        "x": 4,
+        "y": 22,
+        "w": 4,
+        "h": 5
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT ROUND(AVG(s.tool_calls),1) v FROM whodunit_sessions s\nWHERE s.last_seen BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 1,
+          "noValue": "no sessions",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "description": "How much work happens per session, on average."
+    },
+    {
+      "id": 10,
+      "type": "stat",
+      "title": "Agent replies per prompt",
+      "datasource": "${DS_WHODUNIT}",
+      "gridPos": {
+        "x": 8,
+        "y": 22,
+        "w": 4,
+        "h": 5
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT ROUND(SUM(s.agent_messages)/NULLIF(SUM(s.user_messages),0),1) v\nFROM whodunit_sessions s\nWHERE s.last_seen BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 1,
+          "noValue": "no sessions",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "description": "Message volume only — whodunit never records what was said. A high number means long autonomous stretches per instruction."
+    },
+    {
+      "id": 11,
+      "type": "stat",
+      "title": "MCP calls",
+      "datasource": "${DS_WHODUNIT}",
+      "gridPos": {
+        "x": 12,
+        "y": 22,
+        "w": 4,
+        "h": 5
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT SUM(s.mcp_calls) v FROM whodunit_sessions s\nWHERE s.last_seen BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "0",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "purple",
+                "value": null
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "description": "Calls to connected MCP servers — external tools the agent reached for."
+    },
+    {
+      "id": 12,
+      "type": "stat",
+      "title": "Edits applied cleanly",
+      "datasource": "${DS_WHODUNIT}",
+      "gridPos": {
+        "x": 16,
+        "y": 22,
+        "w": 4,
+        "h": 5
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT ROUND(SUM(e.outcome='accepted')*100.0/NULLIF(COUNT(*),0),1) v\nFROM whodunit_events e\nWHERE e.outcome <> '' AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 1,
+          "noValue": "no outcomes recorded",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 80
+              },
+              {
+                "color": "green",
+                "value": 95
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "description": "Share of edits the agent applied without erroring. Not a quality measure — a failed edit is a tool failure, not a bad suggestion."
+    },
+    {
+      "id": 13,
+      "type": "stat",
+      "title": "Distinct tools used",
+      "datasource": "${DS_WHODUNIT}",
+      "gridPos": {
+        "x": 20,
+        "y": 22,
+        "w": 4,
+        "h": 5
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT COUNT(DISTINCT e.tool) v FROM whodunit_events e\nWHERE e.tool <> '' AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "0",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 14,
+      "type": "barchart",
+      "title": "How long sessions run",
+      "datasource": "${DS_WHODUNIT}",
+      "gridPos": {
+        "x": 0,
+        "y": 27,
+        "w": 12,
+        "h": 7
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT b AS `length`, COUNT(*) AS `sessions` FROM (\n  SELECT CASE\n    WHEN TIMESTAMPDIFF(MINUTE, FROM_UNIXTIME(first_seen/1000000000), FROM_UNIXTIME(last_seen/1000000000)) < 15 THEN '1. under 15m'\n    WHEN TIMESTAMPDIFF(MINUTE, FROM_UNIXTIME(first_seen/1000000000), FROM_UNIXTIME(last_seen/1000000000)) < 60 THEN '2. 15-60m'\n    WHEN TIMESTAMPDIFF(MINUTE, FROM_UNIXTIME(first_seen/1000000000), FROM_UNIXTIME(last_seen/1000000000)) < 240 THEN '3. 1-4h'\n    ELSE '4. over 4h' END AS b\n  FROM whodunit_sessions s\n  WHERE s.last_seen BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n) t GROUP BY b ORDER BY b"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "fillOpacity": 80
+          }
+        }
+      },
+      "options": {
+        "xTickLabelRotation": 0,
+        "legend": {
+          "displayMode": "hidden"
+        }
+      },
+      "description": "Wall-clock first to last event. A session left open overnight inflates this — read it as span, not effort."
+    },
+    {
+      "id": 15,
+      "type": "barchart",
+      "title": "Work per session",
+      "datasource": "${DS_WHODUNIT}",
+      "gridPos": {
+        "x": 12,
+        "y": 27,
+        "w": 12,
+        "h": 7
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT CONCAT(s.agent, ' · #', LPAD(ROW_NUMBER() OVER (ORDER BY s.tool_calls DESC), 2, '0')) AS `session`,\n       s.tool_calls AS `tool calls`\nFROM whodunit_sessions s\nWHERE s.tool_calls > 0\n  AND s.last_seen BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nORDER BY s.tool_calls DESC LIMIT 10"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "fillOpacity": 80
+          }
+        }
+      },
+      "options": {
+        "xTickLabelRotation": -45,
+        "legend": {
+          "displayMode": "hidden"
+        }
+      },
+      "description": "Ranked, not identified. The session column in the sidecar still holds the agent's own session id, which on Claude Code is the transcript filename — so it is deliberately not rendered here."
+    }
+  ],
+  "__inputs": [
+    {
+      "name": "DS_WHODUNIT",
+      "label": "MySQL",
+      "description": "The database holding the whodunit_* tables",
+      "type": "datasource",
+      "pluginId": "mysql",
+      "pluginName": "MySQL"
+    }
+  ]
+}
