@@ -83,9 +83,9 @@ func runWelcome(out io.Writer) error {
 		fmt.Fprintln(out)
 		fmt.Fprintf(out, "  %s %s\n",
 			w.S(termcolor.Bad, "!"),
-			w.S(termcolor.Muted, "nothing is published — this machine holds the only copy"))
+			w.S(termcolor.Muted, "nothing is published — no delivery correlation, no second copy"))
 		fmt.Fprintf(out, "    %s\n",
-			w.S(termcolor.Muted, "dun status   what that risks, and what would fix it"))
+			w.S(termcolor.Muted, "dun status   what that costs, and what would fix it"))
 	}
 
 	fmt.Fprintln(out)

@@ -27,11 +27,16 @@ func newConfigDatalakeCmd() *cobra.Command {
 		Use:   "datalake",
 		Short: "Set up (or change) where attribution is published.",
 		Long: "Walks through connecting whodunit to a shared database — typically a\n" +
-			"DevLake instance — so team dashboards can read what your commits\n" +
-			"recorded.\n\n" +
+			"DevLake instance.\n\n" +
+			"What this buys is correlation. whodunit measures what an agent wrote;\n" +
+			"it cannot see whether that work shipped, whether it broke, or how long\n" +
+			"it took. Those live in GitHub and your issue tracker, and joining them\n" +
+			"to attribution is what a shared database is for. Six dashboards ship\n" +
+			"with this repository ready to import.\n\n" +
+			"It is also the only second copy of what has been recorded.\n\n" +
 			"This is optional. Without it everything still works locally: the\n" +
 			"journal records normally, `dun report` renders, `dun status` reports.\n" +
-			"Only the shared dashboards need a target.\n\n" +
+			"What needs a target is anything comparing attribution to delivery.\n\n" +
 			"The password is encrypted on this machine — never in the config\n" +
 			"file, and never exported from your shell profile. It is bound to\n" +
 			"this host, so a copied home directory or a restored backup cannot\n" +
@@ -181,7 +186,7 @@ func offerDatalakeSetup(w io.Writer, in io.Reader) {
 
 	fmt.Fprintln(w)
 	if !confirm(w, bufio.NewReader(in),
-		"Send attribution to a shared database so team dashboards work?", false) {
+		"Publish attribution so it can be compared against what shipped?", false) {
 		printLocalOnlyNotice(w)
 		return
 	}
@@ -203,7 +208,12 @@ func printLocalOnlyNotice(w io.Writer) {
 	fmt.Fprintln(w)
 	fmt.Fprintf(w, "  %-17s %s\n", "dun report", c.S(termcolor.Muted, "works — local HTML report"))
 	fmt.Fprintf(w, "  %-17s %s\n", "dun status", c.S(termcolor.Muted, "works — coverage in the terminal"))
-	fmt.Fprintf(w, "  %-17s %s\n", "team dashboards", c.S(termcolor.Muted, "need a shared database"))
+	fmt.Fprintf(w, "  %-17s %s\n", "delivery impact",
+		c.S(termcolor.Muted, "needs a shared database — whether assisted work"))
+	fmt.Fprintf(w, "  %-17s %s\n", "",
+		c.S(termcolor.Muted, "ships faster or breaks more is a join against"))
+	fmt.Fprintf(w, "  %-17s %s\n", "",
+		c.S(termcolor.Muted, "GitHub and your issue tracker, not something git knows"))
 	fmt.Fprintln(w)
 	fmt.Fprintf(w, "add one later:  %s\n", c.S(termcolor.Bold, "dun config datalake"))
 }
