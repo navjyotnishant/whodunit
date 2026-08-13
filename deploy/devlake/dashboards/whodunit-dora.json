@@ -316,14 +316,13 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT CASE\n         WHEN $monthly_spend <= 0 THEN NULL\n         ELSE ROUND(\n           ($monthly_spend * (($__unixEpochTo() - $__unixEpochFrom()) / 86400.0) / 30.0)\n           / NULLIF(SUM(e.lines_added + e.lines_removed), 0), 4)\n       END AS v\nFROM whodunit_events e\nWHERE e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000"
+          "rawSql": "SELECT ROUND(\n         (GREATEST(CAST('$monthly_spend' AS DECIMAL(12,2)), 200)\n          * (($__unixEpochTo() - $__unixEpochFrom()) / 86400.0) / 30.0)\n         / NULLIF(SUM(e.lines_added + e.lines_removed), 0), 4) AS v\nFROM whodunit_events e\nWHERE e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000"
         }
       ],
       "fieldConfig": {
         "defaults": {
           "unit": "currencyUSD",
           "decimals": 4,
-          "noValue": "set the $monthly_spend variable above to see cost per line",
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -332,7 +331,8 @@
                 "value": null
               }
             ]
-          }
+          },
+          "noValue": "no agent activity in range"
         }
       },
       "options": {
