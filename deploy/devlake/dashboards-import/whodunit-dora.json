@@ -300,7 +300,7 @@
     {
       "id": 8,
       "type": "stat",
-      "title": "Cost per attributed line",
+      "title": "Cost per 1,000 attributed lines",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
         "x": 18,
@@ -312,13 +312,13 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT ROUND(\n         (GREATEST(CAST('$monthly_spend' AS DECIMAL(12,2)), 200)\n          * (($__unixEpochTo() - $__unixEpochFrom()) / 86400.0) / 30.0)\n         / NULLIF(SUM(e.lines_added + e.lines_removed), 0), 4) AS v\nFROM whodunit_events e\nWHERE e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000"
+          "rawSql": "SELECT ROUND(\n         (GREATEST(CAST('$monthly_spend' AS DECIMAL(12,2)), 200)\n          * (($__unixEpochTo() - $__unixEpochFrom()) / 86400.0) / 30.0)\n         / NULLIF(SUM(e.lines_added + e.lines_removed), 0) * 1000, 2) AS v\nFROM whodunit_events e\nWHERE e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000"
         }
       ],
       "fieldConfig": {
         "defaults": {
           "unit": "currencyUSD",
-          "decimals": 4,
+          "decimals": 2,
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -342,7 +342,7 @@
           "values": false
         }
       },
-      "description": "Spend divided by the lines the agent actually wrote, prorated to the selected time range — a month's spend over a week's data would overstate the cost roughly fourfold.\n\n**The $200 default is a placeholder, not your bill.** Change it in the box at the top and press Enter. Spend is a dashboard variable because whodunit does not sync it: the value lives in local config and never reaches the shared database.\n\nTreat it as a unit cost, not a saving. It says nothing about whether those lines were worth writing."
+      "description": "Spend divided by the lines the agent wrote, per thousand lines and prorated to the selected range. Per single line the figure is fractions of a cent, where two decimals would round distinct months to the same value.\n\n**The $200 default is a placeholder, not your bill.** Change it in the box at the top and press Enter. Spend is a dashboard variable because whodunit does not sync it — the value lives in local config and never reaches the shared database.\n\nTreat it as a unit cost, not a saving. It says nothing about whether those lines were worth writing."
     },
     {
       "id": 9,
