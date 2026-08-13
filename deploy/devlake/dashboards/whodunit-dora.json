@@ -316,7 +316,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT CASE\n         WHEN $monthly_spend <= 0 THEN NULL\n         ELSE ROUND($monthly_spend / NULLIF(SUM(e.lines_added + e.lines_removed),0), 4)\n       END AS v\nFROM whodunit_events e\nWHERE e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000"
+          "rawSql": "SELECT CASE\n         WHEN $monthly_spend <= 0 THEN NULL\n         ELSE ROUND(\n           ($monthly_spend * (($__unixEpochTo() - $__unixEpochFrom()) / 86400.0) / 30.0)\n           / NULLIF(SUM(e.lines_added + e.lines_removed), 0), 4)\n       END AS v\nFROM whodunit_events e\nWHERE e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000"
         }
       ],
       "fieldConfig": {
@@ -346,7 +346,7 @@
           "values": false
         }
       },
-      "description": "Monthly spend divided by lines the agent actually wrote. Spend is a dashboard variable because whodunit does not sync it \u2014 it is local config."
+      "description": "Spend divided by the lines the agent actually wrote, prorated to the selected time range \u2014 a month's spend over a week's data would overstate the cost roughly fourfold.\n\nSpend is a dashboard variable because whodunit does not sync it: the value lives in local config and never reaches the shared database.\n\nTreat it as a unit cost, not a saving. It says nothing about whether those lines were worth writing."
     },
     {
       "id": 9,
