@@ -130,9 +130,19 @@
         "defaults": {
           "unit": "short",
           "custom": {
-            "fillOpacity": 85,
-            "stacking": {
-              "mode": "normal"
+            "drawStyle": "bars",
+            "fillOpacity": 80,
+            "lineWidth": 1,
+            "thresholdsStyle": {
+              "mode": "off"
+            },
+            "axisPlacement": "auto",
+            "axisLabel": "",
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
             }
           }
         },
@@ -195,7 +205,12 @@
         "tooltip": {
           "mode": "multi"
         },
-        "xField": "hour"
+        "xField": "hour",
+        "stacking": "normal",
+        "showValue": "never",
+        "groupWidth": 0.7,
+        "barWidth": 0.9,
+        "orientation": "auto"
       },
       "description": "Stacked by agent. Hours with no bar are hours nobody worked — not missing data."
     },
@@ -221,9 +236,19 @@
         "defaults": {
           "unit": "short",
           "custom": {
-            "fillOpacity": 85,
-            "stacking": {
-              "mode": "normal"
+            "drawStyle": "bars",
+            "fillOpacity": 80,
+            "lineWidth": 1,
+            "thresholdsStyle": {
+              "mode": "off"
+            },
+            "axisPlacement": "auto",
+            "axisLabel": "",
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
             }
           }
         },
@@ -286,7 +311,12 @@
         "tooltip": {
           "mode": "multi"
         },
-        "xField": "day"
+        "xField": "day",
+        "stacking": "normal",
+        "showValue": "never",
+        "groupWidth": 0.7,
+        "barWidth": 0.9,
+        "orientation": "auto"
       },
       "description": "Stacked by agent. A flat weekend is normal; a flat Monday may be worth asking about."
     },
@@ -392,16 +422,31 @@
         },
         "tooltip": {
           "mode": "multi"
-        }
+        },
+        "stacking": "normal",
+        "showValue": "never",
+        "groupWidth": 0.7,
+        "barWidth": 0.9,
+        "orientation": "auto"
       },
       "description": "Which agent reaches for which tool. Copilot's dashboard cannot ask this — it only knows one tool.",
       "fieldConfig": {
         "defaults": {
           "unit": "short",
           "custom": {
-            "fillOpacity": 85,
-            "stacking": {
-              "mode": "normal"
+            "drawStyle": "bars",
+            "fillOpacity": 80,
+            "lineWidth": 1,
+            "thresholdsStyle": {
+              "mode": "off"
+            },
+            "axisPlacement": "auto",
+            "axisLabel": "",
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
             }
           }
         },
