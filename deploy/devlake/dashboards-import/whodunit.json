@@ -366,7 +366,8 @@
         "orientation": "horizontal",
         "legend": {
           "showLegend": false
-        }
+        },
+        "xTickLabelRotation": -45
       },
       "targets": [
         {

@@ -778,7 +778,7 @@
         "x": 0,
         "y": 34,
         "w": 8,
-        "h": 7
+        "h": 9
       },
       "targets": [
         {
@@ -857,7 +857,9 @@
         },
         "tooltip": {
           "mode": "multi"
-        }
+        },
+        "xTickLabelRotation": -45,
+        "xTickLabelSpacing": 100
       }
     },
     {
@@ -867,7 +869,7 @@
       "datasource": "${datasource}",
       "gridPos": {
         "x": 0,
-        "y": 41,
+        "y": 43,
         "w": 4,
         "h": 4
       },
@@ -913,7 +915,7 @@
       "datasource": "${datasource}",
       "gridPos": {
         "x": 4,
-        "y": 41,
+        "y": 43,
         "w": 4,
         "h": 4
       },
@@ -965,7 +967,7 @@
         "x": 8,
         "y": 34,
         "w": 8,
-        "h": 7
+        "h": 9
       },
       "targets": [
         {
@@ -1044,7 +1046,9 @@
         },
         "tooltip": {
           "mode": "multi"
-        }
+        },
+        "xTickLabelRotation": -45,
+        "xTickLabelSpacing": 100
       }
     },
     {
@@ -1054,7 +1058,7 @@
       "datasource": "${datasource}",
       "gridPos": {
         "x": 8,
-        "y": 41,
+        "y": 43,
         "w": 4,
         "h": 4
       },
@@ -1100,7 +1104,7 @@
       "datasource": "${datasource}",
       "gridPos": {
         "x": 12,
-        "y": 41,
+        "y": 43,
         "w": 4,
         "h": 4
       },
@@ -1152,7 +1156,7 @@
         "x": 16,
         "y": 34,
         "w": 8,
-        "h": 7
+        "h": 9
       },
       "targets": [
         {
@@ -1231,7 +1235,9 @@
         },
         "tooltip": {
           "mode": "multi"
-        }
+        },
+        "xTickLabelRotation": -45,
+        "xTickLabelSpacing": 100
       }
     },
     {
@@ -1241,7 +1247,7 @@
       "datasource": "${datasource}",
       "gridPos": {
         "x": 16,
-        "y": 41,
+        "y": 43,
         "w": 4,
         "h": 4
       },
@@ -1287,7 +1293,7 @@
       "datasource": "${datasource}",
       "gridPos": {
         "x": 20,
-        "y": 41,
+        "y": 43,
         "w": 4,
         "h": 4
       },

@@ -1,11 +1,16 @@
 {
-  "title": "Whodunit — AI attribution",
+  "title": "Whodunit \u2014 AI attribution",
   "uid": "whodunit",
-  "tags": ["whodunit"],
+  "tags": [
+    "whodunit"
+  ],
   "timezone": "utc",
   "schemaVersion": 39,
   "refresh": "",
-  "time": { "from": "now-90d", "to": "now" },
+  "time": {
+    "from": "now-90d",
+    "to": "now"
+  },
   "templating": {
     "list": [
       {
@@ -26,18 +31,31 @@
     {
       "type": "text",
       "title": "",
-      "gridPos": { "h": 4, "w": 24, "x": 0, "y": 0 },
+      "gridPos": {
+        "h": 4,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
       "options": {
         "mode": "markdown",
-        "content": "**Coverage is the denominator for everything below it.** A penetration figure without it says how much of what we could see was AI-assisted, not how much of the work was. Read them together.\n\n`undetermined` means no determination was made — it never means \"no AI was used\"."
+        "content": "**Coverage is the denominator for everything below it.** A penetration figure without it says how much of what we could see was AI-assisted, not how much of the work was. Read them together.\n\n`undetermined` means no determination was made \u2014 it never means \"no AI was used\"."
       }
     },
     {
       "type": "stat",
       "title": "Coverage",
       "description": "Share of commits carrying a valid AI-Attribution trailer. Everything else on this dashboard is computed over these commits only, so a low number here weakens every other panel.",
-      "datasource": { "type": "mysql", "uid": "${datasource}" },
-      "gridPos": { "h": 6, "w": 6, "x": 0, "y": 4 },
+      "datasource": {
+        "type": "mysql",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 6,
+        "x": 0,
+        "y": 4
+      },
       "fieldConfig": {
         "defaults": {
           "unit": "percent",
@@ -47,9 +65,18 @@
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              { "color": "red", "value": null },
-              { "color": "orange", "value": 60 },
-              { "color": "green", "value": 90 }
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 60
+              },
+              {
+                "color": "green",
+                "value": 90
+              }
             ]
           }
         }
@@ -57,7 +84,13 @@
       "options": {
         "graphMode": "none",
         "textMode": "auto",
-        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
       },
       "targets": [
         {
@@ -70,22 +103,44 @@
     {
       "type": "stat",
       "title": "Penetration",
-      "description": "Share of DETERMINED commits that are AI-assisted. Undetermined commits are excluded from the denominator on purpose — including them would understate it, and reporting this without coverage overstates confidence.",
-      "datasource": { "type": "mysql", "uid": "${datasource}" },
-      "gridPos": { "h": 6, "w": 6, "x": 6, "y": 4 },
+      "description": "Share of DETERMINED commits that are AI-assisted. Undetermined commits are excluded from the denominator on purpose \u2014 including them would understate it, and reporting this without coverage overstates confidence.",
+      "datasource": {
+        "type": "mysql",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 6,
+        "x": 6,
+        "y": 4
+      },
       "fieldConfig": {
         "defaults": {
           "unit": "percent",
           "decimals": 0,
           "min": 0,
           "max": 100,
-          "thresholds": { "mode": "absolute", "steps": [{ "color": "blue", "value": null }] }
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          }
         }
       },
       "options": {
         "graphMode": "none",
         "textMode": "auto",
-        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
       },
       "targets": [
         {
@@ -99,17 +154,39 @@
       "type": "stat",
       "title": "Commits",
       "description": "Total commits in the selected window, whether or not they carry a trailer.",
-      "datasource": { "type": "mysql", "uid": "${datasource}" },
-      "gridPos": { "h": 6, "w": 6, "x": 12, "y": 4 },
+      "datasource": {
+        "type": "mysql",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 6,
+        "x": 12,
+        "y": 4
+      },
       "fieldConfig": {
         "defaults": {
           "unit": "short",
-          "thresholds": { "mode": "absolute", "steps": [{ "color": "text", "value": null }] }
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
         }
       },
       "options": {
         "graphMode": "none",
-        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
       },
       "targets": [
         {
@@ -122,21 +199,43 @@
     {
       "type": "stat",
       "title": "Median agent share",
-      "description": "Median ratio across commits that have one. Ratio is the share of a commit's changed lines matching text an agent produced — overlap, not authorship. A line the agent wrote and a developer then edited counts as the developer's. Commits with no line-level evidence are excluded, not counted as zero.",
-      "datasource": { "type": "mysql", "uid": "${datasource}" },
-      "gridPos": { "h": 6, "w": 6, "x": 18, "y": 4 },
+      "description": "Median ratio across commits that have one. Ratio is the share of a commit's changed lines matching text an agent produced \u2014 overlap, not authorship. A line the agent wrote and a developer then edited counts as the developer's. Commits with no line-level evidence are excluded, not counted as zero.",
+      "datasource": {
+        "type": "mysql",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 6,
+        "x": 18,
+        "y": 4
+      },
       "fieldConfig": {
         "defaults": {
           "unit": "percentunit",
           "decimals": 0,
           "min": 0,
           "max": 1,
-          "thresholds": { "mode": "absolute", "steps": [{ "color": "purple", "value": null }] }
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "purple",
+                "value": null
+              }
+            ]
+          }
         }
       },
       "options": {
         "graphMode": "none",
-        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
       },
       "targets": [
         {
@@ -149,22 +248,114 @@
     {
       "type": "piechart",
       "title": "Method mix",
-      "description": "How the attribution for each commit was determined, weakest to strongest: undetermined, declared, inferred, observed, intersected. This must accompany any penetration figure — a number resting on 'declared' is a different claim from one resting on 'intersected'.",
-      "datasource": { "type": "mysql", "uid": "${datasource}" },
-      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 10 },
+      "description": "How the attribution for each commit was determined, weakest to strongest: undetermined, declared, inferred, observed, intersected. This must accompany any penetration figure \u2014 a number resting on 'declared' is a different claim from one resting on 'intersected'.",
+      "datasource": {
+        "type": "mysql",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 0,
+        "y": 10
+      },
       "fieldConfig": {
-        "defaults": { "unit": "short" },
+        "defaults": {
+          "unit": "short"
+        },
         "overrides": [
-          { "matcher": { "id": "byName", "options": "intersected" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "green" } }] },
-          { "matcher": { "id": "byName", "options": "observed" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "semi-dark-green" } }] },
-          { "matcher": { "id": "byName", "options": "inferred" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "yellow" } }] },
-          { "matcher": { "id": "byName", "options": "declared" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "orange" } }] },
-          { "matcher": { "id": "byName", "options": "undetermined" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "text" } }] }
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "intersected"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "green"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "observed"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "semi-dark-green"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "inferred"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "yellow"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "declared"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "orange"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "undetermined"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "text"
+                }
+              }
+            ]
+          }
         ]
       },
       "options": {
-        "legend": { "displayMode": "table", "placement": "right", "values": ["value"] },
-        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": true }
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "values": [
+            "value"
+          ]
+        },
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": true
+        }
       },
       "targets": [
         {
@@ -178,12 +369,27 @@
       "type": "barchart",
       "title": "Purpose distribution",
       "description": "What kind of work the commits were. Coverage without this is close to meaningless: 80% AI-assisted reads very differently when it is tests and config than when it is core feature logic.",
-      "datasource": { "type": "mysql", "uid": "${datasource}" },
-      "gridPos": { "h": 9, "w": 12, "x": 12, "y": 10 },
-      "fieldConfig": { "defaults": { "unit": "short" } },
+      "datasource": {
+        "type": "mysql",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 12,
+        "y": 10
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        }
+      },
       "options": {
         "orientation": "horizontal",
-        "legend": { "showLegend": false }
+        "legend": {
+          "showLegend": false
+        },
+        "xTickLabelRotation": -45
       },
       "targets": [
         {
@@ -197,15 +403,35 @@
       "type": "timeseries",
       "title": "Method mix over time",
       "description": "Commits per week by determination method. A drop in the stronger methods without a drop in commit volume usually means an adapter stopped recognising its agent's format, not that people stopped using agents.",
-      "datasource": { "type": "mysql", "uid": "${datasource}" },
-      "gridPos": { "h": 9, "w": 24, "x": 0, "y": 19 },
+      "datasource": {
+        "type": "mysql",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 24,
+        "x": 0,
+        "y": 19
+      },
       "fieldConfig": {
         "defaults": {
           "unit": "short",
-          "custom": { "drawStyle": "bars", "stacking": { "mode": "normal" }, "fillOpacity": 80, "lineWidth": 0 }
+          "custom": {
+            "drawStyle": "bars",
+            "stacking": {
+              "mode": "normal"
+            },
+            "fillOpacity": 80,
+            "lineWidth": 0
+          }
         }
       },
-      "options": { "legend": { "displayMode": "list", "placement": "bottom" } },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
       "targets": [
         {
           "refId": "A",
@@ -217,19 +443,34 @@
     {
       "type": "text",
       "title": "",
-      "gridPos": { "h": 3, "w": 24, "x": 0, "y": 28 },
+      "gridPos": {
+        "h": 3,
+        "w": 24,
+        "x": 0,
+        "y": 28
+      },
       "options": {
         "mode": "markdown",
-        "content": "**Below is journal data, not commit data.** It records what an agent touched, including work that never reached a commit — so these numbers will not reconcile with the panels above, and are not meant to."
+        "content": "**Below is journal data, not commit data.** It records what an agent touched, including work that never reached a commit \u2014 so these numbers will not reconcile with the panels above, and are not meant to."
       }
     },
     {
       "type": "table",
       "title": "Most agent-edited files",
-      "description": "Per-file agent activity, from observed edits rather than commits. A file with many edits and few committed lines is one the agent iterated on heavily — that is effort, not output.",
-      "datasource": { "type": "mysql", "uid": "${datasource}" },
-      "gridPos": { "h": 10, "w": 12, "x": 0, "y": 31 },
-      "options": { "showHeader": true },
+      "description": "Per-file agent activity, from observed edits rather than commits. A file with many edits and few committed lines is one the agent iterated on heavily \u2014 that is effort, not output.",
+      "datasource": {
+        "type": "mysql",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 0,
+        "y": 31
+      },
+      "options": {
+        "showHeader": true
+      },
       "targets": [
         {
           "refId": "A",
@@ -242,9 +483,19 @@
       "type": "table",
       "title": "Agent activity by tool",
       "description": "Which operations agents performed. Read alongside the commit panels: a large edit count with low committed output means iteration, not productivity.",
-      "datasource": { "type": "mysql", "uid": "${datasource}" },
-      "gridPos": { "h": 10, "w": 12, "x": 12, "y": 31 },
-      "options": { "showHeader": true },
+      "datasource": {
+        "type": "mysql",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 12,
+        "y": 31
+      },
+      "options": {
+        "showHeader": true
+      },
       "targets": [
         {
           "refId": "A",
