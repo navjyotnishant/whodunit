@@ -21,6 +21,7 @@ package termcolor
 import (
 	"io"
 	"os"
+	"strings"
 
 	"github.com/mattn/go-isatty"
 )
@@ -142,4 +143,27 @@ func MethodStyle(method string) Style {
 	default:
 		return Undetermined
 	}
+}
+
+// Strip removes ANSI escape sequences, for measuring.
+//
+// A styled string is several bytes longer than what appears on screen, so
+// anything aligning columns or drawing a box has to measure the visible
+// text. Padding the styled form draws a box wider than its contents by
+// exactly the length of the escape sequences inside it.
+func Strip(s string) string {
+	var b strings.Builder
+	for i := 0; i < len(s); {
+		if s[i] == 0x1b && i+1 < len(s) && s[i+1] == '[' {
+			j := i + 2
+			for j < len(s) && s[j] != 'm' {
+				j++
+			}
+			i = j + 1
+			continue
+		}
+		b.WriteByte(s[i])
+		i++
+	}
+	return b.String()
 }

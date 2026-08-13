@@ -8,6 +8,7 @@ package main
 import (
 	"fmt"
 	"io"
+	"strings"
 
 	"github.com/navjyotnishant/whodunit/internal/registry"
 	"github.com/navjyotnishant/whodunit/internal/termcolor"
@@ -22,25 +23,34 @@ import (
 func runWelcome(out io.Writer) error {
 	w := termcolor.New(out)
 
-	fmt.Fprintln(out, w.S(termcolor.Bold, "whodunit")+" — which agent touched this code, and how sure we are.")
-	fmt.Fprintln(out)
+	renderWordmark(out, w)
 
+	// The three states, framed. Boxing the part that changes gives the eye
+	// somewhere to land: everything above is constant across runs, and this
+	// is the only section that answers "where am I".
 	state, detail := repoState()
+	var status string
+	var lines [][2]string
+
 	switch state {
 	case repoInstrumented:
-		fmt.Fprintln(out, "  "+w.S(termcolor.Good, "✓")+" this repository is instrumented")
-		fmt.Fprintln(out)
-		fmt.Fprintln(out, "  "+w.S(termcolor.Bold, "dun status")+"   coverage and method mix for recent commits")
-		fmt.Fprintln(out, "  "+w.S(termcolor.Bold, "dun report")+"   a full HTML report")
+		status = w.S(termcolor.Good, "✔") + " this repository is instrumented"
+		lines = [][2]string{
+			{"dun status", "coverage and method mix for recent commits"},
+			{"dun report", "a full HTML report"},
+		}
 	case repoNotInstrumented:
-		fmt.Fprintln(out, "  "+w.S(termcolor.Muted, "•")+" this repository is not instrumented yet")
-		fmt.Fprintln(out)
-		fmt.Fprintln(out, "  "+w.S(termcolor.Bold, "dun init")+"     install the hooks here")
+		status = w.S(termcolor.Muted, "·") + " this repository is not instrumented yet"
+		lines = [][2]string{
+			{"dun init", "install the hooks here"},
+		}
 	default:
-		fmt.Fprintln(out, "  "+w.S(termcolor.Muted, "•")+" not inside a git repository"+detail)
-		fmt.Fprintln(out)
-		fmt.Fprintln(out, "  "+w.S(termcolor.Bold, "dun repos list")+"   repositories you have instrumented")
+		status = w.S(termcolor.Muted, "·") + " not inside a git repository" + detail
+		lines = [][2]string{
+			{"dun repos list", "repositories you have instrumented"},
+		}
 	}
+	renderPanel(out, w, status, lines)
 
 	// The command list, after the orientation above rather than instead of
 	// it. Knowing where you stand answers "what do I run next"; knowing the
@@ -96,4 +106,69 @@ func repoState() (repoStatus, string) {
 		}
 	}
 	return repoNotInstrumented, ""
+}
+
+// renderWordmark prints the name, the version, and one line of what this is.
+//
+// A wordmark rather than a sentence because the first thing on screen should
+// say what you are looking at before it says anything about your repository.
+// The version is beside it because a dev build and a release behave
+// differently — hook staleness is computed from it — and "which one am I
+// running" should not need a second command.
+func renderWordmark(out io.Writer, w *termcolor.Writer) {
+	for _, line := range []string{
+		`           _               _             _ _ `,
+		` __      _| |__   ___   __| |_   _ _ __ (_) |_`,
+		` \ \ /\ / / '_ \ / _ \ / _` + "`" + ` | | | | '_ \| | __|`,
+		`  \ V  V /| | | | (_) | (_| | |_| | | | | | |_`,
+		`   \_/\_/ |_| |_|\___/ \__,_|\__,_|_| |_|_|\__|`,
+	} {
+		fmt.Fprintln(out, w.S(termcolor.Bold, line))
+	}
+	fmt.Fprintln(out)
+	// A release reads "v0.2.0"; a local build reads "dev" without the v,
+	// because "vdev" looks like a typo rather than a state.
+	version := Version()
+	if IsRelease() {
+		version = "v" + version
+	}
+	fmt.Fprintf(out, "  %s  %s\n",
+		w.S(termcolor.Muted, version),
+		w.S(termcolor.Muted, "which agent touched this code, and how sure we are"))
+	fmt.Fprintln(out)
+}
+
+// renderPanel draws a box around the current state and its next commands.
+//
+// Width is computed from the content rather than fixed: a hardcoded width
+// either wraps on a narrow terminal or leaves a gap on a wide one, and the
+// longest line here varies with the repository path.
+func renderPanel(out io.Writer, w *termcolor.Writer, status string, lines [][2]string) {
+	// Measured without styling. Escape sequences are zero-width on screen
+	// and several bytes to len(), so measuring the styled string would
+	// draw a box far wider than the text inside it.
+	width := len(termcolor.Strip(status))
+	for _, l := range lines {
+		if n := len(l[0]) + 3 + len(l[1]); n > width {
+			width = n
+		}
+	}
+	width += 4
+
+	bar := strings.Repeat("─", width)
+	fmt.Fprintf(out, "  %s\n", w.S(termcolor.Muted, "┌"+bar+"┐"))
+	fmt.Fprintf(out, "  %s %-*s %s\n", w.S(termcolor.Muted, "│"),
+		width-2+len(status)-len(termcolor.Strip(status)), status,
+		w.S(termcolor.Muted, "│"))
+	if len(lines) > 0 {
+		fmt.Fprintf(out, "  %s%s%s\n", w.S(termcolor.Muted, "│"),
+			strings.Repeat(" ", width), w.S(termcolor.Muted, "│"))
+	}
+	for _, l := range lines {
+		cmd := w.S(termcolor.Bold, l[0])
+		pad := width - 2 - len(l[0]) - 3 - len(l[1])
+		fmt.Fprintf(out, "  %s %s   %s%s %s\n", w.S(termcolor.Muted, "│"),
+			cmd, l[1], strings.Repeat(" ", pad), w.S(termcolor.Muted, "│"))
+	}
+	fmt.Fprintf(out, "  %s\n", w.S(termcolor.Muted, "└"+bar+"┘"))
 }
