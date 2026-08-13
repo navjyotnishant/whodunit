@@ -271,7 +271,7 @@
     {
       "type": "stat",
       "title": "Data freshness",
-      "description": "Hours since the most recent observation. A dashboard that silently shows stale numbers is worse than one that says it is stale — if this is large, someone has not run dun sync recently.",
+      "description": "Time since the last recorded agent event. The hooks write on every commit, so this tracks whether anyone has been working — green under 8 hours, amber past a working day, red past three. A long gap is a question, not a fault: a quiet weekend and a broken collector look identical here, which is why `dun verify` exists.",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
         "h": 5,
@@ -289,6 +289,10 @@
               {
                 "color": "green",
                 "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 8
               },
               {
                 "color": "orange",
