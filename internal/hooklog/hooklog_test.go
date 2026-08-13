@@ -62,10 +62,11 @@ func TestTheLogIsBounded(t *testing.T) {
 		Write(home, Entry{Hook: "prepare-commit-msg", Event: "determine", Detail: big})
 	}
 
-	// Two generations, so the ceiling is twice maxBytes plus whatever was
-	// written after the last rotation.
-	if size := Size(home); size > 3*maxBytes {
-		t.Fatalf("the log grew to %d bytes, beyond the %d bound", size, 3*maxBytes)
+	// The ceiling is every generation at maxBytes, plus whatever was
+	// written into the live file since the last rotation.
+	limit := int64(maxBytes) * int64(maxGenerations+2)
+	if size := Size(home); size > limit {
+		t.Fatalf("the log grew to %d bytes, beyond the %d bound", size, limit)
 	}
 	if size := Size(home); size == 0 {
 		t.Fatal("rotation removed everything; the recent past must survive")
@@ -81,7 +82,7 @@ func TestRotationKeepsThePreviousGeneration(t *testing.T) {
 	for i := 0; i < 800; i++ {
 		Write(home, Entry{Hook: "pre-push", Event: "sync", Detail: big})
 	}
-	if _, err := os.Stat(oldPath(home)); err != nil {
+	if _, err := os.Stat(genPath(home, 1)); err != nil {
 		t.Fatalf("no previous generation was kept: %v", err)
 	}
 

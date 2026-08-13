@@ -35,7 +35,7 @@ func TestPurgeAcrossBothGenerations(t *testing.T) {
 
 // rotateForce moves the current log aside regardless of size.
 func rotateForce(home string) error {
-	return osRename(path(home), oldPath(home))
+	return osRename(path(home), genPath(home, 1))
 }
 
 // The case the running-total bug hid: matches in the OLDER generation only.

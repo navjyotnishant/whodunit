@@ -79,20 +79,43 @@ type Entry struct {
 	Stack string `json:"stack,omitempty"`
 }
 
-// maxBytes bounds the file. An instrumented machine runs these hooks on
-// every commit and every push, forever, so an unbounded file is a slow leak
-// that nobody notices until a disk fills.
+// maxBytes bounds one generation, and maxGenerations bounds how many are
+// kept. An instrumented machine runs these hooks on every commit and every
+// push, forever, so an unbounded file is a slow leak that nobody notices
+// until a disk fills.
 //
-// Rotation keeps one previous generation, so the window is up to twice
-// this. A megabyte holds several thousand entries — weeks of ordinary use,
-// and long enough that the answer to "when did this break" is still in it.
-const maxBytes = 1 << 20
+// Five megabytes total, in five files. A megabyte holds several thousand
+// entries, so the window is months of ordinary use — long enough that "when
+// did this start failing" is still answerable, and small enough that nobody
+// has to think about it.
+const (
+	maxBytes       = 1 << 20
+	maxGenerations = 5
+)
 
 // Dir is where the log lives, given the whodunit home.
 func Dir(home string) string { return filepath.Join(home, "log") }
 
-func path(home string) string    { return filepath.Join(Dir(home), "hooks.log") }
-func oldPath(home string) string { return filepath.Join(Dir(home), "hooks.log.1") }
+func path(home string) string { return filepath.Join(Dir(home), "hooks.log") }
+
+// genPath is the nth rotated generation: hooks.log.1 is the most recent.
+func genPath(home string, n int) string {
+	return filepath.Join(Dir(home), fmt.Sprintf("hooks.log.%d", n))
+}
+
+// allPaths lists every generation newest-first, starting with the live file.
+//
+// One list rather than each caller assembling its own — reading, purging and
+// sizing all have to cover the same set, and a caller that forgets a
+// generation silently under-reports rather than failing.
+func allPaths(home string) []string {
+	out := make([]string, 0, maxGenerations+1)
+	out = append(out, path(home))
+	for i := 1; i <= maxGenerations; i++ {
+		out = append(out, genPath(home, i))
+	}
+	return out
+}
 
 // Write appends one entry. Every error is swallowed: see the package
 // documentation.
@@ -128,18 +151,28 @@ func Write(home string, e Entry) {
 	_, _ = f.Write(append(b, '\n'))
 }
 
-// rotate moves the log aside once it passes maxBytes, keeping exactly one
-// previous generation.
+// rotate shifts the generations along once the live file passes maxBytes.
 //
-// Renaming rather than truncating means a reader holding the file open
-// keeps reading a coherent file rather than watching it empty underneath
-// them — which matters for `dun log --follow`.
+// Renaming rather than truncating means a reader holding the file open keeps
+// reading a coherent file rather than watching it empty underneath them —
+// which matters for `dun log --follow`.
+//
+// Renames run oldest-first so no generation overwrites one that has not
+// moved yet. The last is removed rather than renamed, which is what bounds
+// the total: five generations of a megabyte, and nothing older.
 func rotate(home string) {
 	info, err := os.Stat(path(home))
 	if err != nil || info.Size() < maxBytes {
 		return
 	}
-	_ = os.Rename(path(home), oldPath(home))
+
+	_ = os.Remove(genPath(home, maxGenerations))
+	for i := maxGenerations - 1; i >= 1; i-- {
+		// Rename is a no-op error when the source does not exist, which is
+		// the normal case until the log has rotated that many times.
+		_ = os.Rename(genPath(home, i), genPath(home, i+1))
+	}
+	_ = os.Rename(path(home), genPath(home, 1))
 }
 
 // Read returns entries most recent first, at most limit of them.
@@ -148,7 +181,11 @@ func rotate(home string) {
 // the moment someone goes looking.
 func Read(home string, limit int) ([]Entry, error) {
 	var all []Entry
-	for _, p := range []string{oldPath(home), path(home)} {
+	// Oldest generation first, so entries accumulate chronologically before
+	// the reversal below puts the newest at the top.
+	paths := allPaths(home)
+	for i := len(paths) - 1; i >= 0; i-- {
+		p := paths[i]
 		entries, err := readFile(p)
 		if err != nil {
 			return nil, err
@@ -210,7 +247,7 @@ func readFile(p string) ([]Entry, error) {
 func PurgeRepo(home, repoID string) (int, error) {
 	var removed int
 
-	for _, p := range []string{path(home), oldPath(home)} {
+	for _, p := range allPaths(home) {
 		entries, err := readFile(p)
 		if err != nil {
 			return removed, err
@@ -245,7 +282,7 @@ func PurgeRepo(home, repoID string) (int, error) {
 
 // Purge removes the log entirely, for `dun uninstall` and tests.
 func Purge(home string) error {
-	for _, p := range []string{path(home), oldPath(home)} {
+	for _, p := range allPaths(home) {
 		if err := os.Remove(p); err != nil && !os.IsNotExist(err) {
 			return err
 		}
@@ -294,7 +331,7 @@ func rewrite(p string, entries []Entry) error {
 // Size reports the bytes currently held across both generations.
 func Size(home string) int64 {
 	var n int64
-	for _, p := range []string{path(home), oldPath(home)} {
+	for _, p := range allPaths(home) {
 		if info, err := os.Stat(p); err == nil {
 			n += info.Size()
 		}
