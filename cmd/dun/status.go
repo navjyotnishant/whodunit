@@ -131,14 +131,12 @@ func printSyncStatus(w io.Writer, dir string) {
 		return
 	}
 
-	fmt.Fprintln(w, "sync:")
 	if !cfg.Sync.Configured() {
-		fmt.Fprintf(w, "  %s\n", c.S(termcolor.Muted,
-			"not configured — attribution stays on this machine"))
-		fmt.Fprintf(w, "  %s\n", c.S(termcolor.Muted,
-			"set one up with: dun config datalake"))
+		warnLocalOnly(w, cfg)
 		return
 	}
+
+	fmt.Fprintln(w, "sync:")
 
 	when := "on push"
 	if !cfg.Sync.OnPush {
@@ -371,9 +369,8 @@ func statusAcrossRepos(w io.Writer) error {
 	// than repeated on every row.
 	if syncOn {
 		fmt.Fprintf(w, "\n  %s %s\n", c.S(termcolor.Muted, "syncing to"), cfg.Sync.Redacted())
-	} else {
-		fmt.Fprintf(w, "\n  %s\n", c.S(termcolor.Muted,
-			"sync not configured — attribution stays on this machine (dun config datalake)"))
+	} else if cfgErr == nil {
+		warnLocalOnly(w, cfg)
 	}
 
 	if available > 0 {

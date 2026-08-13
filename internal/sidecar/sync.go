@@ -114,7 +114,27 @@ func splitStatements(ddl string) []string {
 // local journal is the source of truth and a sync is a projection of it,
 // not a handoff.
 func Write(db *Store, p Payload) (Counts, error) {
+	return WriteProgress(db, p, nil)
+}
+
+// WriteProgress is Write with a callback after each row.
+//
+// The callback exists so a caller can show progress on a payload of tens of
+// thousands of rows, where the alternative is a silent pause long enough to
+// read as a hang. It is called inside the transaction and must not block:
+// anything slow there stalls the write it is reporting on.
+//
+// A nil callback makes this exactly Write.
+func WriteProgress(db *Store, p Payload, onRow func(done, total int)) (Counts, error) {
 	var counts Counts
+	total := len(p.Commits) + len(p.Events) + len(p.Sessions) + len(p.Lines)
+	done := 0
+	tick := func() {
+		done++
+		if onRow != nil {
+			onRow(done, total)
+		}
+	}
 	mysql := db.mysql
 
 	tx, err := db.Begin()
@@ -137,6 +157,7 @@ func Write(db *Store, p Payload) (Counts, error) {
 			return counts, fmt.Errorf("write commit %s: %w", c.CommitSHA, err)
 		}
 		counts.Commits++
+		tick()
 	}
 
 	for _, e := range p.Events {
@@ -147,6 +168,7 @@ func Write(db *Store, p Payload) (Counts, error) {
 			return counts, fmt.Errorf("write event: %w", err)
 		}
 		counts.Events++
+		tick()
 	}
 
 	for _, s := range p.Sessions {
@@ -158,6 +180,7 @@ func Write(db *Store, p Payload) (Counts, error) {
 			return counts, fmt.Errorf("write session: %w", err)
 		}
 		counts.Sessions++
+		tick()
 	}
 
 	for _, l := range p.Lines {
@@ -166,6 +189,7 @@ func Write(db *Store, p Payload) (Counts, error) {
 			return counts, fmt.Errorf("write line hash: %w", err)
 		}
 		counts.Lines++
+		tick()
 	}
 
 	if err := tx.Commit(); err != nil {

@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/navjyotnishant/whodunit/internal/config"
 	"github.com/navjyotnishant/whodunit/internal/journal"
 	"github.com/navjyotnishant/whodunit/internal/registry"
 	"github.com/navjyotnishant/whodunit/internal/repoid"
@@ -109,6 +110,13 @@ func runInit(cmd *cobra.Command, repoPath string) error {
 	// Skipped silently when stdin is not a terminal — init runs in CI and
 	// in scripts, where a prompt is a hung build rather than a question.
 	offerDatalakeSetup(cmd.OutOrStdout(), cmd.InOrStdin())
+
+	// After the offer, not instead of it. Someone who just declined the
+	// wizard has made a choice; this says what that choice costs, which the
+	// wizard's own "skipped" message does not.
+	if cfg, err := config.Load(); err == nil {
+		warnLocalOnly(cmd.OutOrStdout(), cfg)
+	}
 
 	// Record the repository so anything working across repos — a daemon,
 	// a cross-repo report — has an explicit list rather than discovering

@@ -9,6 +9,7 @@ import (
 	"github.com/navjyotnishant/whodunit/internal/journal"
 	"github.com/navjyotnishant/whodunit/internal/report"
 	"github.com/navjyotnishant/whodunit/internal/sidecar"
+	"github.com/navjyotnishant/whodunit/internal/termcolor"
 	"github.com/spf13/cobra"
 )
 
@@ -79,21 +80,44 @@ func runSync(cmd *cobra.Command, dsn string, limit int, dryRun bool) error {
 
 	describePayload(w, payload)
 
+	// Progress for the steps that wait on a network, not for the whole
+	// command. Sending a few thousand rows takes long enough that silence
+	// reads as a hang, and the failure that matters — an unreachable
+	// database — happens in these three steps rather than in the local
+	// work above.
+	c := termcolor.New(w)
+	step := func(msg string) { fmt.Fprintf(w, "%s %s... ", c.S(termcolor.Muted, "→"), msg) }
+	ok := func() { fmt.Fprintf(w, "%s\n", c.S(termcolor.Good, "ok")) }
+	failed := func() { fmt.Fprintf(w, "%s\n", c.S(termcolor.Bad, "failed")) }
+
+	fmt.Fprintln(w)
+	step("connecting")
 	db, err := sidecar.Open(dsn)
 	if err != nil {
+		failed()
 		return err
 	}
 	defer db.Close()
 
 	if err := db.Ping(); err != nil {
+		failed()
 		return fmt.Errorf("cannot reach the database: %w", err)
 	}
+	ok()
+
+	step("checking the schema")
 	if err := sidecar.EnsureSchema(db); err != nil {
+		failed()
 		return err
 	}
+	ok()
 
-	counts, err := sidecar.Write(db, payload)
+	bar := newProgressBar(w, "sending")
+	counts, err := sidecar.WriteProgress(db, payload, bar.Update)
+	bar.Done()
 	if err != nil {
+		step("sending")
+		failed()
 		return err
 	}
 
