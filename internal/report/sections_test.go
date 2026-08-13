@@ -111,3 +111,27 @@ func TestSurvivalRendersNothingWithoutEvidence(t *testing.T) {
 		t.Errorf("rendered a survival section with no line-level evidence:\n%s", w.String())
 	}
 }
+
+// Commit.Trailer is nil on every commit made before the hooks were
+// installed, which in most repositories is nearly all of them. Rendering
+// crashed on the first one.
+func TestCommitSizeSurvivesCommitsWithoutTrailers(t *testing.T) {
+	assisted := spec.Trailer{Status: spec.StatusAssisted}
+	stats := Stats{Commits: []Commit{
+		{Trailer: &assisted, LinesAdded: 100, LinesRemoved: 20},
+		{Trailer: nil, LinesAdded: 10, LinesRemoved: 5},
+		{Trailer: nil, LinesAdded: 30, LinesRemoved: 5},
+	}}
+
+	var w strings.Builder
+	renderCommitSize(&w, stats) // must not panic
+
+	out := w.String()
+	if !strings.Contains(out, "AI-assisted") {
+		t.Fatalf("no comparison rendered:\n%s", out)
+	}
+	// The two untrailered commits are the comparison group, averaging 25.
+	if !strings.Contains(out, "25 ") {
+		t.Errorf("untrailered commits were not counted as the comparison group:\n%s", out)
+	}
+}

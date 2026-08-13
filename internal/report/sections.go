@@ -239,3 +239,161 @@ func topFiles(act Activity, n int) []struct {
 	}
 	return out
 }
+
+// renderCodeVolume charts lines written over time.
+//
+// The activity chart counts edits, which says how busy the agent was and
+// nothing about how much code resulted. A day of one large refactor and a
+// day of forty one-line fixes look identical there and are not the same
+// day.
+func renderCodeVolume(w *strings.Builder, act Activity) {
+	if len(act.Daily) < 2 {
+		return
+	}
+
+	added := make([]float64, len(act.Daily))
+	labels := make([]string, len(act.Daily))
+	var total int
+	for i, d := range act.Daily {
+		added[i] = float64(d.LinesAdded)
+		labels[i] = d.Day.Format("2 Jan")
+		total += d.LinesAdded
+	}
+	if total == 0 {
+		return
+	}
+
+	w.WriteString(`<h2>Lines written over time</h2>`)
+	fmt.Fprintf(w, `<p class="muted">%s lines across %d days — volume, not value</p>`,
+		humanInt(total), len(act.Daily))
+	w.WriteString(sparkline(added, labels, "#3b82f6"))
+}
+
+// renderTopFiles lists where the agent's work landed.
+//
+// Concentration is the signal. An agent spread evenly across a codebase is
+// being used differently from one that has rewritten the same three files
+// twenty times, and neither the commit count nor the line count separates
+// them.
+func renderTopFiles(w *strings.Builder, act Activity, n int) {
+	files := topFiles(act, n)
+	if len(files) == 0 {
+		return
+	}
+
+	max := files[0].Count
+	w.WriteString(`<h2>Where the work landed</h2>`)
+	fmt.Fprintf(w, `<p class="muted">the %d most-edited files, of %d touched</p>`,
+		len(files), len(act.Files))
+	w.WriteString(`<table class="bars">`)
+	for _, f := range files {
+		fmt.Fprintf(w, `<tr><td class="bar-label mono">%s</td>`+
+			`<td class="bar-cell"><span class="bar" style="width:%.1f%%"></span></td>`+
+			`<td class="bar-count">%d</td></tr>`,
+			shortPath(f.Name), float64(f.Count)/float64(max)*100, f.Count)
+	}
+	w.WriteString(`</table>`)
+}
+
+// renderAgentMix shows which agents did the work.
+//
+// Rendered only when more than one has been seen. A single-agent bar chart
+// says "100% claude-code", which is a fact the reader already has from every
+// other section.
+func renderAgentMix(w *strings.Builder, act Activity) {
+	if len(act.Agents) < 2 {
+		return
+	}
+
+	type kv struct {
+		name string
+		n    int
+	}
+	rows := make([]kv, 0, len(act.Agents))
+	total := 0
+	for name, n := range act.Agents {
+		rows = append(rows, kv{name, n})
+		total += n
+	}
+	sort.Slice(rows, func(i, j int) bool { return rows[i].n > rows[j].n })
+
+	w.WriteString(`<h2>Which agent</h2>`)
+	w.WriteString(`<table class="bars">`)
+	for _, r := range rows {
+		share := float64(r.n) / float64(total) * 100
+		fmt.Fprintf(w, `<tr><td class="bar-label">%s</td>`+
+			`<td class="bar-cell"><span class="bar" style="width:%.1f%%"></span></td>`+
+			`<td class="bar-count">%d <span class="muted">(%.0f%%)</span></td></tr>`,
+			r.name, share, r.n, share)
+	}
+	w.WriteString(`</table>`)
+}
+
+// renderCommitSize compares assisted commits against the rest.
+//
+// The comparison the executive summary is for, and the one most easily
+// misread — so it says what it is not. A larger assisted commit is a fact
+// about which work was given to an agent, not evidence that the agent makes
+// commits larger.
+func renderCommitSize(w *strings.Builder, stats Stats) {
+	var aCount, aLines, oCount, oLines int
+	for _, c := range stats.Commits {
+		// Trailer is nil on any commit without a valid one, which is every
+		// commit made before the hooks were installed. Dereferencing it
+		// crashed the whole report on the first such commit.
+		if c.Trailer != nil && c.Trailer.Status == spec.StatusAssisted {
+			aCount++
+			aLines += c.LinesAdded + c.LinesRemoved
+			continue
+		}
+		oCount++
+		oLines += c.LinesAdded + c.LinesRemoved
+	}
+	if aCount == 0 || oCount == 0 {
+		return
+	}
+
+	aAvg := float64(aLines) / float64(aCount)
+	oAvg := float64(oLines) / float64(oCount)
+	max := aAvg
+	if oAvg > max {
+		max = oAvg
+	}
+
+	w.WriteString(`<h2>Commit size</h2>`)
+	w.WriteString(`<p class="muted">average lines changed per commit. A larger ` +
+		`assisted commit describes which work was handed to an agent, not what ` +
+		`the agent does to commit size.</p>`)
+	w.WriteString(`<table class="bars">`)
+	for _, row := range []struct {
+		label string
+		avg   float64
+		n     int
+	}{
+		{"AI-assisted", aAvg, aCount},
+		{"the rest", oAvg, oCount},
+	} {
+		fmt.Fprintf(w, `<tr><td class="bar-label">%s</td>`+
+			`<td class="bar-cell"><span class="bar" style="width:%.1f%%"></span></td>`+
+			`<td class="bar-count">%.0f <span class="muted">lines · %d commit(s)</span></td></tr>`,
+			row.label, row.avg/max*100, row.avg, row.n)
+	}
+	w.WriteString(`</table>`)
+}
+
+// humanInt groups thousands, because 152331 and 15233 are hard to tell
+// apart at a glance and the difference matters.
+func humanInt(n int) string {
+	s := fmt.Sprint(n)
+	if len(s) <= 3 {
+		return s
+	}
+	var b strings.Builder
+	for i, r := range s {
+		if i > 0 && (len(s)-i)%3 == 0 {
+			b.WriteByte(',')
+		}
+		b.WriteRune(r)
+	}
+	return b.String()
+}

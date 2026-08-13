@@ -93,9 +93,13 @@ func renderExec(w *strings.Builder, stats Stats, act Activity) {
 	}
 
 	renderActivityTrend(w, act)
+	renderCodeVolume(w, act)
 	renderSurvival(w, stats)
+	renderCommitSize(w, stats)
 	renderMethodMixChart(w, stats)
 	renderPurposeBreakdown(w, stats)
+	renderAgentMix(w, act)
+	renderTopFiles(w, act, 10)
 	renderUnavailable(w, unavailableFor(stats, act, stats.HasBaseline))
 }
 
