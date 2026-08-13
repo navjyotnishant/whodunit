@@ -46,7 +46,7 @@ func enterRepo(repoFlag, name, verb string) (restore func(), err error) {
 			"not inside a git repository\n"+
 				"%s works on one repository, so it needs to know which:\n"+
 				"  %-26s %s a specific repository\n"+
-				"  %-26s repositories you have instrumented",
+				"  %-26s the full path of every repository, ready to paste",
 			name,
 			"dun "+name+" --repo <path>", verb,
 			"dun repos list")

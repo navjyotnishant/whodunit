@@ -379,8 +379,13 @@ func statusAcrossRepos(w io.Writer) error {
 		// are given once underneath rather than dropped entirely — the
 		// names mean nothing to someone meeting them here first.
 		printMethodLegend(w, seen)
+		// The names above are shortened to fit the column, so they cannot
+		// be pasted into --repo. Saying where the real ones are beats
+		// leaving someone to guess at the path.
 		fmt.Fprintf(w, "\n%s\n", c.S(termcolor.Muted,
 			"one repository in detail:  dun status --repo <path>"))
+		fmt.Fprintf(w, "%s\n", c.S(termcolor.Muted,
+			"full paths to paste:       dun repos list"))
 	}
 	return nil
 }
