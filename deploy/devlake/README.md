@@ -24,9 +24,63 @@ it asks.
 | `whodunit.json` | coverage, penetration, method mix |
 | `whodunit-adoption.json` | sessions, agents, tools, acceptance |
 | `whodunit-exec.json` | cycle time for AI-assisted work vs the rest |
+| `whodunit-dora.json` | does adoption move delivery — DORA against attribution |
 
 They are also attached to every GitHub release, so a team can import them
 without cloning this repository.
+
+### The DORA dashboard needs DevLake configured
+
+The other three read only the `whodunit_*` tables the CLI syncs, so they work
+as soon as `dun sync` has run. `whodunit-dora.json` joins that data to
+DevLake's own delivery metrics, and those come from GitHub and your issue
+tracker — which means three settings have to be right first.
+
+None of them announces itself when wrong: DevLake collects, reports success,
+and produces an empty dashboard. All three were found the slow way.
+
+**1. The GitHub token needs `read:user`.** DevLake's GraphQL issue collector
+requests each author's `email` field. Without the scope, GitHub rejects the
+whole query, `Collect Issues` fails, and the pipeline dies *before* reaching
+pull requests or commits — so a repository can be configured, collected
+nightly, and still have no row in `repos` at all. Classic PATs need the scope
+added explicitly; check with:
+
+```bash
+curl -sI -H "Authorization: token <token>" https://api.github.com/user | grep -i x-oauth-scopes
+```
+
+**2. Deployments need a `deploymentPattern`.** DevLake does not guess which CI
+runs are deployments. Until a scope config sets the pattern, every row in
+`cicd_tasks` has an empty `type`, `cicd_deployment_commits` stays at zero, and
+**all four DORA metrics read empty** — they all route through that table.
+
+In the UI: **Connections → GitHub → your connection → the repository's Scope
+Config → CI/CD**. Set **Deployment** (not "Environment name" — a value in the
+wrong field silently classifies nothing) to something like `(?i)deploy`, which
+matches a job named "Deploy to OCI Server" while excluding test, lint and
+check runs. Verify:
+
+```bash
+docker exec devlake-mysql-1 mysql -umerico -pmerico lake \
+  -e "SELECT type, COUNT(*) FROM cicd_tasks GROUP BY type;"
+```
+
+**3. A project should be one deliverable.** Every DORA panel filters by
+project, so the mapping decides what the numbers mean. Map the repositories
+that ship together as one project — three repos deployed as one service is one
+project, not three, or a single release counts three times.
+
+The failure mode in the other direction is worse and quieter: a project
+holding every repository in the account produces plausible-looking numbers
+that describe nothing. A project needs its **repos** scope for pull requests
+and its **cicd_scopes** scope for deployments; with only the latter,
+deployments appear and `project_pr_metrics` stays empty.
+
+**MTTR needs incidents**, which most trackers do not provide for free: the
+`issueTypeIncident` regex matches against `issues.original_type`, and if the
+tracker sends no type at all, no pattern will match it. The dashboard says so
+in the panel rather than showing a blank.
 
 ### Why import rather than provision
 
