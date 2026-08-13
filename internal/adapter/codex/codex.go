@@ -220,6 +220,24 @@ func ParseSince(path string, since time.Time) ([]journal.Entry, error) {
 			continue
 		}
 		if c.Type != "custom_tool_call" || c.Name != "apply_patch" {
+			// Every other call is recorded by name alone: exec_command,
+			// tool_search_call, request_plugin_install, and whatever Codex
+			// adds later.
+			//
+			// c.Input is deliberately not read. A shell command line is
+			// the clearest case — it routinely contains file contents via
+			// a heredoc — and the same risk applies to any tool payload
+			// (NAV-25).
+			if name := c.Name; name != "" && c.Type != "" {
+				entries = append(entries, journal.Entry{
+					Timestamp:    r.Timestamp,
+					Agent:        AgentName,
+					AgentVersion: meta.CLIVersion,
+					Session:      meta.ID,
+					Event:        "tool_call",
+					Tool:         name,
+				})
+			}
 			continue
 		}
 

@@ -180,6 +180,24 @@ func ParseSince(path string, since time.Time) ([]journal.Entry, error) {
 				continue
 			}
 			if block.Name != "Edit" && block.Name != "Write" {
+				// Every other tool is recorded as a bare call: which tool,
+				// when, in which session. No file, no line hashes, no
+				// arguments.
+				//
+				// The arguments are the reason this is a separate path
+				// rather than a relaxed filter. A Bash command line, a Read
+				// path, an MCP payload — any of them can carry file
+				// contents or prompt text, which this package does not
+				// collect by construction (NAV-25). Taking the name and
+				// dropping block.Input keeps that property.
+				entries = append(entries, journal.Entry{
+					Timestamp:    r.Timestamp,
+					Agent:        AgentName,
+					AgentVersion: r.Version,
+					Session:      r.SessionID,
+					Event:        "tool_call",
+					Tool:         block.Name,
+				})
 				continue
 			}
 

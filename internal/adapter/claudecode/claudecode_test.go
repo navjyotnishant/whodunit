@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
+
+	"github.com/navjyotnishant/whodunit/internal/journal"
 )
 
 const fixture = `{"type":"user","timestamp":"2026-08-11T22:49:00.000Z","sessionId":"sess-1","version":"2.1.227","message":{"content":[{"type":"text","text":"do the thing"}]}}
@@ -16,6 +18,27 @@ const fixture = `{"type":"user","timestamp":"2026-08-11T22:49:00.000Z","sessionI
 {"type":"assistant","timestamp":"2026-08-11T22:50:30.000Z","sessionId":"sess-1","version":"2.1.227","message":{"content":[{"type":"tool_use","name":"Bash","input":{"command":"go build ./..."}}]}}
 `
 
+// edits keeps only file-edit entries. ParseSince also emits a bare
+// tool_call entry per non-editing call, which these tests are not about.
+func edits(entries []journal.Entry) []journal.Entry {
+	var out []journal.Entry
+	for _, e := range entries {
+		if e.Event == "tool_use" {
+			out = append(out, e)
+		}
+	}
+	return out
+}
+
+// parseEdits is ParseSince narrowed to file edits.
+func parseEdits(path string, since time.Time) ([]journal.Entry, error) {
+	all, err := ParseSince(path, since)
+	if err != nil {
+		return nil, err
+	}
+	return edits(all), nil
+}
+
 func TestParseSince(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "sess-1.jsonl")
@@ -23,7 +46,7 @@ func TestParseSince(t *testing.T) {
 		t.Fatalf("write fixture: %v", err)
 	}
 
-	entries, err := ParseSince(path, time.Time{})
+	entries, err := parseEdits(path, time.Time{})
 	if err != nil {
 		t.Fatalf("ParseSince: %v", err)
 	}
@@ -59,7 +82,7 @@ func TestParseSinceFiltersByTime(t *testing.T) {
 	}
 
 	cutoff := time.Date(2026, 8, 11, 22, 50, 15, 0, time.UTC)
-	entries, err := ParseSince(path, cutoff)
+	entries, err := parseEdits(path, cutoff)
 	if err != nil {
 		t.Fatalf("ParseSince: %v", err)
 	}
@@ -76,7 +99,7 @@ func TestParseSinceSkipsMalformedLines(t *testing.T) {
 		t.Fatalf("write fixture: %v", err)
 	}
 
-	entries, err := ParseSince(path, time.Time{})
+	entries, err := parseEdits(path, time.Time{})
 	if err != nil {
 		t.Fatalf("ParseSince should not fail on malformed line: %v", err)
 	}

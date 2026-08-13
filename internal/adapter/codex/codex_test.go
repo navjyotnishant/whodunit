@@ -6,15 +6,32 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/navjyotnishant/whodunit/internal/journal"
 )
 
 const fixture = "testdata/rollout-basic.jsonl"
 
+// edits keeps only file-edit entries. ParseSince also emits a bare
+// tool_call entry per non-editing call, which these tests are not about —
+// counting both would make every edit assertion depend on how many other
+// tools the fixture happens to contain.
+func edits(entries []journal.Entry) []journal.Entry {
+	var out []journal.Entry
+	for _, e := range entries {
+		if e.Event == "tool_use" {
+			out = append(out, e)
+		}
+	}
+	return out
+}
+
 func TestParseSinceReadsApplyPatch(t *testing.T) {
-	entries, err := ParseSince(fixture, time.Time{})
+	all, err := ParseSince(fixture, time.Time{})
 	if err != nil {
 		t.Fatal(err)
 	}
+	entries := edits(all)
 	if len(entries) != 2 {
 		t.Fatalf("got %d entries, want 2 (one per apply_patch)", len(entries))
 	}
@@ -94,10 +111,11 @@ func TestShellCommandsAreIgnored(t *testing.T) {
 
 func TestParseSinceFiltersByTime(t *testing.T) {
 	cut := time.Date(2026, 8, 12, 10, 0, 4, 0, time.UTC)
-	entries, err := ParseSince(fixture, cut)
+	all, err := ParseSince(fixture, cut)
 	if err != nil {
 		t.Fatal(err)
 	}
+	entries := edits(all)
 	if len(entries) != 1 {
 		t.Fatalf("got %d entries after cutoff, want 1", len(entries))
 	}

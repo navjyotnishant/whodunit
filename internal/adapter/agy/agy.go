@@ -39,6 +39,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
@@ -245,6 +246,7 @@ func readCalls(dbPath string) ([]call, error) {
 		if len(payload) == 0 {
 			continue
 		}
+		var isEdit bool
 		for _, m := range findJSONObjects(payload) {
 			var a toolArgs
 			if err := json.Unmarshal(m, &a); err != nil {
@@ -254,10 +256,48 @@ func readCalls(dbPath string) ([]call, error) {
 			if tool == "" {
 				continue
 			}
+			isEdit = true
 			out = append(out, call{Idx: idx, StepType: stepType, TargetFile: a.TargetFile, Args: a, Tool: tool})
+		}
+
+		// A step that produced no edit still names whatever tool it ran —
+		// view_file, list_dir, run_command. Recorded by name alone, so the
+		// journal shows what the agent did rather than only what it wrote.
+		if !isEdit {
+			for _, name := range callNames(payload) {
+				out = append(out, call{Idx: idx, StepType: stepType, Tool: name})
+			}
 		}
 	}
 	return out, rows.Err()
+}
+
+// callNamePattern finds the tool name a step recorded.
+//
+// agy's payload is protobuf, and the name follows the call id as a length-
+// prefixed string: `call_281815` then `view_file`. Matching the id first
+// anchors the search, so this does not pick up arbitrary text elsewhere in
+// the payload — which matters because these payloads also contain whatever
+// file the agent happened to be reading.
+var callNamePattern = regexp.MustCompile(`call_\d+.{0,3}?([a-z][a-z0-9_]{2,40})`)
+
+// callNames returns the distinct tool names in a step payload.
+//
+// Names only. The arguments beside them routinely hold file contents — a
+// view_file result, a write_to_file body — and this package does not
+// collect those (NAV-25).
+func callNames(payload []byte) []string {
+	var out []string
+	seen := map[string]bool{}
+	for _, m := range callNamePattern.FindAllSubmatch(payload, -1) {
+		name := string(m[1])
+		if seen[name] {
+			continue
+		}
+		seen[name] = true
+		out = append(out, name)
+	}
+	return out
 }
 
 // toolFor names the edit tool a set of arguments came from, or "" when the
@@ -346,6 +386,24 @@ func ParseSince(path string, since time.Time) ([]journal.Entry, error) {
 	var entries []journal.Entry
 
 	for _, c := range calls {
+		// A call that touched no file is recorded by name alone: no hunk
+		// hash and no line hashes, because nothing reached a file for a
+		// staged diff to match against.
+		//
+		// This has to come before the produced check below — a non-editing
+		// call produces nothing by definition, so that guard would drop
+		// every one of them.
+		if c.TargetFile == "" {
+			entries = append(entries, journal.Entry{
+				Timestamp: ts,
+				Agent:     AgentName,
+				Session:   session,
+				Event:     "tool_call",
+				Tool:      c.Tool,
+			})
+			continue
+		}
+
 		produced := c.Args.ReplacementContent
 		if c.Tool == "write_file" {
 			produced = c.Args.CodeContent
