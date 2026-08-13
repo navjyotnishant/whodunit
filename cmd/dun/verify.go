@@ -673,25 +673,27 @@ func checkSecret(cfg config.Config) []finding {
 	return out
 }
 
-// marker returns the emoji for a level, padded to a fixed cell width.
+// marker returns the status glyph for a level, padded to a fixed width.
 //
-// Padded explicitly rather than by rune count: these glyphs are one rune
-// each but render at different widths — ✅ takes two terminal cells, ⚠ takes
-// one — so counting runes would misalign every column after the marker.
+// Text glyphs rather than emoji, coloured by ANSI. Emoji carry their colour
+// from the font, so they ignore the palette — and ignore NO_COLOR, which is
+// the one case where output is supposed to be plain. They are also
+// double-width, so mixing them with a single-width bullet misaligned every
+// column after the marker.
 //
-// The variation-selector forms (⚠️, ℹ️) are avoided deliberately: they are
-// two runes and their rendered width varies by terminal, which is exactly
-// the unpredictability this padding exists to remove.
+// These are one cell each and take their colour from the same styles as the
+// rest of the output. The trailing space is still explicit: a terminal that
+// renders one of them wide would otherwise shift the row.
 func marker(c *termcolor.Writer, l level) string {
 	switch l {
 	case levelOK:
-		return c.S(termcolor.Good, "✅")
+		return c.S(termcolor.Good, "✔") + " "
 	case levelInfo:
-		return c.S(termcolor.Muted, "•") + " "
+		return c.S(termcolor.Muted, "·") + " "
 	case levelUnknown:
-		return c.S(termcolor.Warn, "⚠") + " "
+		return c.S(termcolor.Warn, "!") + " "
 	case levelBroken:
-		return c.S(termcolor.Warn, "❌")
+		return c.S(termcolor.Bad, "✘") + " "
 	}
 	return "  "
 }
@@ -765,10 +767,10 @@ func render(w io.Writer, fs []finding) {
 
 	fmt.Fprintln(w)
 	if n := countBroken(fs); n > 0 {
-		fmt.Fprintf(w, "%s %s\n", c.S(termcolor.Warn, "❌"),
+		fmt.Fprintf(w, "%s %s\n", c.S(termcolor.Bad, "✘"),
 			c.S(termcolor.Warn, fmt.Sprintf("%d problem(s) need attention", n)))
 	} else {
-		fmt.Fprintf(w, "%s %s\n", c.S(termcolor.Good, "✅"),
+		fmt.Fprintf(w, "%s %s\n", c.S(termcolor.Good, "✔"),
 			c.S(termcolor.Good, "attribution is working"))
 	}
 }

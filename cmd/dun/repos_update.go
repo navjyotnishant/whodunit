@@ -110,10 +110,10 @@ func runReposUpdate(w io.Writer) error {
 	case failed > 0:
 		return fmt.Errorf("%d repository(ies) could not be updated", failed)
 	case updated > 0:
-		fmt.Fprintf(w, "%s %s\n", c.S(termcolor.Good, "✅"),
+		fmt.Fprintf(w, "%s %s\n", c.S(termcolor.Good, "✔"),
 			c.S(termcolor.Good, fmt.Sprintf("%d repository(ies) updated", updated)))
 	default:
-		fmt.Fprintf(w, "%s %s\n", c.S(termcolor.Good, "✅"),
+		fmt.Fprintf(w, "%s %s\n", c.S(termcolor.Good, "✔"),
 			c.S(termcolor.Good, "every repository is already current"))
 	}
 	if skipped > 0 {

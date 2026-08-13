@@ -9,8 +9,12 @@ import (
 	"sort"
 	"strings"
 
+	"time"
+
 	"github.com/navjyotnishant/whodunit/internal/config"
+	"github.com/navjyotnishant/whodunit/internal/journal"
 	"github.com/navjyotnishant/whodunit/internal/registry"
+	"github.com/navjyotnishant/whodunit/internal/repoid"
 	"github.com/navjyotnishant/whodunit/internal/spec"
 	"github.com/navjyotnishant/whodunit/internal/termcolor"
 	"github.com/spf13/cobra"
@@ -155,6 +159,51 @@ func printSyncStatus(w io.Writer, dir string) {
 			len(payload.Commits), len(payload.Events), len(payload.Sessions)))
 }
 
+// truncate shortens s to n characters, marking that it did.
+//
+// Counting runes rather than bytes: a multi-byte character truncated
+// mid-sequence renders as a replacement glyph, which looks like corruption
+// rather than elision.
+func truncate(s string, n int) string {
+	r := []rune(s)
+	if len(r) <= n {
+		return s
+	}
+	if n <= 1 {
+		return string(r[:n])
+	}
+	return string(r[:n-1]) + "…"
+}
+
+// syncCounts reports what one repository would publish, without running git.
+//
+// buildPayload answers this properly for the current repository, but it
+// resolves the repo id from the working directory and runs a full git
+// analysis — too expensive to repeat for every row of a cross-repo table.
+// The journal counts are the part that varies between repositories, and
+// they come straight from the store.
+//
+// Zero on any failure: this is a column in a report, not a gate.
+func syncCounts(dir string) (events, sessions int, ok bool) {
+	dataDir, err := journalDataDir()
+	if err != nil {
+		return 0, 0, false
+	}
+	repoID, err := repoid.ForRepo(dir)
+	if err != nil {
+		return 0, 0, false
+	}
+	entries, err := journal.ReadRange(dataDir, repoID, time.Time{}, time.Time{})
+	if err != nil {
+		return 0, 0, false
+	}
+	sess, err := journal.ReadSessions(dataDir, repoID)
+	if err != nil {
+		return len(entries), 0, true
+	}
+	return len(entries), len(sess), true
+}
+
 // statusAcrossRepos summarises every instrumented repository, one line each.
 func statusAcrossRepos(w io.Writer) error {
 	entries, err := registry.List()
@@ -173,7 +222,16 @@ func statusAcrossRepos(w io.Writer) error {
 
 	sort.Slice(entries, func(i, j int) bool { return entries[i].Path < entries[j].Path })
 
+	cfg, cfgErr := config.Load()
+	syncOn := cfgErr == nil && cfg.Sync.Configured()
+
 	fmt.Fprintf(w, "%d instrumented repositor%s\n\n", len(entries), plural2(len(entries)))
+
+	// Column headers, so a number in the third column is not a guess. The
+	// widths below are shared with the rows; changing one means changing
+	// both, which is why they sit next to each other.
+	fmt.Fprintf(w, "  %s\n", c.S(termcolor.Muted,
+		fmt.Sprintf("%-30s %9s  %-34s %s", "repository", "coverage", "method mix", "to sync")))
 
 	var available int
 	// Methods actually seen, gathered while listing: the legend below
@@ -189,7 +247,7 @@ func statusAcrossRepos(w io.Writer) error {
 		// rather than dropped — the recorded history is still real, and
 		// silently omitting it would look like it was never instrumented.
 		if !inGitRepo(e.Path) {
-			fmt.Fprintf(w, "  %-28s %s\n", name,
+			fmt.Fprintf(w, "  %-30s %s\n", name,
 				c.S(termcolor.Muted, "moved or deleted — "+e.Path))
 			continue
 		}
@@ -197,11 +255,30 @@ func statusAcrossRepos(w io.Writer) error {
 
 		s, err := scanRepo(e.Path)
 		if err != nil {
-			fmt.Fprintf(w, "  %-28s %s\n", name, c.S(termcolor.Warn, "unreadable"))
+			fmt.Fprintf(w, "  %-30s %s\n", name, c.S(termcolor.Warn, "unreadable"))
 			continue
 		}
+
+		// The sync column answers "would pushing this repository publish
+		// anything", which is the question a cross-repo view is for. It is
+		// journal rows, not commits: a repository can have plenty of
+		// recorded agent activity and no commits carrying it yet.
+		pending := ""
+		if syncOn {
+			events, sessions, ok := syncCounts(e.Path)
+			switch {
+			case !ok:
+				pending = c.S(termcolor.Muted, "—")
+			case events == 0:
+				pending = c.S(termcolor.Muted, "nothing")
+			default:
+				pending = fmt.Sprintf("%d event(s), %d session(s)", events, sessions)
+			}
+		}
+
 		if s.Total == 0 {
-			fmt.Fprintf(w, "  %-28s %s\n", name, c.S(termcolor.Muted, "no commits yet"))
+			fmt.Fprintf(w, "  %-30s %9s  %-34s %s\n", name,
+				c.S(termcolor.Muted, "—"), c.S(termcolor.Muted, "no commits yet"), pending)
 			continue
 		}
 
@@ -210,8 +287,22 @@ func statusAcrossRepos(w io.Writer) error {
 				seen[m] = true
 			}
 		}
-		fmt.Fprintf(w, "  %-28s %3.0f%% coverage  %s\n",
-			name, s.CoveragePct(), c.S(termcolor.Muted, methodSummary(s)))
+		// Padded before styling: escape sequences are zero-width on screen
+		// but not to %-34s, so styling first breaks every column after it.
+		// Truncated too — one long mix would push every later column out of
+		// line for every row, and the full breakdown is one --repo away.
+		mix := fmt.Sprintf("%-34s", truncate(methodSummary(s), 34))
+		fmt.Fprintf(w, "  %-30s %8.0f%%  %s %s\n",
+			name, s.CoveragePct(), c.S(termcolor.Muted, mix), pending)
+	}
+
+	// Where the numbers in the last column would go, stated once rather
+	// than repeated on every row.
+	if syncOn {
+		fmt.Fprintf(w, "\n  %s %s\n", c.S(termcolor.Muted, "syncing to"), cfg.Sync.Redacted())
+	} else {
+		fmt.Fprintf(w, "\n  %s\n", c.S(termcolor.Muted,
+			"sync not configured — attribution stays on this machine (dun config datalake)"))
 	}
 
 	if available > 0 {

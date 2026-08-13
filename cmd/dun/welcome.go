@@ -42,8 +42,30 @@ func runWelcome(out io.Writer) error {
 		fmt.Fprintln(out, "  "+w.S(termcolor.Bold, "dun repos list")+"   repositories you have instrumented")
 	}
 
+	// The command list, after the orientation above rather than instead of
+	// it. Knowing where you stand answers "what do I run next"; knowing the
+	// commands answers "what else is there". Printing only the first left
+	// people running `dun --help` to discover the surface, which is a step
+	// that did not need to exist.
 	fmt.Fprintln(out)
-	fmt.Fprintln(out, w.S(termcolor.Muted, "  dun --help for everything else"))
+	fmt.Fprintln(out, w.S(termcolor.Muted, "  commands"))
+	for _, c := range [][2]string{
+		{"init", "instrument this repository"},
+		{"status", "coverage, method mix, what would sync"},
+		{"verify", "check everything is working"},
+		{"report", "an HTML report you can open"},
+		{"log", "what the hooks did, and what they swallowed"},
+		{"journal", "the recorded events themselves"},
+		{"sync", "publish to a shared database"},
+		{"repos", "every repository you have instrumented"},
+	} {
+		fmt.Fprintf(out, "    %s %s\n",
+			w.S(termcolor.Bold, fmt.Sprintf("%-9s", c[0])),
+			w.S(termcolor.Muted, c[1]))
+	}
+
+	fmt.Fprintln(out)
+	fmt.Fprintln(out, w.S(termcolor.Muted, "  dun --help for the full surface, dun <command> --help for one"))
 	return nil
 }
 
