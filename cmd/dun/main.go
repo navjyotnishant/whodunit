@@ -9,8 +9,11 @@ import (
 )
 
 func main() {
+	// Cobra prints the error itself, prefixed "Error:". Printing it again
+	// here gave every failure twice — once from cobra, once as "dun: …" —
+	// which reads as two problems and buries multi-line advice under a
+	// repeat of its own first line.
 	if err := newRootCmd().Execute(); err != nil {
-		fmt.Fprintln(os.Stderr, "dun:", err)
 		os.Exit(1)
 	}
 }

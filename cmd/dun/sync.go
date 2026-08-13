@@ -15,9 +15,10 @@ import (
 
 func newSyncCmd() *cobra.Command {
 	var (
-		dsn    string
-		limit  int
-		dryRun bool
+		repoFlag string
+		dsn      string
+		limit    int
+		dryRun   bool
 	)
 
 	cmd := &cobra.Command{
@@ -34,17 +35,25 @@ func newSyncCmd() *cobra.Command {
 			"lines themselves, not prompts, not file contents.\n\n" +
 			"Use --dry-run first to see exactly what would be sent.",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runSync(cmd, dsn, limit, dryRun)
+			return runSync(cmd, dsn, limit, dryRun, repoFlag)
 		},
+		SilenceUsage: true,
 	}
 
+	cmd.Flags().StringVar(&repoFlag, "repo", "", "repository to publish (default: current directory)")
 	cmd.Flags().StringVar(&dsn, "to", "", "database url, e.g. mysql://user:pass@host:3306/lake")
 	cmd.Flags().IntVar(&limit, "limit", 500, "number of recent commits to include")
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "show what would be sent without sending it")
 	return cmd
 }
 
-func runSync(cmd *cobra.Command, dsn string, limit int, dryRun bool) error {
+func runSync(cmd *cobra.Command, dsn string, limit int, dryRun bool, repoFlag string) error {
+	restore, err := enterRepo(repoFlag, "sync", "publish")
+	if err != nil {
+		return err
+	}
+	defer restore()
+
 	// Fall back to the configured target, which is what the pre-push hook
 	// already uses. Without this the hook syncs on push while the command
 	// that exists to sync refuses to, and the advice it gave — pass --to —

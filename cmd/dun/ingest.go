@@ -14,14 +14,22 @@ import (
 )
 
 func newIngestCmd() *cobra.Command {
+	var repoFlag string
 	var since string
 	cmd := &cobra.Command{
-		Use:   "ingest",
-		Short: "Read local AI agent session transcripts into the journal.",
+		Use:          "ingest",
+		Short:        "Read local AI agent session transcripts into the journal.",
+		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			restore, err := enterRepo(repoFlag, "ingest", "ingest")
+			if err != nil {
+				return err
+			}
+			defer restore()
 			return runIngest(cmd, since)
 		},
 	}
+	cmd.Flags().StringVar(&repoFlag, "repo", "", "repository to ingest (default: current directory)")
 	cmd.Flags().StringVar(&since, "since", "", "only ingest events at or after this RFC3339 timestamp (default: all)")
 	return cmd
 }

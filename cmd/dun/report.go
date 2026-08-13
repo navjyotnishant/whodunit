@@ -14,6 +14,7 @@ func newReportCmd() *cobra.Command {
 	var out string
 	var limit int
 	var template string
+	var repoFlag string
 	cmd := &cobra.Command{
 		Use:   "report",
 		Short: "Generate a self-contained local HTML report (no server, no network).",
@@ -23,7 +24,17 @@ func newReportCmd() *cobra.Command {
 			"  exec      is adoption growing, and is the work landing (default)\n" +
 			"  adoption  who and what is being used — agents, tools, sessions\n" +
 			"  detail    what exactly happened, per commit and per file",
+		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			// Report reads the git log and the journal from the working
+			// directory, so --repo means going there. Without it, running
+			// this from anywhere else gave "read git log: exit status 128".
+			restore, err := enterRepo(repoFlag, "report", "report on")
+			if err != nil {
+				return err
+			}
+			defer restore()
+
 			tmpl, err := report.ParseTemplate(template)
 			if err != nil {
 				return err
@@ -59,6 +70,7 @@ func newReportCmd() *cobra.Command {
 			return nil
 		},
 	}
+	cmd.Flags().StringVar(&repoFlag, "repo", "", "repository to report on (default: current directory)")
 	cmd.Flags().StringVar(&out, "out", filepath.Join(os.TempDir(), "dun-report.html"), "output file path")
 	cmd.Flags().IntVar(&limit, "limit", 500, "number of recent commits to examine")
 	cmd.Flags().StringVar(&template, "template", "exec",

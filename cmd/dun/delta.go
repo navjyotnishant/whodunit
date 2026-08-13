@@ -12,6 +12,7 @@ import (
 )
 
 func newDeltaCmd() *cobra.Command {
+	var repoFlag string
 	var (
 		windowDays   int
 		baselinePath string
@@ -30,7 +31,14 @@ func newDeltaCmd() *cobra.Command {
 			"                 cross-period cut cannot.\n\n" +
 			"Revert rate is always shown next to throughput. A velocity gain that\n" +
 			"arrives with more reverts is deferred rework, not speed.",
+		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			restore, err := enterRepo(repoFlag, "delta", "compare")
+			if err != nil {
+				return err
+			}
+			defer restore()
+
 			if baselinePath == "" {
 				p, err := defaultBaselinePath()
 				if err != nil {
@@ -54,6 +62,7 @@ func newDeltaCmd() *cobra.Command {
 		},
 	}
 
+	cmd.Flags().StringVar(&repoFlag, "repo", "", "repository to compare (default: current directory)")
 	cmd.Flags().IntVar(&windowDays, "days", 90, "size of the recent window to measure")
 	cmd.Flags().StringVar(&baselinePath, "baseline", "", "path to a baseline snapshot (default: alongside the journal)")
 	return cmd
