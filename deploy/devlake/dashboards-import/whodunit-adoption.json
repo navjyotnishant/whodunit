@@ -714,6 +714,338 @@
           "rawSql": "SELECT r.contributor, COUNT(*) AS commits, SUM(c.status = 'assisted') AS assisted, ROUND(100.0 * SUM(c.status <> 'undetermined') / COUNT(*), 0) AS coverage_pct, ROUND(AVG(c.ratio), 2) AS avg_share, SUM(c.lines_added) AS lines_added FROM whodunit_commits c JOIN whodunit_repos r ON r.repo_id = c.repo_id WHERE r.contributor <> '' AND c.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000 GROUP BY r.contributor ORDER BY commits DESC"
         }
       ]
+    },
+    {
+      "type": "row",
+      "title": "Active contributors",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 48,
+        "w": 24,
+        "h": 1
+      },
+      "panels": []
+    },
+    {
+      "type": "stat",
+      "title": "Active today",
+      "datasource": "${DS_WHODUNIT}",
+      "gridPos": {
+        "x": 0,
+        "y": 49,
+        "w": 4,
+        "h": 5
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT COUNT(DISTINCT r.contributor) v\nFROM whodunit_events e JOIN whodunit_repos r ON r.repo_id = e.repo_id\nWHERE e.observed_at >= (UNIX_TIMESTAMP() - 1*86400) * 1000000000 AND ('$contributor' = '__all__' OR r.contributor = '$contributor')"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "0",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "description": "Contributors with recorded agent activity in the last 1 day(s)."
+    },
+    {
+      "type": "stat",
+      "title": "Active this week",
+      "datasource": "${DS_WHODUNIT}",
+      "gridPos": {
+        "x": 4,
+        "y": 49,
+        "w": 4,
+        "h": 5
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT COUNT(DISTINCT r.contributor) v\nFROM whodunit_events e JOIN whodunit_repos r ON r.repo_id = e.repo_id\nWHERE e.observed_at >= (UNIX_TIMESTAMP() - 7*86400) * 1000000000 AND ('$contributor' = '__all__' OR r.contributor = '$contributor')"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "0",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "description": "Contributors with recorded agent activity in the last 7 day(s)."
+    },
+    {
+      "type": "stat",
+      "title": "Active this month",
+      "datasource": "${DS_WHODUNIT}",
+      "gridPos": {
+        "x": 8,
+        "y": 49,
+        "w": 4,
+        "h": 5
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT COUNT(DISTINCT r.contributor) v\nFROM whodunit_events e JOIN whodunit_repos r ON r.repo_id = e.repo_id\nWHERE e.observed_at >= (UNIX_TIMESTAMP() - 30*86400) * 1000000000 AND ('$contributor' = '__all__' OR r.contributor = '$contributor')"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "0",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "description": "Contributors with recorded agent activity in the last 30 day(s)."
+    },
+    {
+      "type": "stat",
+      "title": "Stickiness",
+      "datasource": "${DS_WHODUNIT}",
+      "gridPos": {
+        "x": 12,
+        "y": 49,
+        "w": 4,
+        "h": 5
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT ROUND(\n  (SELECT COUNT(DISTINCT r.contributor) FROM whodunit_events e\n     JOIN whodunit_repos r ON r.repo_id=e.repo_id\n   WHERE e.observed_at >= (UNIX_TIMESTAMP() - 86400) * 1000000000 AND ('$contributor' = '__all__' OR r.contributor = '$contributor')) * 100.0\n  / NULLIF((SELECT COUNT(DISTINCT r.contributor) FROM whodunit_events e\n     JOIN whodunit_repos r ON r.repo_id=e.repo_id\n   WHERE e.observed_at >= (UNIX_TIMESTAMP() - 30*86400) * 1000000000 AND ('$contributor' = '__all__' OR r.contributor = '$contributor')), 0), 1) v"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "noValue": "no activity",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          },
+          "decimals": 1
+        }
+      },
+      "options": {
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "description": "Daily actives as a share of monthly. High means the agent is part of the routine rather than something people tried once."
+    },
+    {
+      "type": "stat",
+      "title": "MCP calls",
+      "datasource": "${DS_WHODUNIT}",
+      "gridPos": {
+        "x": 16,
+        "y": 49,
+        "w": 4,
+        "h": 5
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT SUM(s.mcp_calls) v\nFROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id\nWHERE s.last_seen BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000 AND ('$contributor' = '__all__' OR r.contributor = '$contributor')"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "0",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "purple",
+                "value": null
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "description": "Calls to connected MCP servers. A total, not a breakdown: the transcripts name each server, but the collector keeps only file-editing tools today."
+    },
+    {
+      "type": "stat",
+      "title": "Distinct tools",
+      "datasource": "${DS_WHODUNIT}",
+      "gridPos": {
+        "x": 20,
+        "y": 49,
+        "w": 4,
+        "h": 5
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT COUNT(DISTINCT e.tool) v\nFROM whodunit_events e JOIN whodunit_repos r ON r.repo_id = e.repo_id\nWHERE e.tool <> '' AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000 AND ('$contributor' = '__all__' OR r.contributor = '$contributor')"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "0",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "description": "File-editing tools seen. Skills, chat and search are called as tools too and are visible in the transcripts, but are not collected yet."
+    },
+    {
+      "type": "piechart",
+      "title": "Evidence strength",
+      "datasource": "${DS_WHODUNIT}",
+      "gridPos": {
+        "x": 0,
+        "y": 54,
+        "w": 10,
+        "h": 7
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT CASE c.method\n         WHEN 'intersected' THEN 'intersected — the agent''s lines survived'\n         WHEN 'observed'    THEN 'observed — edited before committing'\n         WHEN 'declared'    THEN 'declared — stated, not measured'\n         WHEN 'inferred'    THEN 'inferred — from surrounding evidence'\n         ELSE 'undetermined — no evidence either way'\n       END AS `method`, COUNT(*) AS `commits`\nFROM whodunit_commits c JOIN whodunit_repos r ON r.repo_id=c.repo_id\nWHERE 1=1 AND ('$contributor'='__all__' OR r.contributor='$contributor') AND c.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nGROUP BY c.method ORDER BY `commits` DESC"
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "values": [
+            "value"
+          ]
+        },
+        "pieType": "donut",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": true
+        }
+      },
+      "description": "'undetermined' means whodunit could not tell — never that no AI was used."
+    },
+    {
+      "type": "text",
+      "title": "",
+      "gridPos": {
+        "x": 10,
+        "y": 54,
+        "w": 14,
+        "h": 7
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "### What this dashboard cannot show *yet*\n\n**Seats and pending invites.** Vendor billing knows who holds a licence; whodunit only knows machines it is installed on. It cannot report a seat nobody used, so adoption here is measured against people who committed — a different, smaller denominator. This one is structural.\n\n**Which MCP server, and which skill.** The counts below are totals. The agent transcripts do name them — a call arrives as `mcp__<server>__<method>` — but the collector keeps only file-editing tools today, so the names never reach the journal. Collecting them is a change to the adapters, not to this dashboard.\n\n**Acceptance is two different measures.** The rate above is whether an edit applied without erroring. Whether a human *kept* the work is the evidence split to the left: `intersected` means the agent's exact lines survived into the commit; `observed` means the file was edited but the text had changed before committing."
+      }
     }
   ],
   "__inputs": [
