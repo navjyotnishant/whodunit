@@ -1,0 +1,646 @@
+{
+  "uid": "",
+  "title": "Whodunit — Adoption by Contributor",
+  "tags": [
+    "whodunit",
+    "adoption"
+  ],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "",
+  "time": {
+    "from": "now-90d",
+    "to": "now"
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "datasource",
+        "type": "datasource",
+        "query": "mysql",
+        "current": {},
+        "hide": 0,
+        "label": "Data source"
+      },
+      {
+        "name": "contributor",
+        "type": "query",
+        "datasource": "${DS_WHODUNIT}",
+        "label": "Contributor",
+        "query": "SELECT DISTINCT contributor FROM whodunit_repos WHERE contributor <> ''",
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "__all__"
+        },
+        "includeAll": true,
+        "allValue": "__all__",
+        "refresh": 1,
+        "hide": 0
+      },
+      {
+        "name": "grain",
+        "type": "custom",
+        "label": "Granularity",
+        "query": "%Y-%m-%d : Daily, %x-W%v : Weekly, %Y-%m : Monthly",
+        "options": [
+          {
+            "text": "Daily",
+            "value": "%Y-%m-%d",
+            "selected": true
+          },
+          {
+            "text": "Weekly",
+            "value": "%x-W%v",
+            "selected": false
+          },
+          {
+            "text": "Monthly",
+            "value": "%Y-%m",
+            "selected": false
+          }
+        ],
+        "current": {
+          "selected": true,
+          "text": "Daily",
+          "value": "%Y-%m-%d"
+        }
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "text",
+      "title": "",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 4
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "## Adoption by contributor\n*Who is using an agent, how much, and how much of it survives into the codebase.*\n\nMeasured from git history and the agent's own session records on each developer's machine. Nothing is self-reported.\n\n**Seats are not visible here.** Vendor billing knows who holds a licence; whodunit only knows machines it is installed on, so it cannot report a seat nobody used. Adoption is measured against people who committed, not against seats purchased."
+      }
+    },
+    {
+      "id": 2,
+      "type": "row",
+      "title": "This contributor",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 4,
+        "w": 24,
+        "h": 1
+      },
+      "panels": []
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Assisted commits",
+      "datasource": "${DS_WHODUNIT}",
+      "gridPos": {
+        "x": 0,
+        "y": 5,
+        "w": 4,
+        "h": 5
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT COUNT(*) v FROM whodunit_commits c JOIN whodunit_repos r ON r.repo_id=c.repo_id\nWHERE c.status='assisted' AND ('$contributor'='__all__' OR r.contributor='$contributor') AND c.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "0",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Adoption",
+      "datasource": "${DS_WHODUNIT}",
+      "gridPos": {
+        "x": 4,
+        "y": 5,
+        "w": 4,
+        "h": 5
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT ROUND(SUM(c.status='assisted')*100.0/NULLIF(COUNT(*),0),1) v\nFROM whodunit_commits c JOIN whodunit_repos r ON r.repo_id=c.repo_id\nWHERE 1=1 AND ('$contributor'='__all__' OR r.contributor='$contributor') AND c.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "noValue": "no commits",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          },
+          "decimals": 1
+        }
+      },
+      "options": {
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "description": "Share of this contributor's commits carrying an attribution trailer."
+    },
+    {
+      "id": 5,
+      "type": "stat",
+      "title": "Lines kept",
+      "datasource": "${DS_WHODUNIT}",
+      "gridPos": {
+        "x": 8,
+        "y": 5,
+        "w": 4,
+        "h": 5
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT SUM(c.lines_added) v FROM whodunit_commits c JOIN whodunit_repos r ON r.repo_id=c.repo_id\nWHERE c.status='assisted' AND ('$contributor'='__all__' OR r.contributor='$contributor') AND c.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "0",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "description": "Lines in assisted commits — what reached the repository, not what the agent proposed."
+    },
+    {
+      "id": 6,
+      "type": "stat",
+      "title": "Sessions",
+      "datasource": "${DS_WHODUNIT}",
+      "gridPos": {
+        "x": 12,
+        "y": 5,
+        "w": 4,
+        "h": 5
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT COUNT(*) v FROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id=s.repo_id\nWHERE 1=1 AND ('$contributor'='__all__' OR r.contributor='$contributor') AND s.last_seen BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "0",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 7,
+      "type": "stat",
+      "title": "Active days",
+      "datasource": "${DS_WHODUNIT}",
+      "gridPos": {
+        "x": 16,
+        "y": 5,
+        "w": 4,
+        "h": 5
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT COUNT(DISTINCT DATE(FROM_UNIXTIME(e.observed_at/1000000000))) v\nFROM whodunit_events e JOIN whodunit_repos r ON r.repo_id=e.repo_id\nWHERE 1=1 AND ('$contributor'='__all__' OR r.contributor='$contributor') AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "0",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "description": "Days with any recorded agent activity."
+    },
+    {
+      "id": 8,
+      "type": "stat",
+      "title": "Tool calls",
+      "datasource": "${DS_WHODUNIT}",
+      "gridPos": {
+        "x": 20,
+        "y": 5,
+        "w": 4,
+        "h": 5
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT SUM(s.tool_calls) v FROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id=s.repo_id\nWHERE 1=1 AND ('$contributor'='__all__' OR r.contributor='$contributor') AND s.last_seen BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "0",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 9,
+      "type": "row",
+      "title": "Did the work survive?",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 10,
+        "w": 24,
+        "h": 1
+      },
+      "panels": []
+    },
+    {
+      "id": 10,
+      "type": "text",
+      "title": "",
+      "gridPos": {
+        "x": 0,
+        "y": 11,
+        "w": 24,
+        "h": 4
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "**This replaces a vendor acceptance rate, and measures something stronger.**\n\nA tool-acceptance rate counts clicks: did the developer accept the suggestion in the moment. It cannot see what happened next.\n\n`intersected` means the agent's exact lines were still in the diff at commit time. `observed` means the agent edited the file but its text had changed before committing — accepted, then rewritten. Both are real work; the split is how much survived contact with review.\n\nA healthy mix is not 100% intersected. Editing the agent's output is normal engineering."
+      }
+    },
+    {
+      "id": 11,
+      "type": "piechart",
+      "title": "Evidence strength",
+      "datasource": "${DS_WHODUNIT}",
+      "gridPos": {
+        "x": 0,
+        "y": 15,
+        "w": 8,
+        "h": 7
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT CASE c.method\n         WHEN 'intersected' THEN 'intersected — the agent''s lines survived'\n         WHEN 'observed'    THEN 'observed — edited before committing'\n         WHEN 'declared'    THEN 'declared — stated, not measured'\n         WHEN 'inferred'    THEN 'inferred — from surrounding evidence'\n         ELSE 'undetermined — no evidence either way'\n       END AS `method`, COUNT(*) AS `commits`\nFROM whodunit_commits c JOIN whodunit_repos r ON r.repo_id=c.repo_id\nWHERE 1=1 AND ('$contributor'='__all__' OR r.contributor='$contributor') AND c.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nGROUP BY c.method ORDER BY `commits` DESC"
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "values": [
+            "value"
+          ]
+        },
+        "pieType": "donut",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": true
+        }
+      },
+      "description": "'undetermined' means whodunit could not tell — never that no AI was used."
+    },
+    {
+      "id": 12,
+      "type": "timeseries",
+      "title": "Activity over time",
+      "datasource": "${DS_WHODUNIT}",
+      "gridPos": {
+        "x": 8,
+        "y": 15,
+        "w": 8,
+        "h": 7
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT DATE_FORMAT(FROM_UNIXTIME(e.observed_at/1000000000), '$grain') AS `bucket`,\n       COUNT(*) AS `file edits`,\n       COUNT(DISTINCT e.session) AS `sessions`\nFROM whodunit_events e JOIN whodunit_repos r ON r.repo_id=e.repo_id\nWHERE 1=1 AND ('$contributor'='__all__' OR r.contributor='$contributor') AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nGROUP BY `bucket` ORDER BY `bucket`"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 15,
+            "spanNulls": true,
+            "pointSize": 6
+          }
+        }
+      }
+    },
+    {
+      "id": 13,
+      "type": "timeseries",
+      "title": "Code churn over time",
+      "datasource": "${DS_WHODUNIT}",
+      "gridPos": {
+        "x": 16,
+        "y": 15,
+        "w": 8,
+        "h": 7
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT DATE_FORMAT(FROM_UNIXTIME(e.observed_at/1000000000), '$grain') AS `bucket`,\n       SUM(e.lines_added) AS `lines added`,\n       SUM(e.lines_removed) AS `lines removed`\nFROM whodunit_events e JOIN whodunit_repos r ON r.repo_id=e.repo_id\nWHERE 1=1 AND ('$contributor'='__all__' OR r.contributor='$contributor') AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nGROUP BY `bucket` ORDER BY `bucket`"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "spanNulls": true
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "lines removed"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "orange"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": 14,
+      "type": "row",
+      "title": "Everyone",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 22,
+        "w": 24,
+        "h": 1
+      },
+      "panels": []
+    },
+    {
+      "id": 15,
+      "type": "table",
+      "title": "Contributors",
+      "datasource": "${DS_WHODUNIT}",
+      "gridPos": {
+        "x": 0,
+        "y": 23,
+        "w": 24,
+        "h": 7
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT r.contributor AS `contributor`,\n       COUNT(*) AS `commits`,\n       SUM(c.status='assisted') AS `assisted`,\n       ROUND(SUM(c.status='assisted')*100.0/NULLIF(COUNT(*),0),1) AS `adoption %`,\n       SUM(CASE WHEN c.method='intersected' THEN 1 ELSE 0 END) AS `intersected`,\n       SUM(CASE WHEN c.status='assisted' THEN c.lines_added ELSE 0 END) AS `lines kept`\nFROM whodunit_commits c JOIN whodunit_repos r ON r.repo_id=c.repo_id\nWHERE r.contributor <> '' AND c.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nGROUP BY r.contributor ORDER BY `assisted` DESC"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "align": "right"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "contributor"
+            },
+            "properties": [
+              {
+                "id": "custom.align",
+                "value": "left"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "adoption %"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percent"
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true
+      },
+      "description": "Every contributor with commits in range, ignoring the filter above so the whole team stays comparable. Adoption is a fact about measured commits, not a target."
+    },
+    {
+      "id": 16,
+      "type": "table",
+      "title": "Daily detail",
+      "datasource": "${DS_WHODUNIT}",
+      "gridPos": {
+        "x": 0,
+        "y": 30,
+        "w": 24,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT DATE(FROM_UNIXTIME(e.observed_at/1000000000)) AS `day`,\n       COUNT(DISTINCT e.session) AS `sessions`,\n       COUNT(*) AS `file edits`,\n       SUM(e.lines_added) AS `lines added`,\n       SUM(e.lines_removed) AS `lines removed`,\n       COUNT(DISTINCT e.tool) AS `tools used`\nFROM whodunit_events e JOIN whodunit_repos r ON r.repo_id=e.repo_id\nWHERE 1=1 AND ('$contributor'='__all__' OR r.contributor='$contributor') AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nGROUP BY `day` ORDER BY `day` DESC"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "align": "right"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "day"
+            },
+            "properties": [
+              {
+                "id": "custom.align",
+                "value": "left"
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true
+      }
+    }
+  ],
+  "__inputs": [
+    {
+      "name": "DS_WHODUNIT",
+      "label": "MySQL",
+      "description": "The database holding the whodunit_* tables",
+      "type": "datasource",
+      "pluginId": "mysql",
+      "pluginName": "MySQL"
+    }
+  ]
+}
