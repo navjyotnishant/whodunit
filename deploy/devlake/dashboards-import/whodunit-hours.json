@@ -123,19 +123,66 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT LPAD(HOUR(CONVERT_TZ(FROM_UNIXTIME(e.observed_at/1000000000), '+00:00', '$tz')),2,'0') AS `hour`,\n       SUM(e.event='tool_use') AS `file edits`,\n       SUM(e.event<>'tool_use') AS `other activity`\nFROM whodunit_events e\nWHERE e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  AND e.agent IN ($agent)\nGROUP BY `hour` ORDER BY `hour`"
+          "rawSql": "SELECT LPAD(HOUR(CONVERT_TZ(FROM_UNIXTIME(e.observed_at/1000000000), '+00:00', '$tz')),2,'0') AS `hour`,\n       SUM(CASE WHEN e.agent='claude-code' THEN 1 ELSE 0 END) AS `claude-code`,\n       SUM(CASE WHEN e.agent='codex' THEN 1 ELSE 0 END) AS `codex`,\n       SUM(CASE WHEN e.agent='agy' THEN 1 ELSE 0 END) AS `agy`\nFROM whodunit_events e\nWHERE e.agent IN ($agent)\n  AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nGROUP BY `hour` ORDER BY `hour`"
         }
       ],
       "fieldConfig": {
         "defaults": {
           "unit": "short",
           "custom": {
-            "fillOpacity": 80,
+            "fillOpacity": 85,
             "stacking": {
               "mode": "normal"
             }
           }
-        }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "claude-code"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "blue"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "codex"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "green"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "agy"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "purple"
+                }
+              }
+            ]
+          }
+        ]
       },
       "options": {
         "xTickLabelRotation": 0,
@@ -150,7 +197,7 @@
         },
         "xField": "hour"
       },
-      "description": "Hours with no bar are hours nobody worked — not missing data."
+      "description": "Stacked by agent. Hours with no bar are hours nobody worked — not missing data."
     },
     {
       "id": 4,
@@ -167,28 +214,81 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT CASE DAYOFWEEK(CONVERT_TZ(FROM_UNIXTIME(e.observed_at/1000000000), '+00:00', '$tz'))\n         WHEN 1 THEN 'Sun' WHEN 2 THEN 'Mon' WHEN 3 THEN 'Tue' WHEN 4 THEN 'Wed'\n         WHEN 5 THEN 'Thu' WHEN 6 THEN 'Fri' ELSE 'Sat' END AS `day`,\n       COUNT(*) AS `events`\nFROM whodunit_events e\nWHERE e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  AND e.agent IN ($agent)\nGROUP BY DAYOFWEEK(CONVERT_TZ(FROM_UNIXTIME(e.observed_at/1000000000), '+00:00', '$tz')), `day`\nORDER BY DAYOFWEEK(CONVERT_TZ(FROM_UNIXTIME(e.observed_at/1000000000), '+00:00', '$tz'))"
+          "rawSql": "SELECT CASE DAYOFWEEK(CONVERT_TZ(FROM_UNIXTIME(e.observed_at/1000000000), '+00:00', '$tz'))\n         WHEN 1 THEN 'Sun' WHEN 2 THEN 'Mon' WHEN 3 THEN 'Tue' WHEN 4 THEN 'Wed'\n         WHEN 5 THEN 'Thu' WHEN 6 THEN 'Fri' ELSE 'Sat' END AS `day`,\n       SUM(CASE WHEN e.agent='claude-code' THEN 1 ELSE 0 END) AS `claude-code`,\n       SUM(CASE WHEN e.agent='codex' THEN 1 ELSE 0 END) AS `codex`,\n       SUM(CASE WHEN e.agent='agy' THEN 1 ELSE 0 END) AS `agy`\nFROM whodunit_events e\nWHERE e.agent IN ($agent)\n  AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nGROUP BY DAYOFWEEK(CONVERT_TZ(FROM_UNIXTIME(e.observed_at/1000000000), '+00:00', '$tz')), `day` ORDER BY DAYOFWEEK(CONVERT_TZ(FROM_UNIXTIME(e.observed_at/1000000000), '+00:00', '$tz'))"
         }
       ],
       "fieldConfig": {
         "defaults": {
           "unit": "short",
           "custom": {
-            "fillOpacity": 80
+            "fillOpacity": 85,
+            "stacking": {
+              "mode": "normal"
+            }
           }
-        }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "claude-code"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "blue"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "codex"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "green"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "agy"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "purple"
+                }
+              }
+            ]
+          }
+        ]
       },
       "options": {
         "xTickLabelRotation": 0,
         "legend": {
-          "showLegend": false
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
         },
         "tooltip": {
           "mode": "multi"
         },
         "xField": "day"
       },
-      "description": "Weekday distribution. A flat weekend is normal; a flat Monday may be worth asking about."
+      "description": "Stacked by agent. A flat weekend is normal; a flat Monday may be worth asking about."
     },
     {
       "id": 5,
@@ -230,6 +330,21 @@
                 }
               }
             ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "lines added"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "blue"
+                }
+              }
+            ]
           }
         ]
       },
@@ -263,7 +378,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT e.tool AS `tool`, e.agent AS `agent`, COUNT(*) AS `calls`\nFROM whodunit_events e\nWHERE e.tool <> ''\n  AND e.agent IN ($agent)\n  AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nGROUP BY e.tool, e.agent ORDER BY `calls` DESC"
+          "rawSql": "SELECT e.tool AS `tool`,\n       SUM(CASE WHEN e.agent='claude-code' THEN 1 ELSE 0 END) AS `claude-code`,\n       SUM(CASE WHEN e.agent='codex' THEN 1 ELSE 0 END) AS `codex`,\n       SUM(CASE WHEN e.agent='agy' THEN 1 ELSE 0 END) AS `agy`\nFROM whodunit_events e\nWHERE e.tool <> ''\n  AND e.agent IN ($agent)\n  AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nGROUP BY e.tool ORDER BY `claude-code` DESC"
         }
       ],
       "options": {
@@ -284,9 +399,59 @@
         "defaults": {
           "unit": "short",
           "custom": {
-            "fillOpacity": 80
+            "fillOpacity": 85,
+            "stacking": {
+              "mode": "normal"
+            }
           }
-        }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "claude-code"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "blue"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "codex"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "green"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "agy"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "purple"
+                }
+              }
+            ]
+          }
+        ]
       }
     },
     {
