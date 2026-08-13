@@ -9,6 +9,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/navjyotnishant/whodunit/internal/config"
 	"github.com/navjyotnishant/whodunit/internal/registry"
 	"github.com/navjyotnishant/whodunit/internal/spec"
 	"github.com/navjyotnishant/whodunit/internal/termcolor"
@@ -102,7 +103,56 @@ func statusFor(w io.Writer, dir, label string) error {
 			c.S(termcolor.MethodStyle(string(m)), label), n,
 			c.S(termcolor.Muted, m.Explain()))
 	}
+
+	printSyncStatus(w, dir)
 	return nil
+}
+
+// printSyncStatus reports what a sync would publish, and where.
+//
+// Deliberately not "unsynced since last time". Sync sends the whole journal
+// and the sidecar upserts, precisely so there is no local watermark to drift
+// out of agreement with the target after a restore. Inventing one here to
+// report a delta would reintroduce the state that design avoids.
+//
+// So the honest question is what the next push would send, which is also the
+// one worth answering: it tells you whether the shared dashboards are about
+// to gain anything.
+func printSyncStatus(w io.Writer, dir string) {
+	c := termcolor.New(w)
+
+	cfg, err := config.Load()
+	if err != nil {
+		return
+	}
+
+	fmt.Fprintln(w, "sync:")
+	if !cfg.Sync.Configured() {
+		fmt.Fprintf(w, "  %s\n", c.S(termcolor.Muted,
+			"not configured — attribution stays on this machine"))
+		fmt.Fprintf(w, "  %s\n", c.S(termcolor.Muted,
+			"set one up with: dun config datalake"))
+		return
+	}
+
+	when := "on push"
+	if !cfg.Sync.OnPush {
+		when = "manually, with dun sync"
+	}
+
+	fmt.Fprintf(w, "  %-13s %s\n",
+		c.S(termcolor.Muted, "target"), cfg.Sync.Redacted())
+	fmt.Fprintf(w, "  %-13s %s\n", c.S(termcolor.Muted, "publishes"), when)
+
+	// What the next sync would carry. Built through the same function the
+	// sync itself uses, so this cannot drift from what actually gets sent.
+	payload, err := buildPayload(defaultSyncLimit)
+	if err != nil {
+		return
+	}
+	fmt.Fprintf(w, "  %-13s %s\n", c.S(termcolor.Muted, "would send"),
+		fmt.Sprintf("%d commit(s), %d event(s), %d session(s)",
+			len(payload.Commits), len(payload.Events), len(payload.Sessions)))
 }
 
 // statusAcrossRepos summarises every instrumented repository, one line each.

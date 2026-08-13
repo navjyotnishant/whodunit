@@ -61,6 +61,17 @@ func runInit(cmd *cobra.Command, repoPath string) error {
 		repoPath = abs
 	}
 
+	// Capture the pre-adoption baseline before anything else happens.
+	//
+	// This has to be first, and it only gets one chance. The moment the
+	// hooks below start stamping commits, the unassisted window is over —
+	// and every before/after comparison needs a measurement from before.
+	// `dun baseline capture` has always existed and its help has always
+	// said "run this FIRST", which turns out to be the same as not having
+	// it: nobody runs a command they have not needed yet, and by the time
+	// the comparison is wanted the window has closed for good.
+	captureBaselineOnInit(cmd.OutOrStdout(), repoPath)
+
 	gd, err := gitDirFor(repoPath)
 	if err != nil {
 		return err
