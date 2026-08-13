@@ -26,13 +26,10 @@ const (
 	hookPrepare = "prepare-commit-msg"
 	hookCommit  = "commit-msg"
 	hookPrePush = "pre-push"
-
-	// hookPanicProbe is not a git hook. git never invokes it, `dun init`
-	// never installs it, and it exists so the panic barrier has something
-	// to catch — a barrier no test can trigger is a barrier nobody knows
-	// is broken.
-	hookPanicProbe = "panic-probe"
 )
+
+// hookProbe is a test seam, nil in every shipped binary.
+var hookProbe func(hook string)
 
 func newHookCmd() *cobra.Command {
 	return &cobra.Command{
@@ -60,13 +57,15 @@ func newHookCmd() *cobra.Command {
 				}
 			}()
 
+			// hookProbe is nil in a shipped binary. The barrier's own test
+			// sets it, because a recover() no test can trigger is a
+			// recover() nobody knows is broken — and a panicking code path
+			// compiled into everyone's binary to prove it is worse.
+			if hookProbe != nil {
+				hookProbe(args[0])
+			}
+
 			switch args[0] {
-			case hookPanicProbe:
-				// Reachable only from the barrier's own test. Without a
-				// path that panics on demand, removing the recover() above
-				// breaks nothing and the barrier is untested — which is
-				// how it was written the first time.
-				panic("hook panic probe")
 			case hookPrepare:
 				return runPrepareCommitMsg(args[1:])
 			case hookCommit:

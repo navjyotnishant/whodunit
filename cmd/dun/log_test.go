@@ -22,8 +22,14 @@ func TestAPanicInAHookDoesNotFailTheCommit(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("WHODUNIT_HOME", home)
 
+	// The panic the barrier has to catch, injected rather than compiled
+	// into the shipped binary.
+	restore := hookProbe
+	t.Cleanup(func() { hookProbe = restore })
+	hookProbe = func(string) { panic("hook panic probe") }
+
 	cmd := newHookCmd()
-	cmd.SetArgs([]string{hookPanicProbe})
+	cmd.SetArgs([]string{hookPrepare})
 	cmd.SetOut(&bytes.Buffer{})
 	cmd.SetErr(&bytes.Buffer{})
 
