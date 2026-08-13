@@ -24,6 +24,22 @@
         "label": "Data source"
       },
       {
+        "name": "agent",
+        "type": "query",
+        "datasource": "${DS_WHODUNIT}",
+        "label": "Agent",
+        "query": "SELECT DISTINCT agent FROM whodunit_sessions WHERE agent <> '' UNION SELECT DISTINCT agent FROM whodunit_events WHERE agent <> ''",
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "$__all"
+        },
+        "includeAll": true,
+        "multi": true,
+        "refresh": 1,
+        "hide": 0
+      },
+      {
         "name": "tz",
         "type": "custom",
         "label": "Timezone",
@@ -107,7 +123,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT LPAD(HOUR(CONVERT_TZ(FROM_UNIXTIME(e.observed_at/1000000000), '+00:00', '$tz')),2,'0') AS `hour`,\n       SUM(e.event='tool_use') AS `file edits`,\n       SUM(e.event<>'tool_use') AS `other activity`\nFROM whodunit_events e\nWHERE e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nGROUP BY `hour` ORDER BY `hour`"
+          "rawSql": "SELECT LPAD(HOUR(CONVERT_TZ(FROM_UNIXTIME(e.observed_at/1000000000), '+00:00', '$tz')),2,'0') AS `hour`,\n       SUM(e.event='tool_use') AS `file edits`,\n       SUM(e.event<>'tool_use') AS `other activity`\nFROM whodunit_events e\nWHERE e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  AND e.agent IN ($agent)\nGROUP BY `hour` ORDER BY `hour`"
         }
       ],
       "fieldConfig": {
@@ -151,7 +167,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT CASE DAYOFWEEK(CONVERT_TZ(FROM_UNIXTIME(e.observed_at/1000000000), '+00:00', '$tz'))\n         WHEN 1 THEN 'Sun' WHEN 2 THEN 'Mon' WHEN 3 THEN 'Tue' WHEN 4 THEN 'Wed'\n         WHEN 5 THEN 'Thu' WHEN 6 THEN 'Fri' ELSE 'Sat' END AS `day`,\n       COUNT(*) AS `events`\nFROM whodunit_events e\nWHERE e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nGROUP BY DAYOFWEEK(CONVERT_TZ(FROM_UNIXTIME(e.observed_at/1000000000), '+00:00', '$tz')), `day`\nORDER BY DAYOFWEEK(CONVERT_TZ(FROM_UNIXTIME(e.observed_at/1000000000), '+00:00', '$tz'))"
+          "rawSql": "SELECT CASE DAYOFWEEK(CONVERT_TZ(FROM_UNIXTIME(e.observed_at/1000000000), '+00:00', '$tz'))\n         WHEN 1 THEN 'Sun' WHEN 2 THEN 'Mon' WHEN 3 THEN 'Tue' WHEN 4 THEN 'Wed'\n         WHEN 5 THEN 'Thu' WHEN 6 THEN 'Fri' ELSE 'Sat' END AS `day`,\n       COUNT(*) AS `events`\nFROM whodunit_events e\nWHERE e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  AND e.agent IN ($agent)\nGROUP BY DAYOFWEEK(CONVERT_TZ(FROM_UNIXTIME(e.observed_at/1000000000), '+00:00', '$tz')), `day`\nORDER BY DAYOFWEEK(CONVERT_TZ(FROM_UNIXTIME(e.observed_at/1000000000), '+00:00', '$tz'))"
         }
       ],
       "fieldConfig": {
@@ -189,7 +205,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT LPAD(HOUR(CONVERT_TZ(FROM_UNIXTIME(e.observed_at/1000000000), '+00:00', '$tz')),2,'0') AS `hour`,\n       SUM(e.lines_added) AS `lines added`,\n       SUM(e.lines_removed) AS `lines removed`\nFROM whodunit_events e\nWHERE e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nGROUP BY `hour` ORDER BY `hour`"
+          "rawSql": "SELECT LPAD(HOUR(CONVERT_TZ(FROM_UNIXTIME(e.observed_at/1000000000), '+00:00', '$tz')),2,'0') AS `hour`,\n       SUM(e.lines_added) AS `lines added`,\n       SUM(e.lines_removed) AS `lines removed`\nFROM whodunit_events e\nWHERE e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  AND e.agent IN ($agent)\nGROUP BY `hour` ORDER BY `hour`"
         }
       ],
       "fieldConfig": {
@@ -234,8 +250,8 @@
     },
     {
       "id": 6,
-      "type": "piechart",
-      "title": "Tools used",
+      "type": "barchart",
+      "title": "Tools used, by agent",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
         "x": 12,
@@ -247,27 +263,31 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT e.tool AS `tool`, COUNT(*) AS `calls`\nFROM whodunit_events e\nWHERE e.tool <> '' AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nGROUP BY e.tool ORDER BY `calls` DESC"
+          "rawSql": "SELECT e.tool AS `tool`, e.agent AS `agent`, COUNT(*) AS `calls`\nFROM whodunit_events e\nWHERE e.tool <> ''\n  AND e.agent IN ($agent)\n  AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nGROUP BY e.tool, e.agent ORDER BY `calls` DESC"
         }
       ],
       "options": {
+        "xField": "tool",
+        "xTickLabelRotation": -45,
         "legend": {
-          "displayMode": "table",
-          "placement": "right",
-          "values": [
-            "value",
-            "percent"
-          ]
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
         },
-        "pieType": "donut",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "values": true
+        "tooltip": {
+          "mode": "multi"
         }
       },
-      "description": "The real analogue of Q Dev's 'feature usage', which only knew three flags. This reports whichever tools the agent actually called."
+      "description": "Which agent reaches for which tool. Copilot's dashboard cannot ask this — it only knows one tool.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "fillOpacity": 80
+          }
+        }
+      }
     },
     {
       "id": 7,
@@ -276,7 +296,7 @@
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 21,
+        "y": 29,
         "w": 24,
         "h": 1
       },
@@ -289,7 +309,7 @@
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
         "x": 0,
-        "y": 22,
+        "y": 30,
         "w": 4,
         "h": 5
       },
@@ -297,7 +317,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT COUNT(*) v FROM whodunit_sessions s\nWHERE s.last_seen BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000"
+          "rawSql": "SELECT COUNT(*) v FROM whodunit_sessions s\nWHERE s.last_seen BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  AND s.agent IN ($agent)"
         }
       ],
       "fieldConfig": {
@@ -334,7 +354,7 @@
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
         "x": 4,
-        "y": 22,
+        "y": 30,
         "w": 4,
         "h": 5
       },
@@ -342,7 +362,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT ROUND(AVG(s.tool_calls),1) v FROM whodunit_sessions s\nWHERE s.last_seen BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000"
+          "rawSql": "SELECT ROUND(AVG(s.tool_calls),1) v FROM whodunit_sessions s\nWHERE s.last_seen BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  AND s.agent IN ($agent)"
         }
       ],
       "fieldConfig": {
@@ -381,7 +401,7 @@
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
         "x": 8,
-        "y": 22,
+        "y": 30,
         "w": 4,
         "h": 5
       },
@@ -428,7 +448,7 @@
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
         "x": 12,
-        "y": 22,
+        "y": 30,
         "w": 4,
         "h": 5
       },
@@ -436,7 +456,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT SUM(s.mcp_calls) v FROM whodunit_sessions s\nWHERE s.last_seen BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000"
+          "rawSql": "SELECT SUM(s.mcp_calls) v FROM whodunit_sessions s\nWHERE s.last_seen BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  AND s.agent IN ($agent)"
         }
       ],
       "fieldConfig": {
@@ -474,7 +494,7 @@
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
         "x": 16,
-        "y": 22,
+        "y": 30,
         "w": 4,
         "h": 5
       },
@@ -482,7 +502,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT ROUND(SUM(e.outcome='accepted')*100.0/NULLIF(COUNT(*),0),1) v\nFROM whodunit_events e\nWHERE e.outcome <> '' AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000"
+          "rawSql": "SELECT ROUND(SUM(e.outcome='accepted')*100.0/NULLIF(COUNT(*),0),1) v\nFROM whodunit_events e\nWHERE e.outcome <> '' AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  AND e.agent IN ($agent)"
         }
       ],
       "fieldConfig": {
@@ -529,7 +549,7 @@
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
         "x": 20,
-        "y": 22,
+        "y": 30,
         "w": 4,
         "h": 5
       },
@@ -537,7 +557,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT COUNT(DISTINCT e.tool) v FROM whodunit_events e\nWHERE e.tool <> '' AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000"
+          "rawSql": "SELECT COUNT(DISTINCT e.tool) v FROM whodunit_events e\nWHERE e.tool <> '' AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  AND e.agent IN ($agent)"
         }
       ],
       "fieldConfig": {
@@ -574,7 +594,7 @@
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
         "x": 0,
-        "y": 27,
+        "y": 35,
         "w": 12,
         "h": 7
       },
@@ -582,7 +602,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT b AS `length`, COUNT(*) AS `sessions` FROM (\n  SELECT CASE\n    WHEN TIMESTAMPDIFF(MINUTE, FROM_UNIXTIME(first_seen/1000000000), FROM_UNIXTIME(last_seen/1000000000)) < 15 THEN '1. under 15m'\n    WHEN TIMESTAMPDIFF(MINUTE, FROM_UNIXTIME(first_seen/1000000000), FROM_UNIXTIME(last_seen/1000000000)) < 60 THEN '2. 15-60m'\n    WHEN TIMESTAMPDIFF(MINUTE, FROM_UNIXTIME(first_seen/1000000000), FROM_UNIXTIME(last_seen/1000000000)) < 240 THEN '3. 1-4h'\n    ELSE '4. over 4h' END AS b\n  FROM whodunit_sessions s\n  WHERE s.last_seen BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n) t GROUP BY b ORDER BY b"
+          "rawSql": "SELECT b AS `length`, COUNT(*) AS `sessions` FROM (\n  SELECT CASE\n    WHEN TIMESTAMPDIFF(MINUTE, FROM_UNIXTIME(first_seen/1000000000), FROM_UNIXTIME(last_seen/1000000000)) < 15 THEN '1. under 15m'\n    WHEN TIMESTAMPDIFF(MINUTE, FROM_UNIXTIME(first_seen/1000000000), FROM_UNIXTIME(last_seen/1000000000)) < 60 THEN '2. 15-60m'\n    WHEN TIMESTAMPDIFF(MINUTE, FROM_UNIXTIME(first_seen/1000000000), FROM_UNIXTIME(last_seen/1000000000)) < 240 THEN '3. 1-4h'\n    ELSE '4. over 4h' END AS b\n  FROM whodunit_sessions s\n  WHERE s.last_seen BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  AND s.agent IN ($agent)\n) t GROUP BY b ORDER BY b"
         }
       ],
       "fieldConfig": {
@@ -612,7 +632,7 @@
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
         "x": 12,
-        "y": 27,
+        "y": 35,
         "w": 12,
         "h": 7
       },
@@ -620,7 +640,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT CONCAT(s.agent, ' · #', LPAD(ROW_NUMBER() OVER (ORDER BY s.tool_calls DESC), 2, '0')) AS `session`,\n       s.tool_calls AS `tool calls`\nFROM whodunit_sessions s\nWHERE s.tool_calls > 0\n  AND s.last_seen BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nORDER BY s.tool_calls DESC LIMIT 10"
+          "rawSql": "SELECT CONCAT(s.agent, ' · #', LPAD(ROW_NUMBER() OVER (ORDER BY s.tool_calls DESC), 2, '0')) AS `session`,\n       s.tool_calls AS `tool calls`\nFROM whodunit_sessions s\nWHERE s.tool_calls > 0\n  AND s.last_seen BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  AND s.agent IN ($agent)\nORDER BY s.tool_calls DESC LIMIT 10"
         }
       ],
       "fieldConfig": {
@@ -642,6 +662,51 @@
         "xField": "session"
       },
       "description": "Ranked, not identified. The session column in the sidecar still holds the agent's own session id, which on Claude Code is the transcript filename — so it is deliberately not rendered here."
+    },
+    {
+      "id": 16,
+      "type": "table",
+      "title": "Agent comparison",
+      "datasource": "${DS_WHODUNIT}",
+      "gridPos": {
+        "x": 0,
+        "y": 21,
+        "w": 24,
+        "h": 7
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT a.agent AS `agent`,\n       COALESCE(s.sessions, 0)      AS `sessions`,\n       COALESCE(s.tool_calls, 0)    AS `tool calls`,\n       COALESCE(e.events, 0)        AS `file edits`,\n       COALESCE(e.`lines`, 0)         AS `lines written`,\n       COALESCE(c.commits, 0)       AS `commits`\nFROM (\n  SELECT DISTINCT agent FROM whodunit_sessions WHERE agent <> ''\n  UNION SELECT DISTINCT agent FROM whodunit_events WHERE agent <> ''\n) a\nLEFT JOIN (\n  SELECT agent, COUNT(*) sessions, SUM(tool_calls) tool_calls\n  FROM whodunit_sessions\n  WHERE last_seen BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  GROUP BY agent\n) s ON s.agent = a.agent\nLEFT JOIN (\n  SELECT agent, COUNT(*) events, SUM(lines_added + lines_removed) `lines`\n  FROM whodunit_events\n  WHERE observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  GROUP BY agent\n) e ON e.agent = a.agent\nLEFT JOIN (\n  SELECT agent, COUNT(*) commits FROM whodunit_commits\n  WHERE agent <> '' AND status = 'assisted'\n    AND committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  GROUP BY agent\n) c ON c.agent = a.agent\nORDER BY `file edits` DESC, `sessions` DESC"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "align": "right"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "agent"
+            },
+            "properties": [
+              {
+                "id": "custom.align",
+                "value": "left"
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true
+      },
+      "description": "Every agent this machine has seen, whether or not it produced anything. An agent with sessions but no edits is running and contributing nothing measurable — worth knowing, and invisible in a merged total."
     }
   ],
   "__inputs": [
