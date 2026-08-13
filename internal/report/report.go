@@ -42,6 +42,12 @@ type Stats struct {
 	MethodCount  map[spec.Method]int
 	PurposeCount map[purpose.Purpose]int
 	MonthlySpend float64
+
+	// HasBaseline says whether a pre-adoption snapshot exists for this
+	// repository. Set by the caller: this package reads git and the
+	// journal, and finding a baseline means knowing the whodunit home,
+	// which is the command layer's business.
+	HasBaseline bool
 }
 
 // Coverage returns the fraction of commits carrying a valid trailer.

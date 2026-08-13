@@ -45,6 +45,15 @@ func newReportCmd() *cobra.Command {
 				return err
 			}
 
+			// Whether a baseline exists decides if the report says a
+			// before/after comparison is unavailable. Only the command
+			// layer knows where baselines live.
+			if p, err := defaultBaselinePath(); err == nil {
+				if _, err := os.Stat(p); err == nil {
+					stats.HasBaseline = true
+				}
+			}
+
 			// The journal half is best-effort. A repository with nothing
 			// recorded still gets a report from its commit trailers, and
 			// the template says the journal is empty rather than showing

@@ -82,19 +82,26 @@ func renderExec(w *strings.Builder, stats Stats, act Activity) {
 				act.Outcomes["accepted"], decided))
 	}
 
-	if stats.MonthlySpend > 0 && stats.Assisted > 0 {
-		renderStatTile(w, "Cost per assisted commit",
-			fmt.Sprintf("$%.2f", stats.MonthlySpend/float64(stats.Assisted)),
-			"monthly spend divided by assisted commits — a rough proxy, not a unit cost")
+	// Per thousand lines rather than per commit. Cost per commit varies
+	// with how people split their commits, which is not a property of the
+	// agent; per single line it is fractions of a cent, where two decimals
+	// round distinct months together.
+	if cost, lines, ok := costPerThousandLines(stats, act); ok {
+		renderStatTile(w, "Cost per 1,000 lines", fmt.Sprintf("$%.2f", cost),
+			fmt.Sprintf("monthly spend over %d agent-written lines — a unit cost, "+
+				"not a saving", lines))
 	}
 
 	renderActivityTrend(w, act)
+	renderSurvival(w, stats)
 	renderMethodMixChart(w, stats)
 	renderPurposeBreakdown(w, stats)
+	renderUnavailable(w, unavailableFor(stats, act, stats.HasBaseline))
 }
 
 // renderAdoption answers who and what: agents, tools, sessions.
 func renderAdoption(w *strings.Builder, stats Stats, act Activity) {
+	renderIntensity(w, act)
 	if !act.Present {
 		renderNoJournal(w)
 		return
@@ -126,6 +133,7 @@ func renderDetail(w *strings.Builder, stats Stats, act Activity) {
 	} else {
 		renderNoJournal(w)
 	}
+	renderUnavailable(w, unavailableFor(stats, act, stats.HasBaseline))
 }
 
 // renderNoJournal says the journal is empty, rather than rendering zeros.
