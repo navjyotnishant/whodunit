@@ -128,9 +128,15 @@
       "options": {
         "xTickLabelRotation": 0,
         "legend": {
+          "showLegend": true,
           "displayMode": "list",
-          "placement": "bottom"
-        }
+          "placement": "bottom",
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "multi"
+        },
+        "xField": "hour"
       },
       "description": "Hours with no bar are hours nobody worked \u2014 not missing data."
     },
@@ -163,8 +169,12 @@
       "options": {
         "xTickLabelRotation": 0,
         "legend": {
-          "displayMode": "hidden"
-        }
+          "showLegend": false
+        },
+        "tooltip": {
+          "mode": "multi"
+        },
+        "xField": "day"
       },
       "description": "Weekday distribution. A flat weekend is normal; a flat Monday may be worth asking about."
     },
@@ -211,7 +221,20 @@
           }
         ]
       },
-      "description": "Volume of change, not value of it. A high-churn hour is a busy hour, not necessarily a productive one."
+      "description": "Volume of change, not value of it. A high-churn hour is a busy hour, not necessarily a productive one.",
+      "options": {
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
+        },
+        "xTickLabelRotation": 0,
+        "tooltip": {
+          "mode": "multi"
+        },
+        "xField": "hour"
+      }
     },
     {
       "id": 6,
@@ -577,8 +600,12 @@
       "options": {
         "xTickLabelRotation": 0,
         "legend": {
-          "displayMode": "hidden"
-        }
+          "showLegend": false
+        },
+        "tooltip": {
+          "mode": "multi"
+        },
+        "xField": "length"
       },
       "description": "Wall-clock first to last event. A session left open overnight inflates this \u2014 read it as span, not effort."
     },
@@ -611,8 +638,12 @@
       "options": {
         "xTickLabelRotation": -45,
         "legend": {
-          "displayMode": "hidden"
-        }
+          "showLegend": false
+        },
+        "tooltip": {
+          "mode": "multi"
+        },
+        "xField": "session"
       },
       "description": "Ranked, not identified. The session column in the sidecar still holds the agent's own session id, which on Claude Code is the transcript filename \u2014 so it is deliberately not rendered here."
     }
