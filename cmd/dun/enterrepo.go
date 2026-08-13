@@ -42,14 +42,7 @@ func enterRepo(repoFlag, name, verb string) (restore func(), err error) {
 		if inGitRepo("") {
 			return noop, nil
 		}
-		return noop, fmt.Errorf(
-			"not inside a git repository\n"+
-				"%s works on one repository, so it needs to know which:\n"+
-				"  %-26s %s a specific repository\n"+
-				"  %-26s the full path of every repository, ready to paste",
-			name,
-			"dun "+name+" --repo <path>", verb,
-			"dun repos list")
+		return noop, notInRepoError(name, verb)
 	}
 
 	// Resolve first: this reports a missing directory or a path that is not
@@ -67,4 +60,21 @@ func enterRepo(repoFlag, name, verb string) (restore func(), err error) {
 		return noop, fmt.Errorf("--repo %s: %w", repoFlag, err)
 	}
 	return func() { os.Chdir(prev) }, nil
+}
+
+// notInRepoError says what is missing and the two commands that resolve it.
+//
+// Deliberately not a list of every instrumented repository. That was tried
+// and reads as a wall on a machine with more than a handful — the reader
+// wants the shape of the fix, and `dun repos list` is one keystroke away
+// when they want the paths.
+func notInRepoError(name, verb string) error {
+	return fmt.Errorf(
+		"not inside a git repository\n"+
+			"%s works on one repository, so it needs to know which:\n"+
+			"  %-26s %s a specific repository\n"+
+			"  %-26s the full path of every repository, ready to paste",
+		name,
+		"dun "+name+" --repo <path>", verb,
+		"dun repos list")
 }
