@@ -5,6 +5,7 @@ import (
 	"io"
 	"time"
 
+	"github.com/navjyotnishant/whodunit/internal/config"
 	"github.com/navjyotnishant/whodunit/internal/journal"
 	"github.com/navjyotnishant/whodunit/internal/report"
 	"github.com/navjyotnishant/whodunit/internal/sidecar"
@@ -43,8 +44,25 @@ func newSyncCmd() *cobra.Command {
 }
 
 func runSync(cmd *cobra.Command, dsn string, limit int, dryRun bool) error {
+	// Fall back to the configured target, which is what the pre-push hook
+	// already uses. Without this the hook syncs on push while the command
+	// that exists to sync refuses to, and the advice it gave — pass --to —
+	// meant putting a password in a command line and therefore in shell
+	// history, undoing the point of storing it encrypted (NAV-80).
 	if dsn == "" && !dryRun {
-		return fmt.Errorf("--to is required (or use --dry-run to see what would be sent)")
+		cfg, err := config.Load()
+		if err != nil {
+			return err
+		}
+		if !cfg.Sync.Configured() {
+			return fmt.Errorf("no sync target: run `dun config datalake`, " +
+				"or pass --to (or --dry-run to see what would be sent)")
+		}
+		resolved, err := cfg.Sync.Resolve()
+		if err != nil {
+			return err
+		}
+		dsn = resolved
 	}
 
 	payload, err := buildPayload(limit)
