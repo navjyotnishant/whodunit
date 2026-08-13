@@ -48,6 +48,11 @@ const (
 	Good  Style = "\x1b[38;5;34m"
 	Muted Style = "\x1b[38;5;244m"
 
+	// Bad is for a genuine fault, distinct from Warn. A recovered panic and
+	// an unreadable transcript are both survivable, and reading as the same
+	// severity would bury the one worth acting on.
+	Bad Style = "\x1b[38;5;160m"
+
 	reset Style = "\x1b[0m"
 )
 

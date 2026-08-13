@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/navjyotnishant/whodunit/internal/config"
+	"github.com/navjyotnishant/whodunit/internal/hooklog"
 	"github.com/navjyotnishant/whodunit/internal/journal"
 	"github.com/spf13/cobra"
 )
@@ -90,6 +92,16 @@ func newJournalPurgeCmd() *cobra.Command {
 				return err
 			}
 			fmt.Fprintf(out, "purged %d entr%s for %s\n", n, plural(n), label)
+
+			// The hook log names repositories and what happened in them, so
+			// leaving it behind would make "purge removes what was
+			// recorded" false. Only this repository's lines go: the log is
+			// global, and purging one project must not erase another's.
+			if home, err := config.Dir(); err == nil {
+				if removed, err := hooklog.PurgeRepo(home, repoID); err == nil && removed > 0 {
+					fmt.Fprintf(out, "purged %d log entr%s\n", removed, plural(int64(removed)))
+				}
+			}
 			return nil
 		},
 	}

@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime/debug"
 	"strings"
 	"time"
 
@@ -14,9 +15,23 @@ import (
 	_ "github.com/navjyotnishant/whodunit/internal/adapter/claudecode"
 	_ "github.com/navjyotnishant/whodunit/internal/adapter/codex"
 	"github.com/navjyotnishant/whodunit/internal/attribution"
+	"github.com/navjyotnishant/whodunit/internal/hooklog"
 	"github.com/navjyotnishant/whodunit/internal/journal"
 	"github.com/navjyotnishant/whodunit/internal/spec"
 	"github.com/spf13/cobra"
+)
+
+// The hook names as git invokes them, and as they appear in the log.
+const (
+	hookPrepare = "prepare-commit-msg"
+	hookCommit  = "commit-msg"
+	hookPrePush = "pre-push"
+
+	// hookPanicProbe is not a git hook. git never invokes it, `dun init`
+	// never installs it, and it exists so the panic barrier has something
+	// to catch — a barrier no test can trigger is a barrier nobody knows
+	// is broken.
+	hookPanicProbe = "panic-probe"
 )
 
 func newHookCmd() *cobra.Command {
@@ -25,13 +40,38 @@ func newHookCmd() *cobra.Command {
 		Short:  "Internal: runs as a git hook (installed by dun init).",
 		Hidden: true,
 		Args:   cobra.MinimumNArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, args []string) (err error) {
+			// The panic barrier, at the one place every hook passes through.
+			//
+			// Go has no exceptions, and every error below is returned and
+			// handled explicitly — but a runtime panic is not an error. A
+			// nil map write, an index out of range or a bad type assertion
+			// anywhere in this path would take down the process mid-commit,
+			// and "a commit never fails because attribution failed" does not
+			// survive that.
+			//
+			// Recovering silently would be worse than crashing: it trades a
+			// visible failure for an invisible no-op. The panic and its
+			// stack go to the log, which is what makes recovery honest.
+			defer func() {
+				if r := recover(); r != nil {
+					logPanic(args[0], r, debug.Stack())
+					err = nil
+				}
+			}()
+
 			switch args[0] {
-			case "prepare-commit-msg":
+			case hookPanicProbe:
+				// Reachable only from the barrier's own test. Without a
+				// path that panics on demand, removing the recover() above
+				// breaks nothing and the barrier is untested — which is
+				// how it was written the first time.
+				panic("hook panic probe")
+			case hookPrepare:
 				return runPrepareCommitMsg(args[1:])
-			case "commit-msg":
+			case hookCommit:
 				return runCommitMsg(args[1:])
-			case "pre-push":
+			case hookPrePush:
 				// stderr, not stdout: git captures a pre-push hook's stdout
 				// rather than showing it, so a warning written there is
 				// invisible at exactly the moment someone needs to read it.
@@ -71,12 +111,21 @@ func determineTrailer() spec.Trailer {
 	now := time.Now()
 
 	staged, err := stagedFiles()
-	if err != nil || len(staged) == 0 {
+	if err != nil {
+		logHook(hookPrepare, hooklog.LevelWarn, "determine",
+			"undetermined: cannot list staged files: "+err.Error())
+		return spec.Undetermined()
+	}
+	if len(staged) == 0 {
+		logHook(hookPrepare, hooklog.LevelInfo, "determine",
+			"undetermined: no staged files")
 		return spec.Undetermined()
 	}
 
 	cwd, err := os.Getwd()
 	if err != nil {
+		logHook(hookPrepare, hooklog.LevelWarn, "determine",
+			"undetermined: cannot resolve the working directory: "+err.Error())
 		return spec.Undetermined()
 	}
 	// Journal entries carry absolute paths; git gives repo-relative ones.
@@ -96,23 +145,37 @@ func determineTrailer() spec.Trailer {
 	// Failure here is deliberately ignored: a full journal makes the
 	// attribution better, an empty one makes it weaker, and neither is a
 	// reason to fail someone's commit.
-	_, _, _ = ingestSince(since, func(string, error) {})
+	if _, _, err := ingestSince(since, func(path string, perr error) {
+		logHook(hookPrepare, hooklog.LevelWarn, "ingest",
+			"could not read a transcript: "+perr.Error()+" ("+filepath.Base(path)+")")
+	}); err != nil {
+		logHook(hookPrepare, hooklog.LevelWarn, "ingest", err.Error())
+	}
 
 	var entries []journal.Entry
 	for _, ad := range adapter.All() {
 		sessionPaths, err := ad.SessionFiles(cwd)
 		if err != nil {
-			continue // an agent we cannot look at is not evidence of absence
+			// An agent we cannot look at is not evidence of absence — but
+			// it is the difference between "no AI was used" and "we could
+			// not tell", which is the whole of NAV-21.
+			logHook(hookPrepare, hooklog.LevelWarn, "determine",
+				"cannot list "+ad.Name()+" sessions: "+err.Error())
+			continue
 		}
 		for _, p := range sessionPaths {
 			parsed, err := ad.ParseSince(p, since)
 			if err != nil {
+				logHook(hookPrepare, hooklog.LevelWarn, "determine",
+					"unreadable "+ad.Name()+" transcript "+filepath.Base(p)+": "+err.Error())
 				continue // one bad transcript doesn't block the whole determination
 			}
 			entries = append(entries, parsed...)
 		}
 	}
 	if len(entries) == 0 {
+		logHook(hookPrepare, hooklog.LevelInfo, "determine",
+			"undetermined: no agent activity found in the last 7 days")
 		return spec.Undetermined()
 	}
 
@@ -166,6 +229,13 @@ func determineTrailer() spec.Trailer {
 			trailer.Session = spec.SessionToken("", trailer.Session)
 		}
 	}
+
+	// The outcome, not just the failures. "Did the hook run at all" is one
+	// of the questions this log exists to answer, and a log that speaks
+	// only when something breaks cannot answer it.
+	logHook(hookPrepare, hooklog.LevelInfo, "determine",
+		fmt.Sprintf("%s via %s, %d staged file(s), %d agent line(s)",
+			trailer.Status, trailer.Method, len(staged), len(agentLines)))
 	return trailer
 }
 

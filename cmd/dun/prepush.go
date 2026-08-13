@@ -1,6 +1,6 @@
 // Author: Navjyot Nishant
 // Created: 2026-08-12
-// Last updated: 2026-08-12
+// Last updated: 2026-08-13
 // Description: The pre-push hook: publish the journal, never block the push.
 
 package main
@@ -10,6 +10,7 @@ import (
 	"io"
 
 	"github.com/navjyotnishant/whodunit/internal/config"
+	"github.com/navjyotnishant/whodunit/internal/hooklog"
 	"github.com/navjyotnishant/whodunit/internal/sidecar"
 	"github.com/navjyotnishant/whodunit/internal/termcolor"
 )
@@ -27,7 +28,16 @@ import (
 // including the warning below that they would actually want to read.
 func runPrePush(w io.Writer) error {
 	cfg, err := config.Load()
-	if err != nil || !cfg.Sync.Configured() || !cfg.Sync.OnPush {
+	if err != nil {
+		// An unreadable config means sync silently never runs. Printing
+		// would break the silence contract above, so it goes to the log —
+		// which is the difference between "sync is off" and "sync is
+		// broken", indistinguishable at the terminal either way.
+		logHook(hookPrePush, hooklog.LevelWarn, "sync",
+			"cannot read the config, so nothing was published: "+err.Error())
+		return nil
+	}
+	if !cfg.Sync.Configured() || !cfg.Sync.OnPush {
 		return nil
 	}
 
@@ -39,6 +49,11 @@ func runPrePush(w io.Writer) error {
 		fmt.Fprintf(w, "%s %v\n", c.S(termcolor.Warn, "whodunit: sync failed:"), err)
 		fmt.Fprintf(w, "%s\n", c.S(termcolor.Muted,
 			"whodunit: your work is still recorded locally and will sync next time"))
+
+		// Logged as well as printed. The terminal line scrolls past during
+		// a push and is gone; "did the push sync, and what did it send" is
+		// asked later, when only the log is left.
+		logHook(hookPrePush, hooklog.LevelWarn, "sync", err.Error())
 	}
 	return nil
 }
@@ -77,6 +92,10 @@ func syncNow(sync *config.SyncConfig, w io.Writer) error {
 	fmt.Fprintf(w, "%s %d commit(s), %d event(s), %d session(s)\n",
 		c.S(termcolor.Muted, "whodunit: synced"),
 		counts.Commits, counts.Events, counts.Sessions)
+
+	logHook(hookPrePush, hooklog.LevelInfo, "sync",
+		fmt.Sprintf("published %d commit(s), %d event(s), %d session(s)",
+			counts.Commits, counts.Events, counts.Sessions))
 	return nil
 }
 
