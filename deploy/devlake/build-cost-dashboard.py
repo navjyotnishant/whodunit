@@ -314,7 +314,31 @@ WHERE s.duration_ms IS NOT NULL AND {CONTRIBUTOR}""",
     options=STAT))
 
 panels.append(panel(
-    133, "Reasoning effort", "piechart", 18, SHAPE_Y, 6, 4,
+    134, "Sessions that compacted", "stat", 18, SHAPE_Y, 3, 4,
+    f"""SELECT ROUND(100.0 * SUM(CASE WHEN s.compactions > 0 THEN 1 ELSE 0 END)
+  / NULLIF(COUNT(*), 0), 0) AS v
+FROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id
+WHERE s.compactions IS NOT NULL AND {CONTRIBUTOR}""",
+    unit="percent", decimals=0, novalue="no agent reported compaction",
+    description=(
+        "Share of sessions whose context was compacted at least once "
+        "(NAV-106).\n\n"
+        "**Read this beside the context the sessions were running at.** A "
+        "long session costs more even when cached, because the whole context "
+        "is re-sent every turn — and compacting is the one thing a person "
+        "can do about it. Measured on this machine, 92% of turns ran above "
+        "150k context while a small fraction of sessions ever compacted.\n\n"
+        "Low is not automatically bad: a short session has nothing to "
+        "compact. It is the combination of high context and a low rate that "
+        "is worth acting on.\n\n"
+        "The denominator counts only sessions from agents that report the "
+        "signal at all. Antigravity has no equivalent and is excluded rather "
+        "than counted as never compacting."),
+    thresholds=traffic(bad_below=10, ok_above=25),
+    options=STAT))
+
+panels.append(panel(
+    133, "Reasoning effort", "piechart", 21, SHAPE_Y, 3, 4,
     f"""SELECT s.effort AS metric, COUNT(*) AS value
 FROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id
 WHERE s.effort IS NOT NULL AND {CONTRIBUTOR}

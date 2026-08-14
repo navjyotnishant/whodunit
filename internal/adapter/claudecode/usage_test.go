@@ -331,3 +331,88 @@ func writeUsageTranscript(t *testing.T, lines ...map[string]any) string {
 	}
 	return path
 }
+
+// A compact boundary is a system record, not a message (NAV-106).
+func TestCompactBoundariesAreCounted(t *testing.T) {
+	ts := time.Now().UTC().Add(-time.Hour)
+	s := oneSession(t, writeUsageTranscript(t,
+		assistantTurn(ts, "s1", "m1", "claude-opus-5", 100, 20, 0, 0),
+		map[string]any{
+			"type": "system", "subtype": "compact_boundary",
+			"timestamp": ts, "sessionId": "s1", "version": "2.1.0",
+			"compactMetadata": map[string]any{
+				"trigger": "auto", "preTokens": 1001406, "postTokens": 44268,
+			},
+		},
+		map[string]any{
+			"type": "system", "subtype": "compact_boundary",
+			"timestamp": ts, "sessionId": "s1", "version": "2.1.0",
+			"compactMetadata": map[string]any{"trigger": "manual"},
+		},
+	))
+
+	if s.Compactions == nil {
+		t.Fatal("Compactions is nil despite two boundaries")
+	}
+	if *s.Compactions != 2 {
+		t.Errorf("Compactions = %d, want 2", *s.Compactions)
+	}
+}
+
+// A session that never compacted reports ZERO, not nil — and this is the
+// one nullable field on the struct where that is correct.
+//
+// The distinction NAV-21 protects is "measured as nothing" against "could
+// not measure". For tokens the second is real: an agent that does not
+// report usage leaves nothing to read. For compactions it is not — the
+// transcript parsed, every record was examined, and no boundary was
+// present. That is a measurement.
+//
+// Reporting nil would make the compact rate uncomputable, because the
+// denominator (sessions that could have compacted) would be empty.
+// Measured on 1,856 real transcripts here, 14 compacted and the rest are
+// genuine zeroes.
+func TestASessionThatNeverCompactedReportsZeroNotNil(t *testing.T) {
+	ts := time.Now().UTC().Add(-time.Hour)
+	s := oneSession(t, writeUsageTranscript(t,
+		assistantTurn(ts, "s1", "m1", "claude-opus-5", 100, 20, 0, 0),
+	))
+
+	if s.Compactions == nil {
+		t.Fatal("Compactions is nil for a readable session with no boundary; " +
+			"the compact rate cannot be computed without a denominator")
+	}
+	if *s.Compactions != 0 {
+		t.Errorf("Compactions = %d, want 0", *s.Compactions)
+	}
+}
+
+// compactMetadata carries preCompactDiscoveredTools — every tool name in
+// the session — and a slug derived from the conversation. Neither is
+// declared on the struct, so neither can reach an entry (NAV-25).
+func TestCompactMetadataContentDoesNotReachTheSession(t *testing.T) {
+	const secret = "SENTINEL-compact-metadata-must-not-be-stored"
+
+	ts := time.Now().UTC().Add(-time.Hour)
+	s := oneSession(t, writeUsageTranscript(t, map[string]any{
+		"type": "system", "subtype": "compact_boundary",
+		"timestamp": ts, "sessionId": "s1", "version": "2.1.0",
+		"slug": secret,
+		"compactMetadata": map[string]any{
+			"trigger":                   "auto",
+			"preCompactDiscoveredTools": []any{secret},
+			"preservedMessages":         map[string]any{"uuids": []any{secret}},
+		},
+	}))
+
+	rendered, err := json.Marshal(s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(rendered), secret) {
+		t.Errorf("compact metadata content reached the session (NAV-25):\n%s", rendered)
+	}
+	if s.Compactions == nil || *s.Compactions != 1 {
+		t.Error("the boundary itself was not counted; the test passes vacuously")
+	}
+}

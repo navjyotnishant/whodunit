@@ -90,6 +90,15 @@ func readEventMsg(s *journal.Session, payload json.RawMessage) {
 		// cache-efficiency panel would compute an amortisation ratio
 		// against a denominator that was never measured (NAV-21).
 
+	case "context_compacted":
+		// Codex's equivalent of a compact boundary. Counted rather than
+		// overwritten, unlike the token totals above — each record is one
+		// compaction, not a running total (NAV-106).
+		if s.Compactions == nil {
+			s.Compactions = int64p(0)
+		}
+		*s.Compactions++
+
 	case "task_complete":
 		// The only agent of the three that records timing at all. Assigned
 		// only when present, so a rollout without it leaves nil rather

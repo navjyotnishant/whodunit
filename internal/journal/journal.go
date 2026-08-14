@@ -173,6 +173,7 @@ CREATE TABLE IF NOT EXISTS sessions (
 	effort                 TEXT,
 	permission_mode        TEXT,
 	model                  TEXT,
+	compactions            INTEGER,
 
 	PRIMARY KEY (repo_id, session)
 );
@@ -242,6 +243,10 @@ var migrations = []string{
 	// The model that produced the session. On entries as well because a
 	// session can change model mid-way, and cost is attributed per turn.
 	`ALTER TABLE sessions ADD COLUMN model TEXT`,
+
+	// NAV-106. How often the session's context was compacted — nil where
+	// the agent does not report it, which is agy.
+	`ALTER TABLE sessions ADD COLUMN compactions INTEGER`,
 }
 
 // DBPath returns the journal database location inside the given data
@@ -375,6 +380,19 @@ type Session struct {
 	Effort         string
 	PermissionMode string
 
+	// Compactions is how many times the session's context was compacted
+	// (NAV-106).
+	//
+	// The signal an efficiency panel needs most: a long session costs more
+	// even when cached, because the whole context is re-sent every turn,
+	// and compacting is the thing a team can actually do about it.
+	// Measured on this machine, 92% of turns ran above 150k context while
+	// only 4 of 60 sessions ever compacted.
+	//
+	// nil for agy, which has no equivalent — and zero compactions is a
+	// different claim from "this agent cannot tell us" (NAV-21).
+	Compactions *int64
+
 	// The model that produced the session. A session can change model
 	// part-way through; this records the last one seen, which is what the
 	// turn that finished the work used.
@@ -411,8 +429,8 @@ func (w *Writer) UpsertSession(s Session) error {
 		   user_messages, agent_messages, tool_calls, distinct_tools, mcp_calls,
 		   input_tokens, output_tokens, cache_read_tokens, cache_write_tokens,
 		   reasoning_tokens, duration_ms, time_to_first_token_ms,
-		   effort, permission_mode, model)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		   effort, permission_mode, model, compactions)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		 ON CONFLICT(repo_id, session) DO UPDATE SET
 		   agent_version=excluded.agent_version, last_seen=excluded.last_seen,
 		   user_messages=excluded.user_messages, agent_messages=excluded.agent_messages,
@@ -427,13 +445,15 @@ func (w *Writer) UpsertSession(s Session) error {
 		   time_to_first_token_ms=COALESCE(excluded.time_to_first_token_ms, sessions.time_to_first_token_ms),
 		   effort=COALESCE(excluded.effort, sessions.effort),
 		   permission_mode=COALESCE(excluded.permission_mode, sessions.permission_mode),
-		   model=COALESCE(excluded.model, sessions.model)`,
+		   model=COALESCE(excluded.model, sessions.model),
+		   compactions=COALESCE(excluded.compactions, sessions.compactions)`,
 		w.repoID, s.Session, s.Agent, s.AgentVersion,
 		s.FirstSeen.UnixNano(), s.LastSeen.UnixNano(),
 		s.UserMessages, s.AgentMessages, s.ToolCalls, s.DistinctTools, s.MCPCalls,
 		s.InputTokens, s.OutputTokens, s.CacheReadTokens, s.CacheWriteTokens,
 		s.ReasoningTokens, s.DurationMS, s.TimeToFirstTokenMS,
-		nullString(s.Effort), nullString(s.PermissionMode), nullString(s.Model))
+		nullString(s.Effort), nullString(s.PermissionMode), nullString(s.Model),
+		s.Compactions)
 	if err != nil {
 		return fmt.Errorf("journal: upsert session: %w", err)
 	}
@@ -471,7 +491,7 @@ func ReadSessions(dataDir, repoID string) ([]Session, error) {
 		        user_messages, agent_messages, tool_calls, distinct_tools, mcp_calls,
 		        input_tokens, output_tokens, cache_read_tokens, cache_write_tokens,
 		        reasoning_tokens, duration_ms, time_to_first_token_ms,
-		        effort, permission_mode, model
+		        effort, permission_mode, model, compactions
 		 FROM sessions WHERE repo_id = ? ORDER BY first_seen`, repoID)
 	if err != nil {
 		return nil, fmt.Errorf("journal: query sessions: %w", err)
@@ -488,13 +508,13 @@ func ReadSessions(dataDir, repoID string) ([]Session, error) {
 		// would give a non-nil pointer to zero, and the distinction
 		// between "reported nothing" and "reported zero" would be lost at
 		// the last step after being preserved everywhere else (NAV-21).
-		var in, outTok, cacheR, cacheW, reasoning, dur, ttft sql.NullInt64
+		var in, outTok, cacheR, cacheW, reasoning, dur, ttft, compactions sql.NullInt64
 		var effort, permission, model sql.NullString
 
 		if err := rows.Scan(&s.Session, &s.Agent, &s.AgentVersion, &first, &last,
 			&s.UserMessages, &s.AgentMessages, &s.ToolCalls, &s.DistinctTools, &s.MCPCalls,
 			&in, &outTok, &cacheR, &cacheW, &reasoning, &dur, &ttft,
-			&effort, &permission, &model); err != nil {
+			&effort, &permission, &model, &compactions); err != nil {
 			return nil, fmt.Errorf("journal: scan session: %w", err)
 		}
 		s.FirstSeen = time.Unix(0, first).UTC()
@@ -507,6 +527,7 @@ func ReadSessions(dataDir, repoID string) ([]Session, error) {
 		s.ReasoningTokens = nullInt(reasoning)
 		s.DurationMS = nullInt(dur)
 		s.TimeToFirstTokenMS = nullInt(ttft)
+		s.Compactions = nullInt(compactions)
 		s.Effort = effort.String
 		s.PermissionMode = permission.String
 		s.Model = model.String

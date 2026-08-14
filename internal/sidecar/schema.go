@@ -179,6 +179,7 @@ CREATE TABLE IF NOT EXISTS whodunit_sessions (
 	effort                 VARCHAR(16),
 	permission_mode        VARCHAR(32),
 	model                  VARCHAR(64),
+	compactions            BIGINT,
 
 	PRIMARY KEY (repo_id, session)
 );
@@ -259,6 +260,10 @@ var Migrations = []string{
 	`ALTER TABLE whodunit_sessions ADD COLUMN effort VARCHAR(16)`,
 	`ALTER TABLE whodunit_sessions ADD COLUMN permission_mode VARCHAR(32)`,
 	`ALTER TABLE whodunit_sessions ADD COLUMN model VARCHAR(64)`,
+
+	// NAV-106. Compactions per session — NULL for agy, which has no
+	// equivalent signal.
+	`ALTER TABLE whodunit_sessions ADD COLUMN compactions BIGINT`,
 }
 
 var Indexes = []string{

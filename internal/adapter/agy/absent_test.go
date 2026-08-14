@@ -99,3 +99,28 @@ func TestAgyMessageCountsAreZeroByConstruction(t *testing.T) {
 			s.UserMessages, s.AgentMessages)
 	}
 }
+
+// agy has no compaction signal of any kind, so it stays nil (NAV-106).
+//
+// This is the case where nil is right and zero would be wrong — the
+// inverse of the other two adapters. There, a parsed transcript with no
+// boundary is a measured zero. Here there is nothing to measure at all:
+// agy records no context management, so reporting 0 would assert that agy
+// sessions never compact, when the truth is that we cannot see whether
+// they do.
+func TestAgyReportsNoCompactions(t *testing.T) {
+	sessions, err := ParseSessionActivity(fixture, time.Time{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(sessions) == 0 {
+		t.Fatal("no sessions")
+	}
+	for _, s := range sessions {
+		if s.Compactions != nil {
+			t.Errorf("Compactions = %d, want nil — agy records no context "+
+				"management, so a zero would claim its sessions never compact "+
+				"when we simply cannot see (NAV-21)", *s.Compactions)
+		}
+	}
+}

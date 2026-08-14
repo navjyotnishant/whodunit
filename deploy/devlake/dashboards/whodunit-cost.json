@@ -485,14 +485,70 @@
       }
     },
     {
+      "id": 134,
+      "title": "Sessions that compacted",
+      "type": "stat",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "x": 18,
+        "y": 5,
+        "w": 3,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT ROUND(100.0 * SUM(CASE WHEN s.compactions > 0 THEN 1 ELSE 0 END)\n  / NULLIF(COUNT(*), 0), 0) AS v\nFROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id\nWHERE s.compactions IS NOT NULL AND ('$contributor' = '__all__' OR r.contributor = '$contributor')"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 0,
+          "noValue": "no agent reported compaction",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 10
+              },
+              {
+                "color": "green",
+                "value": 25
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "description": "Share of sessions whose context was compacted at least once (NAV-106).\n\n**Read this beside the context the sessions were running at.** A long session costs more even when cached, because the whole context is re-sent every turn \u2014 and compacting is the one thing a person can do about it. Measured on this machine, 92% of turns ran above 150k context while a small fraction of sessions ever compacted.\n\nLow is not automatically bad: a short session has nothing to compact. It is the combination of high context and a low rate that is worth acting on.\n\nThe denominator counts only sessions from agents that report the signal at all. Antigravity has no equivalent and is excluded rather than counted as never compacting.",
+      "options": {
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
       "id": 133,
       "title": "Reasoning effort",
       "type": "piechart",
       "datasource": "${datasource}",
       "gridPos": {
-        "x": 18,
+        "x": 21,
         "y": 5,
-        "w": 6,
+        "w": 3,
         "h": 4
       },
       "targets": [

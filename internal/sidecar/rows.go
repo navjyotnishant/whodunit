@@ -106,6 +106,10 @@ type SessionRow struct {
 	Effort         string
 	PermissionMode string
 	Model          string
+
+	// How many times the session's context was compacted (NAV-106). nil
+	// for agy, which does not report it.
+	Compactions *int64
 }
 
 // LineRow is one row of whodunit_event_lines.
@@ -229,6 +233,7 @@ func SessionRowsFrom(sessions []journal.Session, repoID string, syncedAt time.Ti
 			ReasoningTokens: s.ReasoningTokens, DurationMS: s.DurationMS,
 			TimeToFirstTokenMS: s.TimeToFirstTokenMS,
 			Effort:             s.Effort, PermissionMode: s.PermissionMode, Model: s.Model,
+			Compactions: s.Compactions,
 		})
 	}
 	return rows

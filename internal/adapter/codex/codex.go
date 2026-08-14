@@ -559,6 +559,16 @@ func ParseSessionActivity(path string, since time.Time) ([]journal.Session, erro
 	}
 
 	s.DistinctTools = len(tools)
+
+	// Zero when the rollout parsed and carried no compaction, rather than
+	// nil. The rollout was read end to end, so the absence is a
+	// measurement — the same reasoning as the Claude Code adapter, and
+	// unlike the token fields, where an agent that does not report usage
+	// leaves genuinely nothing to read.
+	if s.Compactions == nil {
+		s.Compactions = int64p(0)
+	}
+
 	return []journal.Session{s}, nil
 }
 

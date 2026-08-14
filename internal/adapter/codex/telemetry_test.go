@@ -621,3 +621,44 @@ func TestMCPServerOf(t *testing.T) {
 		}
 	}
 }
+
+// Codex's compaction record is event_msg / context_compacted (NAV-106).
+//
+// Counted rather than overwritten, unlike the token totals in the same
+// handler — each record is one compaction, not a running total. Getting
+// that backwards here would report every session as having compacted
+// exactly once.
+func TestContextCompactedIsCounted(t *testing.T) {
+	ts := time.Now().UTC().Add(-time.Hour)
+	s := parseOne(t, writeRollout2(t, []map[string]any{
+		{"timestamp": ts, "type": "session_meta", "payload": map[string]any{
+			"id": "s1", "cwd": "/repo", "cli_version": "1.0.0",
+		}},
+		{"timestamp": ts, "type": "event_msg", "payload": map[string]any{
+			"type": "context_compacted",
+		}},
+		{"timestamp": ts, "type": "event_msg", "payload": map[string]any{
+			"type": "context_compacted",
+		}},
+	}), ts.Add(-time.Minute))
+
+	assertInt64(t, "Compactions", s.Compactions, 2)
+}
+
+// A rollout that parsed and carried no compaction reports zero, not nil —
+// the same reasoning as the Claude Code adapter. The rollout was read end
+// to end, so the absence is a measurement rather than a gap, and a nil
+// would leave the compact rate without a denominator.
+func TestARolloutWithNoCompactionReportsZero(t *testing.T) {
+	ts := time.Now().UTC().Add(-time.Hour)
+	s := parseOne(t, writeRollout2(t, []map[string]any{
+		{"timestamp": ts, "type": "session_meta", "payload": map[string]any{
+			"id": "s1", "cwd": "/repo", "cli_version": "1.0.0",
+		}},
+		{"timestamp": ts, "type": "response_item", "payload": map[string]any{
+			"type": "function_call", "name": "shell",
+		}},
+	}), ts.Add(-time.Minute))
+
+	assertInt64(t, "Compactions", s.Compactions, 0)
+}

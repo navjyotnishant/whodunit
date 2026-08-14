@@ -2,6 +2,7 @@ package sidecar
 
 import (
 	"database/sql"
+	"reflect"
 	"testing"
 	"time"
 
@@ -356,4 +357,69 @@ func TestAnAgentWithNoBranchStoresNull(t *testing.T) {
 	if userModified.Valid {
 		t.Errorf("user_modified = %v, want NULL — agy has no such signal", userModified.Bool)
 	}
+}
+
+// Every measured field on journal.Session must actually be copied by
+// SessionRowsFrom.
+//
+// The failure this catches is silent in a specific way: the column is
+// nullable, the row struct has the field, and the mapper simply never
+// fills it. Nothing errors — the sync writes NULL and the panel renders
+// empty, which is indistinguishable from an agent that does not report it.
+// That happened to `compactions`, and was only found by checking MySQL
+// after a real sync.
+//
+// Reflection rather than a hand-written list, because a hand-written list
+// is the same kind of thing that was forgotten in the first place.
+func TestEveryMeasuredSessionFieldReachesTheRow(t *testing.T) {
+	now := time.Now().UTC()
+
+	// A session with every pointer field distinctly non-nil, so a dropped
+	// field shows up as a nil rather than as a coincidentally equal value.
+	src := journal.Session{
+		Session: "s1", Agent: "claude-code", FirstSeen: now, LastSeen: now,
+		InputTokens: i64(1), OutputTokens: i64(2),
+		CacheReadTokens: i64(3), CacheWriteTokens: i64(4),
+		ReasoningTokens: i64(5), DurationMS: i64(6), TimeToFirstTokenMS: i64(7),
+		Compactions: i64(8),
+		Effort:      "high", PermissionMode: "auto", Model: "claude-opus-5",
+	}
+
+	rows := SessionRowsFrom([]journal.Session{src}, "repo-1", now)
+	if len(rows) != 1 {
+		t.Fatalf("got %d rows, want 1", len(rows))
+	}
+	row := rows[0]
+
+	srcVal := reflect.ValueOf(src)
+	rowVal := reflect.ValueOf(row)
+	srcType := srcVal.Type()
+
+	for i := 0; i < srcType.NumField(); i++ {
+		name := srcType.Field(i).Name
+		rowField := rowVal.FieldByName(name)
+		if !rowField.IsValid() {
+			continue // not carried to the sidecar at all, deliberately
+		}
+		src := srcVal.Field(i)
+		if src.Kind() == reflect.Ptr && src.IsNil() {
+			continue
+		}
+		if !reflect.DeepEqual(src.Interface(), rowField.Interface()) {
+			t.Errorf("SessionRowsFrom drops %s: source %v, row %v — the column is "+
+				"nullable so this writes NULL silently, and an empty panel then "+
+				"looks like an agent that does not report it",
+				name, deref(src), deref(rowField))
+		}
+	}
+}
+
+func deref(v reflect.Value) any {
+	if v.Kind() == reflect.Ptr {
+		if v.IsNil() {
+			return nil
+		}
+		return v.Elem().Interface()
+	}
+	return v.Interface()
 }

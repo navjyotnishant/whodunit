@@ -181,7 +181,8 @@ func WriteProgress(db *Store, p Payload, onRow func(done, total int)) (Counts, e
 			s.MCPCalls, s.SyncedAt.UnixNano(),
 			s.InputTokens, s.OutputTokens, s.CacheReadTokens, s.CacheWriteTokens,
 			s.ReasoningTokens, s.DurationMS, s.TimeToFirstTokenMS,
-			nullString(s.Effort), nullString(s.PermissionMode), nullString(s.Model)); err != nil {
+			nullString(s.Effort), nullString(s.PermissionMode), nullString(s.Model),
+			s.Compactions); err != nil {
 			return counts, fmt.Errorf("write session: %w", err)
 		}
 		counts.Sessions++
@@ -311,8 +312,8 @@ func upsertSession(mysql bool) string {
 		 user_messages, agent_messages, tool_calls, distinct_tools, mcp_calls, synced_at,
 		 input_tokens, output_tokens, cache_read_tokens, cache_write_tokens,
 		 reasoning_tokens, duration_ms, time_to_first_token_ms,
-		 effort, permission_mode, model)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+		 effort, permission_mode, model, compactions)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 	if mysql {
 		return cols + ` ON DUPLICATE KEY UPDATE
 			last_seen=VALUES(last_seen), user_messages=VALUES(user_messages),
@@ -328,7 +329,8 @@ func upsertSession(mysql bool) string {
 			time_to_first_token_ms=COALESCE(VALUES(time_to_first_token_ms), time_to_first_token_ms),
 			effort=COALESCE(VALUES(effort), effort),
 			permission_mode=COALESCE(VALUES(permission_mode), permission_mode),
-			model=COALESCE(VALUES(model), model)`
+			model=COALESCE(VALUES(model), model),
+			compactions=COALESCE(VALUES(compactions), compactions)`
 	}
 	return cols + ` ON CONFLICT(repo_id, session) DO UPDATE SET
 		last_seen=excluded.last_seen, user_messages=excluded.user_messages,
@@ -344,7 +346,8 @@ func upsertSession(mysql bool) string {
 		time_to_first_token_ms=COALESCE(excluded.time_to_first_token_ms, whodunit_sessions.time_to_first_token_ms),
 		effort=COALESCE(excluded.effort, whodunit_sessions.effort),
 		permission_mode=COALESCE(excluded.permission_mode, whodunit_sessions.permission_mode),
-		model=COALESCE(excluded.model, whodunit_sessions.model)`
+		model=COALESCE(excluded.model, whodunit_sessions.model),
+		compactions=COALESCE(excluded.compactions, whodunit_sessions.compactions)`
 }
 
 func upsertLine(mysql bool) string {

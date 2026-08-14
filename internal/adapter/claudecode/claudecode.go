@@ -118,6 +118,25 @@ type record struct {
 	Effort         string `json:"effort"`
 	PermissionMode string `json:"permissionMode"`
 
+	// Subtype distinguishes the system records. compact_boundary is the
+	// one this reads (NAV-106).
+	Subtype string `json:"subtype"`
+
+	// CompactMetadata rides on a compact_boundary record and carries far
+	// more than is taken from it: preCompactDiscoveredTools lists every
+	// tool name in the session, and slug is a human-readable label derived
+	// from the conversation. Only the trigger and the two token counts are
+	// declared here, so the rest is never unmarshalled at all (NAV-25).
+	CompactMetadata *struct {
+		// "auto" when the agent compacted because it had to, "manual"
+		// when a human ran /compact. The distinction is the whole point:
+		// an auto compaction is the tool coping, a manual one is someone
+		// managing their context deliberately.
+		Trigger    string `json:"trigger"`
+		PreTokens  int64  `json:"preTokens"`
+		PostTokens int64  `json:"postTokens"`
+	} `json:"compactMetadata"`
+
 	// The branch the work landed on. 112 distinct values across the
 	// corpus on this machine, of which "HEAD" is 8% — a detached head,
 	// which is a real state rather than a missing value, so it is stored
@@ -395,6 +414,11 @@ func ParseSessionActivity(path string, since time.Time) ([]journal.Session, erro
 		s     journal.Session
 		tools map[string]bool
 
+		// Compactions counted for this session, and how many were manual
+		// rather than forced.
+		compactions int64
+		manual      int64
+
 		// Assistant message ids already counted. One message is written as
 		// several records — one per content block — each repeating the
 		// same id, model and usage. Measured on the largest transcript on
@@ -437,6 +461,16 @@ func ParseSessionActivity(path string, since time.Time) ([]journal.Session, erro
 		}
 		if r.Timestamp.After(a.s.LastSeen) {
 			a.s.LastSeen = r.Timestamp
+		}
+
+		// A compact boundary is a system record, not a message, so it is
+		// handled before the message switch rather than inside it.
+		if r.Type == "system" && r.Subtype == "compact_boundary" {
+			a.compactions++
+			if m := r.CompactMetadata; m != nil && m.Trigger == "manual" {
+				a.manual++
+			}
+			continue
 		}
 
 		switch r.Type {
@@ -521,6 +555,21 @@ func ParseSessionActivity(path string, since time.Time) ([]journal.Session, erro
 		// practice this is always taken — but a session with no assistant
 		// turns at all (a transcript that opens and is abandoned) must not
 		// claim it cost nothing (NAV-21).
+		// Always assigned, including zero — and that is the right call
+		// here, unlike every other nullable field on this struct.
+		//
+		// The distinction NAV-21 protects is "measured as nothing" versus
+		// "could not measure". For tokens the second is real: an agent
+		// that does not report usage leaves nothing to read. For
+		// compactions it is not: the transcript parsed, every record was
+		// examined, and no boundary was present. That IS zero.
+		//
+		// Reporting nil instead would make the compact rate uncomputable,
+		// because the denominator — sessions that could have compacted —
+		// would be empty. Measured on 400 transcripts here, 2 compacted;
+		// the other 398 are zeroes, not unknowns.
+		a.s.Compactions = int64p(a.compactions)
+
 		if a.anyTokens {
 			a.s.InputTokens = int64p(a.tokens.InputTokens)
 			a.s.OutputTokens = int64p(a.tokens.OutputTokens)
