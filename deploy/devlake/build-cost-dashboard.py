@@ -41,6 +41,11 @@ import os
 
 # Timestamps are stored as Unix nanoseconds, so every date comparison
 # multiplies out. Named once rather than repeated in fifteen queries.
+# Grafana's "short" unit spells magnitudes as Bil/Mil/K. "sishort" gives
+# B/M/k, which is what people read a token count in — and it keeps the
+# tiles narrow enough that six fit across a row.
+TOKEN_UNIT = "sishort"
+
 NS = "* 1000000000"
 CONTRIBUTOR = "('$contributor' = '__all__' OR r.contributor = '$contributor')"
 
@@ -51,14 +56,14 @@ BREAK_EVEN = 1.25
 
 def panel(pid, title, ptype, x, y, w, h, sql, *, unit=None, decimals=None,
           novalue=None, description=None, options=None, overrides=None,
-          thresholds=None, minval=None):
+          thresholds=None, minval=None, fmt="table"):
     p = {
         "id": pid,
         "title": title,
         "type": ptype,
         "datasource": "${datasource}",
         "gridPos": {"x": x, "y": y, "w": w, "h": h},
-        "targets": [{"refId": "A", "format": "table", "rawSql": sql}],
+        "targets": [{"refId": "A", "format": fmt, "rawSql": sql}],
         "fieldConfig": {"defaults": {}, "overrides": overrides or []},
     }
     if description:
@@ -99,7 +104,7 @@ panels.append(panel(
        + COALESCE(s.cache_read_tokens,0) + COALESCE(s.cache_write_tokens,0)), 0) AS v
 FROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id
 WHERE s.input_tokens IS NOT NULL AND {CONTRIBUTOR}""",
-    unit="short", decimals=1, novalue="no session reported tokens",
+    unit=TOKEN_UNIT, decimals=1, novalue="no session reported tokens",
     description=(
         "Every token billed: uncached input + cache reads + cache writes + "
         "output.\n\n"
@@ -118,7 +123,7 @@ panels.append(panel(
     f"""SELECT COALESCE(SUM(s.output_tokens), 0) AS v
 FROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id
 WHERE s.output_tokens IS NOT NULL AND {CONTRIBUTOR}""",
-    unit="short", decimals=1, novalue="not reported",
+    unit=TOKEN_UNIT, decimals=1, novalue="not reported",
     description=(
         "What the models actually produced, as opposed to what was re-sent "
         "to them.\n\n"
@@ -133,7 +138,7 @@ panels.append(panel(
     f"""SELECT COALESCE(SUM(s.input_tokens), 0) AS v
 FROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id
 WHERE s.input_tokens IS NOT NULL AND {CONTRIBUTOR}""",
-    unit="short", decimals=1, novalue="not reported",
+    unit=TOKEN_UNIT, decimals=1, novalue="not reported",
     description=(
         "Input the model had to read fresh, at full price.\n\n"
         "This is the figure a cache is meant to shrink. It was missing from "
@@ -146,7 +151,7 @@ panels.append(panel(
     f"""SELECT COALESCE(SUM(s.cache_read_tokens), 0) AS v
 FROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id
 WHERE s.cache_read_tokens IS NOT NULL AND {CONTRIBUTOR}""",
-    unit="short", decimals=1, novalue="not reported",
+    unit=TOKEN_UNIT, decimals=1, novalue="not reported",
     description=(
         "Context re-sent and served from cache at about a tenth of base "
         "rate.\n\n"
@@ -210,7 +215,7 @@ panels.append(panel(
     f"""SELECT COALESCE(SUM(s.reasoning_tokens), 0) AS v
 FROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id
 WHERE s.reasoning_tokens IS NOT NULL AND {CONTRIBUTOR}""",
-    unit="short", decimals=1, novalue="only Codex separates these",
+    unit=TOKEN_UNIT, decimals=1, novalue="only Codex separates these",
     description=(
         "Tokens spent thinking rather than answering.\n\n"
         "Codex alone reports this. Claude Code and Antigravity do not "
@@ -239,7 +244,7 @@ UNION ALL
 SELECT 'Output', SUM(s.output_tokens)
 FROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id
 WHERE s.output_tokens IS NOT NULL AND {CONTRIBUTOR}""",
-    unit="short", novalue="no session reported tokens",
+    unit=TOKEN_UNIT, novalue="no session reported tokens",
     description=(
         "The headline total, broken into its parts.\n\n"
         "Without this, a total in the billions beside an output in the "
@@ -298,7 +303,7 @@ ORDER BY SUM(s.input_tokens + s.output_tokens
          "properties": [{"id": "unit", "value": "percent"},
                         {"id": "decimals", "value": 1}]},
         {"matcher": {"id": "byRegexp", "options": ".*(in|Out|read|write)$"},
-         "properties": [{"id": "unit", "value": "short"},
+         "properties": [{"id": "unit", "value": TOKEN_UNIT},
                         {"id": "decimals", "value": 1}]},
     ],
     options={"showHeader": True,
@@ -316,8 +321,18 @@ WHERE s.output_tokens IS NOT NULL AND {CONTRIBUTOR}
   AND s.last_seen >= $__unixEpochFrom() {NS}
   AND s.last_seen <  $__unixEpochTo() {NS}
 GROUP BY 1, 2 ORDER BY 1""",
-    unit="short", novalue="no tokens in this range",
-    description="Which model is doing the work, and when that changed."))
+    unit=TOKEN_UNIT, novalue="no tokens in this range",
+    fmt="time_series",
+    description=(
+        "Which model is doing the work, and when that changed.\n\n"
+        "One line per model, named and coloured. That needs "
+        "`format: time_series`, which is what turns a `metric` column into "
+        "separate series — with `format: table` Grafana returns one frame "
+        "with a literal metric column and labels every line \"value\", so "
+        "the models are indistinguishable."),
+    options={"legend": {"displayMode": "table", "placement": "bottom",
+                        "showLegend": True, "calcs": ["sum"]},
+             "tooltip": {"mode": "multi", "sort": "desc"}}))
 
 panels.append(panel(
     112, "Cache write payback by model", "timeseries", 12, y, 12, 8,
@@ -331,13 +346,17 @@ WHERE s.cache_write_tokens IS NOT NULL AND s.cache_write_tokens > 0 AND {CONTRIB
   AND s.last_seen <  $__unixEpochTo() {NS}
 GROUP BY 1, 2 ORDER BY 1""",
     decimals=2, minval=0, novalue="no agent reported cache writes",
+    fmt="time_series",
     description=(
         f"Break-even is {BREAK_EVEN}x, drawn as a threshold. A line below it "
         "is a model whose caching is costing money.\n\n"
         "Measured spreads run from 0.73x to 21x, so the axis is generous — a "
         "linear scale flattens the low end, which is the end that matters."),
     thresholds=[{"color": "red", "value": None},
-                {"color": "green", "value": BREAK_EVEN}]))
+                {"color": "green", "value": BREAK_EVEN}],
+    options={"legend": {"displayMode": "table", "placement": "bottom",
+                        "showLegend": True, "calcs": ["lastNotNull", "min"]},
+             "tooltip": {"mode": "multi", "sort": "desc"}}))
 y += 8
 
 # ------------------------------------------------------- branch & autonomy
@@ -486,7 +505,7 @@ GROUP BY s.agent ORDER BY AVG(s.output_tokens) DESC""",
         "for when the job is hard will always look more expensive. This says "
         "what each cost on the work it happened to do, nothing more."),
     overrides=[{"matcher": {"id": "byRegexp", "options": "Avg.*"},
-                "properties": [{"id": "unit", "value": "short"},
+                "properties": [{"id": "unit", "value": TOKEN_UNIT},
                                {"id": "decimals", "value": 1}]}],
     options={"showHeader": True}))
 y += 7

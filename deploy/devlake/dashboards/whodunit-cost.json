@@ -78,7 +78,7 @@
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "short",
+          "unit": "sishort",
           "decimals": 1,
           "noValue": "no session reported tokens"
         },
@@ -117,7 +117,7 @@
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "short",
+          "unit": "sishort",
           "decimals": 1,
           "noValue": "not reported"
         },
@@ -156,7 +156,7 @@
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "short",
+          "unit": "sishort",
           "decimals": 1,
           "noValue": "not reported"
         },
@@ -195,7 +195,7 @@
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "short",
+          "unit": "sishort",
           "decimals": 1,
           "noValue": "not reported"
         },
@@ -374,7 +374,7 @@
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "short",
+          "unit": "sishort",
           "decimals": 1,
           "noValue": "only Codex separates these"
         },
@@ -413,7 +413,7 @@
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "short",
+          "unit": "sishort",
           "noValue": "no session reported tokens"
         },
         "overrides": []
@@ -530,7 +530,7 @@
             "properties": [
               {
                 "id": "unit",
-                "value": "short"
+                "value": "sishort"
               },
               {
                 "id": "decimals",
@@ -565,18 +565,32 @@
       "targets": [
         {
           "refId": "A",
-          "format": "table",
+          "format": "time_series",
           "rawSql": "SELECT\n  FROM_UNIXTIME(FLOOR(s.last_seen / 1000000000 / 86400) * 86400) AS time,\n  COALESCE(NULLIF(s.model, ''), '(unattributed)')                AS metric,\n  SUM(s.output_tokens)                                           AS value\nFROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id\nWHERE s.output_tokens IS NOT NULL AND ('$contributor' = '__all__' OR r.contributor = '$contributor')\n  AND s.last_seen >= $__unixEpochFrom() * 1000000000\n  AND s.last_seen <  $__unixEpochTo() * 1000000000\nGROUP BY 1, 2 ORDER BY 1"
         }
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "short",
+          "unit": "sishort",
           "noValue": "no tokens in this range"
         },
         "overrides": []
       },
-      "description": "Which model is doing the work, and when that changed."
+      "description": "Which model is doing the work, and when that changed.\n\nOne line per model, named and coloured. That needs `format: time_series`, which is what turns a `metric` column into separate series \u2014 with `format: table` Grafana returns one frame with a literal metric column and labels every line \"value\", so the models are indistinguishable.",
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true,
+          "calcs": [
+            "sum"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
     },
     {
       "id": 112,
@@ -592,7 +606,7 @@
       "targets": [
         {
           "refId": "A",
-          "format": "table",
+          "format": "time_series",
           "rawSql": "SELECT\n  FROM_UNIXTIME(FLOOR(s.last_seen / 1000000000 / 86400) * 86400) AS time,\n  COALESCE(NULLIF(s.model, ''), '(unattributed)')                AS metric,\n  SUM(COALESCE(s.cache_read_tokens,0)) / NULLIF(SUM(s.cache_write_tokens), 0) AS value\nFROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id\nWHERE s.cache_write_tokens IS NOT NULL AND s.cache_write_tokens > 0 AND ('$contributor' = '__all__' OR r.contributor = '$contributor')\n  AND s.last_seen >= $__unixEpochFrom() * 1000000000\n  AND s.last_seen <  $__unixEpochTo() * 1000000000\nGROUP BY 1, 2 ORDER BY 1"
         }
       ],
@@ -617,7 +631,22 @@
         },
         "overrides": []
       },
-      "description": "Break-even is 1.25x, drawn as a threshold. A line below it is a model whose caching is costing money.\n\nMeasured spreads run from 0.73x to 21x, so the axis is generous \u2014 a linear scale flattens the low end, which is the end that matters."
+      "description": "Break-even is 1.25x, drawn as a threshold. A line below it is a model whose caching is costing money.\n\nMeasured spreads run from 0.73x to 21x, so the axis is generous \u2014 a linear scale flattens the low end, which is the end that matters.",
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true,
+          "calcs": [
+            "lastNotNull",
+            "min"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
     },
     {
       "type": "row",
@@ -921,7 +950,7 @@
             "properties": [
               {
                 "id": "unit",
-                "value": "short"
+                "value": "sishort"
               },
               {
                 "id": "decimals",
