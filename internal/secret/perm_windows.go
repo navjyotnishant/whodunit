@@ -93,15 +93,38 @@ func checkFile(path string) string {
 	if err != nil {
 		return ""
 	}
-	ownerSID := owner.String()
 
 	for _, trustee := range allowedTrustees(sd.String()) {
-		if trustee == ownerSID || allowedByDefault(trustee) {
+		if isOwner(trustee, owner) || allowedByDefault(trustee) {
 			continue
 		}
 		return fmt.Sprintf("readable by %s", trustee)
 	}
 	return ""
+}
+
+// isOwner reports whether an SDDL trustee names the file's owner.
+//
+// Not a string comparison against owner.String(). SDDL renders well-known
+// accounts as two-letter aliases — the built-in Administrator appears as
+// "LA", not as S-1-5-21-…-500 — so comparing rendered forms reported a
+// correctly owner-only file as "readable by LA", which is the owner.
+//
+// Converting the trustee back to a SID compares the two as identities
+// rather than as spellings.
+func isOwner(trustee string, owner *windows.SID) bool {
+	if owner == nil {
+		return false
+	}
+	if trustee == owner.String() {
+		return true
+	}
+	// An alias resolves through the same parser Windows uses for SDDL.
+	sid, err := windows.StringToSid(trustee)
+	if err != nil {
+		return false
+	}
+	return sid.Equals(owner)
 }
 
 // allowedTrustees pulls the trustee of every access-allowed ACE out of an
@@ -140,6 +163,10 @@ func allowedByDefault(trustee string) bool {
 		"OW": // Owner Rights
 		return true
 	}
+	// Deliberately not "LA", the built-in Administrator account. When it is
+	// the file's owner — as on a CI runner — isOwner already accepts it;
+	// listing it here would also accept it on a machine where it is somebody
+	// else, which is exactly the grant worth reporting.
 	// A fully-written SID for the same accounts.
 	for _, wk := range []windows.WELL_KNOWN_SID_TYPE{
 		windows.WinLocalSystemSid,

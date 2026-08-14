@@ -139,7 +139,35 @@ func under(path, dir string) bool {
 	if d == "" {
 		return false
 	}
+	if p == d || strings.HasPrefix(p, d+"/") {
+		return true
+	}
+
+	// Fall back to comparing without the volume.
+	//
+	// A conversation records the path the agent saw, which may have been
+	// written on another machine or in another shell: "/repo/main.go" from
+	// a Unix-flavoured environment against a working directory that
+	// filepath.Abs has turned into "C:/repo" by prepending the current
+	// drive. Those denote the same place, and requiring the volumes to
+	// match meant no conversation was ever attributed on Windows.
+	//
+	// Only applied when one side carries a volume and the other does not,
+	// so C:/repo and D:/repo stay distinct.
+	pv, dv := volumeOf(p), volumeOf(d)
+	if pv == dv || (pv != "" && dv != "") {
+		return false
+	}
+	p, d = strings.TrimPrefix(p, pv), strings.TrimPrefix(d, dv)
 	return p == d || strings.HasPrefix(p, d+"/")
+}
+
+// volumeOf returns the "C:" of a path, or "" when it carries no volume.
+func volumeOf(p string) string {
+	if len(p) >= 2 && p[1] == ':' {
+		return p[:2]
+	}
+	return ""
 }
 
 func normalizeForCompare(p string) string {

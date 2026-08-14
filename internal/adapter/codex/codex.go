@@ -162,7 +162,34 @@ func readMeta(path string) (sessionMeta, bool) {
 // sameDir compares two directory paths, tolerating a trailing separator and
 // the /private prefix macOS adds to temp directories.
 func sameDir(a, b string) bool {
-	return normalizeDir(a) == normalizeDir(b)
+	na, nb := normalizeDir(a), normalizeDir(b)
+	if na == nb {
+		return true
+	}
+
+	// Compare without the volume when only one side has one.
+	//
+	// A transcript records the cwd the agent saw — "/repo" from a
+	// Unix-flavoured shell — while the directory it is compared against has
+	// been through filepath.Abs, which on Windows prepends the current
+	// drive and yields "C:/repo". Same place, and requiring the volumes to
+	// match meant a session never recognised its own repository.
+	//
+	// Not applied when both carry a volume, so C:/repo and D:/repo stay
+	// distinct.
+	va, vb := volumeOf(na), volumeOf(nb)
+	if va == vb || (va != "" && vb != "") {
+		return false
+	}
+	return strings.TrimPrefix(na, va) == strings.TrimPrefix(nb, vb)
+}
+
+// volumeOf returns the "C:" of a path, or "" when it carries no volume.
+func volumeOf(p string) string {
+	if len(p) >= 2 && p[1] == ':' {
+		return p[:2]
+	}
+	return ""
 }
 
 // isAbsolutePath recognises an absolute path in either platform's spelling.
