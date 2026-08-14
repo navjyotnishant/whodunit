@@ -1,14 +1,20 @@
 package journal
 
 import (
+	"fmt"
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
+
+	"github.com/navjyotnishant/whodunit/internal/testmode"
 )
 
+const testRepo = "root-sha-aaa"
+
 func TestWriteAndReadRange(t *testing.T) {
-	dir := t.TempDir()
-	w, err := NewWriter(dir)
+	home := t.TempDir()
+	w, err := NewWriter(home, testRepo)
 	if err != nil {
 		t.Fatalf("NewWriter: %v", err)
 	}
@@ -26,11 +32,11 @@ func TestWriteAndReadRange(t *testing.T) {
 		}
 	}
 
-	if info, err := os.Stat(dbPath(dir)); err != nil || info.Size() == 0 {
+	if info, err := os.Stat(DBPath(home)); err != nil || info.Size() == 0 {
 		t.Fatalf("journal.db not persisted to disk: err=%v", err)
 	}
 
-	got, err := ReadRange(dir, base, base.Add(24*time.Hour))
+	got, err := ReadRange(home, testRepo, base, base.Add(24*time.Hour))
 	if err != nil {
 		t.Fatalf("ReadRange: %v", err)
 	}
@@ -43,7 +49,7 @@ func TestWriteAndReadRange(t *testing.T) {
 		}
 	}
 
-	all, err := ReadRange(dir, base, time.Time{})
+	all, err := ReadRange(home, testRepo, base, time.Time{})
 	if err != nil {
 		t.Fatalf("ReadRange unbounded: %v", err)
 	}
@@ -53,8 +59,8 @@ func TestWriteAndReadRange(t *testing.T) {
 }
 
 func TestAppendIsIdempotent(t *testing.T) {
-	dir := t.TempDir()
-	w, err := NewWriter(dir)
+	home := t.TempDir()
+	w, err := NewWriter(home, testRepo)
 	if err != nil {
 		t.Fatalf("NewWriter: %v", err)
 	}
@@ -67,7 +73,7 @@ func TestAppendIsIdempotent(t *testing.T) {
 		}
 	}
 
-	entries, err := ReadRange(dir, time.Time{}, time.Time{})
+	entries, err := ReadRange(home, testRepo, time.Time{}, time.Time{})
 	if err != nil {
 		t.Fatalf("ReadRange: %v", err)
 	}
@@ -76,13 +82,511 @@ func TestAppendIsIdempotent(t *testing.T) {
 	}
 }
 
+func TestEntriesAreScopedByRepo(t *testing.T) {
+	home := t.TempDir()
+	now := time.Now().UTC()
+
+	writeFor := func(repoID, file string) {
+		t.Helper()
+		w, err := NewWriter(home, repoID)
+		if err != nil {
+			t.Fatalf("NewWriter(%s): %v", repoID, err)
+		}
+		defer w.Close()
+		if err := w.Append(Entry{Timestamp: now, Agent: "claude-code", Session: "s", Event: "tool_use", Tool: "Edit", File: file}); err != nil {
+			t.Fatalf("Append(%s): %v", repoID, err)
+		}
+	}
+
+	writeFor("repo-a", "a.go")
+	writeFor("repo-b", "b.go")
+
+	a, err := ReadRange(home, "repo-a", time.Time{}, time.Time{})
+	if err != nil {
+		t.Fatalf("ReadRange(repo-a): %v", err)
+	}
+	if len(a) != 1 || a[0].File != "a.go" {
+		t.Fatalf("repo-a should see only its own entry, got %+v", a)
+	}
+
+	b, err := ReadRange(home, "repo-b", time.Time{}, time.Time{})
+	if err != nil {
+		t.Fatalf("ReadRange(repo-b): %v", err)
+	}
+	if len(b) != 1 || b[0].File != "b.go" {
+		t.Fatalf("repo-b should see only its own entry, got %+v", b)
+	}
+}
+
+func TestSameEntryInTwoReposIsNotDeduped(t *testing.T) {
+	// The uniqueness constraint includes repo_id: two repos legitimately
+	// having an identical-looking event must both be recorded.
+	home := t.TempDir()
+	e := Entry{
+		Timestamp: time.Date(2026, 8, 11, 12, 0, 0, 0, time.UTC),
+		Agent:     "claude-code", Session: "shared", Event: "tool_use",
+		Tool: "Edit", File: "main.go", HunkHash: "sha256:same",
+	}
+
+	for _, repo := range []string{"repo-a", "repo-b"} {
+		w, err := NewWriter(home, repo)
+		if err != nil {
+			t.Fatalf("NewWriter: %v", err)
+		}
+		if err := w.Append(e); err != nil {
+			t.Fatalf("Append: %v", err)
+		}
+		w.Close()
+	}
+
+	for _, repo := range []string{"repo-a", "repo-b"} {
+		got, err := ReadRange(home, repo, time.Time{}, time.Time{})
+		if err != nil {
+			t.Fatalf("ReadRange(%s): %v", repo, err)
+		}
+		if len(got) != 1 {
+			t.Errorf("%s: want 1 entry, got %d", repo, len(got))
+		}
+	}
+}
+
+func TestPurgeOnlyAffectsOneRepo(t *testing.T) {
+	home := t.TempDir()
+	now := time.Now().UTC()
+
+	for _, repo := range []string{"repo-a", "repo-b"} {
+		w, err := NewWriter(home, repo)
+		if err != nil {
+			t.Fatalf("NewWriter: %v", err)
+		}
+		if err := w.Append(Entry{Timestamp: now, Agent: "claude-code", Session: "s", Event: "tool_use", Tool: "Edit", File: repo + ".go"}); err != nil {
+			t.Fatalf("Append: %v", err)
+		}
+		w.Close()
+	}
+
+	n, err := Purge(home, "repo-a")
+	if err != nil {
+		t.Fatalf("Purge: %v", err)
+	}
+	if n != 1 {
+		t.Errorf("Purge removed %d rows, want 1", n)
+	}
+
+	a, _ := ReadRange(home, "repo-a", time.Time{}, time.Time{})
+	if len(a) != 0 {
+		t.Errorf("repo-a should be empty after purge, got %d entries", len(a))
+	}
+
+	// The whole point of a per-repo purge in a shared store.
+	b, _ := ReadRange(home, "repo-b", time.Time{}, time.Time{})
+	if len(b) != 1 {
+		t.Errorf("purging repo-a must not touch repo-b, but repo-b has %d entries", len(b))
+	}
+}
+
 func TestReadRangeOnMissingJournal(t *testing.T) {
-	dir := t.TempDir()
-	entries, err := ReadRange(dir, time.Time{}, time.Time{})
+	entries, err := ReadRange(t.TempDir(), testRepo, time.Time{}, time.Time{})
 	if err != nil {
 		t.Fatalf("ReadRange on missing journal = %v, want nil error", err)
 	}
 	if entries != nil {
 		t.Errorf("ReadRange on missing journal = %v, want nil slice", entries)
+	}
+}
+
+func TestPurgeOnMissingJournal(t *testing.T) {
+	n, err := Purge(t.TempDir(), testRepo)
+	if err != nil {
+		t.Fatalf("Purge on missing journal = %v, want nil error", err)
+	}
+	if n != 0 {
+		t.Errorf("Purge on missing journal removed %d rows, want 0", n)
+	}
+}
+
+func TestNewWriterRequiresRepoID(t *testing.T) {
+	// An empty repo id would write rows no repo-scoped query could find.
+	if _, err := NewWriter(t.TempDir(), ""); err == nil {
+		t.Error("NewWriter with an empty repo id = nil error, want a refusal")
+	}
+}
+
+func TestDatabaseIsNotWorldReadable(t *testing.T) {
+	testmode.SkipIfNoPermissionBits(t)
+	// The journal records which files were edited and when. The SQLite
+	// driver creates the file 0644 by default, which is readable by every
+	// user on a shared machine.
+	dataDir := t.TempDir()
+	w, err := NewWriter(dataDir, testRepo)
+	if err != nil {
+		t.Fatalf("NewWriter: %v", err)
+	}
+	if err := w.Append(Entry{Timestamp: time.Now(), Agent: "claude-code", Event: "tool_use", File: "x.go"}); err != nil {
+		t.Fatalf("Append: %v", err)
+	}
+	w.Close()
+
+	info, err := os.Stat(DBPath(dataDir))
+	if err != nil {
+		t.Fatalf("stat db: %v", err)
+	}
+	if perm := info.Mode().Perm(); perm != 0o600 {
+		t.Errorf("journal.db mode = %o, want 600 (owner only)", perm)
+	}
+}
+
+func TestExistingWorldReadableDatabaseIsTightened(t *testing.T) {
+	testmode.SkipIfNoPermissionBits(t)
+	// A database created before this rule existed must be repaired, not
+	// left permissive forever.
+	dataDir := t.TempDir()
+	w, err := NewWriter(dataDir, testRepo)
+	if err != nil {
+		t.Fatalf("NewWriter: %v", err)
+	}
+	w.Close()
+
+	if err := os.Chmod(DBPath(dataDir), 0o644); err != nil {
+		t.Fatalf("chmod: %v", err)
+	}
+
+	w2, err := NewWriter(dataDir, testRepo)
+	if err != nil {
+		t.Fatalf("NewWriter (reopen): %v", err)
+	}
+	w2.Close()
+
+	info, err := os.Stat(DBPath(dataDir))
+	if err != nil {
+		t.Fatalf("stat db: %v", err)
+	}
+	if perm := info.Mode().Perm(); perm != 0o600 {
+		t.Errorf("journal.db mode after reopen = %o, want 600", perm)
+	}
+}
+
+func TestExistingPermissiveDataDirIsTightened(t *testing.T) {
+	testmode.SkipIfNoPermissionBits(t)
+	// A data directory created by hand (or by an older version) must be
+	// repaired on the next open, not left readable by everyone.
+	parent := t.TempDir()
+	dataDir := filepath.Join(parent, "data")
+	if err := os.MkdirAll(dataDir, 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+
+	w, err := NewWriter(dataDir, testRepo)
+	if err != nil {
+		t.Fatalf("NewWriter: %v", err)
+	}
+	w.Close()
+
+	info, err := os.Stat(dataDir)
+	if err != nil {
+		t.Fatalf("stat: %v", err)
+	}
+	if perm := info.Mode().Perm(); perm != 0o700 {
+		t.Errorf("data dir mode = %o, want 700 (owner only)", perm)
+	}
+}
+
+func TestAppendAndReadLineHashes(t *testing.T) {
+	dataDir := t.TempDir()
+	w, err := NewWriter(dataDir, testRepo)
+	if err != nil {
+		t.Fatalf("NewWriter: %v", err)
+	}
+	defer w.Close()
+
+	now := time.Now().UTC()
+	if err := w.AppendLines([]uint64{1, 2, 3}, now); err != nil {
+		t.Fatalf("AppendLines: %v", err)
+	}
+
+	got, err := ReadLineHashes(dataDir, testRepo, now.Add(-time.Hour))
+	if err != nil {
+		t.Fatalf("ReadLineHashes: %v", err)
+	}
+	if len(got) != 3 {
+		t.Fatalf("want 3 line hashes, got %d", len(got))
+	}
+}
+
+func TestAppendLinesDeduplicates(t *testing.T) {
+	// An agent rewriting the same block contributes those lines once —
+	// this is what stops the rewrite inflation NAV-8 hit.
+	dataDir := t.TempDir()
+	w, err := NewWriter(dataDir, testRepo)
+	if err != nil {
+		t.Fatalf("NewWriter: %v", err)
+	}
+	defer w.Close()
+
+	now := time.Now().UTC()
+	for i := 0; i < 3; i++ {
+		if err := w.AppendLines([]uint64{7, 8}, now); err != nil {
+			t.Fatalf("AppendLines #%d: %v", i, err)
+		}
+	}
+
+	got, err := ReadLineHashes(dataDir, testRepo, time.Time{})
+	if err != nil {
+		t.Fatalf("ReadLineHashes: %v", err)
+	}
+	if len(got) != 2 {
+		t.Errorf("want 2 distinct hashes after 3 identical appends, got %d", len(got))
+	}
+}
+
+func TestLineHashesAreScopedByRepo(t *testing.T) {
+	dataDir := t.TempDir()
+	now := time.Now().UTC()
+
+	for _, repo := range []string{"repo-a", "repo-b"} {
+		w, err := NewWriter(dataDir, repo)
+		if err != nil {
+			t.Fatalf("NewWriter: %v", err)
+		}
+		if err := w.AppendLines([]uint64{42}, now); err != nil {
+			t.Fatalf("AppendLines: %v", err)
+		}
+		w.Close()
+	}
+
+	// The same hash in two repos is two rows; neither repo sees the other's.
+	for _, repo := range []string{"repo-a", "repo-b"} {
+		got, err := ReadLineHashes(dataDir, repo, time.Time{})
+		if err != nil {
+			t.Fatalf("ReadLineHashes(%s): %v", repo, err)
+		}
+		if len(got) != 1 {
+			t.Errorf("%s: want 1 hash, got %d", repo, len(got))
+		}
+	}
+}
+
+func TestPurgeRemovesLineHashesToo(t *testing.T) {
+	// "Forget what I did in this repo" has to take the line hashes as
+	// well, or purge is a half-truth.
+	dataDir := t.TempDir()
+	now := time.Now().UTC()
+
+	w, _ := NewWriter(dataDir, testRepo)
+	w.Append(Entry{Timestamp: now, Agent: "claude-code", Event: "tool_use", File: "x.go"})
+	w.AppendLines([]uint64{1, 2, 3}, now)
+	w.Close()
+
+	other, _ := NewWriter(dataDir, "other-repo")
+	other.AppendLines([]uint64{9}, now)
+	other.Close()
+
+	if _, err := Purge(dataDir, testRepo); err != nil {
+		t.Fatalf("Purge: %v", err)
+	}
+
+	got, _ := ReadLineHashes(dataDir, testRepo, time.Time{})
+	if len(got) != 0 {
+		t.Errorf("purge left %d line hashes behind", len(got))
+	}
+
+	survived, _ := ReadLineHashes(dataDir, "other-repo", time.Time{})
+	if len(survived) != 1 {
+		t.Errorf("purge destroyed another repository's line hashes: %d survived, want 1", len(survived))
+	}
+}
+
+func TestReadLineHashesOnMissingJournal(t *testing.T) {
+	got, err := ReadLineHashes(t.TempDir(), testRepo, time.Time{})
+	if err != nil {
+		t.Fatalf("ReadLineHashes on missing journal = %v, want nil error", err)
+	}
+	if len(got) != 0 {
+		t.Errorf("want no hashes, got %d", len(got))
+	}
+}
+
+func TestAppendLinesWithNoHashesIsANoop(t *testing.T) {
+	dataDir := t.TempDir()
+	w, err := NewWriter(dataDir, testRepo)
+	if err != nil {
+		t.Fatalf("NewWriter: %v", err)
+	}
+	defer w.Close()
+
+	if err := w.AppendLines(nil, time.Now()); err != nil {
+		t.Errorf("AppendLines(nil) = %v, want nil", err)
+	}
+}
+
+func TestSetAndGetMetadata(t *testing.T) {
+	dataDir := t.TempDir()
+	now := time.Now().UTC()
+
+	if err := SetMetadata(dataDir, Metadata{
+		RepoID:      testRepo,
+		Contributor: "dev@example.com",
+		UpdatedAt:   now,
+	}); err != nil {
+		t.Fatalf("SetMetadata: %v", err)
+	}
+
+	got, err := GetMetadata(dataDir, testRepo)
+	if err != nil {
+		t.Fatalf("GetMetadata: %v", err)
+	}
+	if got == nil {
+		t.Fatal("GetMetadata returned nil for a repo that has metadata")
+	}
+	if got.Contributor != "dev@example.com" {
+		t.Errorf("Contributor = %q, want dev@example.com", got.Contributor)
+	}
+	if got.SpecVersion != SpecVersion {
+		t.Errorf("SpecVersion = %q, want %q", got.SpecVersion, SpecVersion)
+	}
+}
+
+func TestSetMetadataIsIdempotentPerRepo(t *testing.T) {
+	// Re-running init must update the row, not accumulate rows: a repo has
+	// one contributor, not a history of them.
+	dataDir := t.TempDir()
+
+	for _, email := range []string{"old@example.com", "new@example.com"} {
+		if err := SetMetadata(dataDir, Metadata{RepoID: testRepo, Contributor: email}); err != nil {
+			t.Fatalf("SetMetadata(%s): %v", email, err)
+		}
+	}
+
+	got, err := GetMetadata(dataDir, testRepo)
+	if err != nil {
+		t.Fatalf("GetMetadata: %v", err)
+	}
+	if got.Contributor != "new@example.com" {
+		t.Errorf("Contributor = %q, want the updated value", got.Contributor)
+	}
+}
+
+func TestMetadataIsScopedByRepo(t *testing.T) {
+	dataDir := t.TempDir()
+	SetMetadata(dataDir, Metadata{RepoID: "repo-a", Contributor: "a@example.com"})
+	SetMetadata(dataDir, Metadata{RepoID: "repo-b", Contributor: "b@example.com"})
+
+	a, _ := GetMetadata(dataDir, "repo-a")
+	b, _ := GetMetadata(dataDir, "repo-b")
+	if a.Contributor != "a@example.com" || b.Contributor != "b@example.com" {
+		t.Errorf("metadata crossed repos: a=%q b=%q", a.Contributor, b.Contributor)
+	}
+}
+
+func TestGetMetadataForUnknownRepo(t *testing.T) {
+	// A journal written before metadata existed is a normal state, not an
+	// error.
+	dataDir := t.TempDir()
+	SetMetadata(dataDir, Metadata{RepoID: "known", Contributor: "x@example.com"})
+
+	got, err := GetMetadata(dataDir, "never-seen")
+	if err != nil {
+		t.Fatalf("GetMetadata for unknown repo = %v, want nil error", err)
+	}
+	if got != nil {
+		t.Errorf("GetMetadata for unknown repo = %+v, want nil", got)
+	}
+}
+
+func TestGetMetadataOnMissingJournal(t *testing.T) {
+	got, err := GetMetadata(t.TempDir(), testRepo)
+	if err != nil {
+		t.Fatalf("GetMetadata on missing journal = %v, want nil error", err)
+	}
+	if got != nil {
+		t.Errorf("got %+v, want nil", got)
+	}
+}
+
+func TestSetMetadataRequiresRepoID(t *testing.T) {
+	if err := SetMetadata(t.TempDir(), Metadata{Contributor: "x@example.com"}); err == nil {
+		t.Error("SetMetadata with no repo id = nil error, want a refusal")
+	}
+}
+
+func TestPurgeRemovesMetadataToo(t *testing.T) {
+	// Metadata holds the contributor identity — the most identifying thing
+	// recorded — so purge must take it.
+	dataDir := t.TempDir()
+	SetMetadata(dataDir, Metadata{RepoID: testRepo, Contributor: "dev@example.com"})
+	SetMetadata(dataDir, Metadata{RepoID: "other-repo", Contributor: "other@example.com"})
+
+	if _, err := Purge(dataDir, testRepo); err != nil {
+		t.Fatalf("Purge: %v", err)
+	}
+
+	got, _ := GetMetadata(dataDir, testRepo)
+	if got != nil {
+		t.Errorf("purge left metadata behind: %+v", got)
+	}
+
+	survived, _ := GetMetadata(dataDir, "other-repo")
+	if survived == nil {
+		t.Error("purge destroyed another repository's metadata")
+	}
+}
+
+func TestCountSinceExcludesAlreadyPublishedWork(t *testing.T) {
+	// The backlog is what a repository has recorded since it last published,
+	// not its whole history. Counting everything made a fully-synced
+	// repository report thousands of events still "to sync" — which reads as
+	// though publishing had done nothing at all.
+	dataDir := t.TempDir()
+	w, err := NewWriter(dataDir, testRepo)
+	if err != nil {
+		t.Fatalf("NewWriter: %v", err)
+	}
+
+	published := time.Now().UTC().Add(-2 * time.Hour)
+	// Three entries before the last publish, two after, across two sessions.
+	older := []time.Time{
+		published.Add(-90 * time.Minute),
+		published.Add(-60 * time.Minute),
+		published.Add(-30 * time.Minute),
+	}
+	newer := []time.Time{
+		published.Add(30 * time.Minute),
+		published.Add(60 * time.Minute),
+	}
+	for i, ts := range append(append([]time.Time{}, older...), newer...) {
+		session := "sess-old"
+		if i >= len(older) {
+			session = "sess-new"
+		}
+		if err := w.Append(Entry{
+			Timestamp: ts, Agent: "claude-code", Event: "tool_use",
+			Session: session, File: fmt.Sprintf("f%d.go", i),
+		}); err != nil {
+			t.Fatalf("Append %d: %v", i, err)
+		}
+	}
+	w.Close()
+
+	events, sessions, err := CountSince(dataDir, testRepo, published)
+	if err != nil {
+		t.Fatalf("CountSince: %v", err)
+	}
+	if events != len(newer) {
+		t.Errorf("events = %d, want %d — counting the whole history (%d) "+
+			"reports published work as still pending",
+			events, len(newer), len(older)+len(newer))
+	}
+	if sessions != 1 {
+		t.Errorf("sessions = %d, want 1 (only sess-new is after the publish)", sessions)
+	}
+
+	// Never published: the backlog genuinely is everything.
+	all, allSessions, err := CountSince(dataDir, testRepo, time.Time{})
+	if err != nil {
+		t.Fatalf("CountSince(zero): %v", err)
+	}
+	if all != len(older)+len(newer) || allSessions != 2 {
+		t.Errorf("CountSince(zero) = %d events/%d sessions, want %d/2",
+			all, allSessions, len(older)+len(newer))
 	}
 }

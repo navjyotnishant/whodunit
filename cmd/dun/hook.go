@@ -6,15 +6,30 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime/debug"
 	"strings"
 	"time"
 
-	"github.com/navjyotnishant/whodunit/internal/adapter/claudecode"
+	"github.com/navjyotnishant/whodunit/internal/adapter"
+	_ "github.com/navjyotnishant/whodunit/internal/adapter/agy"
+	_ "github.com/navjyotnishant/whodunit/internal/adapter/claudecode"
+	_ "github.com/navjyotnishant/whodunit/internal/adapter/codex"
 	"github.com/navjyotnishant/whodunit/internal/attribution"
+	"github.com/navjyotnishant/whodunit/internal/hooklog"
 	"github.com/navjyotnishant/whodunit/internal/journal"
 	"github.com/navjyotnishant/whodunit/internal/spec"
 	"github.com/spf13/cobra"
 )
+
+// The hook names as git invokes them, and as they appear in the log.
+const (
+	hookPrepare = "prepare-commit-msg"
+	hookCommit  = "commit-msg"
+	hookPrePush = "pre-push"
+)
+
+// hookProbe is a test seam, nil in every shipped binary.
+var hookProbe func(hook string)
 
 func newHookCmd() *cobra.Command {
 	return &cobra.Command{
@@ -22,12 +37,44 @@ func newHookCmd() *cobra.Command {
 		Short:  "Internal: runs as a git hook (installed by dun init).",
 		Hidden: true,
 		Args:   cobra.MinimumNArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, args []string) (err error) {
+			// The panic barrier, at the one place every hook passes through.
+			//
+			// Go has no exceptions, and every error below is returned and
+			// handled explicitly — but a runtime panic is not an error. A
+			// nil map write, an index out of range or a bad type assertion
+			// anywhere in this path would take down the process mid-commit,
+			// and "a commit never fails because attribution failed" does not
+			// survive that.
+			//
+			// Recovering silently would be worse than crashing: it trades a
+			// visible failure for an invisible no-op. The panic and its
+			// stack go to the log, which is what makes recovery honest.
+			defer func() {
+				if r := recover(); r != nil {
+					logPanic(args[0], r, debug.Stack())
+					err = nil
+				}
+			}()
+
+			// hookProbe is nil in a shipped binary. The barrier's own test
+			// sets it, because a recover() no test can trigger is a
+			// recover() nobody knows is broken — and a panicking code path
+			// compiled into everyone's binary to prove it is worse.
+			if hookProbe != nil {
+				hookProbe(args[0])
+			}
+
 			switch args[0] {
-			case "prepare-commit-msg":
+			case hookPrepare:
 				return runPrepareCommitMsg(args[1:])
-			case "commit-msg":
+			case hookCommit:
 				return runCommitMsg(args[1:])
+			case hookPrePush:
+				// stderr, not stdout: git captures a pre-push hook's stdout
+				// rather than showing it, so a warning written there is
+				// invisible at exactly the moment someone needs to read it.
+				return runPrePush(cmd.ErrOrStderr())
 			default:
 				return nil // unknown hook name: no-op, never block the commit
 			}
@@ -63,38 +110,177 @@ func determineTrailer() spec.Trailer {
 	now := time.Now()
 
 	staged, err := stagedFiles()
-	if err != nil || len(staged) == 0 {
+	if err != nil {
+		logHook(hookPrepare, hooklog.LevelWarn, "determine",
+			"undetermined: cannot list staged files: "+err.Error())
+		return spec.Undetermined()
+	}
+	if len(staged) == 0 {
+		logHook(hookPrepare, hooklog.LevelInfo, "determine",
+			"undetermined: no staged files")
 		return spec.Undetermined()
 	}
 
 	cwd, err := os.Getwd()
 	if err != nil {
+		logHook(hookPrepare, hooklog.LevelWarn, "determine",
+			"undetermined: cannot resolve the working directory: "+err.Error())
 		return spec.Undetermined()
 	}
 	// Journal entries carry absolute paths; git gives repo-relative ones.
+	//
+	// Resolved once, not per file: the journal records the directory the
+	// agent resolved to, and os.Getwd returns whatever the shell was in.
+	// One location can have several names — /tmp against /private/tmp, and
+	// on Windows the 8.3 short form C:\Users\RUNNER~1\… against the long
+	// one — and these paths are compared as exact strings, so two spellings
+	// mean nothing matches and the commit is stamped undetermined.
+	if resolved, err := filepath.EvalSymlinks(cwd); err == nil {
+		cwd = resolved
+	}
 	for i, f := range staged {
 		staged[i] = filepath.Join(cwd, f)
 	}
-	sessionPaths, err := claudecode.SessionFiles(cwd)
-	if err != nil || len(sessionPaths) == 0 {
+	// The same window attribution.Determine applies, not a second copy of
+	// the number. These two have always had to agree and nothing enforced
+	// it.
+	since := now.Add(-attribution.LookbackWindow)
+
+	// Record what the agents did before deciding what to stamp.
+	//
+	// Commit time is when the evidence is needed, so it is also when it is
+	// written — no background daemon, and no `dun ingest` a user has to
+	// remember. Without this the journal stays empty on a normal install,
+	// and the line-hash lookup below finds nothing, capping every commit at
+	// observed no matter how much the agent actually wrote.
+	//
+	// Failure here is deliberately ignored: a full journal makes the
+	// attribution better, an empty one makes it weaker, and neither is a
+	// reason to fail someone's commit.
+	// A config that will not parse discards every agent path override and
+	// falls back to the built-in defaults. That is the right fallback, but
+	// it is invisible: attribution simply stops finding transcripts, every
+	// commit is stamped undetermined, and it reads as "no AI was used".
+	//
+	// Said out loud here because this is the path that never loads the
+	// config directly and so never had anywhere to report it.
+	if err := adapter.ConfigError(); err != nil {
+		logHook(hookPrepare, hooklog.LevelWarn, "config",
+			"config.json could not be read, so any agent paths it sets are "+
+				"being ignored: "+err.Error())
+	}
+
+	if _, _, err := ingestSince(since, func(path string, perr error) {
+		logHook(hookPrepare, hooklog.LevelWarn, "ingest",
+			"could not read a transcript: "+perr.Error()+" ("+filepath.Base(path)+")")
+	}); err != nil {
+		logHook(hookPrepare, hooklog.LevelWarn, "ingest", err.Error())
+	}
+
+	var entries []journal.Entry
+	for _, ad := range adapter.All() {
+		sessionPaths, err := ad.SessionFiles(cwd)
+		if err != nil {
+			// An agent we cannot look at is not evidence of absence — but
+			// it is the difference between "no AI was used" and "we could
+			// not tell", which is the whole of NAV-21.
+			logHook(hookPrepare, hooklog.LevelWarn, "determine",
+				"cannot list "+ad.Name()+" sessions: "+err.Error())
+			continue
+		}
+		for _, p := range sessionPaths {
+			parsed, err := ad.ParseSince(p, since)
+			if err != nil {
+				logHook(hookPrepare, hooklog.LevelWarn, "determine",
+					"unreadable "+ad.Name()+" transcript "+filepath.Base(p)+": "+err.Error())
+				continue // one bad transcript doesn't block the whole determination
+			}
+			entries = append(entries, parsed...)
+		}
+	}
+	if len(entries) == 0 {
+		logHook(hookPrepare, hooklog.LevelInfo, "determine",
+			fmt.Sprintf("undetermined: no agent activity found in the last %d days", lookbackDays))
 		return spec.Undetermined()
 	}
 
-	since := now.Add(-7 * 24 * time.Hour)
-	var entries []journal.Entry
-	for _, p := range sessionPaths {
-		parsed, err := claudecode.ParseSince(p, since)
-		if err != nil {
-			continue // one bad transcript doesn't block the whole determination
+	// Line hashes come from two places, and both matter.
+	//
+	// The journal accumulates across sessions and deduplicates, so a line
+	// written weeks ago in a transcript since deleted still matches. The
+	// entries just parsed carry hashes the journal may not have yet — a
+	// session still being written, or a first commit on a machine where
+	// the ingest above failed.
+	//
+	// Reading only the journal was the original bug: the hook held the
+	// hashes it needed and queried an empty database instead.
+	agentLines := agentLineHashes(since)
+	if agentLines == nil {
+		agentLines = map[uint64]struct{}{}
+	}
+	for _, e := range entries {
+		for _, h := range e.LineHashes {
+			agentLines[h] = struct{}{}
 		}
-		entries = append(entries, parsed...)
 	}
 
-	// A failed hunk-hash lookup just means we can't upgrade to intersected —
-	// Determine still returns a valid observed-or-undetermined result with nil.
-	hunkHashes, _ := attribution.StagedHunkHashes()
+	lines, _ := attribution.StagedLines()
+	added, removed, _ := attribution.StagedLineCounts()
 
-	return attribution.Determine(entries, staged, hunkHashes, now)
+	trailer := attribution.Determine(entries, staged, agentLines,
+		attribution.StagedEvidence{
+			Lines:  lines,
+			Commit: attribution.CommitLines{Added: added, Removed: removed},
+		}, now)
+
+	// The commit carries a derived token, never the agent's own session id.
+	//
+	// That id is the transcript filename on disk, so stamping it verbatim
+	// would record a pointer into a file holding every prompt of the
+	// session — permanently, in a message that gets pushed. The token still
+	// groups commits from one working period, which is all the trailer
+	// needs it for (NAV-7).
+	//
+	// Done here rather than inside Determine because the repo id lives on
+	// this side, and hashing without it would let the same session be
+	// correlated across repositories.
+	if trailer.Session != "" {
+		if repoID, err := currentRepoID(); err == nil {
+			trailer.Session = spec.SessionToken(repoID, trailer.Session)
+		} else {
+			// No repo id means no repo-scoped token. Hash anyway rather
+			// than fall back to the raw id: an unscoped token is weaker
+			// than intended, a leaked filename is worse.
+			trailer.Session = spec.SessionToken("", trailer.Session)
+		}
+	}
+
+	// The outcome, not just the failures. "Did the hook run at all" is one
+	// of the questions this log exists to answer, and a log that speaks
+	// only when something breaks cannot answer it.
+	logHook(hookPrepare, hooklog.LevelInfo, "determine",
+		fmt.Sprintf("%s via %s, %d staged file(s), %d agent line(s)",
+			trailer.Status, trailer.Method, len(staged), len(agentLines)))
+	return trailer
+}
+
+// agentLineHashes loads this repository's recorded agent line hashes.
+// Returns nil on any failure — the hook must never block a commit, and a
+// missing lookup degrades the determination rather than failing it.
+func agentLineHashes(since time.Time) map[uint64]struct{} {
+	dataDir, err := journalDataDir()
+	if err != nil {
+		return nil
+	}
+	repoID, err := currentRepoID()
+	if err != nil {
+		return nil
+	}
+	hashes, err := journal.ReadLineHashes(dataDir, repoID, since)
+	if err != nil {
+		return nil
+	}
+	return hashes
 }
 
 // stagedFiles returns repo-relative paths of files staged for this commit.

@@ -1,0 +1,1340 @@
+{
+  "uid": "whodunit-dora",
+  "title": "Whodunit \u2014 AI Impact on Delivery",
+  "tags": [
+    "whodunit",
+    "dora"
+  ],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "",
+  "time": {
+    "from": "now-90d",
+    "to": "now"
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "datasource",
+        "type": "datasource",
+        "query": "mysql",
+        "current": {
+          "selected": true,
+          "text": "mysql",
+          "value": "mysql"
+        },
+        "hide": 0,
+        "label": "Data source"
+      },
+      {
+        "name": "grain",
+        "type": "custom",
+        "label": "Granularity",
+        "query": "%Y-%m-%d : Daily, %x-W%v : Weekly, %Y-%m : Monthly",
+        "options": [
+          {
+            "text": "Daily",
+            "value": "%Y-%m-%d",
+            "selected": false
+          },
+          {
+            "text": "Weekly",
+            "value": "%x-W%v",
+            "selected": true
+          },
+          {
+            "text": "Monthly",
+            "value": "%Y-%m",
+            "selected": false
+          }
+        ],
+        "current": {
+          "selected": true,
+          "text": "Weekly",
+          "value": "%x-W%v"
+        }
+      },
+      {
+        "name": "contributor",
+        "type": "query",
+        "datasource": "${datasource}",
+        "query": "SELECT DISTINCT contributor FROM whodunit_repos WHERE contributor <> ''",
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "__all__"
+        },
+        "includeAll": true,
+        "allValue": "__all__",
+        "refresh": 1,
+        "hide": 0,
+        "label": "Contributor"
+      },
+      {
+        "name": "monthly_spend",
+        "type": "textbox",
+        "label": "Monthly AI spend (USD) \u2014 edit and press Enter",
+        "query": "200",
+        "current": {
+          "selected": false,
+          "text": "200",
+          "value": "200"
+        },
+        "hide": 0
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "text",
+      "title": "",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 4
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "## Whodunit \u2014 AI Impact on Delivery\n*Does AI assistance move delivery outcomes?* Adoption is measured from git history and the agent's own session records; delivery outcomes come from DevLake's DORA pipeline. Nothing here is self-reported.\n\n**Read the scope before the numbers.** Adoption covers every instrumented repository. Delivery outcomes currently come from **EngageHub only** \u2014 it is the one project with deployments. Correlation panels state their sample size and withhold a coefficient until there are enough overlapping weeks to support one."
+      }
+    },
+    {
+      "id": 2,
+      "type": "row",
+      "title": "Adoption \u2014 every instrumented repository",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 4,
+        "w": 24,
+        "h": 1
+      },
+      "panels": []
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Current adoption",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "x": 0,
+        "y": 5,
+        "w": 4,
+        "h": 5
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT ROUND(SUM(c.status='assisted')*100.0/NULLIF(COUNT(*),0),1) v\nFROM whodunit_commits c JOIN whodunit_repos r ON r.repo_id=c.repo_id\nWHERE ('$contributor'='__all__' OR r.contributor='$contributor')\n  AND c.committed_at >= (UNIX_TIMESTAMP() - 7*86400) * 1000000000"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              },
+              {
+                "color": "blue",
+                "value": 1
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "description": "Share of the last 7 days' commits carrying an AI-Attribution trailer."
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "Adoption over time",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "x": 4,
+        "y": 5,
+        "w": 12,
+        "h": 5
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawSql": "SELECT DATE(FROM_UNIXTIME(c.committed_at/1000000000)) AS `time`,\n       ROUND(SUM(c.status='assisted')*100.0/NULLIF(COUNT(*),0),1) AS `assisted %`\nFROM whodunit_commits c JOIN whodunit_repos r ON r.repo_id=c.repo_id\nWHERE ('$contributor'='__all__' OR r.contributor='$contributor') AND c.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nGROUP BY `time` ORDER BY `time`"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 15,
+            "spanNulls": true,
+            "pointSize": 6
+          }
+        }
+      },
+      "description": "The adoption curve. A flat line at zero before instrumentation is expected, not a gap in the data."
+    },
+    {
+      "id": 5,
+      "type": "piechart",
+      "title": "Evidence strength",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "x": 16,
+        "y": 5,
+        "w": 8,
+        "h": 5
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT CASE c.method\n         WHEN 'intersected' THEN 'intersected \u2014 agent lines survived into the commit'\n         WHEN 'observed'    THEN 'observed \u2014 agent touched the file, text changed since'\n         WHEN 'declared'    THEN 'declared \u2014 stated, not measured'\n         WHEN 'inferred'    THEN 'inferred \u2014 from surrounding evidence'\n         ELSE 'undetermined \u2014 no evidence either way'\n       END AS `method`,\n       COUNT(*) AS `commits`\nFROM whodunit_commits c JOIN whodunit_repos r ON r.repo_id=c.repo_id\nWHERE ('$contributor'='__all__' OR r.contributor='$contributor') AND c.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nGROUP BY c.method ORDER BY commits DESC"
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "values": [
+            "value"
+          ]
+        },
+        "pieType": "donut",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": true
+        }
+      },
+      "description": "How strong the evidence is, not just how much there is. 'undetermined' means whodunit could not tell \u2014 it never means 'no AI was used'."
+    },
+    {
+      "id": 6,
+      "type": "piechart",
+      "title": "By agent",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "x": 0,
+        "y": 10,
+        "w": 8,
+        "h": 6
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT c.agent AS `agent`, COUNT(*) AS `commits`\nFROM whodunit_commits c JOIN whodunit_repos r ON r.repo_id=c.repo_id\nWHERE c.status='assisted' AND c.agent<>''\n  AND ('$contributor'='__all__' OR r.contributor='$contributor') AND c.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nGROUP BY c.agent ORDER BY commits DESC"
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "values": [
+            "value"
+          ]
+        },
+        "pieType": "pie",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": true
+        }
+      },
+      "description": "Which agent wrote the code. One slice means only one agent has produced commits here."
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "Change size \u2014 assisted vs undetermined",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "x": 8,
+        "y": 10,
+        "w": 10,
+        "h": 6
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawSql": "SELECT DATE(FROM_UNIXTIME(c.committed_at/1000000000)) AS `time`,\n       ROUND(AVG(CASE WHEN c.status='assisted' THEN c.lines_added+c.lines_removed END),0) AS `assisted`,\n       ROUND(AVG(CASE WHEN c.status<>'assisted' THEN c.lines_added+c.lines_removed END),0) AS `undetermined`\nFROM whodunit_commits c JOIN whodunit_repos r ON r.repo_id=c.repo_id\nWHERE ('$contributor'='__all__' OR r.contributor='$contributor') AND c.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nGROUP BY `time` ORDER BY `time`"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "spanNulls": true
+          }
+        }
+      },
+      "description": "Average lines changed per commit. Bigger assisted commits are a fact to explain, not automatically a win."
+    },
+    {
+      "id": 8,
+      "type": "stat",
+      "title": "Cost per 1,000 attributed lines",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "x": 18,
+        "y": 10,
+        "w": 6,
+        "h": 6
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT ROUND(\n         (GREATEST(CAST('$monthly_spend' AS DECIMAL(12,2)), 200)\n          * (($__unixEpochTo() - $__unixEpochFrom()) / 86400.0) / 30.0)\n         / NULLIF(SUM(e.lines_added + e.lines_removed), 0) * 1000, 2) AS v\nFROM whodunit_events e\nWHERE e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "decimals": 2,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          },
+          "noValue": "no agent activity in range"
+        }
+      },
+      "options": {
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "description": "Spend divided by the lines the agent wrote, per thousand lines and prorated to the selected range. Per single line the figure is fractions of a cent, where two decimals would round distinct months to the same value.\n\n**The $200 default is a placeholder, not your bill.** Change it in the box at the top and press Enter. Spend is a dashboard variable because whodunit does not sync it \u2014 the value lives in local config and never reaches the shared database.\n\nTreat it as a unit cost, not a saving. It says nothing about whether those lines were worth writing."
+    },
+    {
+      "id": 9,
+      "type": "row",
+      "title": "Delivery outcomes \u2014 projects with deployments",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 16,
+        "w": 24,
+        "h": 1
+      },
+      "panels": []
+    },
+    {
+      "id": 10,
+      "type": "stat",
+      "title": "Successful deployments",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "x": 0,
+        "y": 17,
+        "w": 4,
+        "h": 5
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT COUNT(DISTINCT cdc.cicd_deployment_id) v\nFROM cicd_deployment_commits cdc\nJOIN project_mapping pm ON cdc.cicd_scope_id = pm.row_id AND pm.`table` = 'cicd_scopes'\nWHERE cdc.result='SUCCESS' AND cdc.environment='PRODUCTION'\n  AND $__timeFilter(cdc.finished_date)"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "0",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "description": "Production deployments that succeeded, in the selected window."
+    },
+    {
+      "id": 11,
+      "type": "stat",
+      "title": "Change failure rate",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "x": 4,
+        "y": 17,
+        "w": 4,
+        "h": 5
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT ROUND(SUM(cdc.result='FAILURE')*100.0/NULLIF(COUNT(*),0),1) v\nFROM cicd_deployment_commits cdc\nJOIN project_mapping pm ON cdc.cicd_scope_id = pm.row_id AND pm.`table` = 'cicd_scopes'\nWHERE cdc.environment='PRODUCTION' AND $__timeFilter(cdc.finished_date)"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 1,
+          "noValue": "no deployments",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 15
+              },
+              {
+                "color": "red",
+                "value": 30
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "description": "Failed production deployments as a share of all of them."
+    },
+    {
+      "id": 12,
+      "type": "stat",
+      "title": "Deployments in the denominator",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "x": 8,
+        "y": 17,
+        "w": 4,
+        "h": 5
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT COUNT(*) v\nFROM cicd_deployment_commits cdc\nJOIN project_mapping pm ON cdc.cicd_scope_id = pm.row_id AND pm.`table` = 'cicd_scopes'\nWHERE cdc.environment='PRODUCTION' AND $__timeFilter(cdc.finished_date)"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "0",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "description": "Shown next to the failure rate on purpose: a percentage without its denominator is how a handful of events becomes a headline."
+    },
+    {
+      "id": 13,
+      "type": "stat",
+      "title": "Median PR cycle time",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "x": 12,
+        "y": 17,
+        "w": 4,
+        "h": 5
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT ROUND(AVG(pr_cycle_time)/60.0, 1) v\nFROM project_pr_metrics\nWHERE pr_cycle_time IS NOT NULL AND $__timeFilter(pr_merged_date)"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "h",
+          "decimals": 1,
+          "noValue": "no merged PRs",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "description": "Open to merge. Check the PR count beside it before reading much into this."
+    },
+    {
+      "id": 14,
+      "type": "stat",
+      "title": "PRs measured",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "x": 16,
+        "y": 17,
+        "w": 4,
+        "h": 5
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT COUNT(*) v FROM project_pr_metrics\nWHERE pr_cycle_time IS NOT NULL AND $__timeFilter(pr_merged_date)"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "0",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "description": "The sample size behind the cycle time to its left."
+    },
+    {
+      "id": 15,
+      "type": "stat",
+      "title": "Mean time to recovery",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "x": 20,
+        "y": 17,
+        "w": 4,
+        "h": 5
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT ROUND(AVG(TIMESTAMPDIFF(MINUTE, created_date, resolution_date))/60.0, 1) v\nFROM incidents WHERE resolution_date IS NOT NULL AND $__timeFilter(resolution_date)"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "h",
+          "decimals": 1,
+          "noValue": "no incidents recorded",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "description": "Blank means no issue is classified as an incident. That is an issue-tracker configuration gap, not a claim that nothing has broken."
+    },
+    {
+      "id": 16,
+      "type": "timeseries",
+      "title": "Deployment frequency",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "x": 0,
+        "y": 22,
+        "w": 12,
+        "h": 7
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawSql": "SELECT DATE(cdc.finished_date) AS `time`,\n       COUNT(DISTINCT cdc.cicd_deployment_id) AS `deployments`\nFROM cicd_deployment_commits cdc\nJOIN project_mapping pm ON cdc.cicd_scope_id = pm.row_id AND pm.`table` = 'cicd_scopes'\nWHERE cdc.result='SUCCESS' AND cdc.environment='PRODUCTION'\n  AND $__timeFilter(cdc.finished_date)\nGROUP BY `time` ORDER BY `time`"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 70
+          }
+        }
+      },
+      "description": "Successful production deployments per bucket."
+    },
+    {
+      "id": 17,
+      "type": "timeseries",
+      "title": "Deployment outcomes",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "x": 12,
+        "y": 22,
+        "w": 12,
+        "h": 7
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawSql": "SELECT DATE(cdc.finished_date) AS `time`,\n       SUM(cdc.result='SUCCESS') AS `succeeded`,\n       SUM(cdc.result='FAILURE') AS `failed`\nFROM cicd_deployment_commits cdc\nJOIN project_mapping pm ON cdc.cicd_scope_id = pm.row_id AND pm.`table` = 'cicd_scopes'\nWHERE cdc.environment='PRODUCTION' AND $__timeFilter(cdc.finished_date)\nGROUP BY `time` ORDER BY `time`"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 70,
+            "stacking": {
+              "mode": "normal"
+            }
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "failed"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "succeeded"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "green"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "description": "The failure rate's two components, so a rising rate can be read as more failures or fewer deployments."
+    },
+    {
+      "id": 18,
+      "type": "row",
+      "title": "Does adoption move delivery?",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 29,
+        "w": 24,
+        "h": 1
+      },
+      "panels": []
+    },
+    {
+      "id": 19,
+      "type": "text",
+      "title": "",
+      "gridPos": {
+        "x": 0,
+        "y": 30,
+        "w": 24,
+        "h": 4
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "**How to read this section.** Each chart plots AI adoption against a delivery outcome over the same weeks. The `r` beside it is a correlation coefficient: `+1` means they rise together, `-1` means one rises as the other falls, `0` means no linear relationship.\n\n**`r` is withheld until there are 10 overlapping weeks.** Below that it is arithmetic, not evidence \u2014 three points can produce `r = 0.99` from coincidence. The paired series still plots, so you can watch the relationship form. **Correlation is not causation** even at high `n`: a release freeze, a hiring round or a quarter boundary moves these numbers too."
+      }
+    },
+    {
+      "id": 20,
+      "type": "barchart",
+      "title": "Adoption vs deployment frequency",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "x": 0,
+        "y": 34,
+        "w": 8,
+        "h": 9
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "rawSql": "WITH a AS (SELECT DATE_FORMAT(FROM_UNIXTIME(committed_at/1000000000), '%x-W%v') AS wk,\n       SUM(status='assisted')*100.0/NULLIF(COUNT(*),0) AS adoption\nFROM whodunit_commits GROUP BY wk),\n     m AS (SELECT DATE_FORMAT(cdc.finished_date, '%x-W%v') AS wk,\n       COUNT(DISTINCT cdc.cicd_deployment_id) AS metric\nFROM cicd_deployment_commits cdc\nJOIN project_mapping pm ON cdc.cicd_scope_id = pm.row_id AND pm.`table` = 'cicd_scopes'\nWHERE cdc.result='SUCCESS' AND cdc.environment='PRODUCTION' GROUP BY wk)\nSELECT a.wk AS `week`, ROUND(a.adoption,1) AS `adoption %`, ROUND(m.metric,1) AS `deployments/wk`\nFROM a JOIN m ON a.wk = m.wk ORDER BY a.wk",
+          "format": "table"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "pointSize": 7,
+            "spanNulls": true
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "adoption %"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percent"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "blue"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "deployments/wk"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "short"
+              },
+              {
+                "id": "custom.axisPlacement",
+                "value": "right"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "orange"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "description": "Weekly adoption against deployment frequency, on the weeks where both exist.",
+      "options": {
+        "xField": "week",
+        "stacking": "none",
+        "groupWidth": 0.7,
+        "barWidth": 0.9,
+        "showValue": "never",
+        "orientation": "auto",
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "multi"
+        },
+        "xTickLabelRotation": -45,
+        "xTickLabelSpacing": 100
+      }
+    },
+    {
+      "id": 21,
+      "type": "stat",
+      "title": "r \u2014 adoption vs deployment frequency",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "x": 0,
+        "y": 43,
+        "w": 4,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "WITH a AS (SELECT DATE_FORMAT(FROM_UNIXTIME(committed_at/1000000000), '%x-W%v') AS wk,\n       SUM(status='assisted')*100.0/NULLIF(COUNT(*),0) AS adoption\nFROM whodunit_commits GROUP BY wk),\n     m AS (SELECT DATE_FORMAT(cdc.finished_date, '%x-W%v') AS wk,\n       COUNT(DISTINCT cdc.cicd_deployment_id) AS metric\nFROM cicd_deployment_commits cdc\nJOIN project_mapping pm ON cdc.cicd_scope_id = pm.row_id AND pm.`table` = 'cicd_scopes'\nWHERE cdc.result='SUCCESS' AND cdc.environment='PRODUCTION' GROUP BY wk),\n     p AS (SELECT a.adoption x, m.metric y FROM a JOIN m ON a.wk = m.wk)\nSELECT CASE WHEN COUNT(*) < 10 THEN NULL\n            ELSE ROUND((COUNT(*)*SUM(x*y) - SUM(x)*SUM(y)) /\n                 NULLIF(SQRT((COUNT(*)*SUM(x*x) - POW(SUM(x),2)) *\n                             (COUNT(*)*SUM(y*y) - POW(SUM(y),2))), 0), 2)\n       END AS v\nFROM p"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 2,
+          "noValue": "not enough overlapping weeks yet",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "description": "Withheld until 10 overlapping weeks exist."
+    },
+    {
+      "id": 22,
+      "type": "stat",
+      "title": "overlapping weeks (n)",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "x": 4,
+        "y": 43,
+        "w": 4,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "WITH a AS (SELECT DATE_FORMAT(FROM_UNIXTIME(committed_at/1000000000), '%x-W%v') AS wk,\n       SUM(status='assisted')*100.0/NULLIF(COUNT(*),0) AS adoption\nFROM whodunit_commits GROUP BY wk),\n     m AS (SELECT DATE_FORMAT(cdc.finished_date, '%x-W%v') AS wk,\n       COUNT(DISTINCT cdc.cicd_deployment_id) AS metric\nFROM cicd_deployment_commits cdc\nJOIN project_mapping pm ON cdc.cicd_scope_id = pm.row_id AND pm.`table` = 'cicd_scopes'\nWHERE cdc.result='SUCCESS' AND cdc.environment='PRODUCTION' GROUP BY wk)\nSELECT COUNT(*) AS v FROM a JOIN m ON a.wk = m.wk"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "0",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "orange",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 10
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "description": "Green once it reaches 10, the point at which the coefficient appears."
+    },
+    {
+      "id": 23,
+      "type": "barchart",
+      "title": "Adoption vs change failure rate",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "x": 8,
+        "y": 34,
+        "w": 8,
+        "h": 9
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "rawSql": "WITH a AS (SELECT DATE_FORMAT(FROM_UNIXTIME(committed_at/1000000000), '%x-W%v') AS wk,\n       SUM(status='assisted')*100.0/NULLIF(COUNT(*),0) AS adoption\nFROM whodunit_commits GROUP BY wk),\n     m AS (SELECT DATE_FORMAT(cdc.finished_date, '%x-W%v') AS wk,\n       SUM(cdc.result='FAILURE')*100.0/NULLIF(COUNT(*),0) AS metric\nFROM cicd_deployment_commits cdc\nJOIN project_mapping pm ON cdc.cicd_scope_id = pm.row_id AND pm.`table` = 'cicd_scopes'\nWHERE cdc.environment='PRODUCTION' GROUP BY wk)\nSELECT a.wk AS `week`, ROUND(a.adoption,1) AS `adoption %`, ROUND(m.metric,1) AS `failure rate %`\nFROM a JOIN m ON a.wk = m.wk ORDER BY a.wk",
+          "format": "table"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "pointSize": 7,
+            "spanNulls": true
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "adoption %"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percent"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "blue"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "failure rate %"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percent"
+              },
+              {
+                "id": "custom.axisPlacement",
+                "value": "right"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "orange"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "description": "Weekly adoption against change failure rate, on the weeks where both exist.",
+      "options": {
+        "xField": "week",
+        "stacking": "none",
+        "groupWidth": 0.7,
+        "barWidth": 0.9,
+        "showValue": "never",
+        "orientation": "auto",
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "multi"
+        },
+        "xTickLabelRotation": -45,
+        "xTickLabelSpacing": 100
+      }
+    },
+    {
+      "id": 24,
+      "type": "stat",
+      "title": "r \u2014 adoption vs change failure rate",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "x": 8,
+        "y": 43,
+        "w": 4,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "WITH a AS (SELECT DATE_FORMAT(FROM_UNIXTIME(committed_at/1000000000), '%x-W%v') AS wk,\n       SUM(status='assisted')*100.0/NULLIF(COUNT(*),0) AS adoption\nFROM whodunit_commits GROUP BY wk),\n     m AS (SELECT DATE_FORMAT(cdc.finished_date, '%x-W%v') AS wk,\n       SUM(cdc.result='FAILURE')*100.0/NULLIF(COUNT(*),0) AS metric\nFROM cicd_deployment_commits cdc\nJOIN project_mapping pm ON cdc.cicd_scope_id = pm.row_id AND pm.`table` = 'cicd_scopes'\nWHERE cdc.environment='PRODUCTION' GROUP BY wk),\n     p AS (SELECT a.adoption x, m.metric y FROM a JOIN m ON a.wk = m.wk)\nSELECT CASE WHEN COUNT(*) < 10 THEN NULL\n            ELSE ROUND((COUNT(*)*SUM(x*y) - SUM(x)*SUM(y)) /\n                 NULLIF(SQRT((COUNT(*)*SUM(x*x) - POW(SUM(x),2)) *\n                             (COUNT(*)*SUM(y*y) - POW(SUM(y),2))), 0), 2)\n       END AS v\nFROM p"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 2,
+          "noValue": "not enough overlapping weeks yet",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "description": "Withheld until 10 overlapping weeks exist."
+    },
+    {
+      "id": 25,
+      "type": "stat",
+      "title": "overlapping weeks (n)",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "x": 12,
+        "y": 43,
+        "w": 4,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "WITH a AS (SELECT DATE_FORMAT(FROM_UNIXTIME(committed_at/1000000000), '%x-W%v') AS wk,\n       SUM(status='assisted')*100.0/NULLIF(COUNT(*),0) AS adoption\nFROM whodunit_commits GROUP BY wk),\n     m AS (SELECT DATE_FORMAT(cdc.finished_date, '%x-W%v') AS wk,\n       SUM(cdc.result='FAILURE')*100.0/NULLIF(COUNT(*),0) AS metric\nFROM cicd_deployment_commits cdc\nJOIN project_mapping pm ON cdc.cicd_scope_id = pm.row_id AND pm.`table` = 'cicd_scopes'\nWHERE cdc.environment='PRODUCTION' GROUP BY wk)\nSELECT COUNT(*) AS v FROM a JOIN m ON a.wk = m.wk"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "0",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "orange",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 10
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "description": "Green once it reaches 10, the point at which the coefficient appears."
+    },
+    {
+      "id": 26,
+      "type": "barchart",
+      "title": "Adoption vs pr cycle time",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "x": 16,
+        "y": 34,
+        "w": 8,
+        "h": 9
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "rawSql": "WITH a AS (SELECT DATE_FORMAT(FROM_UNIXTIME(committed_at/1000000000), '%x-W%v') AS wk,\n       SUM(status='assisted')*100.0/NULLIF(COUNT(*),0) AS adoption\nFROM whodunit_commits GROUP BY wk),\n     m AS (SELECT DATE_FORMAT(pr_merged_date, '%x-W%v') AS wk,\n       AVG(pr_cycle_time)/60.0 AS metric\nFROM project_pr_metrics WHERE pr_cycle_time IS NOT NULL GROUP BY wk)\nSELECT a.wk AS `week`, ROUND(a.adoption,1) AS `adoption %`, ROUND(m.metric,1) AS `cycle time hrs`\nFROM a JOIN m ON a.wk = m.wk ORDER BY a.wk",
+          "format": "table"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "pointSize": 7,
+            "spanNulls": true
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "adoption %"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percent"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "blue"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "cycle time hrs"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "h"
+              },
+              {
+                "id": "custom.axisPlacement",
+                "value": "right"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "orange"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "description": "Weekly adoption against pr cycle time, on the weeks where both exist.",
+      "options": {
+        "xField": "week",
+        "stacking": "none",
+        "groupWidth": 0.7,
+        "barWidth": 0.9,
+        "showValue": "never",
+        "orientation": "auto",
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "multi"
+        },
+        "xTickLabelRotation": -45,
+        "xTickLabelSpacing": 100
+      }
+    },
+    {
+      "id": 27,
+      "type": "stat",
+      "title": "r \u2014 adoption vs pr cycle time",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "x": 16,
+        "y": 43,
+        "w": 4,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "WITH a AS (SELECT DATE_FORMAT(FROM_UNIXTIME(committed_at/1000000000), '%x-W%v') AS wk,\n       SUM(status='assisted')*100.0/NULLIF(COUNT(*),0) AS adoption\nFROM whodunit_commits GROUP BY wk),\n     m AS (SELECT DATE_FORMAT(pr_merged_date, '%x-W%v') AS wk,\n       AVG(pr_cycle_time)/60.0 AS metric\nFROM project_pr_metrics WHERE pr_cycle_time IS NOT NULL GROUP BY wk),\n     p AS (SELECT a.adoption x, m.metric y FROM a JOIN m ON a.wk = m.wk)\nSELECT CASE WHEN COUNT(*) < 10 THEN NULL\n            ELSE ROUND((COUNT(*)*SUM(x*y) - SUM(x)*SUM(y)) /\n                 NULLIF(SQRT((COUNT(*)*SUM(x*x) - POW(SUM(x),2)) *\n                             (COUNT(*)*SUM(y*y) - POW(SUM(y),2))), 0), 2)\n       END AS v\nFROM p"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 2,
+          "noValue": "not enough overlapping weeks yet",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "description": "Withheld until 10 overlapping weeks exist."
+    },
+    {
+      "id": 28,
+      "type": "stat",
+      "title": "overlapping weeks (n)",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "x": 20,
+        "y": 43,
+        "w": 4,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "WITH a AS (SELECT DATE_FORMAT(FROM_UNIXTIME(committed_at/1000000000), '%x-W%v') AS wk,\n       SUM(status='assisted')*100.0/NULLIF(COUNT(*),0) AS adoption\nFROM whodunit_commits GROUP BY wk),\n     m AS (SELECT DATE_FORMAT(pr_merged_date, '%x-W%v') AS wk,\n       AVG(pr_cycle_time)/60.0 AS metric\nFROM project_pr_metrics WHERE pr_cycle_time IS NOT NULL GROUP BY wk)\nSELECT COUNT(*) AS v FROM a JOIN m ON a.wk = m.wk"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "0",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "orange",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 10
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "description": "Green once it reaches 10, the point at which the coefficient appears."
+    }
+  ]
+}

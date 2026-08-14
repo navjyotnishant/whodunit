@@ -1,0 +1,926 @@
+{
+  "uid": "whodunit-hours",
+  "title": "Whodunit \u2014 Agent Activity Hours",
+  "tags": [
+    "whodunit",
+    "adoption"
+  ],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "",
+  "time": {
+    "from": "now-90d",
+    "to": "now"
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "datasource",
+        "type": "datasource",
+        "query": "mysql",
+        "current": {
+          "selected": true,
+          "text": "mysql",
+          "value": "mysql"
+        },
+        "hide": 0,
+        "label": "Data source"
+      },
+      {
+        "name": "agent",
+        "type": "query",
+        "datasource": "${datasource}",
+        "label": "Agent",
+        "query": "SELECT DISTINCT agent FROM whodunit_sessions WHERE agent <> '' UNION SELECT DISTINCT agent FROM whodunit_events WHERE agent <> ''",
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "$__all"
+        },
+        "includeAll": true,
+        "multi": true,
+        "refresh": 1,
+        "hide": 0
+      },
+      {
+        "name": "tz",
+        "type": "custom",
+        "label": "Timezone",
+        "query": "+00:00 : UTC, -05:00 : US Central, -08:00 : US Pacific, +05:30 : India, +01:00 : Central Europe",
+        "options": [
+          {
+            "text": "UTC",
+            "value": "+00:00",
+            "selected": false
+          },
+          {
+            "text": "US Central",
+            "value": "-05:00",
+            "selected": true
+          },
+          {
+            "text": "US Pacific",
+            "value": "-08:00",
+            "selected": false
+          },
+          {
+            "text": "India",
+            "value": "+05:30",
+            "selected": false
+          },
+          {
+            "text": "Central Europe",
+            "value": "+01:00",
+            "selected": false
+          }
+        ],
+        "current": {
+          "selected": true,
+          "text": "US Central",
+          "value": "-05:00"
+        }
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "text",
+      "title": "",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 5
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "## When and how the agent is used\n*Working rhythm, tool mix and session shape \u2014 from the agent's own session records.*\n\nEvery figure is measured from what the agent did on this machine. Nothing is self-reported, and no vendor API is involved, so this works the same for Claude Code, Codex and `agy`.\n\n**No prompt or response text is recorded anywhere** \u2014 whodunit stores counts, file paths and line hashes, never message content. Message *volume* is as close as this gets to measuring conversation, and that is deliberate.\n\nSet **Timezone** below to read hours in your own working day rather than UTC, and **Agent** to narrow to one tool."
+      }
+    },
+    {
+      "id": 2,
+      "type": "row",
+      "title": "Working rhythm",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 5,
+        "w": 24,
+        "h": 1
+      },
+      "panels": []
+    },
+    {
+      "id": 3,
+      "type": "barchart",
+      "title": "Agent activity by hour of day",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "x": 0,
+        "y": 6,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT LPAD(HOUR(CONVERT_TZ(FROM_UNIXTIME(e.observed_at/1000000000), '+00:00', '$tz')),2,'0') AS `hour`,\n       SUM(CASE WHEN e.agent='claude-code' THEN 1 ELSE 0 END) AS `claude-code`,\n       SUM(CASE WHEN e.agent='codex' THEN 1 ELSE 0 END) AS `codex`,\n       SUM(CASE WHEN e.agent='agy' THEN 1 ELSE 0 END) AS `agy`\nFROM whodunit_events e\nWHERE e.agent IN ($agent)\n  AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nGROUP BY `hour` ORDER BY `hour`"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 80,
+            "lineWidth": 1,
+            "thresholdsStyle": {
+              "mode": "off"
+            },
+            "axisPlacement": "auto",
+            "axisLabel": "",
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            }
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "claude-code"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "blue"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "codex"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "green"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "agy"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "purple"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "xTickLabelRotation": 0,
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "multi"
+        },
+        "xField": "hour",
+        "stacking": "normal",
+        "showValue": "never",
+        "groupWidth": 0.7,
+        "barWidth": 0.9,
+        "orientation": "auto"
+      },
+      "description": "Stacked by agent. Hours with no bar are hours nobody worked \u2014 not missing data."
+    },
+    {
+      "id": 4,
+      "type": "barchart",
+      "title": "Agent activity by day of week",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "x": 12,
+        "y": 6,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT CASE DAYOFWEEK(CONVERT_TZ(FROM_UNIXTIME(e.observed_at/1000000000), '+00:00', '$tz'))\n         WHEN 1 THEN 'Sun' WHEN 2 THEN 'Mon' WHEN 3 THEN 'Tue' WHEN 4 THEN 'Wed'\n         WHEN 5 THEN 'Thu' WHEN 6 THEN 'Fri' ELSE 'Sat' END AS `day`,\n       SUM(CASE WHEN e.agent='claude-code' THEN 1 ELSE 0 END) AS `claude-code`,\n       SUM(CASE WHEN e.agent='codex' THEN 1 ELSE 0 END) AS `codex`,\n       SUM(CASE WHEN e.agent='agy' THEN 1 ELSE 0 END) AS `agy`\nFROM whodunit_events e\nWHERE e.agent IN ($agent)\n  AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nGROUP BY DAYOFWEEK(CONVERT_TZ(FROM_UNIXTIME(e.observed_at/1000000000), '+00:00', '$tz')), `day` ORDER BY DAYOFWEEK(CONVERT_TZ(FROM_UNIXTIME(e.observed_at/1000000000), '+00:00', '$tz'))"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 80,
+            "lineWidth": 1,
+            "thresholdsStyle": {
+              "mode": "off"
+            },
+            "axisPlacement": "auto",
+            "axisLabel": "",
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            }
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "claude-code"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "blue"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "codex"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "green"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "agy"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "purple"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "xTickLabelRotation": 0,
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "multi"
+        },
+        "xField": "day",
+        "stacking": "normal",
+        "showValue": "never",
+        "groupWidth": 0.7,
+        "barWidth": 0.9,
+        "orientation": "auto"
+      },
+      "description": "Stacked by agent. A flat weekend is normal; a flat Monday may be worth asking about."
+    },
+    {
+      "id": 5,
+      "type": "barchart",
+      "title": "Code churn by hour",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "x": 0,
+        "y": 14,
+        "w": 12,
+        "h": 7
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT LPAD(HOUR(CONVERT_TZ(FROM_UNIXTIME(e.observed_at/1000000000), '+00:00', '$tz')),2,'0') AS `hour`,\n       SUM(e.lines_added) AS `lines added`,\n       SUM(e.lines_removed) AS `lines removed`\nFROM whodunit_events e\nWHERE e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  AND e.agent IN ($agent)\nGROUP BY `hour` ORDER BY `hour`"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "fillOpacity": 80
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "lines removed"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "orange"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "lines added"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "blue"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "description": "Volume of change, not value of it. A high-churn hour is a busy hour, not necessarily a productive one.",
+      "options": {
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
+        },
+        "xTickLabelRotation": 0,
+        "tooltip": {
+          "mode": "multi"
+        },
+        "xField": "hour"
+      }
+    },
+    {
+      "id": 6,
+      "type": "barchart",
+      "title": "Tools used, by agent",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "x": 12,
+        "y": 14,
+        "w": 12,
+        "h": 7
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT e.tool AS `tool`,\n       SUM(CASE WHEN e.agent='claude-code' THEN 1 ELSE 0 END) AS `claude-code`,\n       SUM(CASE WHEN e.agent='codex' THEN 1 ELSE 0 END) AS `codex`,\n       SUM(CASE WHEN e.agent='agy' THEN 1 ELSE 0 END) AS `agy`\nFROM whodunit_events e\nWHERE e.tool <> ''\n  AND e.agent IN ($agent)\n  AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nGROUP BY e.tool ORDER BY `claude-code` DESC"
+        }
+      ],
+      "options": {
+        "xField": "tool",
+        "xTickLabelRotation": -45,
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "multi"
+        },
+        "stacking": "normal",
+        "showValue": "never",
+        "groupWidth": 0.7,
+        "barWidth": 0.9,
+        "orientation": "auto"
+      },
+      "description": "Which agent reaches for which tool, from the tool calls recorded in each session \u2014 not a fixed list of features.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 80,
+            "lineWidth": 1,
+            "thresholdsStyle": {
+              "mode": "off"
+            },
+            "axisPlacement": "auto",
+            "axisLabel": "",
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            }
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "claude-code"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "blue"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "codex"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "green"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "agy"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "purple"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": 7,
+      "type": "row",
+      "title": "Session shape",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 29,
+        "w": 24,
+        "h": 1
+      },
+      "panels": []
+    },
+    {
+      "id": 8,
+      "type": "stat",
+      "title": "Sessions",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "x": 0,
+        "y": 30,
+        "w": 4,
+        "h": 5
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT COUNT(*) v FROM whodunit_sessions s\nWHERE s.last_seen BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  AND s.agent IN ($agent)"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "0",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 9,
+      "type": "stat",
+      "title": "Tool calls per session",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "x": 4,
+        "y": 30,
+        "w": 4,
+        "h": 5
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT ROUND(AVG(s.tool_calls),1) v FROM whodunit_sessions s\nWHERE s.last_seen BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  AND s.agent IN ($agent)"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 1,
+          "noValue": "no sessions",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "description": "How much work happens per session, on average."
+    },
+    {
+      "id": 10,
+      "type": "stat",
+      "title": "Agent replies per prompt",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "x": 8,
+        "y": 30,
+        "w": 4,
+        "h": 5
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT ROUND(SUM(s.agent_messages)/NULLIF(SUM(s.user_messages),0),1) v\nFROM whodunit_sessions s\nWHERE s.last_seen BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 1,
+          "noValue": "no sessions",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "description": "Message volume only \u2014 whodunit never records what was said. A high number means long autonomous stretches per instruction."
+    },
+    {
+      "id": 11,
+      "type": "stat",
+      "title": "MCP calls",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "x": 12,
+        "y": 30,
+        "w": 4,
+        "h": 5
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT SUM(s.mcp_calls) v FROM whodunit_sessions s\nWHERE s.last_seen BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  AND s.agent IN ($agent)"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "0",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "purple",
+                "value": null
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "description": "Calls to connected MCP servers \u2014 external tools the agent reached for."
+    },
+    {
+      "id": 12,
+      "type": "stat",
+      "title": "Edits applied cleanly",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "x": 16,
+        "y": 30,
+        "w": 4,
+        "h": 5
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT ROUND(SUM(e.outcome='accepted')*100.0/NULLIF(COUNT(*),0),1) v\nFROM whodunit_events e\nWHERE e.outcome <> '' AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  AND e.agent IN ($agent)"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 1,
+          "noValue": "no outcomes recorded",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 80
+              },
+              {
+                "color": "green",
+                "value": 95
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "description": "Share of edits the agent applied without erroring. Not a quality measure \u2014 a failed edit is a tool failure, not a bad suggestion."
+    },
+    {
+      "id": 13,
+      "type": "stat",
+      "title": "Distinct tools used",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "x": 20,
+        "y": 30,
+        "w": 4,
+        "h": 5
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT COUNT(DISTINCT e.tool) v FROM whodunit_events e\nWHERE e.tool <> '' AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  AND e.agent IN ($agent)"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "0",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 14,
+      "type": "barchart",
+      "title": "How long sessions run",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "x": 0,
+        "y": 35,
+        "w": 12,
+        "h": 7
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT b AS `length`, COUNT(*) AS `sessions` FROM (\n  SELECT CASE\n    WHEN TIMESTAMPDIFF(MINUTE, FROM_UNIXTIME(first_seen/1000000000), FROM_UNIXTIME(last_seen/1000000000)) < 15 THEN '1. under 15m'\n    WHEN TIMESTAMPDIFF(MINUTE, FROM_UNIXTIME(first_seen/1000000000), FROM_UNIXTIME(last_seen/1000000000)) < 60 THEN '2. 15-60m'\n    WHEN TIMESTAMPDIFF(MINUTE, FROM_UNIXTIME(first_seen/1000000000), FROM_UNIXTIME(last_seen/1000000000)) < 240 THEN '3. 1-4h'\n    ELSE '4. over 4h' END AS b\n  FROM whodunit_sessions s\n  WHERE s.last_seen BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  AND s.agent IN ($agent)\n) t GROUP BY b ORDER BY b"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "fillOpacity": 80
+          }
+        }
+      },
+      "options": {
+        "xTickLabelRotation": 0,
+        "legend": {
+          "showLegend": false
+        },
+        "tooltip": {
+          "mode": "multi"
+        },
+        "xField": "length"
+      },
+      "description": "Wall-clock first to last event. A session left open overnight inflates this \u2014 read it as span, not effort."
+    },
+    {
+      "id": 15,
+      "type": "barchart",
+      "title": "Work per session",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "x": 12,
+        "y": 35,
+        "w": 12,
+        "h": 7
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT CONCAT(s.agent, ' \u00b7 #', LPAD(ROW_NUMBER() OVER (ORDER BY s.tool_calls DESC), 2, '0')) AS `session`,\n       s.tool_calls AS `tool calls`\nFROM whodunit_sessions s\nWHERE s.tool_calls > 0\n  AND s.last_seen BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  AND s.agent IN ($agent)\nORDER BY s.tool_calls DESC LIMIT 10"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "fillOpacity": 80
+          }
+        }
+      },
+      "options": {
+        "xTickLabelRotation": -45,
+        "legend": {
+          "showLegend": false
+        },
+        "tooltip": {
+          "mode": "multi"
+        },
+        "xField": "session"
+      },
+      "description": "Ranked, not identified. The session column in the sidecar still holds the agent's own session id, which on Claude Code is the transcript filename \u2014 so it is deliberately not rendered here."
+    },
+    {
+      "id": 16,
+      "type": "table",
+      "title": "Agent comparison",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "x": 0,
+        "y": 21,
+        "w": 24,
+        "h": 7
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT a.agent AS `agent`,\n       COALESCE(s.sessions, 0)      AS `sessions`,\n       COALESCE(s.tool_calls, 0)    AS `tool calls`,\n       COALESCE(e.events, 0)        AS `file edits`,\n       COALESCE(e.`lines`, 0)         AS `lines written`,\n       COALESCE(c.commits, 0)       AS `commits`\nFROM (\n  SELECT DISTINCT agent FROM whodunit_sessions WHERE agent <> ''\n  UNION SELECT DISTINCT agent FROM whodunit_events WHERE agent <> ''\n) a\nLEFT JOIN (\n  SELECT agent, COUNT(*) sessions, SUM(tool_calls) tool_calls\n  FROM whodunit_sessions\n  WHERE last_seen BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  GROUP BY agent\n) s ON s.agent = a.agent\nLEFT JOIN (\n  SELECT agent, COUNT(*) events, SUM(lines_added + lines_removed) `lines`\n  FROM whodunit_events\n  WHERE observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  GROUP BY agent\n) e ON e.agent = a.agent\nLEFT JOIN (\n  SELECT agent, COUNT(*) commits FROM whodunit_commits\n  WHERE agent <> '' AND status = 'assisted'\n    AND committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  GROUP BY agent\n) c ON c.agent = a.agent\nORDER BY `file edits` DESC, `sessions` DESC"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "align": "right"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "agent"
+            },
+            "properties": [
+              {
+                "id": "custom.align",
+                "value": "left"
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true
+      },
+      "description": "Every agent this machine has seen, whether or not it produced anything. An agent with sessions but no edits is running and contributing nothing measurable \u2014 worth knowing, and invisible in a merged total."
+    }
+  ]
+}

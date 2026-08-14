@@ -13,7 +13,7 @@ type Method string
 const (
 	MethodUndetermined Method = "undetermined"
 	MethodDeclared     Method = "declared"
-	MethodInferred      Method = "inferred"
+	MethodInferred     Method = "inferred"
 	MethodObserved     Method = "observed"
 	MethodIntersected  Method = "intersected"
 )
@@ -48,7 +48,14 @@ type Trailer struct {
 	Method  Method
 	Agent   string
 	Version string
-	Ratio   float64
+	// Ratio is the share of the commit's changed lines that overlap lines
+	// an agent touched — additions and deletions both counted (NAV-8).
+	//
+	// A pointer because "not computed" and "computed as zero" are different
+	// claims: methods with no line-level evidence (declared, inferred) can
+	// never have one, and emitting 0.00 there would assert the agent
+	// contributed nothing.
+	Ratio   *float64
 	Session string
 	Extra   map[string]string // unknown keys, preserved verbatim per spec
 }
@@ -73,8 +80,12 @@ func (t Trailer) Format() string {
 	if t.Version != "" {
 		fmt.Fprintf(&b, "; agent_version=%s", t.Version)
 	}
-	if t.Method == MethodIntersected || t.Method == MethodObserved {
-		fmt.Fprintf(&b, "; ratio=%.2f", t.Ratio)
+	// ratio is emitted only when it was actually computed. A method with no
+	// line-level evidence (declared, inferred) has nothing to compute it
+	// from, and an unknown ratio must be absent rather than reported as
+	// 0.00 — a fabricated zero reads as "the agent contributed nothing".
+	if t.Ratio != nil {
+		fmt.Fprintf(&b, "; ratio=%.2f", *t.Ratio)
 	}
 	if t.Session != "" {
 		fmt.Fprintf(&b, "; session=%s", t.Session)
@@ -127,7 +138,7 @@ func Parse(value string) (Trailer, error) {
 			if err != nil || r < 0 || r > 1 {
 				return Trailer{}, fmt.Errorf("spec: invalid ratio %q", val)
 			}
-			t.Ratio = r
+			t.Ratio = &r
 		default:
 			t.Extra[key] = val
 		}
@@ -153,4 +164,38 @@ func isToken(s string) bool {
 		}
 	}
 	return true
+}
+
+// Explain returns a plain-English gloss for a method.
+//
+// The method names are spec vocabulary: they appear in the trailer, in the
+// dashboards, and in every commit already stamped, so they cannot be
+// renamed to something friendlier without either breaking that or keeping
+// two names for one concept. What they can do is explain themselves at the
+// point they are displayed.
+//
+// Written from the reader's side — what the evidence shows — rather than
+// from the collector's. "The agent's exact lines are in this commit" tells
+// someone what they can conclude; "line hashes intersected" does not.
+//
+// Each gloss names its position on the ladder, because the names alone
+// read like workflow states rather than confidence levels — "observed"
+// was taken to mean "recorded, awaiting sync" rather than "seen, but the
+// text changed". Every method is equally recorded and equally synced; the
+// only thing that varies is how much the evidence supports.
+func (m Method) Explain() string {
+	switch m {
+	case MethodIntersected:
+		return "strongest — the agent's exact lines survived into the commit"
+	case MethodObserved:
+		return "weaker — the agent edited these files, but its text was changed before committing"
+	case MethodInferred:
+		return "weaker still — inferred from surrounding evidence"
+	case MethodDeclared:
+		return "weakest — the author declared it, nothing verified it"
+	case MethodUndetermined:
+		return "no evidence either way"
+	default:
+		return ""
+	}
 }

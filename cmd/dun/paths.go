@@ -1,27 +1,109 @@
 package main
 
 import (
+	"time"
+
 	"fmt"
+	"github.com/navjyotnishant/whodunit/internal/attribution"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
+
+	"github.com/navjyotnishant/whodunit/internal/config"
+	"github.com/navjyotnishant/whodunit/internal/repoid"
 )
 
 // gitDir returns the .git directory for the current repo, resolving worktrees
 // and core.hooksPath-style setups via git itself rather than assuming layout.
 func gitDir() (string, error) {
-	out, err := exec.Command("git", "rev-parse", "--git-common-dir").Output()
+	return gitDirFor("")
+}
+
+// gitDirFor returns the .git directory for the repository at dir. An empty
+// dir means the current working directory. The path is made absolute:
+// git reports a relative one when asked from inside the repo, which would
+// break as soon as the caller resolves it from anywhere else.
+func gitDirFor(dir string) (string, error) {
+	cmd := exec.Command("git", "rev-parse", "--git-common-dir")
+	cmd.Dir = dir
+	out, err := cmd.Output()
 	if err != nil {
 		return "", fmt.Errorf("not a git repository (or git not on PATH): %w", err)
 	}
-	return strings.TrimSpace(string(out)), nil
+
+	gd := strings.TrimSpace(string(out))
+	if filepath.IsAbs(gd) {
+		return gd, nil
+	}
+	base := dir
+	if base == "" {
+		if base, err = os.Getwd(); err != nil {
+			return "", err
+		}
+	}
+	return filepath.Join(base, gd), nil
 }
 
-// journalDir returns the local, gitignored journal directory for this repo.
-func journalDir() (string, error) {
-	gd, err := gitDir()
+// journalDataDir returns the directory holding the global journal database.
+// The journal is global and scoped by repo id rather than one file per
+// repo, so the same code path works whether the backend is the embedded
+// SQLite file or, later, a shared server.
+func journalDataDir() (string, error) {
+	return config.DataDir()
+}
+
+// contributorFor returns the git committer identity configured for the
+// repository at dir (empty dir means the current directory).
+//
+// This is the same value git will stamp on the commits themselves, read
+// from git rather than collected separately — so the metadata records
+// nothing that was not already going into every commit.
+//
+// Returns empty when git has no user.email configured, which is a state to
+// record honestly rather than an error: the hooks still work, and the
+// contributor simply is not known.
+func contributorFor(dir string) string {
+	cmd := exec.Command("git", "config", "user.email")
+	cmd.Dir = dir
+	out, err := cmd.Output()
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(out))
+}
+
+// currentRepoID returns the stable identifier for the repository in the
+// current working directory.
+func currentRepoID() (string, error) {
+	return repoid.ForCurrentRepo()
+}
+
+// defaultBaselinePath returns where this repository's baseline snapshot
+// lives. It is kept outside the repo: a baseline measures a window that
+// cannot be recaptured, and anything under .git/ dies with a fresh clone
+// or a `git clean -xfd`.
+func defaultBaselinePath() (string, error) {
+	dir, err := config.BaselinesDir()
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(gd, "dun", "journal"), nil
+	repoID, err := currentRepoID()
+	if err != nil {
+		return "", err
+	}
+	if err := config.EnsureDir(dir); err != nil {
+		return "", err
+	}
+	return filepath.Join(dir, repoID+".json"), nil
 }
+
+// lookbackDays is the attribution window in days, for user-facing text.
+//
+// Derived from the constant rather than written out. Three messages said
+// "the last 7 days" long after the window became 30: the constant was
+// changed and the prose was not, so `dun verify` told a user their 3-week-old
+// session was out of window when it was well inside it — sending them away
+// from the real cause. The drift is only possible while a number is typed
+// twice.
+var lookbackDays = int(attribution.LookbackWindow / (24 * time.Hour))

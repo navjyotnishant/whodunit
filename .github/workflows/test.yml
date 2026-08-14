@@ -1,0 +1,101 @@
+name: Test
+
+on:
+  push:
+    branches: [main, PRD]
+  pull_request:
+
+jobs:
+  # Formatting and vet run once, on Linux. They are platform-independent,
+  # and the gofmt check below is a shell expression that would need
+  # rewriting for PowerShell to no benefit.
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          # Read from go.mod so a toolchain bump cannot leave CI behind:
+          # pinning a literal here is how this ended up on 1.22 while
+          # go.mod required 1.26.5, which CI could not build at all.
+          go-version-file: go.mod
+
+      - name: Verify formatting
+        run: |
+          unformatted="$(gofmt -l .)"
+          if [ -n "$unformatted" ]; then
+            echo "::error::gofmt needed for: $unformatted"
+            exit 1
+          fi
+
+      - name: Vet
+        run: go vet ./...
+
+      # The importable dashboards are generated from the mounted ones, so
+      # they cannot drift silently — a stale export is only discovered when
+      # someone imports it and finds a panel missing.
+      - name: Dashboards are exportable and current
+        run: deploy/devlake/export-dashboards.py --check
+
+  # Tests run on all three platforms.
+  #
+  # Everything in this project resolves filesystem paths — where each agent
+  # stores its transcripts, how a working directory encodes into a
+  # directory name — and all of it was written and verified on macOS. The
+  # failure mode is silent: a wrong path finds no sessions, every commit is
+  # stamped undetermined, and that reads as "no AI was used" rather than
+  # "the collector could not look" (NAV-21).
+  #
+  # One known bug is waiting here: SlugForCwd replaces filepath.Separator,
+  # which is '\' on Windows, while its comment says it replaces '/'. See
+  # docs/adapters/agent-support.md.
+  test:
+    strategy:
+      # Do not cancel the other platforms when one fails. Knowing whether a
+      # failure is Windows-only or everywhere is most of the diagnosis.
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      # Golden-fixture replay (NAV-30). testdata/ holds one transcript
+      # fixture per Claude Code version seen in the wild. If a format this
+      # adapter used to understand stops parsing, attribution silently
+      # degrades to undetermined everywhere downstream — these tests are
+      # what turn that into a loud failure.
+      - name: Adapter drift check
+        run: go test ./internal/adapter/... -run 'TestEveryFixtureVersionStillParses|TestUnrecognizedFormatYieldsNothingRatherThanGuessing|TestNoFixtureLeaksPromptText' -v
+
+      - name: Test
+        run: go test ./...
+
+      # Races are invisible to a plain `go test`, and this project has
+      # several concurrency surfaces: the hook writes the journal while a
+      # daemon may be reading it, and the hook log is appended from more
+      # than one process.
+      #
+      # Linux only. The race detector costs roughly ten times the wall
+      # clock, and running it on one platform catches the same data races —
+      # they are a property of the code, not of the operating system.
+      - name: Race detector
+        if: matrix.os == 'ubuntu-latest'
+        run: go test -race ./...
+
+      # Benchmarks are compiled but never executed by `go test`, so a
+      # benchmark can rot for months and nobody notices until they try to
+      # measure something. One iteration each proves they still run.
+      #
+      # This is a compile-and-execute check, not a performance gate: the
+      # gates that assert a budget are ordinary tests (hook_budget_test.go
+      # and friends), because a wall-clock assertion on a shared runner has
+      # to fail loudly and reproducibly rather than print a number.
+      - name: Benchmarks still run
+        if: matrix.os == 'ubuntu-latest'
+        run: go test ./... -run '^$' -bench . -benchtime 1x

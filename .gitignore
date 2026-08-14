@@ -1,3 +1,10 @@
 /dun
 /dist/
 *.test
+/dun-report.html
+# Fetched from upstream by setup-datalake.sh, not vendored. Our copy of the
+# compose file differed from Apache's by nine lines of comment, so keeping it
+# bought nothing and went stale every DevLake release.
+deploy/devlake/.env
+deploy/devlake/docker-compose.yml
+deploy/devlake/env.example

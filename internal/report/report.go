@@ -6,21 +6,48 @@ package report
 import (
 	"bufio"
 	"fmt"
-	"html"
 	"os/exec"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/navjyotnishant/whodunit/internal/config"
+	"github.com/navjyotnishant/whodunit/internal/purpose"
 	"github.com/navjyotnishant/whodunit/internal/spec"
 )
 
+// Commit is one examined commit with its trailer (if any) and classified
+// purpose, in commit order (newest first, matching git log).
+type Commit struct {
+	SHA       string
+	Timestamp time.Time
+	Subject   string
+	Files     []string
+	Trailer   *spec.Trailer // nil if no valid trailer was found
+	Purpose   purpose.Purpose
+
+	// LinesAdded and LinesRemoved are the commit's own diff size. Binary
+	// files contribute nothing rather than zero, since git reports no line
+	// count for them.
+	LinesAdded   int
+	LinesRemoved int
+}
+
 // Stats is the aggregate computed from git history for one report run.
 type Stats struct {
+	Commits      []Commit
 	TotalCommits int
 	Covered      int // commits with a valid trailer (any status)
 	Assisted     int // commits with status=assisted (used in the trailer, not the commit)
 	MethodCount  map[spec.Method]int
+	PurposeCount map[purpose.Purpose]int
 	MonthlySpend float64
+
+	// HasBaseline says whether a pre-adoption snapshot exists for this
+	// repository. Set by the caller: this package reads git and the
+	// journal, and finding a baseline means knowing the whodunit home,
+	// which is the command layer's business.
+	HasBaseline bool
 }
 
 // Coverage returns the fraction of commits carrying a valid trailer.
@@ -42,11 +69,23 @@ func (s Stats) Penetration() float64 {
 	return float64(s.Assisted) / float64(s.Covered)
 }
 
-// Collect walks up to `limit` commits of git history and computes Stats.
-func Collect(limit int) (Stats, error) {
-	stats := Stats{MethodCount: map[spec.Method]int{}}
+const recordSep = "\x1e" // ASCII record separator: between commit metadata records
+const fieldSep = "\x1f"  // ASCII unit separator: between fields within a commit
 
-	out, err := exec.Command("git", "log", "-n", fmt.Sprint(limit), "--format=%B%x00").Output()
+// Collect walks up to `limit` commits of git history and computes Stats.
+//
+// Metadata (sha/date/body) and file lists are fetched in two separate git
+// invocations, keyed by sha, rather than one combined --name-only run:
+// git interleaves --name-only's file list for commit N into the START of
+// commit N+1's output when a custom --format is used, which makes a single
+// positional parse fragile. Two clean, independently-delimited streams
+// avoid that entirely.
+func Collect(limit int) (Stats, error) {
+	stats := Stats{MethodCount: map[spec.Method]int{}, PurposeCount: map[purpose.Purpose]int{}}
+	prefix := spec.TrailerKey + ":"
+
+	format := "%H" + fieldSep + "%aI" + fieldSep + "%B" + recordSep
+	metaOut, err := exec.Command("git", "log", "-n", fmt.Sprint(limit), "--format="+format).Output()
 	if err != nil {
 		// An empty/unborn repo (no commits yet) is a valid, empty report,
 		// not a failure — anything else genuinely is.
@@ -55,35 +94,143 @@ func Collect(limit int) (Stats, error) {
 		}
 		return Stats{}, fmt.Errorf("read git log: %w", err)
 	}
-	prefix := spec.TrailerKey + ":"
 
-	for _, commitMsg := range strings.Split(string(out), "\x00") {
-		commitMsg = strings.TrimSpace(commitMsg)
-		if commitMsg == "" {
+	filesBySHA, err := commitFiles(limit)
+	if err != nil {
+		return Stats{}, err
+	}
+
+	sizesBySHA, err := commitSizes(limit)
+	if err != nil {
+		return Stats{}, err
+	}
+
+	for _, record := range strings.Split(string(metaOut), recordSep) {
+		record = strings.TrimLeft(record, "\n")
+		if record == "" {
 			continue
 		}
-		stats.TotalCommits++
+		parts := strings.SplitN(record, fieldSep, 3)
+		if len(parts) != 3 {
+			continue
+		}
+		sha, dateStr, rest := parts[0], parts[1], strings.TrimRight(parts[2], "\n")
+		subject := strings.SplitN(rest, "\n", 2)[0]
 
-		scanner := bufio.NewScanner(strings.NewReader(commitMsg))
-		for scanner.Scan() {
-			line := scanner.Text()
-			if !strings.HasPrefix(line, prefix) {
-				continue
-			}
-			t, err := spec.Parse(strings.TrimSpace(line[len(prefix):]))
-			if err != nil {
-				continue
-			}
+		ts, _ := time.Parse(time.RFC3339, dateStr) // zero time on parse failure, sorts as oldest
+		files := filesBySHA[sha]
+
+		size := sizesBySHA[sha]
+		c := Commit{
+			SHA:          sha,
+			Timestamp:    ts,
+			Subject:      subject,
+			Files:        files,
+			Purpose:      purpose.Classify(rest, files),
+			LinesAdded:   size.added,
+			LinesRemoved: size.removed,
+		}
+		if t, ok := findTrailer(rest, prefix); ok {
+			c.Trailer = &t
 			stats.Covered++
 			stats.MethodCount[t.Method]++
 			if t.Status == spec.StatusAssisted {
 				stats.Assisted++
 			}
-			break
 		}
+		stats.PurposeCount[c.Purpose]++
+		stats.TotalCommits++
+		stats.Commits = append(stats.Commits, c)
 	}
 
 	return withSpend(stats), nil
+}
+
+type commitSize struct{ added, removed int }
+
+// commitSizes returns each commit's diff size, keyed by sha.
+//
+// A separate pass for the same reason as commitFiles: git interleaves
+// --numstat output awkwardly with a custom --format, and two clean streams
+// beat one fragile positional parse.
+func commitSizes(limit int) (map[string]commitSize, error) {
+	out, err := exec.Command("git", "log", "-n", fmt.Sprint(limit),
+		"--format=COMMIT %H", "--numstat").Output()
+	if err != nil {
+		if exitErr, ok := err.(*exec.ExitError); ok &&
+			strings.Contains(string(exitErr.Stderr), "does not have any commits") {
+			return map[string]commitSize{}, nil
+		}
+		return nil, fmt.Errorf("read git log --numstat: %w", err)
+	}
+
+	result := map[string]commitSize{}
+	var sha string
+	for _, line := range strings.Split(string(out), "\n") {
+		if strings.HasPrefix(line, "COMMIT ") {
+			sha = strings.TrimPrefix(line, "COMMIT ")
+			continue
+		}
+		fields := strings.Fields(line)
+		if len(fields) < 3 || sha == "" {
+			continue
+		}
+		// Binary files report "-" for both counts. Skipping them is
+		// correct: they have no line count, and counting them as zero
+		// would be indistinguishable from an empty text change.
+		a, errA := strconv.Atoi(fields[0])
+		r, errR := strconv.Atoi(fields[1])
+		if errA != nil || errR != nil {
+			continue
+		}
+		size := result[sha]
+		size.added += a
+		size.removed += r
+		result[sha] = size
+	}
+	return result, nil
+}
+
+// commitFiles returns, for each of the last `limit` commits, the list of
+// files it touched — keyed by full sha, using git's own "COMMIT <sha>"
+// marker rather than a custom --format so --name-only's file list stays
+// unambiguously scoped to the commit right above it.
+func commitFiles(limit int) (map[string][]string, error) {
+	out, err := exec.Command("git", "log", "-n", fmt.Sprint(limit), "--format=COMMIT %H", "--name-only").Output()
+	if err != nil {
+		if exitErr, ok := err.(*exec.ExitError); ok && strings.Contains(string(exitErr.Stderr), "does not have any commits") {
+			return map[string][]string{}, nil
+		}
+		return nil, fmt.Errorf("read git log --name-only: %w", err)
+	}
+
+	result := map[string][]string{}
+	var currentSHA string
+	for _, line := range strings.Split(string(out), "\n") {
+		switch {
+		case strings.HasPrefix(line, "COMMIT "):
+			currentSHA = strings.TrimPrefix(line, "COMMIT ")
+		case strings.TrimSpace(line) != "" && currentSHA != "":
+			result[currentSHA] = append(result[currentSHA], line)
+		}
+	}
+	return result, nil
+}
+
+func findTrailer(commitMsg, prefix string) (spec.Trailer, bool) {
+	scanner := bufio.NewScanner(strings.NewReader(commitMsg))
+	for scanner.Scan() {
+		line := scanner.Text()
+		if !strings.HasPrefix(line, prefix) {
+			continue
+		}
+		t, err := spec.Parse(strings.TrimSpace(line[len(prefix):]))
+		if err != nil {
+			continue
+		}
+		return t, true
+	}
+	return spec.Trailer{}, false
 }
 
 func withSpend(stats Stats) Stats {
@@ -93,58 +240,3 @@ func withSpend(stats Stats) Stats {
 	}
 	return stats
 }
-
-// Render writes a self-contained HTML report for stats to w.
-func Render(w *strings.Builder, stats Stats) {
-	w.WriteString("<!doctype html><html><head><meta charset=\"utf-8\">")
-	w.WriteString("<title>Whodunit report</title>")
-	w.WriteString(styleBlock)
-	w.WriteString("</head><body>")
-	fmt.Fprintf(w, "<h1>Whodunit report</h1>")
-	fmt.Fprintf(w, "<p class=\"muted\">%d commits examined</p>", stats.TotalCommits)
-
-	renderStatTile(w, "Coverage", fmt.Sprintf("%.0f%%", stats.Coverage()*100),
-		fmt.Sprintf("%d of %d commits carry a valid trailer", stats.Covered, stats.TotalCommits))
-	renderStatTile(w, "Penetration", fmt.Sprintf("%.0f%%", stats.Penetration()*100),
-		fmt.Sprintf("of covered commits, %d are AI-assisted (undetermined excluded from denominator)", stats.Assisted))
-
-	if stats.MonthlySpend > 0 && stats.Assisted > 0 {
-		perCommit := stats.MonthlySpend / float64(stats.Assisted)
-		renderStatTile(w, "Cost per assisted commit", fmt.Sprintf("$%.2f", perCommit),
-			"monthly subscription spend divided by assisted commits in this window — a rough proxy, not a precise unit cost")
-	}
-
-	w.WriteString("<h2>Method mix</h2><table><tr><th>method</th><th>count</th></tr>")
-	for _, m := range []spec.Method{spec.MethodIntersected, spec.MethodObserved, spec.MethodInferred, spec.MethodDeclared, spec.MethodUndetermined} {
-		if n := stats.MethodCount[m]; n > 0 {
-			fmt.Fprintf(w, "<tr><td>%s</td><td>%d</td></tr>", html.EscapeString(string(m)), n)
-		}
-	}
-	w.WriteString("</table>")
-
-	w.WriteString("<p class=\"muted\">Velocity and revert-rate deltas are not shown: they require a pre-adoption baseline " +
-		"(NAV-14) that has not been captured for this repo yet. A bare velocity number without that baseline " +
-		"would overstate confidence this report does not have.</p>")
-
-	w.WriteString("</body></html>")
-}
-
-func renderStatTile(w *strings.Builder, label, value, note string) {
-	fmt.Fprintf(w, `<div class="tile"><div class="tile-value">%s</div><div class="tile-label">%s</div><div class="tile-note">%s</div></div>`,
-		html.EscapeString(value), html.EscapeString(label), html.EscapeString(note))
-}
-
-const styleBlock = `<style>
-:root { --bg:#fff; --fg:#1a1a1a; --muted:#666; --card:#f4f4f5; --border:#e4e4e7; }
-@media (prefers-color-scheme: dark) {
-  :root { --bg:#18181b; --fg:#e4e4e7; --muted:#a1a1aa; --card:#27272a; --border:#3f3f46; }
-}
-body { background:var(--bg); color:var(--fg); font-family:-apple-system,system-ui,sans-serif; max-width:720px; margin:2rem auto; padding:0 1rem; }
-.muted { color:var(--muted); font-size:0.9rem; }
-.tile { background:var(--card); border:1px solid var(--border); border-radius:8px; padding:1rem; margin:1rem 0; }
-.tile-value { font-size:2rem; font-weight:600; }
-.tile-label { font-weight:600; margin-top:0.25rem; }
-.tile-note { color:var(--muted); font-size:0.85rem; margin-top:0.25rem; }
-table { border-collapse:collapse; width:100%; }
-th, td { text-align:left; padding:0.4rem 0.6rem; border-bottom:1px solid var(--border); }
-</style>`

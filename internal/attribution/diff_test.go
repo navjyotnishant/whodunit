@@ -1,6 +1,10 @@
 package attribution
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/navjyotnishant/whodunit/internal/linehash"
+)
 
 const sampleDiff = `diff --git a/main.go b/main.go
 index abc123..def456 100644
@@ -20,68 +24,77 @@ index 111..222 100644
 +var x = 1
 `
 
-func TestHashAddedHunks(t *testing.T) {
-	hashes, err := hashAddedHunks(sampleDiff, "/repo")
-	if err != nil {
-		t.Fatalf("hashAddedHunks: %v", err)
+func TestStagedLineHashesSkipsInsubstantialLines(t *testing.T) {
+	// The sample adds: "", "func main() {", "}", "package other", "var x = 1".
+	// The blank line and the lone brace carry no attribution evidence.
+	hashes := stagedLineHashes(sampleDiff, "/repo")
+	if len(hashes) != 3 {
+		t.Fatalf("want 3 substantive added lines, got %d", len(hashes))
 	}
+}
+
+func TestStagedLineHashesScopesToFile(t *testing.T) {
+	// The same line added to two different files must hash differently, or
+	// a common import would manufacture attribution across unrelated files.
+	diff := "diff --git a/x b/x\n--- a/x\n+++ b/x\n@@ -0,0 +1,1 @@\n+import foo\n" +
+		"diff --git a/y b/y\n--- a/y\n+++ b/y\n@@ -0,0 +1,1 @@\n+import foo\n"
+
+	hashes := stagedLineHashes(diff, "/repo")
 	if len(hashes) != 2 {
-		t.Fatalf("want 2 hunk hashes (one per file's added block), got %d", len(hashes))
+		t.Fatalf("want 2 hashes, got %d", len(hashes))
+	}
+	if hashes[0] == hashes[1] {
+		t.Error("the same line in two files produced the same hash")
 	}
 }
 
-func TestHashAddedHunksMatchesSameTextSameFile(t *testing.T) {
-	// The same file gaining the same text across two independently-produced
-	// diffs (e.g. the journal's view vs a later staged diff) must hash equal —
-	// this is the actual mechanism method=intersected depends on.
-	diffA := "diff --git a/x b/x\n--- a/x\n+++ b/x\n@@ -0,0 +1,1 @@\n+hello world\n"
-	diffB := "diff --git a/x b/x\n--- a/x\n+++ b/x\n@@ -0,0 +1,1 @@\n+hello world\n"
+func TestStagedLineHashesMatchesTheAgentSideEncoding(t *testing.T) {
+	// The staged side and the journal side must agree on the unit, or
+	// nothing ever matches — the failure NAV-52 was opened for.
+	diff := "diff --git a/main.go b/main.go\n--- a/main.go\n+++ b/main.go\n@@ -0,0 +1,1 @@\n+\tdoWork()\n"
 
-	ha, err := hashAddedHunks(diffA, "/repo")
-	if err != nil {
-		t.Fatalf("hashAddedHunks A: %v", err)
-	}
-	hb, err := hashAddedHunks(diffB, "/repo")
-	if err != nil {
-		t.Fatalf("hashAddedHunks B: %v", err)
+	staged := stagedLineHashes(diff, "/repo")
+	if len(staged) != 1 {
+		t.Fatalf("want 1 hash, got %d", len(staged))
 	}
 
-	for h := range ha {
-		if !hb[h] {
-			t.Errorf("hash %s from diffA not found in diffB despite identical file+text", h)
-		}
+	// What the adapter would record for the same line.
+	agent := linehash.OfText("/repo/main.go", "\tdoWork()")
+	if len(agent) != 1 {
+		t.Fatalf("agent side produced %d hashes, want 1", len(agent))
+	}
+
+	if staged[0] != agent[0] {
+		t.Error("staged and agent sides hashed the same line differently")
 	}
 }
 
-func TestHashAddedHunksSameTextDifferentFileDoesNotMatch(t *testing.T) {
-	// Two different files independently gaining the same small fragment (e.g.
-	// a common one-line import) must NOT hash equal — that would be a false
-	// intersected match. This is the tightening this test guards.
-	diffX := "diff --git a/x b/x\n--- a/x\n+++ b/x\n@@ -0,0 +1,1 @@\n+import foo\n"
-	diffY := "diff --git a/y b/y\n--- a/y\n+++ b/y\n@@ -0,0 +1,1 @@\n+import foo\n"
-
-	hx, err := hashAddedHunks(diffX, "/repo")
-	if err != nil {
-		t.Fatalf("hashAddedHunks X: %v", err)
+func TestStagedLineHashesIgnoresDiffMetadata(t *testing.T) {
+	// "+++ b/file" starts with '+' but is a header, not content.
+	diff := "diff --git a/x.go b/x.go\n--- a/x.go\n+++ b/x.go\n@@ -0,0 +1,1 @@\n+realLine()\n"
+	hashes := stagedLineHashes(diff, "/repo")
+	if len(hashes) != 1 {
+		t.Fatalf("want 1 hash for the one real added line, got %d", len(hashes))
 	}
-	hy, err := hashAddedHunks(diffY, "/repo")
-	if err != nil {
-		t.Fatalf("hashAddedHunks Y: %v", err)
-	}
-
-	for h := range hx {
-		if hy[h] {
-			t.Errorf("hash %s matched across different files for identical text — false intersected match", h)
-		}
+	if hashes[0] != linehash.Of("/repo/x.go", "realLine()") {
+		t.Error("hashed something other than the added line")
 	}
 }
 
-func TestHashAddedHunksEmptyDiff(t *testing.T) {
-	hashes, err := hashAddedHunks("", "/repo")
-	if err != nil {
-		t.Fatalf("hashAddedHunks: %v", err)
+func TestStagedLineHashesEmptyDiff(t *testing.T) {
+	if got := stagedLineHashes("", "/repo"); len(got) != 0 {
+		t.Errorf("want 0 hashes for an empty diff, got %d", len(got))
 	}
-	if len(hashes) != 0 {
-		t.Errorf("want 0 hashes for empty diff, got %d", len(hashes))
+}
+
+func TestStagedLineHashesSkipsDeletions(t *testing.T) {
+	// Only added lines are evidence of what the commit contains.
+	diff := "diff --git a/x.go b/x.go\n--- a/x.go\n+++ b/x.go\n@@ -1,2 +1,1 @@\n-removedLine()\n+addedLine()\n"
+	hashes := stagedLineHashes(diff, "/repo")
+	if len(hashes) != 1 {
+		t.Fatalf("want 1 hash (the added line only), got %d", len(hashes))
+	}
+	if hashes[0] != linehash.Of("/repo/x.go", "addedLine()") {
+		t.Error("hashed the removed line instead of the added one")
 	}
 }

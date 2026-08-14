@@ -26,7 +26,7 @@ func TestRunStatusOnEmptyRepo(t *testing.T) {
 	buf := &bytes.Buffer{}
 	c.SetOut(buf)
 
-	if err := runStatus(c); err != nil {
+	if err := runStatus(c, ""); err != nil {
 		t.Fatalf("runStatus() on empty repo = %v, want nil", err)
 	}
 	if !strings.Contains(buf.String(), "commits examined:  0") {
@@ -61,7 +61,7 @@ func TestRunStatusReportsCoverageAndMethodMix(t *testing.T) {
 	buf := &bytes.Buffer{}
 	c.SetOut(buf)
 
-	if err := runStatus(c); err != nil {
+	if err := runStatus(c, ""); err != nil {
 		t.Fatalf("runStatus: %v", err)
 	}
 	out := buf.String()

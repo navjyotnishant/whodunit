@@ -3,9 +3,10 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"os"
 	"time"
 
+	"github.com/navjyotnishant/whodunit/internal/config"
+	"github.com/navjyotnishant/whodunit/internal/hooklog"
 	"github.com/navjyotnishant/whodunit/internal/journal"
 	"github.com/spf13/cobra"
 )
@@ -21,15 +22,24 @@ func newJournalCmd() *cobra.Command {
 }
 
 func newJournalShowCmd() *cobra.Command {
-	return &cobra.Command{
+	var repoFlag string
+	cmd := &cobra.Command{
 		Use:   "show",
-		Short: "Print the full local journal in plain text.",
+		Short: "Print a repository's journal entries in plain text.",
+		Long: "Prints journal entries as one JSON object per line.\n\n" +
+			"Defaults to the repository in the current directory. Use --repo to\n" +
+			"inspect another instrumented repository from anywhere; it accepts a\n" +
+			"path or a repo id as printed by `dun repos list`.",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			dir, err := journalDir()
+			dataDir, err := journalDataDir()
 			if err != nil {
 				return err
 			}
-			entries, err := journal.ReadRange(dir, time.Time{}, time.Time{})
+			repoID, _, err := resolveRepo(repoFlag)
+			if err != nil {
+				return err
+			}
+			entries, err := journal.ReadRange(dataDir, repoID, time.Time{}, time.Time{})
 			if err != nil {
 				return err
 			}
@@ -42,22 +52,66 @@ func newJournalShowCmd() *cobra.Command {
 			return nil
 		},
 	}
+	cmd.Flags().StringVar(&repoFlag, "repo", "", "path or repo id to inspect (default: current directory)")
+	return cmd
 }
 
 func newJournalPurgeCmd() *cobra.Command {
-	return &cobra.Command{
+	var repoFlag string
+	cmd := &cobra.Command{
 		Use:   "purge",
-		Short: "Delete the entire local journal.",
+		Short: "Delete a repository's journal entries.",
+		Long: "Deletes every journal entry recorded for a repository.\n\n" +
+			"The journal is a single global store shared by every repository, so\n" +
+			"this deletes only the target repository's rows — other repositories\n" +
+			"are left untouched.\n\n" +
+			"Defaults to the repository in the current directory. With --repo it\n" +
+			"names the target before deleting, because purging the wrong\n" +
+			"repository cannot be undone.",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			dir, err := journalDir()
+			dataDir, err := journalDataDir()
 			if err != nil {
 				return err
 			}
-			if err := os.RemoveAll(dir); err != nil {
-				return fmt.Errorf("purge journal: %w", err)
+			repoID, label, err := resolveRepo(repoFlag)
+			if err != nil {
+				return err
 			}
-			fmt.Fprintln(cmd.OutOrStdout(), "journal purged")
+
+			// Say what is about to be lost, before losing it. With a
+			// global store and a --repo flag, a typo deletes another
+			// project's history and there is no undo — so the target is
+			// named up front rather than only in the past tense after.
+			out := cmd.OutOrStdout()
+			if repoFlag != "" {
+				fmt.Fprintf(out, "purging journal entries for %s\n", label)
+			}
+
+			n, err := journal.Purge(dataDir, repoID)
+			if err != nil {
+				return err
+			}
+			fmt.Fprintf(out, "purged %d entr%s for %s\n", n, plural(n), label)
+
+			// The hook log names repositories and what happened in them, so
+			// leaving it behind would make "purge removes what was
+			// recorded" false. Only this repository's lines go: the log is
+			// global, and purging one project must not erase another's.
+			if home, err := config.Dir(); err == nil {
+				if removed, err := hooklog.PurgeRepo(home, repoID); err == nil && removed > 0 {
+					fmt.Fprintf(out, "purged %d log entr%s\n", removed, plural(int64(removed)))
+				}
+			}
 			return nil
 		},
 	}
+	cmd.Flags().StringVar(&repoFlag, "repo", "", "path or repo id to purge (default: current directory)")
+	return cmd
+}
+
+func plural(n int64) string {
+	if n == 1 {
+		return "y"
+	}
+	return "ies"
 }

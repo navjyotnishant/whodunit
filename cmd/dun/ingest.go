@@ -2,23 +2,36 @@ package main
 
 import (
 	"fmt"
+	"github.com/navjyotnishant/whodunit/internal/hooklog"
 	"os"
+	"path/filepath"
 	"time"
 
-	"github.com/navjyotnishant/whodunit/internal/adapter/claudecode"
+	"github.com/navjyotnishant/whodunit/internal/adapter"
+	_ "github.com/navjyotnishant/whodunit/internal/adapter/agy"
+	_ "github.com/navjyotnishant/whodunit/internal/adapter/claudecode"
+	_ "github.com/navjyotnishant/whodunit/internal/adapter/codex"
 	"github.com/navjyotnishant/whodunit/internal/journal"
 	"github.com/spf13/cobra"
 )
 
 func newIngestCmd() *cobra.Command {
+	var repoFlag string
 	var since string
 	cmd := &cobra.Command{
-		Use:   "ingest",
-		Short: "Read local AI agent session transcripts into the journal.",
+		Use:          "ingest",
+		Short:        "Read local AI agent session transcripts into the journal.",
+		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			restore, err := enterRepo(repoFlag, "ingest", "ingest")
+			if err != nil {
+				return err
+			}
+			defer restore()
 			return runIngest(cmd, since)
 		},
 	}
+	cmd.Flags().StringVar(&repoFlag, "repo", "", "repository to ingest (default: current directory)")
 	cmd.Flags().StringVar(&since, "since", "", "only ingest events at or after this RFC3339 timestamp (default: all)")
 	return cmd
 }
@@ -33,21 +46,37 @@ func runIngest(cmd *cobra.Command, sinceFlag string) error {
 		since = t
 	}
 
+	// Skipped transcripts go to the log as well as the terminal. A skip
+	// printed and scrolled past is the same as one never reported: someone
+	// asking in a week why a commit came out undetermined has nothing to
+	// read, which is the gap `dun log` exists to close.
 	written, sessionCount, err := ingestSince(since, func(path string, err error) {
 		fmt.Fprintf(cmd.ErrOrStderr(), "skip %s: %v\n", path, err)
+		logHook("ingest", hooklog.LevelWarn, "ingest",
+			"skipped "+filepath.Base(path)+": "+err.Error())
 	})
 	if err != nil {
+		logHook("ingest", hooklog.LevelWarn, "ingest", err.Error())
 		return err
 	}
 
 	fmt.Fprintf(cmd.OutOrStdout(), "ingested %d event(s) from %d session file(s)\n", written, sessionCount)
+	logHook("ingest", hooklog.LevelInfo, "ingest",
+		fmt.Sprintf("read %d event(s) from %d session file(s)", written, sessionCount))
 	return nil
 }
 
 // runIngestCount runs a full ingest and returns just the written count, for
 // the daemon loop — same underlying logic as `dun ingest`, no --since bound.
 func runIngestCount() (int, error) {
-	written, _, err := ingestSince(time.Time{}, func(string, error) {})
+	// Errors were discarded here with an empty callback. A transcript that
+	// cannot be parsed is exactly the thing someone needs to see when
+	// attribution is missing, so it is recorded even though this path has
+	// no terminal to print to.
+	written, _, err := ingestSince(time.Time{}, func(path string, perr error) {
+		logHook("ingest", hooklog.LevelWarn, "ingest",
+			"skipped "+filepath.Base(path)+": "+perr.Error())
+	})
 	return written, err
 }
 
@@ -60,34 +89,68 @@ func ingestSince(since time.Time, onSkip func(path string, err error)) (written,
 	if err != nil {
 		return 0, 0, err
 	}
-	sessionPaths, err := claudecode.SessionFiles(cwd)
-	if err != nil {
-		return 0, 0, fmt.Errorf("find claude-code sessions: %w", err)
+	// Every registered agent, not one named here: an agent added later is
+	// ingested without this function changing. A failure to look for one
+	// agent's sessions must not stop the others, so it is reported through
+	// onSkip and the loop continues — otherwise a single misconfigured
+	// path would silence every agent on the machine.
+	type sessionFile struct {
+		path string
+		a    adapter.Adapter
+	}
+	var sessionFiles []sessionFile
+	for _, ad := range adapter.All() {
+		paths, err := ad.SessionFiles(cwd)
+		if err != nil {
+			onSkip(ad.Name(), err)
+			continue
+		}
+		for _, p := range paths {
+			sessionFiles = append(sessionFiles, sessionFile{path: p, a: ad})
+		}
 	}
 
-	dir, err := journalDir()
+	dataDir, err := journalDataDir()
 	if err != nil {
 		return 0, 0, err
 	}
-	w, err := journal.NewWriter(dir)
+	repoID, err := currentRepoID()
+	if err != nil {
+		return 0, 0, err
+	}
+	w, err := journal.NewWriter(dataDir, repoID)
 	if err != nil {
 		return 0, 0, err
 	}
 	defer w.Close()
 
-	for _, p := range sessionPaths {
-		entries, err := claudecode.ParseSince(p, since)
+	for _, sf := range sessionFiles {
+		p := sf.path
+		entries, err := sf.a.ParseSince(p, since)
 		if err != nil {
 			onSkip(p, err)
 			continue
 		}
+		// Session engagement is per session, not per tool call, so it is
+		// summarised separately (NAV-55).
+		if acts, err := sf.a.ParseSessionActivity(p, since); err == nil {
+			for _, a := range acts {
+				if err := w.UpsertSession(a); err != nil {
+					return written, len(sessionFiles), fmt.Errorf("write session: %w", err)
+				}
+			}
+		}
+
 		for _, e := range entries {
 			if err := w.Append(e); err != nil {
-				return written, len(sessionPaths), fmt.Errorf("write journal entry: %w", err)
+				return written, len(sessionFiles), fmt.Errorf("write journal entry: %w", err)
+			}
+			if err := w.AppendLines(e.LineHashes, e.Timestamp); err != nil {
+				return written, len(sessionFiles), fmt.Errorf("write line hashes: %w", err)
 			}
 			written++
 		}
 	}
 
-	return written, len(sessionPaths), nil
+	return written, len(sessionFiles), nil
 }
