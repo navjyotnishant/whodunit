@@ -157,7 +157,7 @@ y = 0
 panels.append(row("What did it cost — in tokens", y)); y += 1
 
 panels.append(panel(
-    100, "Total tokens", "stat", 0, y, 2, 4,
+    100, "Total tokens", "stat", 0, y, 4, 4,
     f"""SELECT COALESCE(SUM(s.input_tokens + s.output_tokens
        + COALESCE(s.cache_read_tokens,0) + COALESCE(s.cache_write_tokens,0)), 0) AS v
 FROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id
@@ -178,7 +178,7 @@ WHERE s.input_tokens IS NOT NULL AND {CONTRIBUTOR}""",
     options=STAT))
 
 panels.append(panel(
-    101, "Output tokens", "stat", 2, y, 2, 4,
+    101, "Output tokens", "stat", 4, y, 4, 4,
     f"""SELECT COALESCE(SUM(s.output_tokens), 0) AS v
 FROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id
 WHERE s.output_tokens IS NOT NULL AND {CONTRIBUTOR}""",
@@ -196,7 +196,7 @@ WHERE s.output_tokens IS NOT NULL AND {CONTRIBUTOR}""",
     options=STAT))
 
 panels.append(panel(
-    106, "Uncached input", "stat", 4, y, 4, 4,
+    106, "Uncached input", "stat", 8, y, 4, 4,
     f"""SELECT COALESCE(SUM(s.input_tokens), 0) AS v
 FROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id
 WHERE s.input_tokens IS NOT NULL AND {CONTRIBUTOR}""",
@@ -210,7 +210,7 @@ WHERE s.input_tokens IS NOT NULL AND {CONTRIBUTOR}""",
     options=STAT))
 
 panels.append(panel(
-    107, "Cache reads", "stat", 8, y, 4, 4,
+    107, "Cache reads", "stat", 12, y, 4, 4,
     f"""SELECT COALESCE(SUM(s.cache_read_tokens), 0) AS v
 FROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id
 WHERE s.cache_read_tokens IS NOT NULL AND {CONTRIBUTOR}""",
@@ -225,7 +225,7 @@ WHERE s.cache_read_tokens IS NOT NULL AND {CONTRIBUTOR}""",
     options=STAT))
 
 panels.append(panel(
-    102, "Served from cache", "stat", 12, y, 4, 4,
+    102, "Served from cache", "stat", 16, y, 4, 4,
     f"""SELECT ROUND(100.0 * SUM(COALESCE(s.cache_read_tokens,0))
   / NULLIF(SUM(s.input_tokens + COALESCE(s.cache_read_tokens,0)
              + COALESCE(s.cache_write_tokens,0)), 0), 1) AS v
@@ -241,7 +241,7 @@ WHERE s.input_tokens IS NOT NULL AND {CONTRIBUTOR}""",
     options=STAT))
 
 panels.append(panel(
-    103, "Cache write payback", "stat", 16, y, 4, 4,
+    103, "Cache write payback", "stat", 20, y, 4, 4,
     f"""SELECT ROUND(SUM(COALESCE(s.cache_read_tokens,0))
   / NULLIF(SUM(s.cache_write_tokens), 0), 2) AS v
 FROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id
@@ -261,7 +261,7 @@ WHERE s.cache_write_tokens IS NOT NULL AND s.cache_write_tokens > 0 AND {CONTRIB
     options=STAT))
 
 panels.append(panel(
-    105, "Reasoning tokens", "stat", 20, y, 4, 4,
+    105, "Reasoning tokens", "stat", 18, y + 9, 6, 4,
     f"""SELECT COALESCE(SUM(s.reasoning_tokens), 0) AS v
 FROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id
 WHERE s.reasoning_tokens IS NOT NULL AND {CONTRIBUTOR}""",
@@ -291,7 +291,7 @@ SHAPE_Y = y + 5
 y += 13
 
 panels.append(panel(
-    130, "Human edited the agent's output", "stat", 12, SHAPE_Y + 4, 6, 4,
+    130, "Human edited the agent's output", "stat", 6, SHAPE_Y + 4, 6, 4,
     f"""SELECT ROUND(100.0 * SUM(CASE WHEN e.user_modified = 1 THEN 1 ELSE 0 END)
   / NULLIF(COUNT(*), 0), 1) AS v
 FROM whodunit_events e JOIN whodunit_repos r ON r.repo_id = e.repo_id
@@ -307,7 +307,7 @@ WHERE e.user_modified IS NOT NULL AND {CONTRIBUTOR}""",
     options=STAT))
 
 panels.append(panel(
-    132, "Turn latency", "stat", 6, SHAPE_Y + 4, 6, 4,
+    132, "Turn latency", "stat", 0, SHAPE_Y + 4, 6, 4,
     f"""SELECT ROUND(AVG(s.duration_ms) / 1000, 1) AS v
 FROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id
 WHERE s.duration_ms IS NOT NULL AND {CONTRIBUTOR}""",
@@ -334,13 +334,16 @@ WHERE s.compactions IS NOT NULL AND {CONTRIBUTOR}""",
         "is re-sent every turn — and compacting is the one thing a person "
         "can do about it. Measured on this machine, 92% of turns ran above "
         "150k context while a small fraction of sessions ever compacted.\n\n"
-        "Low is not automatically bad: a short session has nothing to "
-        "compact. It is the combination of high context and a low rate that "
-        "is worth acting on.\n\n"
+        "**Deliberately not colour-coded.** A low rate is only a problem "
+        "alongside high context, and this panel cannot see context — a short "
+        "session has nothing to compact, and colouring 8% red would call "
+        "that a failure. The number is the finding; the judgement needs the "
+        "context distribution, which the journal cannot answer per turn "
+        "yet.\n\n"
         "The denominator counts only sessions from agents that report the "
         "signal at all. Antigravity has no equivalent and is excluded rather "
         "than counted as never compacting."),
-    thresholds=traffic(bad_below=10, ok_above=25),
+    color=NEUTRAL,
     options=STAT))
 
 panels.append(panel(
@@ -384,7 +387,7 @@ WHERE s.compactions > 0 AND {CONTRIBUTOR}""",
     options=STAT))
 
 panels.append(panel(
-    133, "Reasoning effort", "piechart", 18, SHAPE_Y + 4, 6, 4,
+    133, "Reasoning effort", "piechart", 12, SHAPE_Y + 4, 6, 4,
     f"""SELECT s.effort AS metric, COUNT(*) AS value
 FROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id
 WHERE s.effort IS NOT NULL AND {CONTRIBUTOR}

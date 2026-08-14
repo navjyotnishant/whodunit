@@ -59,7 +59,7 @@
       "gridPos": {
         "x": 0,
         "y": 1,
-        "w": 2,
+        "w": 4,
         "h": 4
       },
       "targets": [
@@ -100,9 +100,9 @@
       "type": "stat",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
-        "x": 2,
+        "x": 4,
         "y": 1,
-        "w": 2,
+        "w": 4,
         "h": 4
       },
       "targets": [
@@ -143,7 +143,7 @@
       "type": "stat",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
-        "x": 4,
+        "x": 8,
         "y": 1,
         "w": 4,
         "h": 4
@@ -186,7 +186,7 @@
       "type": "stat",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
-        "x": 8,
+        "x": 12,
         "y": 1,
         "w": 4,
         "h": 4
@@ -229,7 +229,7 @@
       "type": "stat",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
-        "x": 12,
+        "x": 16,
         "y": 1,
         "w": 4,
         "h": 4
@@ -285,7 +285,7 @@
       "type": "stat",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
-        "x": 16,
+        "x": 20,
         "y": 1,
         "w": 4,
         "h": 4
@@ -341,9 +341,9 @@
       "type": "stat",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
-        "x": 20,
-        "y": 1,
-        "w": 4,
+        "x": 18,
+        "y": 10,
+        "w": 6,
         "h": 4
       },
       "targets": [
@@ -396,7 +396,7 @@
       "type": "stat",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
-        "x": 12,
+        "x": 6,
         "y": 10,
         "w": 6,
         "h": 4
@@ -452,7 +452,7 @@
       "type": "stat",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
-        "x": 6,
+        "x": 0,
         "y": 10,
         "w": 6,
         "h": 4
@@ -512,27 +512,14 @@
           "unit": "percent",
           "decimals": 0,
           "noValue": "no agent reported compaction",
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "red",
-                "value": null
-              },
-              {
-                "color": "orange",
-                "value": 10
-              },
-              {
-                "color": "green",
-                "value": 25
-              }
-            ]
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
           }
         },
         "overrides": []
       },
-      "description": "Share of sessions whose context was compacted at least once (NAV-106).\n\n**Read this beside the context the sessions were running at.** A long session costs more even when cached, because the whole context is re-sent every turn — and compacting is the one thing a person can do about it. Measured on this machine, 92% of turns ran above 150k context while a small fraction of sessions ever compacted.\n\nLow is not automatically bad: a short session has nothing to compact. It is the combination of high context and a low rate that is worth acting on.\n\nThe denominator counts only sessions from agents that report the signal at all. Antigravity has no equivalent and is excluded rather than counted as never compacting.",
+      "description": "Share of sessions whose context was compacted at least once (NAV-106).\n\n**Read this beside the context the sessions were running at.** A long session costs more even when cached, because the whole context is re-sent every turn — and compacting is the one thing a person can do about it. Measured on this machine, 92% of turns ran above 150k context while a small fraction of sessions ever compacted.\n\n**Deliberately not colour-coded.** A low rate is only a problem alongside high context, and this panel cannot see context — a short session has nothing to compact, and colouring 8% red would call that a failure. The number is the finding; the judgement needs the context distribution, which the journal cannot answer per turn yet.\n\nThe denominator counts only sessions from agents that report the signal at all. Antigravity has no equivalent and is excluded rather than counted as never compacting.",
       "options": {
         "graphMode": "none",
         "textMode": "value",
@@ -649,7 +636,7 @@
       "type": "piechart",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
-        "x": 18,
+        "x": 12,
         "y": 10,
         "w": 6,
         "h": 4
