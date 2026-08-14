@@ -735,7 +735,7 @@
     {
       "id": 121,
       "title": "Autonomy granted",
-      "type": "table",
+      "type": "barchart",
       "datasource": "${datasource}",
       "gridPos": {
         "x": 12,
@@ -747,18 +747,65 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT\n  s.permission_mode         AS `Permission mode`,\n  s.agent                   AS Agent,\n  COUNT(*)                  AS Sessions,\n  SUM(s.tool_calls)         AS `Tool calls`\nFROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id\nWHERE s.permission_mode IS NOT NULL AND ('$contributor' = '__all__' OR r.contributor = '$contributor')\nGROUP BY s.permission_mode, s.agent ORDER BY COUNT(*) DESC"
+          "rawSql": "SELECT\n  CONCAT(s.permission_mode, '  (', s.agent, ')') AS mode,\n  COUNT(*)                                       AS Sessions,\n  SUM(s.tool_calls)                              AS `Tool calls`\nFROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id\nWHERE s.permission_mode IS NOT NULL AND ('$contributor' = '__all__' OR r.contributor = '$contributor')\nGROUP BY s.permission_mode, s.agent\nORDER BY SUM(s.tool_calls) DESC"
         }
       ],
       "fieldConfig": {
         "defaults": {
           "noValue": "no session recorded a permission mode"
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Tool calls"
+            },
+            "properties": [
+              {
+                "id": "custom.axisPlacement",
+                "value": "right"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "orange"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Sessions"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "blue"
+                }
+              }
+            ]
+          }
+        ]
       },
-      "description": "How much the agent was allowed to do unattended.\n\nEach agent's own vocabulary is preserved rather than mapped onto a shared enum \u2014 Codex calls it an approval policy, Claude Code a permission mode, and guessing at equivalences would invent a comparison neither agent made.",
+      "description": "How much the agent was allowed to do unattended, and how much work it did with that rope.\n\n**Sessions and tool calls run opposite here**, which is the point of charting it: measured on this data, 64 sessions on Codex's `never` produced 506 tool calls, while 2 Claude Code sessions on `auto` produced 6,766. Autonomy is not how often it is granted, it is how much happens once it is.\n\nThe agent is in the label rather than a separate series because each mode belongs to exactly one agent \u2014 Codex says `never` and `on-request`, Claude Code says `acceptEdits`, `auto` and `default`. Grouping by both would draw a chart where every group is one bar tall.\n\nEach agent's own vocabulary is kept rather than mapped onto a shared enum: guessing that `never` means the same as `default` would invent a comparison neither agent made.",
       "options": {
-        "showHeader": true
+        "orientation": "horizontal",
+        "xTickLabelRotation": 0,
+        "groupWidth": 0.7,
+        "barWidth": 0.8,
+        "showValue": "always",
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
       }
     },
     {

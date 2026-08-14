@@ -402,23 +402,48 @@ GROUP BY e.branch ORDER BY SUM(e.lines_added) DESC LIMIT 25""",
     options={"showHeader": True}))
 
 panels.append(panel(
-    121, "Autonomy granted", "table", 12, y, 12, 8,
+    121, "Autonomy granted", "barchart", 12, y, 12, 8,
     f"""SELECT
-  s.permission_mode         AS `Permission mode`,
-  s.agent                   AS Agent,
-  COUNT(*)                  AS Sessions,
-  SUM(s.tool_calls)         AS `Tool calls`
+  CONCAT(s.permission_mode, '  (', s.agent, ')') AS mode,
+  COUNT(*)                                       AS Sessions,
+  SUM(s.tool_calls)                              AS `Tool calls`
 FROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id
 WHERE s.permission_mode IS NOT NULL AND {CONTRIBUTOR}
-GROUP BY s.permission_mode, s.agent ORDER BY COUNT(*) DESC""",
+GROUP BY s.permission_mode, s.agent
+ORDER BY SUM(s.tool_calls) DESC""",
     novalue="no session recorded a permission mode",
     description=(
-        "How much the agent was allowed to do unattended.\n\n"
-        "Each agent's own vocabulary is preserved rather than mapped onto a "
-        "shared enum — Codex calls it an approval policy, Claude Code a "
-        "permission mode, and guessing at equivalences would invent a "
-        "comparison neither agent made."),
-    options={"showHeader": True}))
+        "How much the agent was allowed to do unattended, and how much work "
+        "it did with that rope.\n\n"
+        "**Sessions and tool calls run opposite here**, which is the point of "
+        "charting it: measured on this data, 64 sessions on Codex's `never` "
+        "produced 506 tool calls, while 2 Claude Code sessions on `auto` "
+        "produced 6,766. Autonomy is not how often it is granted, it is how "
+        "much happens once it is.\n\n"
+        "The agent is in the label rather than a separate series because each "
+        "mode belongs to exactly one agent — Codex says `never` and "
+        "`on-request`, Claude Code says `acceptEdits`, `auto` and `default`. "
+        "Grouping by both would draw a chart where every group is one bar "
+        "tall.\n\n"
+        "Each agent's own vocabulary is kept rather than mapped onto a shared "
+        "enum: guessing that `never` means the same as `default` would invent "
+        "a comparison neither agent made."),
+    overrides=[
+        {"matcher": {"id": "byName", "options": "Tool calls"},
+         "properties": [{"id": "custom.axisPlacement", "value": "right"},
+                        {"id": "color",
+                         "value": {"mode": "fixed", "fixedColor": "orange"}}]},
+        {"matcher": {"id": "byName", "options": "Sessions"},
+         "properties": [{"id": "color",
+                         "value": {"mode": "fixed", "fixedColor": "blue"}}]},
+    ],
+    options={"orientation": "horizontal",
+             "xTickLabelRotation": 0,
+             "groupWidth": 0.7, "barWidth": 0.8,
+             "showValue": "always",
+             "legend": {"displayMode": "list", "placement": "bottom",
+                        "showLegend": True},
+             "tooltip": {"mode": "multi"}}))
 y += 8
 
 panels.append(panel(
