@@ -262,7 +262,30 @@ WHERE s.output_tokens IS NOT NULL AND {CONTRIBUTOR}""",
 panels.append(row("Per model — where the aggregate hides a loss", y)); y += 1
 
 panels.append(panel(
-    110, "Token use and cache efficiency by model", "table", 0, y, 24, 9,
+    109, "Output tokens by model", "bargauge", 0, y, 24, 5,
+    f"""SELECT
+  COALESCE(NULLIF(s.model, ''), '(unattributed)') AS metric,
+  SUM(s.output_tokens)                            AS value
+FROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id
+WHERE s.output_tokens IS NOT NULL AND {CONTRIBUTOR}
+GROUP BY 1 ORDER BY 2 DESC""",
+    unit=TOKEN_UNIT, decimals=1, novalue="no session reported tokens",
+    description=(
+        "Which model produced the most, ranked.\n\n"
+        "A bar gauge because this is one metric across categories, which is "
+        "the only shape it reads well. The table below carries the numbers "
+        "that only mean something together — a 153x payback looks impressive "
+        "until you see it came from 34 sessions.\n\n"
+        "Deliberately NOT a bar gauge of cache payback: three of seven models "
+        "here report no cache writes at all, so that chart would render four "
+        "bars and silently drop the rest. A table can show \"not reported\"; "
+        "a bar cannot (NAV-21)."),
+    options={"displayMode": "gradient", "orientation": "horizontal",
+             "showUnfilled": True, "valueMode": "text",
+             "reduceOptions": {"calcs": ["lastNotNull"], "values": True}}))
+
+panels.append(panel(
+    110, "Token use and cache efficiency by model", "table", 0, y + 5, 24, 9,
     f"""SELECT
   COALESCE(NULLIF(s.model, ''), '(unattributed)') AS Model,
   COUNT(*)                                        AS Sessions,
@@ -302,13 +325,25 @@ ORDER BY SUM(s.input_tokens + s.output_tokens
         {"matcher": {"id": "byName", "options": "From cache %"},
          "properties": [{"id": "unit", "value": "percent"},
                         {"id": "decimals", "value": 1}]},
+        # Rendered as in-cell bars rather than bare digits. Eight columns
+        # of raw counts is a wall of numbers; the bar makes the relative
+        # sizes readable at a glance while the value stays exact, which a
+        # bar gauge on its own would lose.
         {"matcher": {"id": "byRegexp", "options": ".*(in|Out|read|write)$"},
          "properties": [{"id": "unit", "value": TOKEN_UNIT},
-                        {"id": "decimals", "value": 1}]},
+                        {"id": "decimals", "value": 1},
+                        {"id": "custom.cellOptions",
+                         "value": {"type": "gauge", "mode": "gradient",
+                                   "valueDisplayMode": "text"}}]},
+        {"matcher": {"id": "byName", "options": "Sessions"},
+         "properties": [{"id": "custom.cellOptions",
+                         "value": {"type": "gauge", "mode": "lcd",
+                                   "valueDisplayMode": "text"}}]},
     ],
     options={"showHeader": True,
              "sortBy": [{"displayName": "Uncached in", "desc": True}]}))
-y += 9
+# 5 for the bar gauge above, 9 for the table itself.
+y += 14
 
 panels.append(panel(
     111, "Output tokens per model over time", "timeseries", 0, y, 12, 8,

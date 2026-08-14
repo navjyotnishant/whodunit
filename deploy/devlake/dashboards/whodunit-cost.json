@@ -450,13 +450,53 @@
       "panels": []
     },
     {
+      "id": 109,
+      "title": "Output tokens by model",
+      "type": "bargauge",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "x": 0,
+        "y": 9,
+        "w": 24,
+        "h": 5
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT\n  COALESCE(NULLIF(s.model, ''), '(unattributed)') AS metric,\n  SUM(s.output_tokens)                            AS value\nFROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id\nWHERE s.output_tokens IS NOT NULL AND ('$contributor' = '__all__' OR r.contributor = '$contributor')\nGROUP BY 1 ORDER BY 2 DESC"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "sishort",
+          "decimals": 1,
+          "noValue": "no session reported tokens"
+        },
+        "overrides": []
+      },
+      "description": "Which model produced the most, ranked.\n\nA bar gauge because this is one metric across categories, which is the only shape it reads well. The table below carries the numbers that only mean something together \u2014 a 153x payback looks impressive until you see it came from 34 sessions.\n\nDeliberately NOT a bar gauge of cache payback: three of seven models here report no cache writes at all, so that chart would render four bars and silently drop the rest. A table can show \"not reported\"; a bar cannot (NAV-21).",
+      "options": {
+        "displayMode": "gradient",
+        "orientation": "horizontal",
+        "showUnfilled": true,
+        "valueMode": "text",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": true
+        }
+      }
+    },
+    {
       "id": 110,
       "title": "Token use and cache efficiency by model",
       "type": "table",
       "datasource": "${datasource}",
       "gridPos": {
         "x": 0,
-        "y": 9,
+        "y": 14,
         "w": 24,
         "h": 9
       },
@@ -535,6 +575,30 @@
               {
                 "id": "decimals",
                 "value": 1
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "gauge",
+                  "mode": "gradient",
+                  "valueDisplayMode": "text"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Sessions"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "gauge",
+                  "mode": "lcd",
+                  "valueDisplayMode": "text"
+                }
               }
             ]
           }
@@ -558,7 +622,7 @@
       "datasource": "${datasource}",
       "gridPos": {
         "x": 0,
-        "y": 18,
+        "y": 23,
         "w": 12,
         "h": 8
       },
@@ -599,7 +663,7 @@
       "datasource": "${datasource}",
       "gridPos": {
         "x": 12,
-        "y": 18,
+        "y": 23,
         "w": 12,
         "h": 8
       },
@@ -654,7 +718,7 @@
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 26,
+        "y": 31,
         "w": 24,
         "h": 1
       },
@@ -667,7 +731,7 @@
       "datasource": "${datasource}",
       "gridPos": {
         "x": 0,
-        "y": 27,
+        "y": 32,
         "w": 12,
         "h": 8
       },
@@ -696,7 +760,7 @@
       "datasource": "${datasource}",
       "gridPos": {
         "x": 12,
-        "y": 27,
+        "y": 32,
         "w": 12,
         "h": 8
       },
@@ -724,7 +788,7 @@
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 35,
+        "y": 40,
         "w": 24,
         "h": 1
       },
@@ -737,7 +801,7 @@
       "datasource": "${datasource}",
       "gridPos": {
         "x": 0,
-        "y": 36,
+        "y": 41,
         "w": 6,
         "h": 4
       },
@@ -776,7 +840,7 @@
       "datasource": "${datasource}",
       "gridPos": {
         "x": 6,
-        "y": 36,
+        "y": 41,
         "w": 9,
         "h": 4
       },
@@ -805,7 +869,7 @@
       "datasource": "${datasource}",
       "gridPos": {
         "x": 15,
-        "y": 36,
+        "y": 41,
         "w": 5,
         "h": 4
       },
@@ -844,7 +908,7 @@
       "datasource": "${datasource}",
       "gridPos": {
         "x": 20,
-        "y": 36,
+        "y": 41,
         "w": 4,
         "h": 4
       },
@@ -881,7 +945,7 @@
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 40,
+        "y": 45,
         "w": 24,
         "h": 1
       },
@@ -894,7 +958,7 @@
       "datasource": "${datasource}",
       "gridPos": {
         "x": 0,
-        "y": 41,
+        "y": 46,
         "w": 12,
         "h": 7
       },
@@ -926,7 +990,7 @@
       "datasource": "${datasource}",
       "gridPos": {
         "x": 12,
-        "y": 41,
+        "y": 46,
         "w": 12,
         "h": 7
       },
