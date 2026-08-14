@@ -174,8 +174,8 @@ func TestSplitStatementsDropsCommentOnlyFragments(t *testing.T) {
 	// The MySQL driver refuses multiple statements per Exec, and a
 	// trailing comment block would otherwise be sent as a statement.
 	stmts := splitStatements(Schema)
-	if len(stmts) != 5 {
-		t.Fatalf("want 5 statements for 5 tables, got %d", len(stmts))
+	if len(stmts) != 6 {
+		t.Fatalf("want 6 statements for 6 tables, got %d", len(stmts))
 	}
 	for _, s := range stmts {
 		if s == "" {

@@ -184,6 +184,41 @@ CREATE TABLE IF NOT EXISTS whodunit_sessions (
 	PRIMARY KEY (repo_id, session)
 );
 
+-- One row per captured pre-adoption baseline (NAV-107).
+--
+-- The comparison this table exists for is the only honest one available:
+-- the same repository before and after, with the selection problem absent
+-- by construction. Assisted against unassisted commits in the same period
+-- is a different and weaker question, because an agent is reached for on
+-- some kinds of work and not others.
+--
+-- Keyed by repo_id and captured_at rather than repo_id alone. A snapshot
+-- is immutable once written locally, so a second one with a different
+-- capture time is a NEW baseline — recapturing after a --force, or a
+-- different window — and overwriting silently would destroy the record of
+-- what was actually compared.
+--
+-- manual_* are nullable throughout: they come from PR and CI systems this
+-- tool cannot see, and are absent in every snapshot captured so far. A
+-- zero would assert a measured zero (NAV-21).
+CREATE TABLE IF NOT EXISTS whodunit_baselines (
+	repo_id             VARCHAR(64)  NOT NULL,
+	captured_at         BIGINT       NOT NULL,
+	window_days         BIGINT       NOT NULL,
+	head_sha            VARCHAR(64)  NOT NULL DEFAULT '',
+	schema_version      VARCHAR(16)  NOT NULL DEFAULT '',
+
+	commits             BIGINT       NOT NULL DEFAULT 0,
+	commits_per_week    REAL,
+	median_diff_lines   BIGINT,
+	mean_hours_between  REAL,
+	reverts             BIGINT,
+	revert_rate         REAL,
+
+	synced_at           BIGINT       NOT NULL,
+	PRIMARY KEY (repo_id, captured_at)
+);
+
 -- Hashes of lines an agent produced (NAV-52).
 --
 -- Only hashes, never the lines. A hash cannot be read back into code, so

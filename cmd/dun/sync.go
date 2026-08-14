@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/navjyotnishant/whodunit/internal/baseline"
 	"github.com/navjyotnishant/whodunit/internal/config"
 	"github.com/navjyotnishant/whodunit/internal/hooklog"
 	"github.com/navjyotnishant/whodunit/internal/journal"
@@ -202,6 +203,26 @@ func buildPayload(limit int) (sidecar.Payload, error) {
 	p.Events = sidecar.EventRowsFrom(entries, repoID, now)
 	p.Lines = sidecar.LineRowsFrom(lines, repoID, now)
 	p.Sessions = sidecar.SessionRowsFrom(sessions, repoID, now)
+
+	// The pre-adoption baseline, when one was captured (NAV-107).
+	//
+	// This is the comparison the delivery dashboards actually want: the
+	// same repository before and after, rather than assisted against
+	// unassisted commits in the same period — which is a weaker question,
+	// because an agent is reached for on some kinds of work and not
+	// others.
+	//
+	// A repository without one contributes nothing rather than an empty
+	// row: "no baseline was captured" and "a baseline showing no activity"
+	// are different, and only the second should ever render as zeroes.
+	if path, err := baselinePathFor(""); err == nil {
+		if snap, err := baseline.Load(path); err == nil {
+			if row, ok := sidecar.BaselineRowFrom(snap, repoID, now); ok {
+				p.Baseline = &row
+			}
+		}
+	}
+
 	return p, nil
 }
 
@@ -220,6 +241,16 @@ func describePayload(w io.Writer, p sidecar.Payload) {
 	fmt.Fprintf(w, "  %-14s %d\n", "agent events", len(p.Events))
 	fmt.Fprintf(w, "  %-14s %d\n", "sessions", len(p.Sessions))
 	fmt.Fprintf(w, "  %-14s %d\n", "line hashes", len(p.Lines))
+
+	// Named explicitly rather than folded into a count. A baseline is a
+	// summary of the repository BEFORE instrumentation, which is a
+	// different kind of thing from the observations above it, and someone
+	// deciding whether to publish should see it listed.
+	if b := p.Baseline; b != nil {
+		fmt.Fprintf(w, "  %-14s %d commits over %d days, captured %s\n",
+			"baseline", b.Commits, b.WindowDays,
+			b.CapturedAt.Format("2006-01-02"))
+	}
 
 	files := map[string]bool{}
 	for _, e := range p.Events {

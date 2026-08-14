@@ -102,8 +102,14 @@ func TestEveryTableIsNamespaced(t *testing.T) {
 		}
 		count++
 	}
-	if count != 5 {
-		t.Errorf("found %d tables, want 5", count)
+	// repos, commits, events, sessions, event_lines, baselines.
+	//
+	// The literal is deliberate: a table appearing without anyone updating
+	// this number means a table was added without deciding whether it
+	// belongs in a shared DevLake database, which is the question the
+	// prefix rule exists to force.
+	if count != 6 {
+		t.Errorf("found %d tables, want 6", count)
 	}
 }
 

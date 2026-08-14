@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/navjyotnishant/whodunit/internal/baseline"
 	"github.com/navjyotnishant/whodunit/internal/journal"
 	"github.com/navjyotnishant/whodunit/internal/report"
 	"github.com/navjyotnishant/whodunit/internal/spec"
@@ -112,6 +113,59 @@ type SessionRow struct {
 	Compactions *int64
 }
 
+// BaselineRow is one row of whodunit_baselines (NAV-107).
+//
+// The measured fields are pointers because a snapshot can legitimately
+// omit them — a window with no commits has no median diff size and no
+// cadence, and a zero would assert those were measured.
+type BaselineRow struct {
+	RepoID        string
+	CapturedAt    time.Time
+	WindowDays    int
+	HeadSHA       string
+	SchemaVersion string
+
+	Commits          int
+	CommitsPerWeek   *float64
+	MedianDiffLines  *int64
+	MeanHoursBetween *float64
+	Reverts          *int64
+	RevertRate       *float64
+
+	SyncedAt time.Time
+}
+
+// BaselineRowFrom maps a captured snapshot onto its row.
+//
+// Returns false when there is no snapshot, so a repository that never
+// captured one contributes nothing rather than a row of zeroes — the
+// difference between "no baseline" and "a baseline showing no activity".
+func BaselineRowFrom(snap *baseline.Snapshot, repoID string, syncedAt time.Time) (BaselineRow, bool) {
+	if snap == nil {
+		return BaselineRow{}, false
+	}
+	g := snap.Git
+	return BaselineRow{
+		RepoID:        repoID,
+		CapturedAt:    snap.CapturedAt,
+		WindowDays:    snap.WindowDays,
+		HeadSHA:       snap.HeadSHA,
+		SchemaVersion: snap.SchemaVersion,
+
+		Commits:          g.Commits,
+		CommitsPerWeek:   f64p(g.CommitsPerWeek),
+		MedianDiffLines:  i64p(int64(g.MedianDiffLines)),
+		MeanHoursBetween: f64p(g.MeanHoursBetween),
+		Reverts:          i64p(int64(g.Reverts)),
+		RevertRate:       f64p(g.RevertRate),
+
+		SyncedAt: syncedAt,
+	}, true
+}
+
+func f64p(v float64) *float64 { return &v }
+func i64p(v int64) *int64     { return &v }
+
 // LineRow is one row of whodunit_event_lines.
 type LineRow struct {
 	RepoID   string
@@ -127,6 +181,10 @@ type Payload struct {
 	Events   []EventRow
 	Lines    []LineRow
 	Sessions []SessionRow
+
+	// Baseline is the repository's pre-adoption snapshot, when one was
+	// captured. Absent for a repository instrumented without one.
+	Baseline *BaselineRow
 }
 
 // CommitRowsFrom maps analysed commits onto the dashboard grain.

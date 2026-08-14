@@ -189,6 +189,17 @@ func WriteProgress(db *Store, p Payload, onRow func(done, total int)) (Counts, e
 		tick()
 	}
 
+	if b := p.Baseline; b != nil {
+		if _, err := tx.Exec(upsertBaseline(mysql),
+			b.RepoID, b.CapturedAt.UnixNano(), b.WindowDays, b.HeadSHA,
+			b.SchemaVersion, b.Commits, b.CommitsPerWeek, b.MedianDiffLines,
+			b.MeanHoursBetween, b.Reverts, b.RevertRate,
+			b.SyncedAt.UnixNano()); err != nil {
+			return counts, fmt.Errorf("write baseline: %w", err)
+		}
+		counts.Baselines = 1
+	}
+
 	for _, l := range p.Lines {
 		if _, err := tx.Exec(upsertLine(mysql),
 			l.RepoID, int64(l.Hash), l.FirstAt.UnixNano(), l.SyncedAt.UnixNano()); err != nil {
@@ -206,11 +217,12 @@ func WriteProgress(db *Store, p Payload, onRow func(done, total int)) (Counts, e
 
 // Counts is what a sync moved.
 type Counts struct {
-	Repos    int
-	Commits  int
-	Events   int
-	Lines    int
-	Sessions int
+	Repos     int
+	Commits   int
+	Events    int
+	Lines     int
+	Sessions  int
+	Baselines int
 }
 
 // The two engines spell "insert or replace" differently and neither
@@ -348,6 +360,29 @@ func upsertSession(mysql bool) string {
 		permission_mode=COALESCE(excluded.permission_mode, whodunit_sessions.permission_mode),
 		model=COALESCE(excluded.model, whodunit_sessions.model),
 		compactions=COALESCE(excluded.compactions, whodunit_sessions.compactions)`
+}
+
+// upsertBaseline records a captured snapshot.
+//
+// Only synced_at is refreshed on conflict — every measured column is left
+// alone. A baseline is immutable by design: `baseline.Write` refuses to
+// overwrite one locally, and the whole reason the window is fixed before
+// any comparison exists is that a window chosen afterwards can manufacture
+// almost any figure.
+//
+// So re-syncing the same capture is a no-op on the numbers, and a capture
+// with a different timestamp inserts a new row rather than replacing the
+// old one — the key includes captured_at precisely so that both are kept.
+func upsertBaseline(mysql bool) string {
+	cols := `INSERT INTO whodunit_baselines
+		(repo_id, captured_at, window_days, head_sha, schema_version,
+		 commits, commits_per_week, median_diff_lines, mean_hours_between,
+		 reverts, revert_rate, synced_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+	if mysql {
+		return cols + ` ON DUPLICATE KEY UPDATE synced_at=VALUES(synced_at)`
+	}
+	return cols + ` ON CONFLICT(repo_id, captured_at) DO UPDATE SET synced_at=excluded.synced_at`
 }
 
 func upsertLine(mysql bool) string {
