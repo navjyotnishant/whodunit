@@ -10,6 +10,10 @@ guessing.
 
 **Last surveyed: 2026-08-13.**
 
+For what each agent records on disk versus what whodunit reads — with counts,
+privacy classification and the two fields we were ignoring — see
+[field-inventory.md](field-inventory.md).
+
 ## The short version
 
 | Agent | Ceiling | Status |
