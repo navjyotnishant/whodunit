@@ -1,7 +1,10 @@
 package main
 
 import (
+	"time"
+
 	"fmt"
+	"github.com/navjyotnishant/whodunit/internal/attribution"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -94,3 +97,13 @@ func defaultBaselinePath() (string, error) {
 	}
 	return filepath.Join(dir, repoID+".json"), nil
 }
+
+// lookbackDays is the attribution window in days, for user-facing text.
+//
+// Derived from the constant rather than written out. Three messages said
+// "the last 7 days" long after the window became 30: the constant was
+// changed and the prose was not, so `dun verify` told a user their 3-week-old
+// session was out of window when it was well inside it — sending them away
+// from the real cause. The drift is only possible while a number is typed
+// twice.
+var lookbackDays = int(attribution.LookbackWindow / (24 * time.Hour))

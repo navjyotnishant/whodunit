@@ -157,6 +157,19 @@ func determineTrailer() spec.Trailer {
 	// Failure here is deliberately ignored: a full journal makes the
 	// attribution better, an empty one makes it weaker, and neither is a
 	// reason to fail someone's commit.
+	// A config that will not parse discards every agent path override and
+	// falls back to the built-in defaults. That is the right fallback, but
+	// it is invisible: attribution simply stops finding transcripts, every
+	// commit is stamped undetermined, and it reads as "no AI was used".
+	//
+	// Said out loud here because this is the path that never loads the
+	// config directly and so never had anywhere to report it.
+	if err := adapter.ConfigError(); err != nil {
+		logHook(hookPrepare, hooklog.LevelWarn, "config",
+			"config.json could not be read, so any agent paths it sets are "+
+				"being ignored: "+err.Error())
+	}
+
 	if _, _, err := ingestSince(since, func(path string, perr error) {
 		logHook(hookPrepare, hooklog.LevelWarn, "ingest",
 			"could not read a transcript: "+perr.Error()+" ("+filepath.Base(path)+")")
@@ -187,7 +200,7 @@ func determineTrailer() spec.Trailer {
 	}
 	if len(entries) == 0 {
 		logHook(hookPrepare, hooklog.LevelInfo, "determine",
-			"undetermined: no agent activity found in the last 7 days")
+			fmt.Sprintf("undetermined: no agent activity found in the last %d days", lookbackDays))
 		return spec.Undetermined()
 	}
 

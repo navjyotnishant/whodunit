@@ -454,14 +454,14 @@ func checkAttribution(repoPath string) []finding {
 		return []finding{{
 			Area:  "attribution",
 			Level: levelInfo,
-			Detail: "no agent activity in the last 7 days — commits will be stamped " +
-				"undetermined until there is",
+			Detail: fmt.Sprintf("no agent activity in the last %d days — commits "+
+				"will be stamped undetermined until there is", lookbackDays),
 		}}
 	}
 	return []finding{{
 		Area:   "attribution",
 		Level:  levelOK,
-		Detail: fmt.Sprintf("%d agent edits in the last 7 days are available to attribute", events),
+		Detail: fmt.Sprintf("%d agent edits in the last %d days are available to attribute", events, lookbackDays),
 	}}
 }
 

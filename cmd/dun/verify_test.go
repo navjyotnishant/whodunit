@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/navjyotnishant/whodunit/internal/attribution"
 	"github.com/navjyotnishant/whodunit/internal/journal"
 	"github.com/navjyotnishant/whodunit/internal/registry"
 	"github.com/navjyotnishant/whodunit/internal/secret"
@@ -399,5 +400,34 @@ func TestWidenedSecretPermissionsFailVerify(t *testing.T) {
 	}
 	if err == nil {
 		t.Error("a world-readable keyfile did not fail the command")
+	}
+}
+
+// The window a message quotes must be the window the code applies.
+//
+// Three user-facing strings said "the last 7 days" long after
+// attribution.LookbackWindow became 30 days. The behaviour was right and
+// the explanation was wrong, which is worse than either alone: someone
+// debugging a missing trailer reads "no agent activity in the last 7 days",
+// concludes their three-week-old session is simply out of window, and stops
+// looking — while the real cause is still there.
+func TestUserFacingWindowMatchesTheConstant(t *testing.T) {
+	want := int(attribution.LookbackWindow / (24 * time.Hour))
+	if lookbackDays != want {
+		t.Fatalf("lookbackDays = %d, want %d", lookbackDays, want)
+	}
+
+	// And nothing quotes a number that is not this one.
+	for _, path := range []string{"hook.go", "verify.go"} {
+		src, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, wrong := range []string{"last 7 days", "last 14 days", "last 30 days"} {
+			if strings.Contains(string(src), wrong) {
+				t.Errorf("%s hardcodes %q; derive it from "+
+					"attribution.LookbackWindow so it cannot drift", path, wrong)
+			}
+		}
 	}
 }

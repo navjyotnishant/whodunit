@@ -175,3 +175,44 @@ func writeAgentConfig(t *testing.T, agent, path string) {
 		t.Fatal(err)
 	}
 }
+
+// A malformed config must not silently discard every configured path.
+//
+// ResolveRoot deliberately falls through to the built-in default when the
+// config cannot be read, so that a broken file cannot silence an agent
+// outright. That is the right call — but it was silent, and the comment
+// justifying it claimed the error was "already reported by the commands
+// that load it". The commit hook never loads the config directly, so on the
+// path that matters most nothing reported it at all: one stray comma in
+// config.json disabled every agent path override, every commit was stamped
+// undetermined, and the only signal was attribution quietly stopping.
+func TestAMalformedConfigIsReportedNotSwallowed(t *testing.T) {
+	home := isolate(t)
+	if err := os.WriteFile(filepath.Join(home, "config.json"),
+		[]byte(`{"agents":{"claude-code":{"path":"/somewhere",}}}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	root, src := ResolveRoot("claude-code", "/builtin")
+
+	// Still falls back, which is the safe behaviour.
+	if root != "/builtin" || src != SourceDefault {
+		t.Errorf("ResolveRoot = (%q, %q), want the built-in default: a broken "+
+			"config must not silence an agent", root, src)
+	}
+
+	// But it must be discoverable. ConfigError reports what went wrong so a
+	// caller on the commit path can log it.
+	if err := ConfigError(); err == nil {
+		t.Error("a malformed config.json produced no reportable error; the " +
+			"user's agent paths are being ignored with nothing to say so")
+	}
+}
+
+func TestAValidConfigReportsNoError(t *testing.T) {
+	isolate(t)
+	writeAgentConfig(t, "claude-code", filepath.Join(t.TempDir(), "p"))
+	if err := ConfigError(); err != nil {
+		t.Errorf("a valid config reported an error: %v", err)
+	}
+}

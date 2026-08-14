@@ -174,12 +174,27 @@ func (s *SyncConfig) Redacted() string {
 	}
 	u, err := url.Parse(s.DSN)
 	if err != nil {
-		return s.DSN
+		// Unparseable, so the password cannot be located precisely — and
+		// returning the raw string, as this used to, prints it. Which is
+		// worst here: a DSN that will not parse is exactly what someone is
+		// looking at `dun config` to diagnose, so the failure path is the
+		// one most likely to be on screen.
+		return "(unreadable — check the sync dsn in config.json)"
 	}
 	if u.User != nil {
 		if _, hasPassword := u.User.Password(); hasPassword {
 			u.User = url.UserPassword(u.User.Username(), "****")
 		}
+	}
+	// A password can also arrive as a query parameter, which the userinfo
+	// rewrite above does not touch.
+	if q := u.Query(); q.Has("password") || q.Has("passwd") || q.Has("pwd") {
+		for _, key := range []string{"password", "passwd", "pwd"} {
+			if q.Has(key) {
+				q.Set(key, "****")
+			}
+		}
+		u.RawQuery = q.Encode()
 	}
 	return u.String()
 }

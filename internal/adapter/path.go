@@ -35,14 +35,39 @@ func ResolveRoot(agent, builtin string) (path string, source Source) {
 		return v, SourceEnv
 	}
 	// A config that cannot be read must not silence an agent: fall through
-	// to the default rather than returning nothing. A broken config file is
-	// already reported by the commands that load it.
+	// to the default rather than returning nothing.
+	//
+	// Falling through is right — a broken file should not stop attribution
+	// entirely — but it must not be silent. This used to swallow the error
+	// on the grounds that "a broken config file is already reported by the
+	// commands that load it", and the commit hook does not load the config
+	// directly, so on the one path that matters nothing reported it: a
+	// stray comma in config.json discarded every agent path override and
+	// every commit came out undetermined, reading as "no AI was used".
+	//
+	// ConfigError lets a caller ask afterwards and say so.
 	if cfg, err := config.Load(); err == nil {
 		if a, ok := cfg.Agents[agent]; ok && a.Path != "" {
 			return a.Path, SourceConfig
 		}
 	}
 	return builtin, SourceDefault
+}
+
+// ConfigError reports why the config could not be read, or nil.
+//
+// Separate from ResolveRoot because the two have different jobs: resolving
+// must always return a usable path, and reporting must not change what that
+// path is. A caller that can log — the commit hook, `dun verify` — asks
+// this; one that cannot simply carries on with the default.
+//
+// A missing config is not an error: local-only with no overrides is the
+// normal state.
+func ConfigError() error {
+	if _, err := config.Load(); err != nil {
+		return err
+	}
+	return nil
 }
 
 // Source is where a resolved path came from, so a report can say why it is
