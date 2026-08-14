@@ -44,11 +44,20 @@ func Of(filePath, line string) uint64 {
 
 // normalizePath makes a path hash the same however it was assembled.
 //
-// Separators only. Case is left alone even though Windows filesystems are
-// usually case-insensitive: both sides of a match come from the same machine
-// within one commit, so they already agree on case, and folding it would
-// merge genuinely distinct paths on the case-sensitive filesystems where
-// most of this data is produced.
+// Separators only, and deliberately nothing that touches the filesystem:
+// this runs once per line, and the commit hook has a two-second budget to
+// hash thousands of them. Resolving symlinks or Windows' 8.3 short names
+// here would mean a stat syscall per line of every diff.
+//
+// Those larger differences — /tmp against /private/tmp, RUNNER~1 against
+// runneradmin — are collapsed once per file by the callers that know the
+// repository root, before any line is hashed.
+//
+// Case is left alone even though Windows filesystems are usually
+// case-insensitive: both sides of a match come from one machine within one
+// commit, so they already agree on case, and folding it would merge
+// genuinely distinct paths on the case-sensitive filesystems where most of
+// this data is produced.
 func normalizePath(p string) string {
 	return strings.ReplaceAll(p, `\`, "/")
 }

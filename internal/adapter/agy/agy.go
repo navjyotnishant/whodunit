@@ -121,16 +121,33 @@ func touchesRepo(dbPath, repo string) bool {
 	return false
 }
 
+// under reports whether path sits inside dir.
+//
+// Compared as normalised strings rather than through filepath.Rel. Rel
+// answers with the host's rules, and on Windows those include a volume: a
+// transcript records "/repo/main.go" while the working directory is
+// "C:\repo", so Rel either errors or returns a "..\" path and every session
+// looked like it belonged to another repository. Nothing matched, and the
+// result was attribution that silently found no sessions at all.
+//
+// Trailing separators are trimmed so "/repo" and "/repo/" behave alike, and
+// the boundary is checked explicitly so "/repository" is not treated as
+// living inside "/repo".
 func under(path, dir string) bool {
-	// Both sides converted to the host's separator first.
-	//
-	// The path comes from a transcript, where it is written with forward
-	// slashes; dir comes from the working directory, which on Windows uses
-	// backslashes. filepath.Rel compares them with native semantics, so on
-	// Windows every transcript path looked outside the repository and no
-	// session matched — attribution silently found nothing.
-	rel, err := filepath.Rel(filepath.FromSlash(dir), filepath.FromSlash(path))
-	return err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
+	p := normalizeForCompare(path)
+	d := normalizeForCompare(dir)
+	if d == "" {
+		return false
+	}
+	return p == d || strings.HasPrefix(p, d+"/")
+}
+
+func normalizeForCompare(p string) string {
+	p = strings.ReplaceAll(p, `\`, "/")
+	for len(p) > 1 && strings.HasSuffix(p, "/") {
+		p = strings.TrimSuffix(p, "/")
+	}
+	return p
 }
 
 // resolve canonicalises a path so /private/tmp and /tmp compare equal on

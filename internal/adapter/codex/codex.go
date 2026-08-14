@@ -165,14 +165,46 @@ func sameDir(a, b string) bool {
 	return normalizeDir(a) == normalizeDir(b)
 }
 
+// isAbsolutePath recognises an absolute path in either platform's spelling.
+//
+// filepath.IsAbs answers for the host only: on Windows "/repo/main.go" is
+// not absolute, because absolute there means a drive letter or a UNC share.
+// A transcript written on one machine and read on another is exactly the
+// case this package handles, and treating a Unix absolute path as relative
+// joined it to the session cwd — turning /abs/new.py into C:\repo\abs\new.py
+// and losing the file it referred to.
+func isAbsolutePath(p string) bool {
+	if p == "" {
+		return false
+	}
+	if filepath.IsAbs(p) {
+		return true
+	}
+	// A leading separator: Unix-absolute, or a UNC path.
+	if p[0] == '/' || p[0] == '\\' {
+		return true
+	}
+	// A drive letter, spelled with either separator: "C:/x" or "C:\x".
+	return len(p) >= 3 && p[1] == ':' &&
+		(p[2] == '/' || p[2] == '\\') &&
+		((p[0] >= 'A' && p[0] <= 'Z') || (p[0] >= 'a' && p[0] <= 'z'))
+}
+
 func normalizeDir(p string) string {
-	// FromSlash first: a transcript records the cwd with forward slashes,
-	// while the directory this is compared against comes from the OS with
-	// native ones. Cleaning without converting left the two spellings
-	// distinct on Windows, so a session never matched its own repository.
-	p = filepath.Clean(filepath.FromSlash(p))
-	if resolved, err := filepath.EvalSymlinks(p); err == nil {
+	// Resolved with the host's own semantics where that works — EvalSymlinks
+	// is what makes /private/tmp and /tmp compare equal on macOS — and then
+	// reduced to a separator-neutral string for the comparison itself.
+	//
+	// The second half matters on Windows: a transcript records its cwd as
+	// "/repo" while the directory being compared arrives as "C:\repo", and
+	// leaving the two spellings distinct meant a session never matched its
+	// own repository, so nothing was ever attributed.
+	if resolved, err := filepath.EvalSymlinks(filepath.FromSlash(p)); err == nil {
 		p = resolved
+	}
+	p = strings.ReplaceAll(filepath.Clean(p), `\`, "/")
+	for len(p) > 1 && strings.HasSuffix(p, "/") {
+		p = strings.TrimSuffix(p, "/")
 	}
 	return p
 }
@@ -255,7 +287,7 @@ func ParseSince(path string, since time.Time) ([]journal.Entry, error) {
 
 		for _, fp := range parsePatch(c.Input) {
 			file := fp.Path
-			if !filepath.IsAbs(file) && meta.CWD != "" {
+			if !isAbsolutePath(file) && meta.CWD != "" {
 				// Patch paths are relative to the session's directory.
 				//
 				// Normalised to forward slashes afterwards: filepath.Join

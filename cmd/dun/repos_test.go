@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/navjyotnishant/whodunit/internal/adapter/claudecode"
 )
 
 func TestReposListWhenNothingInstrumented(t *testing.T) {
@@ -142,7 +144,7 @@ func TestDecodeSlugFindsRealDirectory(t *testing.T) {
 		t.Fatalf("mkdir: %v", err)
 	}
 
-	slug := strings.ReplaceAll(withDash, string(filepath.Separator), "-")
+	slug := claudecode.SlugForCwd(withDash)
 	got := decodeSlug(slug)
 	if got != withDash {
 		t.Errorf("decodeSlug(%q) = %q, want %q", slug, got, withDash)
@@ -186,7 +188,7 @@ func TestReposCandidatesReportsEachRepoOnce(t *testing.T) {
 	}
 
 	for _, p := range []string{repo, sub} {
-		slug := strings.ReplaceAll(p, string(filepath.Separator), "-")
+		slug := claudecode.SlugForCwd(p)
 		if err := os.MkdirAll(filepath.Join(projects, slug), 0o755); err != nil {
 			t.Fatalf("mkdir slug: %v", err)
 		}
@@ -219,7 +221,7 @@ func TestReposCandidatesExcludesInstrumented(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Getwd: %v", err)
 	}
-	slug := strings.ReplaceAll(cwd, string(filepath.Separator), "-")
+	slug := claudecode.SlugForCwd(cwd)
 	if err := os.MkdirAll(filepath.Join(projects, slug), 0o755); err != nil {
 		t.Fatalf("mkdir slug: %v", err)
 	}
