@@ -426,7 +426,24 @@ func ParseSessionActivity(path string, since time.Time) ([]journal.Session, erro
 		if r.Timestamp.After(s.LastSeen) {
 			s.LastSeen = r.Timestamp
 		}
-		if r.Type != "response_item" {
+		// Codex writes three record types worth reading, and this used to
+		// read one (NAV-87).
+		//
+		// `type != "response_item" { continue }` discarded 18,142
+		// event_msg and 4,089 turn_context records across 125 rollouts —
+		// about 40% of every transcript, and specifically the 40% holding
+		// tokens, timing, model, effort and approval policy. Not a missing
+		// field: a missing record type.
+		switch r.Type {
+		case "event_msg":
+			readEventMsg(&s, r.Payload)
+			continue
+		case "turn_context":
+			readTurnContext(&s, r.Payload)
+			continue
+		case "response_item":
+			// handled below
+		default:
 			continue
 		}
 

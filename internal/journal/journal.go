@@ -319,6 +319,36 @@ type Session struct {
 	ToolCalls     int
 	DistinctTools int
 	MCPCalls      int
+
+	// Measured cost, timing and autonomy (NAV-88). Pointers, not values,
+	// and that is the point: a nil is "this agent does not report it",
+	// which is a different claim from zero.
+	//
+	// An int would make them indistinguishable. agy reports none of these
+	// — verified genuinely absent, not merely unread — and only Codex
+	// separates reasoning tokens or records timing at all, so a plain int
+	// would write 0 for two agents out of three and a cost panel would
+	// report that they are free (NAV-21).
+	//
+	// The schema columns are NULLable for the same reason; these are the
+	// in-memory half of that guarantee.
+	InputTokens        *int64
+	OutputTokens       *int64
+	CacheReadTokens    *int64
+	CacheWriteTokens   *int64
+	ReasoningTokens    *int64
+	DurationMS         *int64
+	TimeToFirstTokenMS *int64
+
+	// Enums rather than counts: how hard the model was asked to think, and
+	// how much autonomy it was given. Empty means not reported.
+	Effort         string
+	PermissionMode string
+
+	// The model that produced the session. A session can change model
+	// part-way through; this records the last one seen, which is what the
+	// turn that finished the work used.
+	Model string
 }
 
 // UpsertSession records or updates one session's activity. A session grows
