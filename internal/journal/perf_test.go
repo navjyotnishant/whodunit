@@ -30,6 +30,20 @@ import (
 // of the wrong order rather than to police milliseconds. A flaky gate gets
 // disabled, and a disabled gate is worse than none because it still implies
 // protection.
+// seedSize is how many entries the budget tests write.
+//
+// Every Append is its own transaction — there is no batch API, and adding
+// one for a test would be the tail wagging the dog — so seeding dominates
+// these tests entirely. On a Windows runner, where each fsync is far more
+// expensive than on macOS, 20k entries took over two minutes and blew the
+// package's ten-minute timeout before the query under test had run once.
+//
+// 4k is still an order of magnitude past what any single repository
+// accumulates in a month, and 28k line hashes is enough that a query
+// degrading into a scan shows up plainly. The gate is for catching a change
+// of the wrong order, and this is ample for that.
+const seedSize = 4000
+
 const (
 	// readLineHashesBudget covers the query the prepare-commit-msg hook runs
 	// on every commit, over the 30-day attribution window.
@@ -101,8 +115,7 @@ func TestReadLineHashesStaysWithinBudget(t *testing.T) {
 		t.Skip("seeding takes a few seconds")
 	}
 	dataDir := t.TempDir()
-	// 20k entries is roughly eight months of this project's own rate.
-	seedManyEntries(t, dataDir, 20000)
+	seedManyEntries(t, dataDir, seedSize)
 
 	since := time.Now().Add(-30 * 24 * time.Hour)
 
@@ -131,7 +144,7 @@ func TestCountSinceStaysWithinBudget(t *testing.T) {
 		t.Skip("seeding takes a few seconds")
 	}
 	dataDir := t.TempDir()
-	seedManyEntries(t, dataDir, 20000)
+	seedManyEntries(t, dataDir, seedSize)
 
 	start := time.Now()
 	entries, sessions, err := CountSince(dataDir, testRepo, time.Now().Add(-24*time.Hour))
@@ -164,7 +177,7 @@ func TestReadLineHashesScalesWithTheRepoNotTheFile(t *testing.T) {
 	dataDir := t.TempDir()
 
 	// The repository under test: a fixed, small amount of history.
-	seedManyEntries(t, dataDir, 2000)
+	seedManyEntries(t, dataDir, seedSize/10)
 
 	since := time.Now().Add(-30 * 24 * time.Hour)
 
@@ -203,7 +216,7 @@ func TestReadLineHashesScalesWithTheRepoNotTheFile(t *testing.T) {
 			t.Fatal(err)
 		}
 		now := time.Now().UTC()
-		for i := 0; i < 2000; i++ {
+		for i := 0; i < seedSize/10; i++ {
 			ts := now.Add(-time.Duration(i) * time.Minute)
 			if err := w.Append(Entry{
 				Timestamp: ts,
