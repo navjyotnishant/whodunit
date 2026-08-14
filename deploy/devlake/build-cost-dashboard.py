@@ -419,7 +419,7 @@ y += 8
 panels.append(row("Where it landed, how much rope, and how long", y)); y += 1
 
 panels.append(panel(
-    120, "Agent-written lines by branch", "barchart", 0, y, 12, 8,
+    120, "Top agent-written lines by branch", "barchart", 0, y, 12, 8,
     # Twelve, not the twenty-five the table showed.
     #
     # Branch names here run to 76 characters and there are 42 of them, most

@@ -738,7 +738,7 @@
     },
     {
       "id": 120,
-      "title": "Agent-written lines by branch",
+      "title": "Top agent-written lines by branch",
       "type": "barchart",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
