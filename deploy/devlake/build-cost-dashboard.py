@@ -349,7 +349,7 @@ ORDER BY SUM(s.input_tokens + s.output_tokens
 y += 14
 
 panels.append(panel(
-    111, "Output tokens per model over time", "timeseries", 0, y, 12, 8,
+    111, "Output tokens per model over time", "timeseries", 0, y, 24, 8,
     f"""SELECT
   FROM_UNIXTIME(FLOOR(s.last_seen / 1000000000 / 86400) * 86400) AS time,
   COALESCE(NULLIF(s.model, ''), '(unattributed)')                AS metric,
@@ -367,33 +367,16 @@ GROUP BY 1, 2 ORDER BY 1""",
         "`format: time_series`, which is what turns a `metric` column into "
         "separate series — with `format: table` Grafana returns one frame "
         "with a literal metric column and labels every line \"value\", so "
-        "the models are indistinguishable."),
+        "the models are indistinguishable.\n\n"
+        "Full width because the cache-payback chart that used to sit beside "
+        "it was removed: payback is a static per-model fact here, not a "
+        "trend. Three of seven models never report cache writes at all and "
+        "the rest sit at 47-153x, so plotting it over time drew four flat "
+        "lines nowhere near the break-even the chart existed to mark. The "
+        "number itself stays in the table below, where its session count is "
+        "beside it — 153x reads very differently on 34 sessions than on 1."),
     options={"legend": {"displayMode": "table", "placement": "bottom",
                         "showLegend": True, "calcs": ["sum"]},
-             "tooltip": {"mode": "multi", "sort": "desc"}}))
-
-panels.append(panel(
-    112, "Cache write payback by model", "timeseries", 12, y, 12, 8,
-    f"""SELECT
-  FROM_UNIXTIME(FLOOR(s.last_seen / 1000000000 / 86400) * 86400) AS time,
-  COALESCE(NULLIF(s.model, ''), '(unattributed)')                AS metric,
-  SUM(COALESCE(s.cache_read_tokens,0)) / NULLIF(SUM(s.cache_write_tokens), 0) AS value
-FROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id
-WHERE s.cache_write_tokens IS NOT NULL AND s.cache_write_tokens > 0 AND {CONTRIBUTOR}
-  AND s.last_seen >= $__unixEpochFrom() {NS}
-  AND s.last_seen <  $__unixEpochTo() {NS}
-GROUP BY 1, 2 ORDER BY 1""",
-    decimals=2, minval=0, novalue="no agent reported cache writes",
-    fmt="time_series",
-    description=(
-        f"Break-even is {BREAK_EVEN}x, drawn as a threshold. A line below it "
-        "is a model whose caching is costing money.\n\n"
-        "Measured spreads run from 0.73x to 21x, so the axis is generous — a "
-        "linear scale flattens the low end, which is the end that matters."),
-    thresholds=[{"color": "red", "value": None},
-                {"color": "green", "value": BREAK_EVEN}],
-    options={"legend": {"displayMode": "table", "placement": "bottom",
-                        "showLegend": True, "calcs": ["lastNotNull", "min"]},
              "tooltip": {"mode": "multi", "sort": "desc"}}))
 y += 8
 
