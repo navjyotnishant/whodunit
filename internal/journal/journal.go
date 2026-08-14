@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/navjyotnishant/whodunit/internal/config"
@@ -579,11 +580,46 @@ func open(dataDir string) (*sql.DB, error) {
 		return nil, fmt.Errorf("journal: %w", err)
 	}
 
-	db, err := sql.Open("sqlite", DBPath(dataDir))
+	// Concurrent access is the normal configuration, not an edge case: one
+	// journal file per machine is shared by the commit hook, the daemon's
+	// five-second tick, and any `dun ingest` run by hand — across every
+	// repository at once.
+	//
+	// Two pragmas make that safe, and their absence was a real bug rather
+	// than a theoretical one. Under the default rollback journal a second
+	// writer fails immediately with SQLITE_BUSY, and every caller here
+	// treats a journal error as "record nothing and carry on" — so a commit
+	// made during a daemon tick lost its attribution silently and was
+	// stamped undetermined, which reads as "no AI was used".
+	//
+	//   journal_mode=WAL  readers no longer block on a writer, so the hook
+	//                     can read line hashes while the daemon ingests.
+	//   busy_timeout=5000 a writer waits its turn instead of failing.
+	//                     Five seconds is well inside the hook's own two
+	//                     second budget for the case that matters, and the
+	//                     alternative is losing the write entirely.
+	//
+	// Reproduced by TestConcurrentWritersDoNotLoseEntries, which fails
+	// against a connection opened without these.
+	dsn := DBPath(dataDir) + "?_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)"
+	db, err := sql.Open("sqlite", dsn)
 	if err != nil {
 		return nil, fmt.Errorf("journal: open db: %w", err)
 	}
-	if _, err := db.Exec(schema); err != nil {
+	// Retried, because busy_timeout does not cover this one statement on a
+	// database that does not exist yet.
+	//
+	// The pragma is applied per connection once the file is open, but two
+	// processes creating the journal for the first time both run CREATE
+	// TABLE against a file with no WAL yet, and the loser gets SQLITE_BUSY
+	// with nothing to wait on. That is a narrow window — first commit after
+	// install, daemon starting at the same moment — and it fails in the way
+	// that costs most: NewWriter errors, the caller records nothing, and
+	// the commit is stamped undetermined.
+	//
+	// Everything here is CREATE ... IF NOT EXISTS, so retrying is safe and
+	// the loser simply finds the tables already made.
+	if err := execWithRetry(db, schema); err != nil {
 		db.Close()
 		return nil, fmt.Errorf("journal: init schema: %w", err)
 	}
@@ -601,6 +637,34 @@ func open(dataDir string) (*sql.DB, error) {
 		return nil, fmt.Errorf("journal: %w", err)
 	}
 	return db, nil
+}
+
+// execWithRetry runs a statement, waiting out a lock instead of failing.
+//
+// Needed only where busy_timeout cannot help: the schema exec against a
+// database file that does not exist yet, where there is no established lock
+// to queue behind and SQLite returns SQLITE_BUSY immediately.
+//
+// Bounded and short. The point is to survive two processes starting in the
+// same instant — a first commit while the daemon is launching — not to wait
+// out a long transaction. Anything still locked after this returns the error
+// and the caller degrades exactly as it did before.
+//
+// Safe to repeat: every statement in the schema is CREATE ... IF NOT EXISTS,
+// so the loser of the race simply finds the tables already there.
+func execWithRetry(db *sql.DB, stmt string) error {
+	var err error
+	for attempt := 0; attempt < 5; attempt++ {
+		if _, err = db.Exec(stmt); err == nil {
+			return nil
+		}
+		if !strings.Contains(err.Error(), "SQLITE_BUSY") &&
+			!strings.Contains(err.Error(), "database is locked") {
+			return err
+		}
+		time.Sleep(time.Duration(20*(attempt+1)) * time.Millisecond)
+	}
+	return err
 }
 
 // vacuumThreshold is how much free space must accumulate before Prune

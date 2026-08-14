@@ -75,3 +75,27 @@ jobs:
 
       - name: Test
         run: go test ./...
+
+      # Races are invisible to a plain `go test`, and this project has
+      # several concurrency surfaces: the hook writes the journal while a
+      # daemon may be reading it, and the hook log is appended from more
+      # than one process.
+      #
+      # Linux only. The race detector costs roughly ten times the wall
+      # clock, and running it on one platform catches the same data races —
+      # they are a property of the code, not of the operating system.
+      - name: Race detector
+        if: matrix.os == 'ubuntu-latest'
+        run: go test -race ./...
+
+      # Benchmarks are compiled but never executed by `go test`, so a
+      # benchmark can rot for months and nobody notices until they try to
+      # measure something. One iteration each proves they still run.
+      #
+      # This is a compile-and-execute check, not a performance gate: the
+      # gates that assert a budget are ordinary tests (hook_budget_test.go
+      # and friends), because a wall-clock assertion on a shared runner has
+      # to fail loudly and reproducibly rather than print a number.
+      - name: Benchmarks still run
+        if: matrix.os == 'ubuntu-latest'
+        run: go test ./... -run '^$' -bench . -benchtime 1x

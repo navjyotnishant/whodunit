@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/navjyotnishant/whodunit/internal/adapter/claudecode"
+	"github.com/navjyotnishant/whodunit/internal/testmode"
 )
 
 // hookBudget is what determining a trailer may cost.
@@ -67,7 +68,9 @@ func TestHookStaysWithinBudget(t *testing.T) {
 	_ = determineTrailer()
 	elapsed := time.Since(start)
 
-	if elapsed > hookBudget {
+	// Not under -race, where the detector's overhead is what gets measured
+	// rather than the code's.
+	if !testmode.RaceEnabled && elapsed > hookBudget {
 		t.Fatalf("determineTrailer took %v, over the %v budget, with 400 unrelated "+
 			"sessions on the machine. This runs on every commit.", elapsed, hookBudget)
 	}
