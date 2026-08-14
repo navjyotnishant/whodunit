@@ -53,10 +53,15 @@ type Config struct {
 	// dropped once this many exist. Compressed, seven of them cost a
 	// fraction of the live database.
 	//
-	// Zero means the default rather than "no backups" — a user who wants
-	// none says so explicitly with `dun config set backup_days 0`, which
-	// is a different thing from having never configured it.
-	BackupDays int `json:"backup_days,omitempty"`
+	// Zero means no backups. An absent key means the default, which Load
+	// supplies before reading the file — so "never configured" and
+	// "deliberately disabled" stay distinguishable.
+	//
+	// No omitempty: 0 means "no backups", and omitempty would drop the key
+	// entirely, so Load would read back the default and quietly re-enable
+	// them. The documented way to turn backups off — `dun config set
+	// backup_days 0` — did not work for exactly that reason.
+	BackupDays int `json:"backup_days"`
 
 	// Agents overrides where an agent's transcripts are looked for, keyed
 	// by the agent name that appears in the trailer ("claude-code",
@@ -286,7 +291,19 @@ func EnsureDir(dir string) error {
 
 // Load reads the global config, returning defaults if it doesn't exist yet.
 func Load() (Config, error) {
-	cfg := Config{RetentionDays: defaultRetentionDays}
+	// Every default set here, not after the file is read.
+	//
+	// BackupDays used to be defaulted below the "no config file" return, so
+	// a machine with no config.json — a fresh install, which is every
+	// machine on day one — got BackupDays = 0. journal.Backup reads zero as
+	// "explicitly disabled", so no daily copy was ever taken, while the
+	// prune that runs beside it still deleted line hashes. The one ordering
+	// that makes pruning safe was silently absent exactly where it mattered
+	// most.
+	cfg := Config{
+		RetentionDays: defaultRetentionDays,
+		BackupDays:    defaultBackupDays,
+	}
 
 	dir, err := Dir()
 	if err != nil {
@@ -299,11 +316,12 @@ func Load() (Config, error) {
 	if err != nil {
 		return cfg, err
 	}
+
+	// Unmarshalling over the defaults means an absent key keeps its default
+	// and a present one wins — including an explicit 0, which is how
+	// `dun config set backup_days 0` disables backups.
 	if err := json.Unmarshal(data, &cfg); err != nil {
 		return cfg, err
-	}
-	if cfg.BackupDays == 0 {
-		cfg.BackupDays = defaultBackupDays
 	}
 	// Below the minimum, not just zero.
 	//

@@ -152,3 +152,42 @@ func TestLoadClampsRetentionBelowTheMinimum(t *testing.T) {
 			cfg.RetentionDays, MinRetentionDays)
 	}
 }
+
+// Backups must be on by default, including with no config file at all.
+//
+// They were not. BackupDays was defaulted after the "no config.json" return,
+// so a fresh install — every machine on day one — loaded zero, which
+// journal.Backup reads as "explicitly disabled". No daily copy was ever
+// taken, while the prune that runs beside it still deleted line hashes: the
+// one ordering that makes pruning safe was absent exactly where it mattered.
+func TestBackupsAreOnWithNoConfigFile(t *testing.T) {
+	t.Setenv("WHODUNIT_HOME", t.TempDir())
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.BackupDays <= 0 {
+		t.Fatalf("BackupDays = %d with no config file; backups are disabled "+
+			"on a fresh install while the prune still runs", cfg.BackupDays)
+	}
+}
+
+// And zero must survive a round trip, because zero is how they are turned
+// off. `omitempty` dropped the key, so Load read back the default and
+// silently re-enabled them.
+func TestBackupsCanActuallyBeDisabled(t *testing.T) {
+	t.Setenv("WHODUNIT_HOME", t.TempDir())
+
+	if err := Save(Config{BackupDays: 0, RetentionDays: defaultRetentionDays}); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.BackupDays != 0 {
+		t.Errorf("BackupDays = %d after being set to 0; the documented way to "+
+			"disable backups does not work", cfg.BackupDays)
+	}
+}
