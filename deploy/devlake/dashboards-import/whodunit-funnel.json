@@ -1,5 +1,5 @@
 {
-  "uid": "",
+  "uid": "whodunit-funnel",
   "title": "Whodunit — AI Productivity Funnel",
   "tags": [
     "whodunit",
@@ -29,15 +29,12 @@
         "datasource": "${DS_WHODUNIT}",
         "label": "Contributor",
         "query": "SELECT DISTINCT contributor FROM whodunit_repos WHERE contributor <> ''",
-        "current": {
-          "selected": true,
-          "text": "All",
-          "value": "__all__"
-        },
+        "current": {},
         "includeAll": true,
         "allValue": "__all__",
         "refresh": 1,
-        "hide": 0
+        "hide": 0,
+        "options": []
       },
       {
         "name": "board",
@@ -45,13 +42,10 @@
         "datasource": "${DS_WHODUNIT}",
         "label": "Board (stage 4)",
         "query": "SELECT name AS __text, id AS __value FROM boards WHERE id LIKE 'linear:%' ORDER BY name",
-        "current": {
-          "selected": true,
-          "text": "Navjyot's Lab-1",
-          "value": "linear:LinearTeam:1:8842e00a-9b06-4aad-9b27-591ef9990e7b"
-        },
+        "current": {},
         "refresh": 1,
-        "hide": 0
+        "hide": 0,
+        "options": []
       }
     ]
   },

@@ -1,5 +1,5 @@
 {
-  "uid": "",
+  "uid": "whodunit-dora",
   "title": "Whodunit — AI Impact on Delivery",
   "tags": [
     "whodunit",
@@ -32,12 +32,12 @@
           {
             "text": "Daily",
             "value": "%Y-%m-%d",
-            "selected": false
+            "selected": true
           },
           {
             "text": "Weekly",
             "value": "%x-W%v",
-            "selected": true
+            "selected": false
           },
           {
             "text": "Monthly",
@@ -46,9 +46,9 @@
           }
         ],
         "current": {
-          "selected": true,
-          "text": "Weekly",
-          "value": "%x-W%v"
+          "selected": false,
+          "text": "Daily",
+          "value": "%Y-%m-%d"
         }
       },
       {
@@ -56,16 +56,13 @@
         "type": "query",
         "datasource": "${DS_WHODUNIT}",
         "query": "SELECT DISTINCT contributor FROM whodunit_repos WHERE contributor <> ''",
-        "current": {
-          "selected": true,
-          "text": "All",
-          "value": "__all__"
-        },
+        "current": {},
         "includeAll": true,
         "allValue": "__all__",
         "refresh": 1,
         "hide": 0,
-        "label": "Contributor"
+        "label": "Contributor",
+        "options": []
       },
       {
         "name": "monthly_spend",

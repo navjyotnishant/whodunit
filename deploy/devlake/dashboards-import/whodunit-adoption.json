@@ -1,6 +1,6 @@
 {
   "title": "Whodunit — Adoption",
-  "uid": "",
+  "uid": "whodunit-adoption",
   "tags": [
     "whodunit"
   ],
@@ -28,14 +28,11 @@
         "query": "SELECT DISTINCT contributor FROM whodunit_repos WHERE contributor <> '' ORDER BY contributor",
         "includeAll": true,
         "multi": false,
-        "current": {
-          "selected": true,
-          "text": "All",
-          "value": "__all__"
-        },
+        "current": {},
         "label": "Contributor",
         "refresh": 1,
-        "allValue": "__all__"
+        "allValue": "__all__",
+        "options": []
       }
     ]
   },

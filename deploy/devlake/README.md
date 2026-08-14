@@ -1,11 +1,42 @@
-# Local DevLake
+# The datalake
 
-A local [Apache DevLake](https://devlake.apache.org) stack, so whodunit has a
-real database and Grafana to write into during development.
+An [Apache DevLake](https://devlake.apache.org) stack for whodunit to publish
+into, so several repositories and several people can be looked at together —
+and so AI attribution can be correlated with delivery data from GitHub and
+your issue tracker.
+
+**Entirely optional.** `dun` works with no database at all; everything here is
+for the shared view.
+
+## Setting it up
+
+Two steps, deliberately separate. Step 1 builds the stack and is run once.
+Step 2 puts the dashboards on it and is re-run whenever whodunit ships new
+ones — which is why it is not folded into step 1.
+
+Neither needs `dun`, or a clone of this repository. This is infrastructure;
+the developers who publish into it install the CLI separately.
+
+**Step 1 — the stack** (once, on whichever machine holds the database):
 
 ```sh
-./up.sh
+curl -fsSL https://raw.githubusercontent.com/navjyotnishant/whodunit/main/deploy/devlake/setup-datalake.sh | sh
 ```
+
+Fetches DevLake's own compose file from upstream, generates an encryption
+secret, starts four containers, and creates the Grafana datasource. From a
+checkout, `./up.sh` does the same thing.
+
+**Step 2 — the dashboards** (again after each whodunit release):
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/navjyotnishant/whodunit/main/deploy/devlake/import-dashboards.sh | sh
+```
+
+Step 1 offers to run this at the end, so a first install is one sitting.
+Against a Grafana you already run, start here and pass `--grafana URL`.
+Re-running replaces the dashboards in place — same uids, same URLs, no
+duplicates.
 
 | | |
 |---|---|
@@ -13,11 +44,23 @@ real database and Grafana to write into during development.
 | Grafana | http://localhost:3002 — `admin` / `admin` on first start |
 | MySQL | `127.0.0.1:3306` — `merico` / `merico`, database `lake` |
 
-## The dashboards
+## Publishing into it
 
-Import them once through the Grafana UI: **Dashboards → New → Import**,
-upload a file from `dashboards-import/`, and pick your MySQL datasource when
-it asks.
+On a developer machine, pointing at wherever step 1 ran:
+
+```sh
+dun config datalake     # host:3306, database lake, user merico
+dun sync                # or just git push
+```
+
+The `whodunit_*` tables are created by that first sync — there is no
+migration step. They live in the same `lake` database and never touch
+DevLake's own tables.
+
+Dashboards imported before any data exists render empty rather than broken.
+Sync first if you want to see something.
+
+## The dashboards
 
 | File | Answers |
 |---|---|
@@ -28,12 +71,16 @@ it asks.
 | `whodunit-hours.json` | when and how the agent is used — rhythm, tools, session shape |
 | `whodunit-funnel.json` | adoption vs value, in six independently measured stages |
 
-They are also attached to every GitHub release, so a team can import them
-without cloning this repository.
+They are also attached to every GitHub release, so a team can pin a version
+rather than tracking `main`:
+
+```sh
+curl -fsSL …/import-dashboards.sh | sh -s -- --version v0.2.0
+```
 
 ### The DORA dashboard needs DevLake configured
 
-The other three read only the `whodunit_*` tables the CLI syncs, so they work
+The other five read only the `whodunit_*` tables the CLI syncs, so they work
 as soon as `dun sync` has run. `whodunit-dora.json` joins that data to
 DevLake's own delivery metrics, and those come from GitHub and your issue
 tracker — which means three settings have to be right first.
@@ -86,14 +133,41 @@ in the panel rather than showing a blank.
 
 ### Why import rather than provision
 
-`docker-compose.yml` here is stock DevLake. An earlier version mounted the
-dashboards into Grafana so they appeared automatically, which was convenient
-and cost more than it was worth: it kept this file diverged from upstream so
-nobody with their own DevLake could use it, and it made every dashboard
-read-only in the UI — awkward if you want to adjust a panel and keep it.
+An earlier version mounted the dashboards into Grafana so they appeared
+automatically, which was convenient and cost more than it was worth: it kept
+the compose file diverged from upstream so nobody with their own DevLake could
+use it, and it made every dashboard read-only in the UI — awkward if you want
+to adjust a panel and keep it.
 
-The import path works the same way on the bundled stack and on a Grafana
-that already exists, which is the point.
+The import path works the same way on the bundled stack and on a Grafana that
+already exists, which is the point.
+
+### The datasource, and why step 1 creates it
+
+DevLake's Grafana is supposed to create its own `mysql` datasource at startup.
+It does not: the entrypoint authenticates as
+`admin:$GF_SECURITY_ADMIN_PASSWORD`, which upstream's compose file never sets,
+so every call fails and no datasource appears —
+
+```
+Deleting old MySQL datasources...
+... POST /api/datasources status=401 error="no password provided"
+```
+
+Step 1 creates it, named `mysql` because DevLake's own dashboards bind to that
+name, so one datasource serves both theirs and ours. Step 2 finds whatever
+mysql datasource exists rather than assuming a uid, and `--datasource <uid>`
+pins a specific one.
+
+### Where DevLake itself comes from
+
+Not from this repository. `setup-datalake.sh` fetches `docker-compose.yml` and
+`env.example` from the pinned upstream release, and both are gitignored here.
+
+We vendored them once. The copy differed from Apache's by nine lines of
+comment, which is not a fork worth maintaining — it just went stale every time
+DevLake released. Note the compose file is published **only as a release
+asset**, not in upstream's git tree, so there is no raw URL for it.
 
 ### Editing them
 
@@ -113,11 +187,14 @@ CI fails if the two are out of step. Two hand-maintained copies of a
 22-panel dashboard drift within a month, and the drift is invisible until
 someone imports the stale one.
 
-They need a MySQL datasource named **`mysql`** pointing at the `lake`
-database. That one step is still manual: the image's entrypoint rewrites
-`/etc/grafana/provisioning/datasources/datasource.yml` on every start, so
-mounting our own file there read-only makes Grafana crash-loop. Create it
-once:
+The generated copies keep their uids (`whodunit-funnel` and friends), which is
+what makes re-importing replace a dashboard rather than adding a second copy
+beside it. Grafana's own "export for sharing" blanks the uid; doing that here
+turned six dashboards into twelve on the first re-run.
+
+If you need to create the datasource by hand — a Grafana that DevLake did not
+set up, or step 1's attempt failed — it must be a MySQL datasource pointing at
+the `lake` database:
 
 ```sh
 curl -u admin:YOUR_PASSWORD -X POST http://localhost:3002/api/datasources \
@@ -127,16 +204,16 @@ curl -u admin:YOUR_PASSWORD -X POST http://localhost:3002/api/datasources \
        "secureJsonData":{"password":"merico"},"isDefault":true}'
 ```
 
-The name matters. Every stock DevLake dashboard references its datasource by
-the literal name `mysql`, so a datasource called anything else leaves them
-reporting *"datasource mysql wasn't found"* on every panel.
+Name it `mysql` if you can. Every stock DevLake dashboard references its
+datasource by that literal name, so anything else leaves *their* panels
+reporting *"datasource mysql wasn't found"* — ours bind by uid at import and
+do not care.
 
 ## What this is not
 
-**Not a supported deployment.** It is upstream's compose file plus a script
-that generates the encryption secret DevLake refuses to start without. The
-only change to their file is the Grafana volume mounts that provision the two
-dashboards, kept to one block so it stays diffable against theirs.
+**Not a supported deployment.** It is upstream's compose file, fetched
+unmodified, plus a script that generates the encryption secret DevLake refuses
+to start without and creates the datasource its own entrypoint fails to.
 
 **Not secure.** The credentials above are DevLake's published defaults and are
 in this repository. MySQL is bound to `3306` on your machine. Fine for
@@ -164,13 +241,20 @@ coexistence actually holds.
 
 ## Upgrading
 
-The compose file is pinned to a DevLake release. To move:
+**DevLake** is pinned in `setup-datalake.sh` (`DEVLAKE_VERSION`). To move,
+delete the fetched files and re-run with the tag you want:
 
 ```sh
-gh release download <tag> --repo apache/incubator-devlake \
-  --pattern docker-compose.yml --pattern env.example --clobber
+rm docker-compose.yml env.example
+sh setup-datalake.sh --version v1.0.3-beta16
 ```
 
-Then re-run `./up.sh`. Your `.env` is not overwritten — delete it if you want
-the new `env.example` defaults, but keep your `ENCRYPTION_SECRET` or DevLake
-will not read back anything it previously encrypted.
+Your `.env` is not touched — delete it if you want the new `env.example`
+defaults, but keep your `ENCRYPTION_SECRET` or DevLake will not read back
+anything it previously encrypted.
+
+Releases are at <https://github.com/apache/devlake/releases>. (The repository
+moved from `apache/incubator-devlake`; the old name still redirects.)
+
+**The dashboards** upgrade on their own schedule — re-run step 2. Nothing else
+is touched, and the existing dashboards are replaced rather than duplicated.

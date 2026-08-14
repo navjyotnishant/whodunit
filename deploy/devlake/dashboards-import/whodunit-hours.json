@@ -1,5 +1,5 @@
 {
-  "uid": "",
+  "uid": "whodunit-hours",
   "title": "Whodunit — Agent Activity Hours",
   "tags": [
     "whodunit",
@@ -29,15 +29,12 @@
         "datasource": "${DS_WHODUNIT}",
         "label": "Agent",
         "query": "SELECT DISTINCT agent FROM whodunit_sessions WHERE agent <> '' UNION SELECT DISTINCT agent FROM whodunit_events WHERE agent <> ''",
-        "current": {
-          "selected": true,
-          "text": "All",
-          "value": "$__all"
-        },
+        "current": {},
         "includeAll": true,
         "multi": true,
         "refresh": 1,
-        "hide": 0
+        "hide": 0,
+        "options": []
       },
       {
         "name": "tz",
@@ -48,12 +45,12 @@
           {
             "text": "UTC",
             "value": "+00:00",
-            "selected": false
+            "selected": true
           },
           {
             "text": "US Central",
             "value": "-05:00",
-            "selected": true
+            "selected": false
           },
           {
             "text": "US Pacific",
@@ -72,9 +69,9 @@
           }
         ],
         "current": {
-          "selected": true,
-          "text": "US Central",
-          "value": "-05:00"
+          "selected": false,
+          "text": "UTC",
+          "value": "+00:00"
         }
       }
     ]

@@ -31,7 +31,7 @@ why:
   connection configured, and none planned.
 - **7 `Demo-*` dashboards** — DevLake's stock samples, carrying fabricated
   data.
-- **3 whodunit dashboards** — they read the `whodunit_*` tables the CLI syncs
+- **6 whodunit dashboards** — they read the `whodunit_*` tables the CLI syncs
   directly, are unaffected by every gap here, and are known-good.
 
 ## Two traps to know before reading any panel

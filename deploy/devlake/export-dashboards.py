@@ -59,26 +59,80 @@ def to_importable(dashboard: dict) -> dict:
         }
     ]
 
-    # A dashboard imported into another Grafana must not collide with an
-    # existing one, and must not claim an id from the exporting instance.
+    # The numeric id is this instance's primary key and means nothing
+    # anywhere else, so it goes.
+    #
+    # The uid stays. Grafana's own exporter blanks it, which is right for a
+    # dashboard published to grafana.com where collisions are the risk — but
+    # wrong here: a blank uid makes Grafana mint a random one on every
+    # import, so `overwrite` has nothing to match and re-importing appends a
+    # second copy instead of replacing the first. Observed, not theorised —
+    # one re-run turned six dashboards into twelve.
+    #
+    # These uids ("whodunit-funnel" and friends) are our own namespace, not
+    # the exporting instance's identity, so carrying them is what makes the
+    # import idempotent and keeps each dashboard's url stable across
+    # upgrades.
     out.pop("id", None)
-    out["uid"] = ""
 
     for variable in out.get("templating", {}).get("list", []):
-        if variable.get("type") == "datasource":
-            # Unpin the name. Leaving `current` set to "mysql" makes the
-            # import appear to succeed and then query a datasource that
-            # does not exist on the importing instance.
-            variable["current"] = {}
-            continue
-        # Query variables carry their own datasource reference.
-        if variable.get("datasource"):
-            variable["datasource"] = INPUT_PLACEHOLDER
+        _unpin_variable(variable)
 
     for panel in out.get("panels", []):
         _rewrite_panel(panel)
 
     return out
+
+
+def _unpin_variable(variable: dict) -> None:
+    """Clear whatever this machine happened to have selected.
+
+    A dashboard JSON records the author's current selection alongside the
+    variable's definition, so exporting one carries their choices to every
+    importer. For a datasource that fails loudly-ish; for a query variable it
+    fails silently, which is worse: `board` was pinned to the author's own
+    Linear team UUID, so on anyone else's instance those panels ran valid SQL
+    against an id that does not exist there and drew an empty chart. That
+    reads as "we have no data" rather than "this is not configured yet".
+    """
+    kind = variable.get("type")
+
+    if kind == "datasource":
+        # Unpin the name. Leaving `current` set to "mysql" makes the import
+        # appear to succeed and then query a datasource that does not exist
+        # on the importing instance.
+        variable["current"] = {}
+        return
+
+    # Query variables carry their own datasource reference.
+    if variable.get("datasource"):
+        variable["datasource"] = INPUT_PLACEHOLDER
+
+    if kind == "query":
+        # Let Grafana run the query and pick for itself on load. refresh=1 is
+        # "on dashboard load"; without it a blank `current` stays blank until
+        # someone touches the picker.
+        variable["current"] = {}
+        variable["refresh"] = 1
+        variable["options"] = []
+        return
+
+    if kind in ("custom", "textbox"):
+        # Not environment-specific in the same way — these are preferences
+        # with no query to resolve them — but the author's timezone is still
+        # the wrong default for everyone else. Fall back to the first declared
+        # option, which is the dashboard's own stated default.
+        options = variable.get("options") or []
+        if not options:
+            return
+        first = options[0]
+        variable["current"] = {
+            "selected": False,
+            "text": first.get("text", ""),
+            "value": first.get("value", ""),
+        }
+        for option in options:
+            option["selected"] = option is first
 
 
 def _rewrite_panel(panel: dict) -> None:

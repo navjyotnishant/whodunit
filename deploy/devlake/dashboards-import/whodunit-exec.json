@@ -1,5 +1,5 @@
 {
-  "uid": "",
+  "uid": "whodunit-exec",
   "title": "Whodunit — Executive Summary",
   "tags": [
     "whodunit"
@@ -27,16 +27,13 @@
         "type": "query",
         "datasource": "${DS_WHODUNIT}",
         "query": "SELECT name AS __text, id AS __value FROM boards WHERE id LIKE 'linear:%' ORDER BY name",
-        "current": {
-          "selected": true,
-          "text": "Navjyot's Lab-1",
-          "value": "linear:LinearTeam:1:8842e00a-9b06-4aad-9b27-591ef9990e7b"
-        },
+        "current": {},
         "refresh": 1,
         "hide": 0,
         "label": "Issue board",
         "includeAll": false,
-        "multi": false
+        "multi": false,
+        "options": []
       },
       {
         "name": "grain",
@@ -61,7 +58,7 @@
           }
         ],
         "current": {
-          "selected": true,
+          "selected": false,
           "text": "Daily",
           "value": "%Y-%m-%d"
         },
@@ -74,17 +71,14 @@
         "type": "query",
         "datasource": "${DS_WHODUNIT}",
         "query": "SELECT DISTINCT contributor FROM whodunit_repos WHERE contributor <> ''",
-        "current": {
-          "selected": true,
-          "text": "All",
-          "value": "__all__"
-        },
+        "current": {},
         "refresh": 1,
         "hide": 0,
         "label": "Contributor",
         "includeAll": true,
         "allValue": "__all__",
-        "multi": false
+        "multi": false,
+        "options": []
       }
     ]
   },
