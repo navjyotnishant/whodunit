@@ -101,7 +101,13 @@ FROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id
 WHERE s.input_tokens IS NOT NULL AND {CONTRIBUTOR}""",
     unit="short", decimals=1, novalue="no session reported tokens",
     description=(
-        "Every token billed, cached or not.\n\n"
+        "Every token billed: uncached input + cache reads + cache writes + "
+        "output.\n\n"
+        "**Almost all of it is cache reads.** Measured here, output is 0.1% "
+        "of the total — so this number tracks how much context was re-sent, "
+        "not how much the models produced. The tiles beside it break it "
+        "down, because a single figure in the billions invites the wrong "
+        "conclusion.\n\n"
         "Tokens, not currency: under a subscription the marginal cost of a "
         "token is zero, so a price table would report money nobody spent. "
         "Multiply by your own contract if you need a figure."),
@@ -113,11 +119,44 @@ panels.append(panel(
 FROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id
 WHERE s.output_tokens IS NOT NULL AND {CONTRIBUTOR}""",
     unit="short", decimals=1, novalue="not reported",
-    description="What the models produced. The half you are charged most for.",
+    description=(
+        "What the models actually produced, as opposed to what was re-sent "
+        "to them.\n\n"
+        "Typically a fraction of a percent of the total — 0.1% measured "
+        "here. The two tiles carry different units at these magnitudes "
+        "(billions against millions), so read the share below rather than "
+        "comparing them by eye."),
     options=STAT))
 
 panels.append(panel(
-    102, "Served from cache", "stat", 8, y, 4, 4,
+    106, "Uncached input", "stat", 8, y, 4, 4,
+    f"""SELECT COALESCE(SUM(s.input_tokens), 0) AS v
+FROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id
+WHERE s.input_tokens IS NOT NULL AND {CONTRIBUTOR}""",
+    unit="short", decimals=1, novalue="not reported",
+    description=(
+        "Input the model had to read fresh, at full price.\n\n"
+        "This is the figure a cache is meant to shrink. It was missing from "
+        "this dashboard entirely, which left the headline total — almost all "
+        "of it cache reads — looking like the whole story."),
+    options=STAT))
+
+panels.append(panel(
+    107, "Cache reads", "stat", 12, y, 4, 4,
+    f"""SELECT COALESCE(SUM(s.cache_read_tokens), 0) AS v
+FROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id
+WHERE s.cache_read_tokens IS NOT NULL AND {CONTRIBUTOR}""",
+    unit="short", decimals=1, novalue="not reported",
+    description=(
+        "Context re-sent and served from cache at about a tenth of base "
+        "rate.\n\n"
+        "Normally the largest number on this dashboard by three orders of "
+        "magnitude — 99% of the total here — which is why the headline "
+        "figure is not a measure of how much work was produced."),
+    options=STAT))
+
+panels.append(panel(
+    102, "Served from cache", "stat", 16, y, 4, 4,
     f"""SELECT ROUND(100.0 * SUM(COALESCE(s.cache_read_tokens,0))
   / NULLIF(SUM(s.input_tokens + COALESCE(s.cache_read_tokens,0)
              + COALESCE(s.cache_write_tokens,0)), 0), 1) AS v
@@ -134,7 +173,7 @@ WHERE s.input_tokens IS NOT NULL AND {CONTRIBUTOR}""",
     options=STAT))
 
 panels.append(panel(
-    103, "Cache write payback", "stat", 12, y, 4, 4,
+    103, "Cache write payback", "stat", 20, y, 4, 4,
     f"""SELECT ROUND(SUM(COALESCE(s.cache_read_tokens,0))
   / NULLIF(SUM(s.cache_write_tokens), 0), 2) AS v
 FROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id
@@ -152,7 +191,7 @@ WHERE s.cache_write_tokens IS NOT NULL AND s.cache_write_tokens > 0 AND {CONTRIB
     options=STAT))
 
 panels.append(panel(
-    104, "Sessions with cost data", "stat", 16, y, 4, 4,
+    104, "Sessions with cost data", "stat", 0, y + 4, 6, 3,
     f"""SELECT CONCAT(
   SUM(CASE WHEN s.input_tokens IS NOT NULL THEN 1 ELSE 0 END),
   ' of ', COUNT(*)) AS v
@@ -167,7 +206,7 @@ WHERE {CONTRIBUTOR}""",
     options={**STAT, "textMode": "value"}))
 
 panels.append(panel(
-    105, "Reasoning tokens", "stat", 20, y, 4, 4,
+    105, "Reasoning tokens", "stat", 6, y + 4, 6, 3,
     f"""SELECT COALESCE(SUM(s.reasoning_tokens), 0) AS v
 FROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id
 WHERE s.reasoning_tokens IS NOT NULL AND {CONTRIBUTOR}""",
@@ -177,7 +216,42 @@ WHERE s.reasoning_tokens IS NOT NULL AND {CONTRIBUTOR}""",
         "Codex alone reports this. Claude Code and Antigravity do not "
         "separate it, so an empty panel here means 'not reported', not zero."),
     options=STAT))
-y += 4
+
+# The composition pie sits on the same second row as the two tiles
+# above, so its y is captured before the cursor advances.
+PIE_Y = y + 4
+y += 7
+
+panels.append(panel(
+    108, "What the tokens are", "piechart", 12, PIE_Y, 12, 3,
+    f"""SELECT 'Cache read' AS metric, SUM(COALESCE(s.cache_read_tokens,0)) AS value
+FROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id
+WHERE s.input_tokens IS NOT NULL AND {CONTRIBUTOR}
+UNION ALL
+SELECT 'Uncached input', SUM(s.input_tokens)
+FROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id
+WHERE s.input_tokens IS NOT NULL AND {CONTRIBUTOR}
+UNION ALL
+SELECT 'Cache write', SUM(COALESCE(s.cache_write_tokens,0))
+FROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id
+WHERE s.input_tokens IS NOT NULL AND {CONTRIBUTOR}
+UNION ALL
+SELECT 'Output', SUM(s.output_tokens)
+FROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id
+WHERE s.output_tokens IS NOT NULL AND {CONTRIBUTOR}""",
+    unit="short", novalue="no session reported tokens",
+    description=(
+        "The headline total, broken into its parts.\n\n"
+        "Without this, a total in the billions beside an output in the "
+        "millions reads as a contradiction — the units differ by a factor "
+        "of a thousand and the eye does not correct for that. Here the "
+        "answer is visible: cache reads dominate, output is a sliver.\n\n"
+        "A cache read is billed at roughly a tenth of base rate and a write "
+        "at 1.25x, so the largest slice is not the most expensive one."),
+    options={"legend": {"displayMode": "table", "placement": "right",
+                        "values": ["value", "percent"]},
+             "reduceOptions": {"calcs": ["lastNotNull"], "values": True},
+             "pieType": "donut"}))
 
 # ------------------------------------------------------------- per model
 panels.append(row("Per model — where the aggregate hides a loss", y)); y += 1

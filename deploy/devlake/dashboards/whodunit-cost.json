@@ -84,7 +84,7 @@
         },
         "overrides": []
       },
-      "description": "Every token billed, cached or not.\n\nTokens, not currency: under a subscription the marginal cost of a token is zero, so a price table would report money nobody spent. Multiply by your own contract if you need a figure.",
+      "description": "Every token billed: uncached input + cache reads + cache writes + output.\n\n**Almost all of it is cache reads.** Measured here, output is 0.1% of the total \u2014 so this number tracks how much context was re-sent, not how much the models produced. The tiles beside it break it down, because a single figure in the billions invites the wrong conclusion.\n\nTokens, not currency: under a subscription the marginal cost of a token is zero, so a price table would report money nobody spent. Multiply by your own contract if you need a figure.",
       "options": {
         "graphMode": "none",
         "textMode": "value",
@@ -123,7 +123,85 @@
         },
         "overrides": []
       },
-      "description": "What the models produced. The half you are charged most for.",
+      "description": "What the models actually produced, as opposed to what was re-sent to them.\n\nTypically a fraction of a percent of the total \u2014 0.1% measured here. The two tiles carry different units at these magnitudes (billions against millions), so read the share below rather than comparing them by eye.",
+      "options": {
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 106,
+      "title": "Uncached input",
+      "type": "stat",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "x": 8,
+        "y": 1,
+        "w": 4,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT COALESCE(SUM(s.input_tokens), 0) AS v\nFROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id\nWHERE s.input_tokens IS NOT NULL AND ('$contributor' = '__all__' OR r.contributor = '$contributor')"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 1,
+          "noValue": "not reported"
+        },
+        "overrides": []
+      },
+      "description": "Input the model had to read fresh, at full price.\n\nThis is the figure a cache is meant to shrink. It was missing from this dashboard entirely, which left the headline total \u2014 almost all of it cache reads \u2014 looking like the whole story.",
+      "options": {
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 107,
+      "title": "Cache reads",
+      "type": "stat",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "x": 12,
+        "y": 1,
+        "w": 4,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT COALESCE(SUM(s.cache_read_tokens), 0) AS v\nFROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id\nWHERE s.cache_read_tokens IS NOT NULL AND ('$contributor' = '__all__' OR r.contributor = '$contributor')"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 1,
+          "noValue": "not reported"
+        },
+        "overrides": []
+      },
+      "description": "Context re-sent and served from cache at about a tenth of base rate.\n\nNormally the largest number on this dashboard by three orders of magnitude \u2014 99% of the total here \u2014 which is why the headline figure is not a measure of how much work was produced.",
       "options": {
         "graphMode": "none",
         "textMode": "value",
@@ -142,7 +220,7 @@
       "type": "stat",
       "datasource": "${datasource}",
       "gridPos": {
-        "x": 8,
+        "x": 16,
         "y": 1,
         "w": 4,
         "h": 4
@@ -194,7 +272,7 @@
       "type": "stat",
       "datasource": "${datasource}",
       "gridPos": {
-        "x": 12,
+        "x": 20,
         "y": 1,
         "w": 4,
         "h": 4
@@ -245,10 +323,10 @@
       "type": "stat",
       "datasource": "${datasource}",
       "gridPos": {
-        "x": 16,
-        "y": 1,
-        "w": 4,
-        "h": 4
+        "x": 0,
+        "y": 5,
+        "w": 6,
+        "h": 3
       },
       "targets": [
         {
@@ -282,10 +360,10 @@
       "type": "stat",
       "datasource": "${datasource}",
       "gridPos": {
-        "x": 20,
-        "y": 1,
-        "w": 4,
-        "h": 4
+        "x": 6,
+        "y": 5,
+        "w": 6,
+        "h": 3
       },
       "targets": [
         {
@@ -316,12 +394,56 @@
       }
     },
     {
+      "id": 108,
+      "title": "What the tokens are",
+      "type": "piechart",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "x": 12,
+        "y": 5,
+        "w": 12,
+        "h": 3
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT 'Cache read' AS metric, SUM(COALESCE(s.cache_read_tokens,0)) AS value\nFROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id\nWHERE s.input_tokens IS NOT NULL AND ('$contributor' = '__all__' OR r.contributor = '$contributor')\nUNION ALL\nSELECT 'Uncached input', SUM(s.input_tokens)\nFROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id\nWHERE s.input_tokens IS NOT NULL AND ('$contributor' = '__all__' OR r.contributor = '$contributor')\nUNION ALL\nSELECT 'Cache write', SUM(COALESCE(s.cache_write_tokens,0))\nFROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id\nWHERE s.input_tokens IS NOT NULL AND ('$contributor' = '__all__' OR r.contributor = '$contributor')\nUNION ALL\nSELECT 'Output', SUM(s.output_tokens)\nFROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id\nWHERE s.output_tokens IS NOT NULL AND ('$contributor' = '__all__' OR r.contributor = '$contributor')"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "no session reported tokens"
+        },
+        "overrides": []
+      },
+      "description": "The headline total, broken into its parts.\n\nWithout this, a total in the billions beside an output in the millions reads as a contradiction \u2014 the units differ by a factor of a thousand and the eye does not correct for that. Here the answer is visible: cache reads dominate, output is a sliver.\n\nA cache read is billed at roughly a tenth of base rate and a write at 1.25x, so the largest slice is not the most expensive one.",
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "values": [
+            "value",
+            "percent"
+          ]
+        },
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": true
+        },
+        "pieType": "donut"
+      }
+    },
+    {
       "type": "row",
       "title": "Per model \u2014 where the aggregate hides a loss",
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 5,
+        "y": 8,
         "w": 24,
         "h": 1
       },
@@ -334,7 +456,7 @@
       "datasource": "${datasource}",
       "gridPos": {
         "x": 0,
-        "y": 6,
+        "y": 9,
         "w": 24,
         "h": 9
       },
@@ -436,7 +558,7 @@
       "datasource": "${datasource}",
       "gridPos": {
         "x": 0,
-        "y": 15,
+        "y": 18,
         "w": 12,
         "h": 8
       },
@@ -463,7 +585,7 @@
       "datasource": "${datasource}",
       "gridPos": {
         "x": 12,
-        "y": 15,
+        "y": 18,
         "w": 12,
         "h": 8
       },
@@ -503,7 +625,7 @@
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 23,
+        "y": 26,
         "w": 24,
         "h": 1
       },
@@ -516,7 +638,7 @@
       "datasource": "${datasource}",
       "gridPos": {
         "x": 0,
-        "y": 24,
+        "y": 27,
         "w": 12,
         "h": 8
       },
@@ -545,7 +667,7 @@
       "datasource": "${datasource}",
       "gridPos": {
         "x": 12,
-        "y": 24,
+        "y": 27,
         "w": 12,
         "h": 8
       },
@@ -573,7 +695,7 @@
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 32,
+        "y": 35,
         "w": 24,
         "h": 1
       },
@@ -586,7 +708,7 @@
       "datasource": "${datasource}",
       "gridPos": {
         "x": 0,
-        "y": 33,
+        "y": 36,
         "w": 6,
         "h": 4
       },
@@ -625,7 +747,7 @@
       "datasource": "${datasource}",
       "gridPos": {
         "x": 6,
-        "y": 33,
+        "y": 36,
         "w": 9,
         "h": 4
       },
@@ -654,7 +776,7 @@
       "datasource": "${datasource}",
       "gridPos": {
         "x": 15,
-        "y": 33,
+        "y": 36,
         "w": 5,
         "h": 4
       },
@@ -693,7 +815,7 @@
       "datasource": "${datasource}",
       "gridPos": {
         "x": 20,
-        "y": 33,
+        "y": 36,
         "w": 4,
         "h": 4
       },
@@ -730,7 +852,7 @@
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 37,
+        "y": 40,
         "w": 24,
         "h": 1
       },
@@ -743,7 +865,7 @@
       "datasource": "${datasource}",
       "gridPos": {
         "x": 0,
-        "y": 38,
+        "y": 41,
         "w": 12,
         "h": 7
       },
@@ -775,7 +897,7 @@
       "datasource": "${datasource}",
       "gridPos": {
         "x": 12,
-        "y": 38,
+        "y": 41,
         "w": 12,
         "h": 7
       },
