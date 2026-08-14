@@ -27,6 +27,17 @@ func newConfigCmd() *cobra.Command {
 			"produce no attribution at all, with nothing to indicate why:\n\n" +
 			"  dun config set agent.claude-code.path /path/to/projects\n\n" +
 			"Run `dun config agents` to see what was found and where it looked.",
+		// Bare `dun config` shows the settings rather than prose about
+		// them. Printing help there meant the one command named after the
+		// configuration could not tell you what your configuration was —
+		// the answer lived in a file you had to know to open.
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if len(args) > 0 {
+				return fmt.Errorf("unknown config command %q — run `dun config --help`", args[0])
+			}
+			return runConfigList(cmd.OutOrStdout())
+		},
+		SilenceUsage: true,
 	}
 	root.AddCommand(newConfigGetCmd(), newConfigSetCmd(), newConfigAgentsCmd(), newConfigDatalakeCmd())
 	return root

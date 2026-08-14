@@ -290,7 +290,14 @@ func Load() (Config, error) {
 	if cfg.BackupDays == 0 {
 		cfg.BackupDays = defaultBackupDays
 	}
-	if cfg.RetentionDays == 0 {
+	// Below the minimum, not just zero.
+	//
+	// Validating only in `dun config set` left the file as a way around it:
+	// a config written before the minimum existed — or edited by hand —
+	// would prune inside the window the commit hook still queries, deleting
+	// evidence a commit was about to match. Clamping on read means the
+	// guarantee holds however the value got there.
+	if cfg.RetentionDays < MinRetentionDays {
 		cfg.RetentionDays = defaultRetentionDays
 	}
 	return cfg, nil

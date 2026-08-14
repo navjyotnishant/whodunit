@@ -6,12 +6,17 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
+	"io"
+	"os"
+	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
 
 	"github.com/navjyotnishant/whodunit/internal/config"
+	"github.com/navjyotnishant/whodunit/internal/termcolor"
 )
 
 // scalarSetting is one configurable value that is not an agent path.
@@ -110,4 +115,63 @@ func settingKeys() string {
 	}
 	sort.Strings(keys)
 	return strings.Join(keys, ", ")
+}
+
+// runConfigList prints every setting and where its value came from.
+//
+// The source matters as much as the value. A default and a deliberate choice
+// read identically in a list of numbers, and someone checking why retention
+// behaves unexpectedly needs to know whether they set it or inherited it.
+func runConfigList(w io.Writer) error {
+	cfg, err := config.Load()
+	if err != nil {
+		return err
+	}
+	home, _ := config.Dir()
+	c := termcolor.New(w)
+
+	fmt.Fprintf(w, "%s\n\n", c.S(termcolor.Muted, filepath.Join(home, "config.json")))
+
+	// Read the file itself to tell a set value from a defaulted one:
+	// config.Load fills the zero values in, so the loaded struct cannot
+	// answer the question on its own.
+	explicit := map[string]bool{}
+	if b, err := os.ReadFile(filepath.Join(home, "config.json")); err == nil {
+		var raw map[string]json.RawMessage
+		if json.Unmarshal(b, &raw) == nil {
+			for k := range raw {
+				explicit[k] = true
+			}
+		}
+	}
+
+	for _, s := range scalarSettings() {
+		origin := c.S(termcolor.Muted, "(default)")
+		if explicit[s.Key] {
+			origin = ""
+		}
+		fmt.Fprintf(w, "  %-16s %-12s %s\n",
+			c.S(termcolor.Bold, s.Key), s.Get(cfg), origin)
+		fmt.Fprintf(w, "  %-16s %s\n", "", c.S(termcolor.Muted, s.Help))
+	}
+
+	fmt.Fprintln(w)
+	if cfg.Sync.Configured() {
+		fmt.Fprintf(w, "  %-16s %s\n", c.S(termcolor.Bold, "sync"), cfg.Sync.Redacted())
+	} else {
+		fmt.Fprintf(w, "  %-16s %s\n", c.S(termcolor.Bold, "sync"),
+			c.S(termcolor.Muted, "not configured — dun config datalake"))
+	}
+
+	if len(cfg.Agents) > 0 {
+		fmt.Fprintln(w)
+		for name, a := range cfg.Agents {
+			fmt.Fprintf(w, "  %-16s %s\n",
+				c.S(termcolor.Bold, "agent."+name+".path"), a.Path)
+		}
+	}
+
+	fmt.Fprintln(w)
+	fmt.Fprintf(w, "%s\n", c.S(termcolor.Muted, "  dun config set <setting> <value>"))
+	return nil
 }
