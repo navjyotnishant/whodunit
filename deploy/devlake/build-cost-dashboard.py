@@ -346,26 +346,51 @@ GROUP BY s.effort""",
 panels.append(row("Per model — where the aggregate hides a loss", y)); y += 1
 
 panels.append(panel(
-    109, "Output tokens by model", "bargauge", 0, y, 12, 6,
+    109, "Token mix by model", "barchart", 0, y, 12, 6,
     f"""SELECT
-  COALESCE(NULLIF(s.model, ''), '(unattributed)') AS metric,
-  SUM(s.output_tokens)                            AS value
+  COALESCE(NULLIF(s.model, ''), '(unattributed)') AS model,
+  SUM(s.input_tokens)                             AS `Uncached in`,
+  SUM(s.output_tokens)                            AS `Output`,
+  SUM(COALESCE(s.cache_write_tokens,0))           AS `Cache write`,
+  SUM(COALESCE(s.cache_read_tokens,0))            AS `Cache read`
 FROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id
-WHERE s.output_tokens IS NOT NULL AND {CONTRIBUTOR}
-GROUP BY 1 ORDER BY 2 DESC""",
-    unit=TOKEN_UNIT, decimals=1, novalue="no session reported tokens",
-    color=CONTINUOUS_BLUES,
+WHERE s.input_tokens IS NOT NULL AND {CONTRIBUTOR}
+GROUP BY 1
+ORDER BY SUM(s.input_tokens + s.output_tokens
+           + COALESCE(s.cache_read_tokens,0)
+           + COALESCE(s.cache_write_tokens,0)) DESC""",
+    unit="percentunit", decimals=0,
+    novalue="no session reported tokens",
+    color=CATEGORICAL,
     description=(
-        "Which model produced the most, ranked.\n\n"
-        "A bar gauge because this is one metric across categories, which is "
-        "the only shape it reads well. The table below carries the numbers "
-        "that only mean something together — a 153x payback looks impressive "
-        "until you see it came from 34 sessions.\n\n"
-        "Deliberately NOT a bar gauge of cache payback: three of seven models "
-        "here report no cache writes at all, so that chart would render four "
-        "bars and silently drop the rest. A table can show \"not reported\"; "
-        "a bar cannot (NAV-21)."),
-    options=BARGAUGE))
+        "What each model's tokens are made of — one stacked bar per model.\n\n"
+        "**Stacked as a percentage, not as absolute counts, and that is the "
+        "only way this reads.** Cache reads are 88-99% of every model's "
+        "total here, so an absolute stack would draw one long bar with three "
+        "invisible slivers: opus-5's entire output is 0.1% of its own total. "
+        "Normalising each bar to 100% makes the composition comparable, "
+        "which is where the difference actually is — gpt-5.4 is 94% cache "
+        "reads against gpt-5.5 at 88%.\n\n"
+        "Absolute totals are in the table below; this panel answers what the "
+        "tokens were, not how many.\n\n"
+        "Ordered by total tokens, so the largest consumer is at the top even "
+        "though every bar is the same length."),
+    overrides=[
+        {"matcher": {"id": "byName", "options": name},
+         "properties": [{"id": "color",
+                         "value": {"mode": "fixed", "fixedColor": hue}}]}
+        for name, hue in (("Cache read", "#5794F2"),    # blue: the cheap bulk
+                          ("Cache write", "#B877D9"),   # purple: the 1.25x premium
+                          ("Uncached in", "#FF9830"),   # orange: full price
+                          ("Output", "#73BF69"))        # green: what was produced
+    ],
+    options={"orientation": "horizontal",
+             "stacking": "percent",
+             "xTickLabelRotation": 0,
+             "showValue": "never",
+             "legend": {"displayMode": "list", "placement": "bottom",
+                        "showLegend": True},
+             "tooltip": {"mode": "multi", "sort": "desc"}}))
 
 panels.append(panel(
     131, "Longest sessions", "bargauge", 12, y, 12, 6,

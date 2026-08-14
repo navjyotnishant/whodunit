@@ -601,8 +601,8 @@
     },
     {
       "id": 109,
-      "title": "Output tokens by model",
-      "type": "bargauge",
+      "title": "Token mix by model",
+      "type": "barchart",
       "datasource": "${datasource}",
       "gridPos": {
         "x": 0,
@@ -614,16 +614,16 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT\n  COALESCE(NULLIF(s.model, ''), '(unattributed)') AS metric,\n  SUM(s.output_tokens)                            AS value\nFROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id\nWHERE s.output_tokens IS NOT NULL AND ('$contributor' = '__all__' OR r.contributor = '$contributor')\nGROUP BY 1 ORDER BY 2 DESC"
+          "rawSql": "SELECT\n  COALESCE(NULLIF(s.model, ''), '(unattributed)') AS model,\n  SUM(s.input_tokens)                             AS `Uncached in`,\n  SUM(s.output_tokens)                            AS `Output`,\n  SUM(COALESCE(s.cache_write_tokens,0))           AS `Cache write`,\n  SUM(COALESCE(s.cache_read_tokens,0))            AS `Cache read`\nFROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id\nWHERE s.input_tokens IS NOT NULL AND ('$contributor' = '__all__' OR r.contributor = '$contributor')\nGROUP BY 1\nORDER BY SUM(s.input_tokens + s.output_tokens\n           + COALESCE(s.cache_read_tokens,0)\n           + COALESCE(s.cache_write_tokens,0)) DESC"
         }
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "sishort",
-          "decimals": 1,
+          "unit": "percentunit",
+          "decimals": 0,
           "noValue": "no session reported tokens",
           "color": {
-            "mode": "continuous-BlPu"
+            "mode": "palette-classic-by-name"
           },
           "thresholds": {
             "mode": "absolute",
@@ -635,23 +635,83 @@
             ]
           }
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Cache read"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#5794F2"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Cache write"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#B877D9"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Uncached in"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#FF9830"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Output"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#73BF69"
+                }
+              }
+            ]
+          }
+        ]
       },
-      "description": "Which model produced the most, ranked.\n\nA bar gauge because this is one metric across categories, which is the only shape it reads well. The table below carries the numbers that only mean something together \u2014 a 153x payback looks impressive until you see it came from 34 sessions.\n\nDeliberately NOT a bar gauge of cache payback: three of seven models here report no cache writes at all, so that chart would render four bars and silently drop the rest. A table can show \"not reported\"; a bar cannot (NAV-21).",
+      "description": "What each model's tokens are made of \u2014 one stacked bar per model.\n\n**Stacked as a percentage, not as absolute counts, and that is the only way this reads.** Cache reads are 88-99% of every model's total here, so an absolute stack would draw one long bar with three invisible slivers: opus-5's entire output is 0.1% of its own total. Normalising each bar to 100% makes the composition comparable, which is where the difference actually is \u2014 gpt-5.4 is 94% cache reads against gpt-5.5 at 88%.\n\nAbsolute totals are in the table below; this panel answers what the tokens were, not how many.\n\nOrdered by total tokens, so the largest consumer is at the top even though every bar is the same length.",
       "options": {
-        "displayMode": "gradient",
         "orientation": "horizontal",
-        "showUnfilled": true,
-        "valueMode": "text",
-        "text": {
-          "valueSize": 18,
-          "titleSize": 12
+        "stacking": "percent",
+        "xTickLabelRotation": 0,
+        "showValue": "never",
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
         },
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "values": true
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
         }
       }
     },
