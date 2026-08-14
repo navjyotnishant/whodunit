@@ -733,7 +733,7 @@
     },
     {
       "type": "row",
-      "title": "Where it landed, how much rope, and how long",
+      "title": "Where it landed, and for how long",
       "collapsed": false,
       "gridPos": {
         "x": 0,
@@ -790,7 +790,7 @@
         "x": 12,
         "y": 34,
         "w": 12,
-        "h": 4
+        "h": 8
       },
       "targets": [
         {
@@ -819,84 +819,8 @@
       }
     },
     {
-      "id": 121,
-      "title": "Autonomy granted",
-      "type": "barchart",
-      "datasource": "${datasource}",
-      "gridPos": {
-        "x": 12,
-        "y": 38,
-        "w": 12,
-        "h": 4
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "format": "table",
-          "rawSql": "SELECT\n  CONCAT(s.permission_mode, '  (', s.agent, ')') AS mode,\n  COUNT(*)                                       AS Sessions,\n  SUM(s.tool_calls)                              AS `Tool calls`\nFROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id\nWHERE s.permission_mode IS NOT NULL AND ('$contributor' = '__all__' OR r.contributor = '$contributor')\nGROUP BY s.permission_mode, s.agent\nORDER BY SUM(s.tool_calls) DESC"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "noValue": "no session recorded a permission mode"
-        },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Tool calls"
-            },
-            "properties": [
-              {
-                "id": "custom.axisPlacement",
-                "value": "right"
-              },
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "orange"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Sessions"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "blue"
-                }
-              }
-            ]
-          }
-        ]
-      },
-      "description": "How much the agent was allowed to do unattended, and how much work it did with that rope.\n\n**Sessions and tool calls run opposite here**, which is the point of charting it: measured on this data, 64 sessions on Codex's `never` produced 506 tool calls, while 2 Claude Code sessions on `auto` produced 6,766. Autonomy is not how often it is granted, it is how much happens once it is.\n\nThe agent is in the label rather than a separate series because each mode belongs to exactly one agent \u2014 Codex says `never` and `on-request`, Claude Code says `acceptEdits`, `auto` and `default`. Grouping by both would draw a chart where every group is one bar tall.\n\nEach agent's own vocabulary is kept rather than mapped onto a shared enum: guessing that `never` means the same as `default` would invent a comparison neither agent made.",
-      "options": {
-        "orientation": "horizontal",
-        "xTickLabelRotation": 0,
-        "groupWidth": 0.7,
-        "barWidth": 0.8,
-        "showValue": "always",
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "mode": "multi"
-        }
-      }
-    },
-    {
       "type": "row",
-      "title": "MCP",
+      "title": "MCP servers, and how much rope the agent had",
       "collapsed": false,
       "gridPos": {
         "x": 0,
@@ -905,6 +829,45 @@
         "h": 1
       },
       "panels": []
+    },
+    {
+      "id": 121,
+      "title": "Autonomy granted \u2014 tool calls per session",
+      "type": "bargauge",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "x": 12,
+        "y": 43,
+        "w": 12,
+        "h": 7
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT\n  CONCAT(s.permission_mode, '  (', s.agent, ')')  AS metric,\n  ROUND(SUM(s.tool_calls) / COUNT(*))              AS value\nFROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id\nWHERE s.permission_mode IS NOT NULL AND ('$contributor' = '__all__' OR r.contributor = '$contributor')\nGROUP BY s.permission_mode, s.agent\nORDER BY 2 DESC"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 0,
+          "noValue": "no session recorded a permission mode"
+        },
+        "overrides": []
+      },
+      "description": "How much work happens per session at each level of autonomy.\n\n**One metric rather than two bars.** Sessions and total tool calls run in opposite directions here \u2014 64 sessions on Codex's `never` produced 506 calls, 2 Claude Code sessions on `auto` produced 6,766 \u2014 so charting both put a 13x range beside a 32x one and flattened whichever shared the axis. Dividing them gives the thing both were circling: 8 calls per session on `never`, 3,383 on `auto`.\n\nThe ladder is monotonic across every mode measured, which is the finding: autonomy is not how often it is granted, it is how much happens once it is.\n\nThe agent is in the label because each mode belongs to exactly one \u2014 Codex says `never` and `on-request`, Claude Code says `acceptEdits`, `auto` and `default`. Each agent's own vocabulary is kept rather than mapped onto a shared enum: asserting that `never` means the same as `default` would invent a comparison neither agent made.",
+      "options": {
+        "displayMode": "gradient",
+        "orientation": "horizontal",
+        "showUnfilled": true,
+        "valueMode": "text",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": true
+        }
+      }
     },
     {
       "id": 140,
@@ -936,52 +899,6 @@
           "showLegend": false
         },
         "orientation": "horizontal"
-      }
-    },
-    {
-      "id": 141,
-      "title": "Tokens per session, by agent",
-      "type": "table",
-      "datasource": "${datasource}",
-      "gridPos": {
-        "x": 12,
-        "y": 43,
-        "w": 12,
-        "h": 7
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "format": "table",
-          "rawSql": "SELECT\n  s.agent                                         AS Agent,\n  COUNT(*)                                        AS Sessions,\n  ROUND(AVG(s.output_tokens))                     AS `Avg out`,\n  ROUND(AVG(s.input_tokens + COALESCE(s.cache_read_tokens,0)\n          + COALESCE(s.cache_write_tokens,0)))    AS `Avg in`\nFROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id\nWHERE s.input_tokens IS NOT NULL AND ('$contributor' = '__all__' OR r.contributor = '$contributor')\nGROUP BY s.agent ORDER BY AVG(s.output_tokens) DESC"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "noValue": "no session reported tokens"
-        },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byRegexp",
-              "options": "Avg.*"
-            },
-            "properties": [
-              {
-                "id": "unit",
-                "value": "sishort"
-              },
-              {
-                "id": "decimals",
-                "value": 1
-              }
-            ]
-          }
-        ]
-      },
-      "description": "**Not a comparison of which agent is cheaper.** Sessions are not matched work: each agent draws different tasks, and a model reached for when the job is hard will always look more expensive. This says what each cost on the work it happened to do, nothing more.",
-      "options": {
-        "showHeader": true
       }
     }
   ]

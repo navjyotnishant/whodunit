@@ -416,7 +416,7 @@ GROUP BY 1, 2 ORDER BY 1""",
 y += 8
 
 # ------------------------------------------------------- branch & autonomy
-panels.append(row("Where it landed, how much rope, and how long", y)); y += 1
+panels.append(row("Where it landed, and for how long", y)); y += 1
 
 panels.append(panel(
     120, "Top agent-written lines by branch", "barchart", 0, y, 12, 8,
@@ -458,7 +458,7 @@ ORDER BY SUM(e.lines_added) DESC LIMIT 12""",
              "tooltip": {"mode": "single"}}))
 
 panels.append(panel(
-    122, "Branch coverage", "stat", 12, y, 12, 4,
+    122, "Branch coverage", "stat", 12, y, 12, 8,
     f"""SELECT
   (SELECT COUNT(DISTINCT e2.branch)
      FROM whodunit_events e2 JOIN whodunit_repos r2 ON r2.repo_id = e2.repo_id
@@ -481,54 +481,43 @@ panels.append(panel(
              "reduceOptions": {"calcs": ["lastNotNull"], "fields": "",
                                "values": False}}))
 
-panels.append(panel(
-    121, "Autonomy granted", "barchart", 12, y + 4, 12, 4,
-    f"""SELECT
-  CONCAT(s.permission_mode, '  (', s.agent, ')') AS mode,
-  COUNT(*)                                       AS Sessions,
-  SUM(s.tool_calls)                              AS `Tool calls`
-FROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id
-WHERE s.permission_mode IS NOT NULL AND {CONTRIBUTOR}
-GROUP BY s.permission_mode, s.agent
-ORDER BY SUM(s.tool_calls) DESC""",
-    novalue="no session recorded a permission mode",
-    description=(
-        "How much the agent was allowed to do unattended, and how much work "
-        "it did with that rope.\n\n"
-        "**Sessions and tool calls run opposite here**, which is the point of "
-        "charting it: measured on this data, 64 sessions on Codex's `never` "
-        "produced 506 tool calls, while 2 Claude Code sessions on `auto` "
-        "produced 6,766. Autonomy is not how often it is granted, it is how "
-        "much happens once it is.\n\n"
-        "The agent is in the label rather than a separate series because each "
-        "mode belongs to exactly one agent — Codex says `never` and "
-        "`on-request`, Claude Code says `acceptEdits`, `auto` and `default`. "
-        "Grouping by both would draw a chart where every group is one bar "
-        "tall.\n\n"
-        "Each agent's own vocabulary is kept rather than mapped onto a shared "
-        "enum: guessing that `never` means the same as `default` would invent "
-        "a comparison neither agent made."),
-    overrides=[
-        {"matcher": {"id": "byName", "options": "Tool calls"},
-         "properties": [{"id": "custom.axisPlacement", "value": "right"},
-                        {"id": "color",
-                         "value": {"mode": "fixed", "fixedColor": "orange"}}]},
-        {"matcher": {"id": "byName", "options": "Sessions"},
-         "properties": [{"id": "color",
-                         "value": {"mode": "fixed", "fixedColor": "blue"}}]},
-    ],
-    options={"orientation": "horizontal",
-             "xTickLabelRotation": 0,
-             "groupWidth": 0.7, "barWidth": 0.8,
-             "showValue": "always",
-             "legend": {"displayMode": "list", "placement": "bottom",
-                        "showLegend": True},
-             "tooltip": {"mode": "multi"}}))
 y += 8
 
 
-# ------------------------------------------------------------ MCP servers
-panels.append(row("MCP", y)); y += 1
+# ------------------------------------------------------ MCP and autonomy
+panels.append(row("MCP servers, and how much rope the agent had", y)); y += 1
+
+panels.append(panel(
+    121, "Autonomy granted — tool calls per session", "bargauge", 12, y, 12, 7,
+    f"""SELECT
+  CONCAT(s.permission_mode, '  (', s.agent, ')')  AS metric,
+  ROUND(SUM(s.tool_calls) / COUNT(*))              AS value
+FROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id
+WHERE s.permission_mode IS NOT NULL AND {CONTRIBUTOR}
+GROUP BY s.permission_mode, s.agent
+ORDER BY 2 DESC""",
+    decimals=0, novalue="no session recorded a permission mode",
+    description=(
+        "How much work happens per session at each level of autonomy.\n\n"
+        "**One metric rather than two bars.** Sessions and total tool calls "
+        "run in opposite directions here — 64 sessions on Codex's `never` "
+        "produced 506 calls, 2 Claude Code sessions on `auto` produced "
+        "6,766 — so charting both put a 13x range beside a 32x one and "
+        "flattened whichever shared the axis. Dividing them gives the thing "
+        "both were circling: 8 calls per session on `never`, 3,383 on "
+        "`auto`.\n\n"
+        "The ladder is monotonic across every mode measured, which is the "
+        "finding: autonomy is not how often it is granted, it is how much "
+        "happens once it is.\n\n"
+        "The agent is in the label because each mode belongs to exactly one "
+        "— Codex says `never` and `on-request`, Claude Code says "
+        "`acceptEdits`, `auto` and `default`. Each agent's own vocabulary is "
+        "kept rather than mapped onto a shared enum: asserting that `never` "
+        "means the same as `default` would invent a comparison neither agent "
+        "made."),
+    options={"displayMode": "gradient", "orientation": "horizontal",
+             "showUnfilled": True, "valueMode": "text",
+             "reduceOptions": {"calcs": ["lastNotNull"], "values": True}}))
 
 panels.append(panel(
     140, "Calls per MCP server", "barchart", 0, y, 12, 7,
@@ -545,27 +534,6 @@ GROUP BY e.mcp_server ORDER BY COUNT(*) DESC LIMIT 15""",
     options={"legend": {"showLegend": False},
              "orientation": "horizontal"}))
 
-panels.append(panel(
-    141, "Tokens per session, by agent", "table", 12, y, 12, 7,
-    f"""SELECT
-  s.agent                                         AS Agent,
-  COUNT(*)                                        AS Sessions,
-  ROUND(AVG(s.output_tokens))                     AS `Avg out`,
-  ROUND(AVG(s.input_tokens + COALESCE(s.cache_read_tokens,0)
-          + COALESCE(s.cache_write_tokens,0)))    AS `Avg in`
-FROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id
-WHERE s.input_tokens IS NOT NULL AND {CONTRIBUTOR}
-GROUP BY s.agent ORDER BY AVG(s.output_tokens) DESC""",
-    novalue="no session reported tokens",
-    description=(
-        "**Not a comparison of which agent is cheaper.** Sessions are not "
-        "matched work: each agent draws different tasks, and a model reached "
-        "for when the job is hard will always look more expensive. This says "
-        "what each cost on the work it happened to do, nothing more."),
-    overrides=[{"matcher": {"id": "byRegexp", "options": "Avg.*"},
-                "properties": [{"id": "unit", "value": TOKEN_UNIT},
-                               {"id": "decimals", "value": 1}]}],
-    options={"showHeader": True}))
 y += 7
 
 dashboard = {
