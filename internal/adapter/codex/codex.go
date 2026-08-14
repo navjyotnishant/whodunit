@@ -327,7 +327,7 @@ func ParseSince(path string, since time.Time) ([]journal.Entry, error) {
 			}
 
 			added, removed := fp.Added, fp.Removed
-			lines := linehash.OfText(file, strings.Join(fp.AddedLines, "\n"))
+			lines := linehash.OfText(linehash.Canonical(file), strings.Join(fp.AddedLines, "\n"))
 			// A rejected or failed patch never reached the file, so its
 			// text must not count as agent-authored code.
 			if outcome != OutcomeAccepted {

@@ -15,6 +15,7 @@ package linehash
 import (
 	"crypto/sha256"
 	"encoding/binary"
+	"path"
 	"strings"
 )
 
@@ -28,8 +29,8 @@ import (
 // should not sever the link to the line an agent wrote, and indentation is
 // not the part a reader would call authorship.
 //
-// The path is normalised to forward slashes first, because the two sides
-// build it differently. The staged side joins the repo root to a diff target
+// The path is normalised — separators folded and the path cleaned — before
+// hashing, because the two sides build it differently. The staged side joins the repo root to a diff target
 // with filepath.Join, which yields `C:\repo\main.go` on Windows; the agent
 // side takes the path an agent wrote into its transcript, which is
 // `C:/repo/main.go` — Node and the agents themselves normalise that way.
@@ -59,7 +60,19 @@ func Of(filePath, line string) uint64 {
 // genuinely distinct paths on the case-sensitive filesystems where most of
 // this data is produced.
 func normalizePath(p string) string {
-	return strings.ReplaceAll(p, `\`, "/")
+	if p == "" {
+		return p
+	}
+	// Separators first, then path.Clean — the slash-only Clean, not
+	// filepath.Clean, so this stays pure string manipulation with no
+	// syscall and no dependence on the host's separator.
+	//
+	// Cleaning here as well as in Canonical is deliberate. Callers are
+	// expected to canonicalise once per file, but Of is exported and hashes
+	// whatever it is given: without this, "/repo//main.go" and
+	// "/repo/main.go" produced different hashes, so one caller passing an
+	// uncleaned path would silently match nothing.
+	return path.Clean(strings.ReplaceAll(p, `\`, "/"))
 }
 
 // Set is a collection of line hashes for lookup.

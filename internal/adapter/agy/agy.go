@@ -486,7 +486,7 @@ func ParseSince(path string, since time.Time) ([]journal.Entry, error) {
 			LinesAdded:   added,
 			LinesRemoved: removed,
 			HunkHash:     hunkHash(c.TargetFile, produced),
-			LineHashes:   linehash.OfText(c.TargetFile, produced),
+			LineHashes:   linehash.OfText(linehash.Canonical(c.TargetFile), produced),
 			// agy records no rejection signal: a declined call simply does
 			// not appear. Recording accepted would assert something the
 			// store does not say, so these stay unknown (NAV-21, NAV-54).

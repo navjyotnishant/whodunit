@@ -49,26 +49,6 @@ func builtinProjectsDir() string {
 	return filepath.Join(home, ".claude", "projects")
 }
 
-// resolvePath spells a recorded path the way the staged-diff side spells it.
-//
-// One filesystem location can have several names — /tmp against /private/tmp
-// on macOS, and on Windows the 8.3 short form (C:\Users\RUNNER~1\…) against
-// the long one. The path is part of every line hash, so two spellings hash
-// differently and nothing matches: the commit falls back to observed with no
-// indication why.
-//
-// Once per tool call, not per line: the hook's budget does not allow a
-// syscall for every line of a diff.
-func resolvePath(p string) string {
-	if p == "" {
-		return p
-	}
-	if resolved, err := filepath.EvalSymlinks(p); err == nil {
-		return resolved
-	}
-	return p
-}
-
 // SlugForCwd reproduces Claude Code's directory-name encoding: every path
 // separator in the absolute path becomes '-'.
 //
@@ -112,7 +92,7 @@ func SessionDir(cwd string) string {
 	// exists nowhere, so no transcript is found, and every commit is stamped
 	// undetermined — reading as "no AI was used" rather than "the adapter
 	// looked in the wrong place" (NAV-21).
-	return filepath.Join(ProjectsDir(), SlugForCwd(resolvePath(cwd)))
+	return filepath.Join(ProjectsDir(), SlugForCwd(linehash.Canonical(cwd)))
 }
 
 // SessionFiles returns every .jsonl transcript path for the given repo cwd.
@@ -277,7 +257,7 @@ func ParseSince(path string, since time.Time) ([]journal.Entry, error) {
 			// A rejected or failed call never reached the file, so its text
 			// must not count as agent-authored code. Carrying line hashes
 			// for it would attribute lines that do not exist.
-			lineHashes := linehash.OfText(resolvePath(block.Input.FilePath), produced)
+			lineHashes := linehash.OfText(linehash.Canonical(block.Input.FilePath), produced)
 			if outcome != OutcomeAccepted {
 				lineHashes = nil
 				added, removed = 0, 0

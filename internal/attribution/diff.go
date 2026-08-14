@@ -69,21 +69,9 @@ func resolveDiffPath(target, root string) string {
 	if target == "/dev/null" {
 		return ""
 	}
-	joined := filepath.Join(root, target)
-
-	// Resolved so this side spells the path the way the agent side does.
+	// Canonicalised through the one function both sides of a match use.
 	//
-	// One filesystem location can have several names — /tmp against
-	// /private/tmp on macOS, and on Windows the 8.3 short form
-	// (C:\Users\RUNNER~1\…) against the long one (C:\Users\runneradmin\…).
-	// The path is part of the line hash, so two spellings hash differently
-	// and no staged line ever matches a recorded one: attribution degrades
-	// to observed with nothing to indicate why.
-	//
-	// Done here, once per file in the diff, rather than inside linehash,
-	// which runs per line and must not make a syscall.
-	if resolved, err := filepath.EvalSymlinks(joined); err == nil {
-		return resolved
-	}
-	return joined
+	// Once per file in the diff, not per line: linehash.Of runs for every
+	// added line and must not make a syscall.
+	return linehash.Canonical(filepath.Join(root, target))
 }
