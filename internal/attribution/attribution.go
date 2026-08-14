@@ -4,6 +4,7 @@
 package attribution
 
 import (
+	"strings"
 	"time"
 
 	"github.com/navjyotnishant/whodunit/internal/journal"
@@ -54,10 +55,28 @@ type StagedEvidence struct {
 	Commit CommitLines
 }
 
+// comparablePath spells a path one way so two producers can be compared.
+//
+// Separators only, and no filesystem access: this runs per staged file on
+// the commit path. The larger differences — /tmp against /private/tmp, and
+// Windows' 8.3 short names — are resolved by the callers, which know the
+// repository root and can do it once.
+func comparablePath(p string) string {
+	return strings.ReplaceAll(p, `\`, "/")
+}
+
 func Determine(entries []journal.Entry, stagedFiles []string, agentLineHashes map[uint64]struct{}, staged StagedEvidence, now time.Time) spec.Trailer {
+	// Keyed on a separator-neutral spelling.
+	//
+	// The two sides are produced by different code: git yields the staged
+	// list, an agent's transcript yields e.File. On Windows those disagree
+	// on the separator — "C:\repo\main.go" against "C:/repo/main.go" — and
+	// an exact string match then finds nothing, so every commit is stamped
+	// undetermined. That reads as "no AI was used" rather than "the two
+	// halves spelled the path differently" (NAV-21).
 	stagedSet := map[string]bool{}
 	for _, f := range stagedFiles {
-		stagedSet[f] = true
+		stagedSet[comparablePath(f)] = true
 	}
 
 	since := now.Add(-LookbackWindow)
@@ -66,7 +85,7 @@ func Determine(entries []journal.Entry, stagedFiles []string, agentLineHashes ma
 		if e.Event != "tool_use" || e.Timestamp.Before(since) {
 			continue
 		}
-		if stagedSet[e.File] {
+		if stagedSet[comparablePath(e.File)] {
 			relevant = append(relevant, e)
 		}
 	}

@@ -128,6 +128,16 @@ func determineTrailer() spec.Trailer {
 		return spec.Undetermined()
 	}
 	// Journal entries carry absolute paths; git gives repo-relative ones.
+	//
+	// Resolved once, not per file: the journal records the directory the
+	// agent resolved to, and os.Getwd returns whatever the shell was in.
+	// One location can have several names — /tmp against /private/tmp, and
+	// on Windows the 8.3 short form C:\Users\RUNNER~1\… against the long
+	// one — and these paths are compared as exact strings, so two spellings
+	// mean nothing matches and the commit is stamped undetermined.
+	if resolved, err := filepath.EvalSymlinks(cwd); err == nil {
+		cwd = resolved
+	}
 	for i, f := range staged {
 		staged[i] = filepath.Join(cwd, f)
 	}

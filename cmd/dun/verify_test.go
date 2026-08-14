@@ -18,6 +18,8 @@ import (
 	"github.com/navjyotnishant/whodunit/internal/registry"
 	"github.com/navjyotnishant/whodunit/internal/secret"
 	"github.com/navjyotnishant/whodunit/internal/termcolor"
+
+	"github.com/navjyotnishant/whodunit/internal/testmode"
 )
 
 // installedDun makes `dun` appear to be on PATH for the duration of a test.
@@ -360,6 +362,11 @@ func TestAgentCountsAreNotClaimedOutsideARepository(t *testing.T) {
 // sits beside the ciphertext. Nothing else in the system notices a widened
 // mode, so verify has to.
 func TestWidenedSecretPermissionsFailVerify(t *testing.T) {
+	// This test widens permissions with chmod, which on Windows only toggles
+	// the read-only attribute — nothing is widened, so there is nothing for
+	// verify to report. The equivalent there is rewriting the ACL, covered
+	// against the real thing in internal/secret/perm_windows_test.go.
+	testmode.SkipIfNoPermissionBits(t)
 	installedDun(t)
 	home := t.TempDir()
 	t.Setenv("WHODUNIT_HOME", home)

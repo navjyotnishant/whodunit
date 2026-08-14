@@ -206,3 +206,34 @@ func TestDetermineOmitsRatioWithoutCommitLines(t *testing.T) {
 		t.Errorf("Ratio = %v, want nil when the commit's line counts are unknown", *got.Ratio)
 	}
 }
+
+func TestDetermineMatchesAcrossSeparatorSpellings(t *testing.T) {
+	// git yields the staged list; an agent's transcript yields the entry's
+	// File. On Windows those disagree on the separator, and an exact string
+	// match then finds nothing — so a commit an agent demonstrably wrote is
+	// stamped undetermined, which reads as "no AI was used".
+	now := time.Now()
+	entries := []journal.Entry{{
+		Timestamp: now.Add(-time.Hour),
+		Event:     "tool_use",
+		Agent:     "claude-code",
+		Session:   "s1",
+		File:      "C:/repo/main.go",
+	}}
+
+	got := Determine(
+		entries,
+		[]string{`C:\repo\main.go`}, // the same file, spelled the other way
+		nil,
+		StagedEvidence{},
+		now,
+	)
+
+	if got.Status != spec.StatusAssisted {
+		t.Errorf("status = %q, want assisted: the transcript and the staged "+
+			"list name the same file in different spellings", got.Status)
+	}
+	if got.Agent != "claude-code" {
+		t.Errorf("agent = %q, want claude-code", got.Agent)
+	}
+}
