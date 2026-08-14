@@ -255,6 +255,7 @@ type call struct {
 	Idx        int
 	StepType   int
 	Outcome    string
+	Model      string
 	TargetFile string
 	Args       toolArgs
 	Tool       string
@@ -327,6 +328,11 @@ func readCalls(dbPath string) ([]call, error) {
 	}
 	defer cleanup()
 
+	// One read per database: the model is a property of the conversation,
+	// not of a step, so looking it up per row would re-parse the same blob
+	// hundreds of times.
+	model := readModel(db)
+
 	rows, err := db.Query(`SELECT idx, step_type, status, step_payload FROM steps ORDER BY idx`)
 	if err != nil {
 		return nil, err
@@ -355,7 +361,7 @@ func readCalls(dbPath string) ([]call, error) {
 				continue
 			}
 			isEdit = true
-			out = append(out, call{Idx: idx, StepType: stepType, Outcome: outcome, TargetFile: a.TargetFile, Args: a, Tool: tool})
+			out = append(out, call{Idx: idx, StepType: stepType, Outcome: outcome, Model: model, TargetFile: a.TargetFile, Args: a, Tool: tool})
 		}
 
 		// A step that produced no edit still names whatever tool it ran —
@@ -363,7 +369,7 @@ func readCalls(dbPath string) ([]call, error) {
 		// journal shows what the agent did rather than only what it wrote.
 		if !isEdit {
 			for _, name := range callNames(payload) {
-				out = append(out, call{Idx: idx, StepType: stepType, Outcome: outcome, Tool: name})
+				out = append(out, call{Idx: idx, StepType: stepType, Outcome: outcome, Model: model, Tool: name})
 			}
 		}
 	}
@@ -498,6 +504,8 @@ func ParseSince(path string, since time.Time) ([]journal.Entry, error) {
 				Session:   session,
 				Event:     "tool_call",
 				Tool:      c.Tool,
+				Model:     c.Model,
+				Outcome:   c.Outcome,
 			})
 			continue
 		}
@@ -537,6 +545,19 @@ func ParseSince(path string, since time.Time) ([]journal.Entry, error) {
 			// hardcoded "unknown" here on the belief that agy records no
 			// rejection signal; it does, on every row.
 			Outcome: c.Outcome,
+			Model:   c.Model,
+
+			// Branch and MCPServer stay empty for agy, and that is a fact
+			// about the store rather than work left undone.
+			//
+			// Branch: the 21 gitBranchName hits in these databases are
+			// Linear's *suggested* branch inside MCP responses, not the
+			// checked-out one. Storing that would be confidently wrong.
+			//
+			// MCPServer: steps.permissions was expected to carry it and
+			// does not — it holds the command text being approved,
+			// including whole shell scripts, which is RISKY content rather
+			// than an identifier (NAV-25).
 		})
 	}
 	return entries, nil

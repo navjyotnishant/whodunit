@@ -66,6 +66,13 @@ type sessionMeta struct {
 	ID         string `json:"id"`
 	CWD        string `json:"cwd"`
 	CLIVersion string `json:"cli_version"`
+
+	// The branch the session ran on. Session-scoped rather than per
+	// record, so it applies to every entry in the rollout — 115 of 125
+	// rollouts carry it, 14 distinct branches.
+	Git struct {
+		Branch string `json:"branch"`
+	} `json:"git"`
 }
 
 // toolCall is an apply_patch invocation. Codex records edits as a
@@ -103,10 +110,37 @@ func mcpTool(namespace, name string) (string, bool) {
 }
 
 type toolCall struct {
-	Type   string `json:"type"`
-	Name   string `json:"name"`
-	CallID string `json:"call_id"`
-	Input  string `json:"input"`
+	Type      string `json:"type"`
+	Name      string `json:"name"`
+	CallID    string `json:"call_id"`
+	Input     string `json:"input"`
+	Namespace string `json:"namespace"`
+}
+
+// mcpServerOf returns the MCP server a call went through, or "" when it
+// did not go through one.
+//
+// Reuses mcpTool's judgement rather than re-deciding: the prefix can be on
+// either field, and a namespace alone does not mean MCP — Codex uses it
+// for built-ins too.
+//
+// The server is the qualified name minus its trailing method, which is
+// what the sibling adapters store: Claude Code's attributionMcpServer is
+// "linear-server", not "linear-server__save_comment".
+func mcpServerOf(namespace, name string) string {
+	qualified, isMCP := mcpTool(namespace, name)
+	if !isMCP {
+		return ""
+	}
+	// The namespace form already IS the server.
+	if strings.HasPrefix(namespace, "mcp__") {
+		return namespace
+	}
+	// The prefixed form is mcp__<server>__<method>; drop the method.
+	if i := strings.LastIndex(qualified, "__"); i > len("mcp__") {
+		return qualified[:i]
+	}
+	return qualified
 }
 
 // toolOutput is what happened to a call. The output field is either a plain
@@ -299,12 +333,31 @@ func ParseSince(path string, since time.Time) ([]journal.Entry, error) {
 	defer f.Close()
 
 	var entries []journal.Entry
+	var model string
 	scanner := bufio.NewScanner(f)
 	scanner.Buffer(make([]byte, 0, 64*1024), 8*1024*1024)
 
 	for scanner.Scan() {
 		var r record
 		if err := json.Unmarshal(scanner.Bytes(), &r); err != nil {
+			continue
+		}
+		// The model lives on turn_context, which is not a response_item,
+		// so it has to be tracked as the file is read rather than looked
+		// up once. A session can change model part-way through and every
+		// entry after that point belongs to the new one.
+		//
+		// Deliberately NOT filtered by `since`: a turn_context before the
+		// cutoff still establishes which model the visible entries after
+		// it were produced by. Skipping it would leave those entries with
+		// no model at all.
+		if r.Type == "turn_context" {
+			var tc struct {
+				Model string `json:"model"`
+			}
+			if err := json.Unmarshal(r.Payload, &tc); err == nil && tc.Model != "" {
+				model = tc.Model
+			}
 			continue
 		}
 		if r.Type != "response_item" || r.Timestamp.Before(since) {
@@ -331,6 +384,9 @@ func ParseSince(path string, since time.Time) ([]journal.Entry, error) {
 					Session:      meta.ID,
 					Event:        "tool_call",
 					Tool:         name,
+					Model:        model,
+					Branch:       meta.Git.Branch,
+					MCPServer:    mcpServerOf(c.Namespace, name),
 				})
 			}
 			continue
@@ -368,6 +424,8 @@ func ParseSince(path string, since time.Time) ([]journal.Entry, error) {
 			}
 
 			entries = append(entries, journal.Entry{
+				Model:        model,
+				Branch:       meta.Git.Branch,
 				Timestamp:    r.Timestamp,
 				Agent:        AgentName,
 				AgentVersion: meta.CLIVersion,

@@ -60,6 +60,18 @@ type EventRow struct {
 	SpecVersion  string
 	Outcome      string
 	SyncedAt     time.Time
+
+	// Observations about the edit rather than part of its identity — they
+	// are outside EventID's derivation for the same reason they are
+	// outside the journal's UNIQUE constraint, so re-syncing an event
+	// after a branch rename updates the row rather than adding a second.
+	//
+	// All NULLable: agy records no branch at all, and only Claude Code
+	// reports whether a human edited the output (NAV-21).
+	Model        string
+	Branch       string
+	MCPServer    string
+	UserModified *bool
 }
 
 // SessionRow is one row of whodunit_sessions (NAV-55).
@@ -166,6 +178,10 @@ func EventRowsFrom(entries []journal.Entry, repoID string, syncedAt time.Time) [
 			HunkHash:     e.HunkHash,
 			SpecVersion:  e.SpecVersion,
 			Outcome:      e.Outcome,
+			Model:        e.Model,
+			Branch:       e.Branch,
+			MCPServer:    e.MCPServer,
+			UserModified: e.UserModified,
 			SyncedAt:     syncedAt,
 		})
 	}

@@ -117,7 +117,28 @@ type record struct {
 	// finds nothing.
 	Effort         string `json:"effort"`
 	PermissionMode string `json:"permissionMode"`
-	Message        struct {
+
+	// The branch the work landed on. 112 distinct values across the
+	// corpus on this machine, of which "HEAD" is 8% — a detached head,
+	// which is a real state rather than a missing value, so it is stored
+	// as written rather than blanked.
+	GitBranch string `json:"gitBranch"`
+
+	// Which MCP server and method a call went through. Claude Code
+	// resolves these itself, so no parsing of the mcp__server__method
+	// name is needed — 6 servers and 64 methods observed.
+	MCPServer string `json:"attributionMcpServer"`
+	MCPTool   string `json:"attributionMcpTool"`
+
+	// ToolUseResult is a sibling of message, not part of it, and carries
+	// stdout, stderr, file bodies and diffs — all forbidden (NAV-25).
+	// Only the one scalar is lifted out; the rest is never unmarshalled,
+	// which is what keeps the constraint structural rather than a rule
+	// someone has to remember.
+	ToolUseResult struct {
+		UserModified *bool `json:"userModified"`
+	} `json:"toolUseResult"`
+	Message struct {
 		Content []toolUseBlock `json:"content"`
 
 		// ID identifies the assistant message, which is NOT one-to-one
@@ -129,6 +150,26 @@ type record struct {
 		Model string `json:"model"`
 		Usage *usage `json:"usage"`
 	} `json:"message"`
+}
+
+// modelOf returns the record's model, excluding the synthetic sender.
+func modelOf(r record) string {
+	if r.Message.Model == syntheticModel {
+		return ""
+	}
+	return r.Message.Model
+}
+
+// userModifiedOf returns a pointer only when the transcript actually said
+// something. A missing entry is "this call has no edit signal", which must
+// stay nil rather than becoming false — false is a claim that nobody
+// edited it (NAV-21).
+func userModifiedOf(edited map[string]bool, id string) *bool {
+	v, ok := edited[id]
+	if !ok {
+		return nil
+	}
+	return &v
 }
 
 // syntheticModel is the sender on records Claude Code generates itself
@@ -224,7 +265,7 @@ func ParseSince(path string, since time.Time) ([]journal.Entry, error) {
 		}
 	}
 
-	outcomes, err := collectOutcomes(path)
+	outcomes, edited, err := collectOutcomesAndEdits(path)
 	if err != nil {
 		return nil, err
 	}
@@ -270,6 +311,9 @@ func ParseSince(path string, since time.Time) ([]journal.Entry, error) {
 					Session:      r.SessionID,
 					Event:        "tool_call",
 					Tool:         block.Name,
+					Model:        modelOf(r),
+					Branch:       r.GitBranch,
+					MCPServer:    r.MCPServer,
 				})
 				continue
 			}
@@ -315,6 +359,10 @@ func ParseSince(path string, since time.Time) ([]journal.Entry, error) {
 				HunkHash:     hunkHash(block.Input.FilePath, block.Name, block.Input.Content, block.Input.NewString),
 				LineHashes:   lineHashes,
 				Outcome:      string(outcome),
+				Model:        modelOf(r),
+				Branch:       r.GitBranch,
+				MCPServer:    r.MCPServer,
+				UserModified: userModifiedOf(edited, block.ID),
 			})
 		}
 	}
@@ -503,14 +551,26 @@ func hasToolResult(r record) bool {
 
 // collectOutcomes maps each tool call's id to what happened to it, from the
 // tool_result blocks scattered through the transcript.
-func collectOutcomes(path string) (map[string]Outcome, error) {
+// collectOutcomes maps each tool call's id to what happened to it, and to
+// whether a human edited the result.
+//
+// userModified rides along here rather than in a third pass because it is
+// recorded in the same place: on the USER record that carries the
+// tool_result, keyed by the same tool_use_id. It is the one signal that
+// separates "the agent wrote this" from "the agent wrote this and it was
+// kept" — and only Claude Code has it.
+//
+// CAVEAT: observed 7,201 times on this machine and false every single
+// time. The field is read correctly and the true case is unverified.
+func collectOutcomesAndEdits(path string) (map[string]Outcome, map[string]bool, error) {
 	f, err := os.Open(path)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	defer f.Close()
 
 	outcomes := map[string]Outcome{}
+	edited := map[string]bool{}
 	scanner := bufio.NewScanner(f)
 	scanner.Buffer(make([]byte, 0, 64*1024), 8*1024*1024)
 
@@ -524,12 +584,15 @@ func collectOutcomes(path string) (map[string]Outcome, error) {
 				continue
 			}
 			outcomes[block.UseID] = classifyResult(block.Error, block.Result.Text)
+			if v := r.ToolUseResult.UserModified; v != nil {
+				edited[block.UseID] = *v
+			}
 		}
 	}
 	if err := scanner.Err(); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	return outcomes, nil
+	return outcomes, edited, nil
 }
 
 func diffStat(tool, content, oldString, newString string) (added, removed int) {

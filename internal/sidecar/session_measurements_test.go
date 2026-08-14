@@ -274,3 +274,86 @@ func assertNullInt(t *testing.T, name string, got sql.NullInt64, want int64) {
 		t.Errorf("%s = %d, want %d", name, got.Int64, want)
 	}
 }
+
+// The per-entry observations must survive the sync too (NAV-92), and an
+// agent that cannot supply one must store NULL rather than ”.
+func TestEntryObservationsSurviveTheSync(t *testing.T) {
+	db := openDB(t)
+	store := &Store{DB: db}
+	if err := EnsureSchema(store); err != nil {
+		t.Fatal(err)
+	}
+
+	now := time.Now().UTC()
+	modified := true
+	write := func(e journal.Entry) {
+		t.Helper()
+		if _, err := Write(store, Payload{
+			Repo:   RepoRow{RepoID: "repo-1", SyncedAt: now},
+			Events: EventRowsFrom([]journal.Entry{e}, "repo-1", now),
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	write(journal.Entry{
+		Timestamp: now, Agent: "claude-code", Session: "s1", Event: "tool_use",
+		Tool: "Write", File: "/repo/x.go",
+		Model: "claude-opus-5", Branch: "main", MCPServer: "linear-server",
+		UserModified: &modified,
+	})
+
+	var model, branch, mcp sql.NullString
+	var userModified sql.NullBool
+	if err := db.QueryRow(`SELECT model, branch, mcp_server, user_modified
+		FROM whodunit_events`).Scan(&model, &branch, &mcp, &userModified); err != nil {
+		t.Fatal(err)
+	}
+
+	if model.String != "claude-opus-5" || branch.String != "main" || mcp.String != "linear-server" {
+		t.Errorf("observations lost: model=%q branch=%q mcp=%q",
+			model.String, branch.String, mcp.String)
+	}
+	if !userModified.Valid || !userModified.Bool {
+		t.Errorf("user_modified = %v/%v, want true", userModified.Valid, userModified.Bool)
+	}
+}
+
+// agy supplies no branch, no MCP server and no edit signal. Those must be
+// NULL centrally, not empty strings or false — false asserts that nobody
+// edited the output (NAV-21).
+func TestAnAgentWithNoBranchStoresNull(t *testing.T) {
+	db := openDB(t)
+	store := &Store{DB: db}
+	if err := EnsureSchema(store); err != nil {
+		t.Fatal(err)
+	}
+
+	now := time.Now().UTC()
+	if _, err := Write(store, Payload{
+		Repo: RepoRow{RepoID: "repo-1", SyncedAt: now},
+		Events: EventRowsFrom([]journal.Entry{{
+			Timestamp: now, Agent: "agy", Session: "s1", Event: "tool_use",
+			Tool: "write_file", File: "/repo/x.go",
+			Model: "gemini-3.7-flash-high",
+		}}, "repo-1", now),
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	var branch, mcp sql.NullString
+	var userModified sql.NullBool
+	if err := db.QueryRow(`SELECT branch, mcp_server, user_modified
+		FROM whodunit_events`).Scan(&branch, &mcp, &userModified); err != nil {
+		t.Fatal(err)
+	}
+	if branch.Valid {
+		t.Errorf("branch = %q, want NULL — agy records none", branch.String)
+	}
+	if mcp.Valid {
+		t.Errorf("mcp_server = %q, want NULL", mcp.String)
+	}
+	if userModified.Valid {
+		t.Errorf("user_modified = %v, want NULL — agy has no such signal", userModified.Bool)
+	}
+}

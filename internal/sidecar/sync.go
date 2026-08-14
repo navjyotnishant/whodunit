@@ -164,7 +164,9 @@ func WriteProgress(db *Store, p Payload, onRow func(done, total int)) (Counts, e
 		if _, err := tx.Exec(upsertEvent(mysql),
 			e.EventID, e.RepoID, e.ObservedAt.UnixNano(), e.Agent, e.AgentVersion,
 			e.Session, e.Event, e.Tool, e.File, e.LinesAdded, e.LinesRemoved,
-			e.HunkHash, e.SpecVersion, e.Outcome, e.SyncedAt.UnixNano()); err != nil {
+			e.HunkHash, e.SpecVersion, e.Outcome, e.SyncedAt.UnixNano(),
+			nullString(e.Model), nullString(e.Branch), nullString(e.MCPServer),
+			e.UserModified); err != nil {
 			return counts, fmt.Errorf("write event: %w", err)
 		}
 		counts.Events++
@@ -249,19 +251,33 @@ func upsertCommit(mysql bool) string {
 func upsertEvent(mysql bool) string {
 	cols := `INSERT INTO whodunit_events
 		(event_id, repo_id, observed_at, agent, agent_version, session, event,
-		 tool, file, lines_added, lines_removed, hunk_hash, spec_version, outcome, synced_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+		 tool, file, lines_added, lines_removed, hunk_hash, spec_version, outcome, synced_at,
+		 model, branch, mcp_server, user_modified)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 	// outcome is refreshed on conflict, unlike the rest of the row: an
 	// event's identity is fixed but its outcome can be backfilled by a
 	// later ingest that finally saw the tool result.
+	//
+	// The observation columns are COALESCEd rather than replaced, for the
+	// reason the session ones are: a re-sync over a window that cannot see
+	// them must not erase what an earlier pass established, and centrally
+	// there is no transcript left to re-read.
 	if mysql {
 		return cols + ` ON DUPLICATE KEY UPDATE outcome=VALUES(outcome),
 			lines_added=VALUES(lines_added), lines_removed=VALUES(lines_removed),
-			synced_at=VALUES(synced_at)`
+			synced_at=VALUES(synced_at),
+			model=COALESCE(VALUES(model), model),
+			branch=COALESCE(VALUES(branch), branch),
+			mcp_server=COALESCE(VALUES(mcp_server), mcp_server),
+			user_modified=COALESCE(VALUES(user_modified), user_modified)`
 	}
 	return cols + ` ON CONFLICT(event_id) DO UPDATE SET outcome=excluded.outcome,
 		lines_added=excluded.lines_added, lines_removed=excluded.lines_removed,
-		synced_at=excluded.synced_at`
+		synced_at=excluded.synced_at,
+		model=COALESCE(excluded.model, whodunit_events.model),
+		branch=COALESCE(excluded.branch, whodunit_events.branch),
+		mcp_server=COALESCE(excluded.mcp_server, whodunit_events.mcp_server),
+		user_modified=COALESCE(excluded.user_modified, whodunit_events.user_modified)`
 }
 
 // upsertSession refreshes a session's counters and fills in its

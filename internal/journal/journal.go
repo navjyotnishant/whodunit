@@ -53,6 +53,28 @@ type Entry struct {
 	// the tool erroring, which is a different thing entirely.
 	Outcome string `json:"outcome,omitempty"`
 
+	// Model, Branch and MCPServer are observations about the edit rather
+	// than part of its identity — they are deliberately outside the UNIQUE
+	// constraint, so re-ingesting an edit after a branch rename updates the
+	// row instead of inserting a second one (NAV-88).
+	//
+	// Empty means the agent does not report it, and that is agent-specific
+	// rather than incidental: agy records no branch at all, verified absent
+	// rather than merely unread.
+	Model     string `json:"model,omitempty"`
+	Branch    string `json:"branch,omitempty"`
+	MCPServer string `json:"mcp_server,omitempty"`
+
+	// UserModified is whether a human edited the agent's output before it
+	// was committed — the one signal that separates "the agent wrote this"
+	// from "the agent wrote this and it was kept".
+	//
+	// A pointer because three states matter and a bool carries two: true,
+	// false, and "this agent cannot tell us". Only Claude Code reports it;
+	// Codex and agy have no equivalent, so nil there is permanent rather
+	// than pending (NAV-21).
+	UserModified *bool `json:"user_modified,omitempty"`
+
 	// LineHashes are the hashes of individual lines this event produced
 	// (NAV-52). Not serialized in `dun journal show`: there can be hundreds
 	// per event, and they are lookup keys rather than something a human
@@ -292,14 +314,22 @@ func (w *Writer) Append(e Entry) error {
 		// and a call whose result arrives in a later ingest must be able to
 		// change from unknown to accepted. Everything else about the row is
 		// immutable, so re-ingest stays idempotent.
-		`INSERT INTO entries (repo_id, ts, agent, agent_version, session, event, tool, file, lines_added, lines_removed, hunk_hash, spec_version, outcome)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		// The measured columns are COALESCEd for the same reason the
+		// session ones are: a re-ingest over a window that cannot see them
+		// must not erase what an earlier pass established.
+		`INSERT INTO entries (repo_id, ts, agent, agent_version, session, event, tool, file, lines_added, lines_removed, hunk_hash, spec_version, outcome, model, branch, mcp_server, user_modified)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		 ON CONFLICT(repo_id, session, ts, tool, file, hunk_hash) DO UPDATE SET
 		   outcome=excluded.outcome,
 		   lines_added=excluded.lines_added,
-		   lines_removed=excluded.lines_removed`,
+		   lines_removed=excluded.lines_removed,
+		   model=COALESCE(excluded.model, entries.model),
+		   branch=COALESCE(excluded.branch, entries.branch),
+		   mcp_server=COALESCE(excluded.mcp_server, entries.mcp_server),
+		   user_modified=COALESCE(excluded.user_modified, entries.user_modified)`,
 		w.repoID, e.Timestamp.UnixNano(), e.Agent, e.AgentVersion, e.Session, e.Event,
 		e.Tool, e.File, e.LinesAdded, e.LinesRemoved, e.HunkHash, e.SpecVersion, e.Outcome,
+		nullString(e.Model), nullString(e.Branch), nullString(e.MCPServer), e.UserModified,
 	)
 	if err != nil {
 		return fmt.Errorf("journal: insert entry: %w", err)
@@ -659,7 +689,7 @@ func ReadRange(dataDir, repoID string, since, until time.Time) ([]Entry, error) 
 	}
 	defer db.Close()
 
-	query := `SELECT ts, agent, agent_version, session, event, tool, file, lines_added, lines_removed, hunk_hash, spec_version, outcome
+	query := `SELECT ts, agent, agent_version, session, event, tool, file, lines_added, lines_removed, hunk_hash, spec_version, outcome, model, branch, mcp_server, user_modified
 	          FROM entries WHERE repo_id = ? AND ts >= ?`
 	args := []any{repoID, since.UnixNano()}
 	if !until.IsZero() {
@@ -678,12 +708,23 @@ func ReadRange(dataDir, repoID string, since, until time.Time) ([]Entry, error) 
 	for rows.Next() {
 		var e Entry
 		var ts int64
+
+		// Through Null* types so a NULL column comes back empty/nil rather
+		// than as a zero value indistinguishable from a measurement.
+		var model, branch, mcpServer sql.NullString
+		var userModified sql.NullBool
+
 		if err := rows.Scan(&ts, &e.Agent, &e.AgentVersion, &e.Session, &e.Event,
 			&e.Tool, &e.File, &e.LinesAdded, &e.LinesRemoved, &e.HunkHash, &e.SpecVersion,
-			&e.Outcome); err != nil {
+			&e.Outcome, &model, &branch, &mcpServer, &userModified); err != nil {
 			return nil, fmt.Errorf("journal: scan row: %w", err)
 		}
 		e.Timestamp = time.Unix(0, ts).UTC()
+		e.Model, e.Branch, e.MCPServer = model.String, branch.String, mcpServer.String
+		if userModified.Valid {
+			v := userModified.Bool
+			e.UserModified = &v
+		}
 		entries = append(entries, e)
 	}
 	if err := rows.Err(); err != nil {

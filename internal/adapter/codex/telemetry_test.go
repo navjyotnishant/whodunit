@@ -481,3 +481,143 @@ func TestASessionPartlyInsideTheWindowIsStillRead(t *testing.T) {
 		t.Errorf("Model = %q, want gpt-5.5", sessions[0].Model)
 	}
 }
+
+// Model, branch and MCP server on the entry (NAV-90).
+//
+// Branch comes from session_meta and is session-scoped; the model comes
+// from turn_context and can change part-way through, so entries after a
+// switch belong to the new model.
+func TestEntriesCarryModelBranchAndMCPServer(t *testing.T) {
+	ts := time.Now().UTC().Add(-time.Hour)
+	path := writeRollout2(t, []map[string]any{
+		{"timestamp": ts, "type": "session_meta", "payload": map[string]any{
+			"id": "s1", "cwd": "/repo", "cli_version": "1.0.0",
+			"git": map[string]any{"branch": "feature/ENG-46-outlook-addin"},
+		}},
+		{"timestamp": ts, "type": "turn_context", "payload": map[string]any{"model": "gpt-5.5"}},
+		{"timestamp": ts, "type": "response_item", "payload": map[string]any{
+			"type": "function_call", "namespace": "mcp__linear", "name": "save_issue",
+		}},
+	})
+
+	entries, err := ParseSince(path, time.Time{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 1 {
+		t.Fatalf("got %d entries, want 1", len(entries))
+	}
+	e := entries[0]
+
+	if e.Model != "gpt-5.5" {
+		t.Errorf("Model = %q, want gpt-5.5 — turn_context is not a response_item, "+
+			"so it has to be tracked as the file is read", e.Model)
+	}
+	if e.Branch != "feature/ENG-46-outlook-addin" {
+		t.Errorf("Branch = %q, want the session's branch", e.Branch)
+	}
+	if e.MCPServer != "mcp__linear" {
+		t.Errorf("MCPServer = %q, want mcp__linear", e.MCPServer)
+	}
+}
+
+// A turn_context BEFORE the cutoff still establishes the model for the
+// entries after it. Filtering it by `since` like a response_item would
+// leave every visible entry with no model at all.
+func TestATurnContextBeforeTheCutoffStillSetsTheModel(t *testing.T) {
+	old := time.Now().UTC().Add(-48 * time.Hour)
+	recent := time.Now().UTC().Add(-30 * time.Minute)
+
+	path := writeRollout2(t, []map[string]any{
+		{"timestamp": old, "type": "session_meta", "payload": map[string]any{
+			"id": "s1", "cwd": "/repo", "cli_version": "1.0.0",
+		}},
+		{"timestamp": old, "type": "turn_context", "payload": map[string]any{"model": "gpt-5.5"}},
+		{"timestamp": recent, "type": "response_item", "payload": map[string]any{
+			"type": "function_call", "name": "shell",
+		}},
+	})
+
+	entries, err := ParseSince(path, time.Now().UTC().Add(-time.Hour))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 1 {
+		t.Fatalf("got %d entries, want 1", len(entries))
+	}
+	if entries[0].Model != "gpt-5.5" {
+		t.Errorf("Model = %q; a turn_context before the cutoff was skipped, so "+
+			"every visible entry lost its model", entries[0].Model)
+	}
+}
+
+// A model switch mid-session applies from that point forward.
+func TestAModelSwitchAppliesToLaterEntries(t *testing.T) {
+	ts := time.Now().UTC().Add(-time.Hour)
+	path := writeRollout2(t, []map[string]any{
+		{"timestamp": ts, "type": "session_meta", "payload": map[string]any{
+			"id": "s1", "cwd": "/repo", "cli_version": "1.0.0",
+		}},
+		{"timestamp": ts, "type": "turn_context", "payload": map[string]any{"model": "gpt-5.3-codex"}},
+		{"timestamp": ts, "type": "response_item", "payload": map[string]any{
+			"type": "function_call", "name": "shell",
+		}},
+		{"timestamp": ts, "type": "turn_context", "payload": map[string]any{"model": "gpt-5.5"}},
+		{"timestamp": ts, "type": "response_item", "payload": map[string]any{
+			"type": "function_call", "name": "shell",
+		}},
+	})
+
+	entries, err := ParseSince(path, time.Time{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 2 {
+		t.Fatalf("got %d entries, want 2", len(entries))
+	}
+	if entries[0].Model != "gpt-5.3-codex" {
+		t.Errorf("first entry model = %q, want gpt-5.3-codex", entries[0].Model)
+	}
+	if entries[1].Model != "gpt-5.5" {
+		t.Errorf("second entry model = %q, want gpt-5.5 — the switch did not apply",
+			entries[1].Model)
+	}
+}
+
+// Codex has no equivalent of userModified, so it must stay nil rather than
+// false. False would assert that nobody edited the output (NAV-21).
+func TestCodexLeavesUserModifiedNil(t *testing.T) {
+	ts := time.Now().UTC().Add(-time.Hour)
+	path := writeRollout2(t, []map[string]any{
+		{"timestamp": ts, "type": "session_meta", "payload": map[string]any{
+			"id": "s1", "cwd": "/repo", "cli_version": "1.0.0",
+		}},
+		{"timestamp": ts, "type": "response_item", "payload": map[string]any{
+			"type": "function_call", "name": "shell",
+		}},
+	})
+
+	entries, err := ParseSince(path, time.Time{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if entries[0].UserModified != nil {
+		t.Errorf("UserModified = %v, want nil — Codex has no such signal",
+			*entries[0].UserModified)
+	}
+}
+
+func TestMCPServerOf(t *testing.T) {
+	for _, tc := range []struct{ namespace, name, want string }{
+		{"", "mcp__linear__save_comment", "mcp__linear"},
+		{"mcp__linear", "save_comment", "mcp__linear"},
+		{"mcp__codex_apps__linear", "_save_comment", "mcp__codex_apps__linear"},
+		{"multi_agent_v1", "spawn", ""}, // a namespace is not an MCP marker
+		{"", "shell", ""},
+	} {
+		if got := mcpServerOf(tc.namespace, tc.name); got != tc.want {
+			t.Errorf("mcpServerOf(%q, %q) = %q, want %q",
+				tc.namespace, tc.name, got, tc.want)
+		}
+	}
+}
