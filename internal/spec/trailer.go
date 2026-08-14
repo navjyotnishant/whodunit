@@ -91,6 +91,15 @@ type Trailer struct {
 	Ratio   *float64
 	Session string
 
+	// Model is which model produced the work, where the agent reports one
+	// (NAV-117).
+	//
+	// "An agent wrote this" is a much weaker statement than "claude-opus-5
+	// wrote this", and the gap widens with time: agent_version describes
+	// the CLI, not the thing that generated the code. Read a commit two
+	// years on and the model is the part that explains it.
+	Model string
+
 	// SpecVer is the trailer FORMAT version this trailer was written
 	// under — not to be confused with Version above, which is the agent's
 	// own version. Zero means the trailer carried none, which is every
@@ -144,6 +153,9 @@ func (t Trailer) Format() string {
 	if t.Ratio != nil {
 		fmt.Fprintf(&b, "; ratio=%.2f", *t.Ratio)
 	}
+	if t.Model != "" {
+		fmt.Fprintf(&b, "; model=%s", t.Model)
+	}
 	if t.Session != "" {
 		fmt.Fprintf(&b, "; session=%s", t.Session)
 	}
@@ -188,6 +200,8 @@ func Parse(value string) (Trailer, error) {
 			t.Agent = val
 		case "agent_version":
 			t.Version = val
+		case "model":
+			t.Model = val
 		case "session":
 			t.Session = val
 		case VersionKey:

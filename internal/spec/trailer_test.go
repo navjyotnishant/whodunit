@@ -152,7 +152,11 @@ func TestAnInvalidVersionIsRejected(t *testing.T) {
 // Unknown keys go to Extra and are re-emitted, so a round trip through a
 // version that does not understand `model=` does not silently drop it.
 func TestUnknownKeysSurviveARoundTrip(t *testing.T) {
-	in := "v=2; status=assisted; method=intersected; model=claude-opus-5"
+	// A key this version does not know. Deliberately not `model=`, which
+	// became a first-class field in NAV-117 — the point is a trailer
+	// written by a FUTURE version, so the key has to be one that does not
+	// exist yet.
+	in := "v=2; status=assisted; method=intersected; reasoning_effort=high"
 	tr, err := Parse(in)
 	if err != nil {
 		t.Fatalf("a newer trailer failed to parse: %v", err)
@@ -160,10 +164,10 @@ func TestUnknownKeysSurviveARoundTrip(t *testing.T) {
 	if tr.SpecVersion() != 2 {
 		t.Errorf("SpecVersion() = %d, want 2", tr.SpecVersion())
 	}
-	if tr.Extra["model"] != "claude-opus-5" {
+	if tr.Extra["reasoning_effort"] != "high" {
 		t.Errorf("unknown key dropped: %v", tr.Extra)
 	}
-	if !strings.Contains(tr.Format(), "model=claude-opus-5") {
+	if !strings.Contains(tr.Format(), "reasoning_effort=high") {
 		t.Errorf("unknown key not re-emitted: %s", tr.Format())
 	}
 }
@@ -173,4 +177,35 @@ func min(a, b int) int {
 		return a
 	}
 	return b
+}
+
+// model= is a first-class key, parsed into its own field rather than left
+// in Extra (NAV-117).
+func TestModelRoundTrips(t *testing.T) {
+	in := "status=assisted; method=intersected; model=claude-opus-5"
+	tr, err := Parse(in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if tr.Model != "claude-opus-5" {
+		t.Errorf("Model = %q, want claude-opus-5", tr.Model)
+	}
+	if !strings.Contains(tr.Format(), "model=claude-opus-5") {
+		t.Errorf("model not re-emitted: %s", tr.Format())
+	}
+}
+
+// A trailer with no model omits the key entirely rather than emitting
+// something like model=unknown.
+//
+// The same rule ratio follows: an absent measurement must not be
+// formatted as a measured one. A commit attributed by `declared` has no
+// entries to read a model from, and `model=unknown` in the git history
+// would be indistinguishable from an agent that genuinely reported that
+// string (NAV-21).
+func TestAnAbsentModelIsOmitted(t *testing.T) {
+	out := Trailer{Status: StatusAssisted, Method: MethodDeclared}.Format()
+	if strings.Contains(out, "model") {
+		t.Errorf("a trailer with no model mentions one: %s", out)
+	}
 }
