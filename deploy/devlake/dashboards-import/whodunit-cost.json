@@ -59,7 +59,7 @@
       "gridPos": {
         "x": 0,
         "y": 1,
-        "w": 4,
+        "w": 2,
         "h": 4
       },
       "targets": [
@@ -100,9 +100,9 @@
       "type": "stat",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
-        "x": 4,
+        "x": 2,
         "y": 1,
-        "w": 4,
+        "w": 2,
         "h": 4
       },
       "targets": [
@@ -143,7 +143,7 @@
       "type": "stat",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
-        "x": 8,
+        "x": 4,
         "y": 1,
         "w": 4,
         "h": 4
@@ -186,7 +186,7 @@
       "type": "stat",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
-        "x": 12,
+        "x": 8,
         "y": 1,
         "w": 4,
         "h": 4
@@ -229,7 +229,7 @@
       "type": "stat",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
-        "x": 16,
+        "x": 12,
         "y": 1,
         "w": 4,
         "h": 4
@@ -285,7 +285,7 @@
       "type": "stat",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
-        "x": 20,
+        "x": 16,
         "y": 1,
         "w": 4,
         "h": 4
@@ -341,9 +341,9 @@
       "type": "stat",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
-        "x": 0,
-        "y": 5,
-        "w": 6,
+        "x": 20,
+        "y": 1,
+        "w": 4,
         "h": 4
       },
       "targets": [
@@ -379,13 +379,25 @@
       }
     },
     {
+      "type": "row",
+      "title": "Context pressure — the part you can act on",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 5,
+        "w": 24,
+        "h": 1
+      },
+      "panels": []
+    },
+    {
       "id": 130,
       "title": "Human edited the agent's output",
       "type": "stat",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
-        "x": 6,
-        "y": 5,
+        "x": 12,
+        "y": 10,
         "w": 6,
         "h": 4
       },
@@ -440,8 +452,8 @@
       "type": "stat",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
-        "x": 12,
-        "y": 5,
+        "x": 6,
+        "y": 10,
         "w": 6,
         "h": 4
       },
@@ -483,9 +495,9 @@
       "type": "stat",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
-        "x": 18,
-        "y": 5,
-        "w": 3,
+        "x": 0,
+        "y": 6,
+        "w": 6,
         "h": 4
       },
       "targets": [
@@ -534,14 +546,112 @@
       }
     },
     {
+      "id": 135,
+      "title": "Compact rate by agent",
+      "type": "bargauge",
+      "datasource": "${DS_WHODUNIT}",
+      "gridPos": {
+        "x": 6,
+        "y": 6,
+        "w": 12,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT\n  s.agent AS metric,\n  ROUND(100.0 * SUM(CASE WHEN s.compactions > 0 THEN 1 ELSE 0 END)\n    / NULLIF(COUNT(*), 0)) AS value\nFROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id\nWHERE s.compactions IS NOT NULL AND ('$contributor' = '__all__' OR r.contributor = '$contributor')\nGROUP BY s.agent ORDER BY 2 DESC"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 0,
+          "noValue": "no agent reported compaction",
+          "color": {
+            "mode": "continuous-GrYlRd"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "description": "The same rate split by agent — the cut that says whether this is a habit or a tool difference.\n\nMeasured here: Claude Code 15% against Codex 4%, on the same repositories and the same person. A gap that size is more likely about how each agent surfaces the option than about who was using it.\n\nAntigravity is absent rather than shown at 0%: it records no context management, so it cannot report a rate at all (NAV-21).",
+      "options": {
+        "displayMode": "gradient",
+        "orientation": "horizontal",
+        "showUnfilled": true,
+        "valueMode": "text",
+        "text": {
+          "valueSize": 18,
+          "titleSize": 12
+        },
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": true
+        }
+      }
+    },
+    {
+      "id": 136,
+      "title": "Compactions per compacting session",
+      "type": "stat",
+      "datasource": "${DS_WHODUNIT}",
+      "gridPos": {
+        "x": 18,
+        "y": 6,
+        "w": 6,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT ROUND(AVG(s.compactions), 1) AS v\nFROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id\nWHERE s.compactions > 0 AND ('$contributor' = '__all__' OR r.contributor = '$contributor')"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 1,
+          "noValue": "no session has compacted",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          }
+        },
+        "overrides": []
+      },
+      "description": "Average compactions, counting only sessions that compacted at all.\n\nThe zeroes are excluded deliberately. Averaged over every session this would be a fraction and would say nothing; the question is what a compacting session looks like — measured here, 4 on average, with one session reaching 9.\n\nA high number is not automatically bad: it means long work, which is sometimes exactly right.",
+      "options": {
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
       "id": 133,
       "title": "Reasoning effort",
       "type": "piechart",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
-        "x": 21,
-        "y": 5,
-        "w": 3,
+        "x": 18,
+        "y": 10,
+        "w": 6,
         "h": 4
       },
       "targets": [
@@ -642,7 +752,7 @@
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 9,
+        "y": 14,
         "w": 24,
         "h": 1
       },
@@ -655,7 +765,7 @@
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
         "x": 0,
-        "y": 10,
+        "y": 15,
         "w": 12,
         "h": 6
       },
@@ -771,7 +881,7 @@
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
         "x": 12,
-        "y": 10,
+        "y": 15,
         "w": 12,
         "h": 6
       },
@@ -827,7 +937,7 @@
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
         "x": 0,
-        "y": 16,
+        "y": 21,
         "w": 24,
         "h": 9
       },
@@ -957,7 +1067,7 @@
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
         "x": 0,
-        "y": 25,
+        "y": 30,
         "w": 24,
         "h": 8
       },
@@ -1009,7 +1119,7 @@
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 33,
+        "y": 38,
         "w": 24,
         "h": 1
       },
@@ -1022,7 +1132,7 @@
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
         "x": 0,
-        "y": 34,
+        "y": 39,
         "w": 24,
         "h": 8
       },
@@ -1071,7 +1181,7 @@
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 42,
+        "y": 47,
         "w": 24,
         "h": 1
       },
@@ -1084,7 +1194,7 @@
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
         "x": 12,
-        "y": 43,
+        "y": 48,
         "w": 12,
         "h": 7
       },
@@ -1139,7 +1249,7 @@
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
         "x": 0,
-        "y": 43,
+        "y": 48,
         "w": 12,
         "h": 7
       },
