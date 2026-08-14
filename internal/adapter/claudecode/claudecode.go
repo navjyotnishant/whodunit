@@ -49,10 +49,35 @@ func builtinProjectsDir() string {
 	return filepath.Join(home, ".claude", "projects")
 }
 
-// SlugForCwd reproduces Claude Code's directory-name encoding: every '/' in
-// the absolute path becomes '-'.
+// SlugForCwd reproduces Claude Code's directory-name encoding: every path
+// separator in the absolute path becomes '-'.
+//
+// Both separators are replaced regardless of platform. A path can carry
+// forward slashes on Windows — Go's own APIs accept them, and MSYS or WSL
+// hand them over routinely — so keying off filepath.Separator alone would
+// encode the same directory two different ways depending on who produced the
+// string.
+//
+// The colon is dropped because Windows will not accept it in a filename. A
+// slug of "C:-Users-me-repo" cannot be created at all: every mkdir fails
+// with "The directory name is invalid", so no transcript is ever found and
+// every commit lands undetermined — the silent failure NAV-21 exists to
+// prevent, wearing the mask of "no AI was used".
+//
+// Dropped rather than mapped to '-' so C:\repo and C-\repo cannot collide.
+//
+// CAVEAT: this makes the slug legal on Windows. It does NOT establish that
+// it matches what Claude Code itself writes there — that needs a Windows
+// machine with the client installed, and is still open (NAV-81,
+// docs/adapters/agent-support.md). If the encodings differ, the adapter
+// finds no transcripts on Windows. It fails the same way it does today,
+// so this is strictly an improvement, but it is not yet Windows support.
 func SlugForCwd(cwd string) string {
-	return strings.ReplaceAll(cwd, string(filepath.Separator), "-")
+	slug := strings.NewReplacer(
+		"/", "-",
+		`\`, "-",
+	).Replace(cwd)
+	return strings.ReplaceAll(slug, ":", "")
 }
 
 // SessionDir returns the directory Claude Code stores this repo's session

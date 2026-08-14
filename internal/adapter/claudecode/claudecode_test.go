@@ -3,6 +3,7 @@ package claudecode
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -113,5 +114,53 @@ func TestSlugForCwd(t *testing.T) {
 	want := "-Users-nav-repo"
 	if got != want {
 		t.Errorf("SlugForCwd = %q, want %q", got, want)
+	}
+}
+
+func TestSlugForCwdIsALegalDirectoryName(t *testing.T) {
+	// A slug is used as a directory name, so it has to be creatable. The
+	// Windows path here produced "C:-Users-runneradmin-..." when only the
+	// separator was replaced, and every mkdir failed with "The directory
+	// name is invalid" — which surfaced as no transcripts found and every
+	// commit undetermined, rather than as an error anyone could see.
+	//
+	// Asserted on every platform, not just Windows: the encoding has to be
+	// the same everywhere, because a path with forward slashes reaches this
+	// function on Windows too.
+	cases := []struct {
+		name string
+		cwd  string
+		want string
+	}{
+		{"unix", "/Users/nav/repo", "-Users-nav-repo"},
+		{"windows backslash", `C:\Users\nav\repo`, "C-Users-nav-repo"},
+		{"windows forward slash", "C:/Users/nav/repo", "C-Users-nav-repo"},
+		{"unc", `\\server\share\repo`, "--server-share-repo"},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			got := SlugForCwd(c.cwd)
+			if got != c.want {
+				t.Errorf("SlugForCwd(%q) = %q, want %q", c.cwd, got, c.want)
+			}
+			if strings.ContainsAny(got, `:\/`) {
+				t.Errorf("SlugForCwd(%q) = %q, which cannot be a directory "+
+					"name on Windows", c.cwd, got)
+			}
+			// The real proof: the operating system accepts it.
+			if err := os.MkdirAll(filepath.Join(t.TempDir(), got), 0o700); err != nil {
+				t.Errorf("cannot create a directory named %q: %v", got, err)
+			}
+		})
+	}
+}
+
+func TestSlugForCwdDoesNotCollideAcrossDrives(t *testing.T) {
+	// Dropping the colon rather than mapping it to '-' keeps C:\repo distinct
+	// from a directory literally named "C-". Mapping it would merge two
+	// repositories' transcripts under one slug.
+	if SlugForCwd(`C:\repo`) == SlugForCwd(`C-\repo`) {
+		t.Error("C:\\repo and C-\\repo produce the same slug")
 	}
 }
