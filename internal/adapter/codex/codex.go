@@ -70,6 +70,38 @@ type sessionMeta struct {
 
 // toolCall is an apply_patch invocation. Codex records edits as a
 // custom_tool_call whose Input is the patch text itself, not JSON.
+// mcpTool resolves a tool call's display name and whether it went through
+// MCP, from the two ways Codex tags one.
+//
+// The first way is a prefixed name: name="mcp__linear__save_comment", no
+// namespace. The second is a bare name with the server in a separate
+// field: namespace="mcp__linear", name="save_comment". Measured on this
+// machine, 311 calls used the first form and 243 used the second — and
+// only the first was ever counted, so mcp_calls read 44% low for every
+// Codex user.
+//
+// The namespace is not by itself an MCP marker. Codex also uses it for
+// built-ins ("multi_agent_v1", 9 calls), so the mcp__ prefix is what
+// decides, on whichever field carries it.
+//
+// The returned name is qualified as server__tool for the namespace form.
+// Left bare, a `save_comment` from an MCP server and a local tool of the
+// same name would merge into one entry in the tool set.
+func mcpTool(namespace, name string) (string, bool) {
+	const prefix = "mcp__"
+	switch {
+	case strings.HasPrefix(name, prefix):
+		return name, true
+	case strings.HasPrefix(namespace, prefix):
+		if name == "" {
+			return namespace, true
+		}
+		return namespace + "__" + name, true
+	default:
+		return name, false
+	}
+}
+
 type toolCall struct {
 	Type   string `json:"type"`
 	Name   string `json:"name"`
@@ -402,6 +434,9 @@ func ParseSessionActivity(path string, since time.Time) ([]journal.Session, erro
 			Type string `json:"type"`
 			Name string `json:"name"`
 			Role string `json:"role"`
+			// Codex tags an MCP call in one of two ways, never both, and
+			// the second one used to be invisible here — see mcpTool.
+			Namespace string `json:"namespace"`
 		}
 		if err := json.Unmarshal(r.Payload, &item); err != nil {
 			continue
@@ -415,10 +450,11 @@ func ParseSessionActivity(path string, since time.Time) ([]journal.Session, erro
 			}
 		case "function_call", "custom_tool_call":
 			s.ToolCalls++
-			if item.Name != "" {
-				tools[item.Name] = true
+			name, isMCP := mcpTool(item.Namespace, item.Name)
+			if name != "" {
+				tools[name] = true
 			}
-			if strings.HasPrefix(item.Name, "mcp__") {
+			if isMCP {
 				s.MCPCalls++
 			}
 		}
