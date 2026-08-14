@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `dun init` now says whether the hooks will still find `dun` tomorrow. The hook script resolves the binary from PATH at run time and falls back to the absolute path it was installed from, so a binary that is not on PATH works — until that file moves or is deleted, after which every commit is stamped undetermined with nothing announcing it. init now warns in that case, and separately when a *different* `dun` is first on PATH, since the hooks will run that one rather than the binary used to install them. Silent when the install is correct, and never fatal: a report, not a gate.
+
 ### Fixed
 
 - Codex MCP calls were undercounted by 44%. Codex tags an MCP call one of two ways — a prefixed name (`mcp__linear__save_comment`) or a bare name with the server in a separate `namespace` field — and only the first was counted; the `namespace` field was not read at all. Measured on one machine, 311 calls used the counted form and 243 used the ignored one. MCP tool names are now qualified as `server__tool`, so a server's `save_comment` no longer merges with a local tool of the same name. A namespace alone does not imply MCP: Codex also uses it for built-ins such as `multi_agent_v1`, which are correctly not counted.
