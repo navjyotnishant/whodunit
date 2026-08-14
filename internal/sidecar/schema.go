@@ -124,6 +124,23 @@ CREATE TABLE IF NOT EXISTS whodunit_events (
 	spec_version  VARCHAR(16)  NOT NULL DEFAULT '',
 	outcome       VARCHAR(16)  NOT NULL DEFAULT '',
 	synced_at     BIGINT       NOT NULL,
+
+	-- NULLable, unlike everything above, and deliberately so (NAV-88).
+	--
+	-- The columns above default to '' or 0 because every agent supplies
+	-- them. These cannot be: agy records no branch at all, and only Claude
+	-- Code reports whether a human edited the agent's output. A default
+	-- would assert "measured, and it was empty" about something never
+	-- measurable, and nothing downstream could tell the two apart
+	-- afterwards (NAV-21).
+	--
+	-- A panel reading these must render NULL as "not reported by this
+	-- agent", never as zero.
+	model         VARCHAR(64),
+	branch        VARCHAR(255),
+	mcp_server    VARCHAR(128),
+	user_modified TINYINT,
+
 	PRIMARY KEY (event_id)
 );
 
@@ -143,6 +160,26 @@ CREATE TABLE IF NOT EXISTS whodunit_sessions (
 	distinct_tools BIGINT       NOT NULL DEFAULT 0,
 	mcp_calls      BIGINT       NOT NULL DEFAULT 0,
 	synced_at      BIGINT       NOT NULL,
+
+	-- Measured cost, timing and autonomy (NAV-88). All NULLable: agy
+	-- supplies none of them — verified genuinely absent rather than merely
+	-- unread — and only Codex separates reasoning tokens or records
+	-- timing at all. Two agents out of three leave those NULL permanently,
+	-- which is a fact about the agents rather than a gap awaiting work.
+	--
+	-- Zero would be the wrong default here in a specific and expensive
+	-- way: on a cost panel it reads as "this agent is free".
+	input_tokens           BIGINT,
+	output_tokens          BIGINT,
+	cache_read_tokens      BIGINT,
+	cache_write_tokens     BIGINT,
+	reasoning_tokens       BIGINT,
+	duration_ms            BIGINT,
+	time_to_first_token_ms BIGINT,
+	effort                 VARCHAR(16),
+	permission_mode        VARCHAR(32),
+	model                  VARCHAR(64),
+
 	PRIMARY KEY (repo_id, session)
 );
 
@@ -174,8 +211,54 @@ CREATE TABLE IF NOT EXISTS whodunit_event_lines (
 // exists, so a new column never appears on a database that has already
 // been synced to. Each statement is applied best-effort: the expected
 // failure is "column already exists", which is the desired end state.
+// Every statement here has to be valid on BOTH SQLite and MySQL, which is
+// narrower than either alone and has bitten this project before. Kept to
+// the intersection deliberately:
+//
+//   - one ADD COLUMN per statement. MySQL accepts several in one ALTER,
+//     SQLite does not.
+//   - no AFTER <column>. MySQL only.
+//   - no IF NOT EXISTS on ADD COLUMN. Neither engine supports it in the
+//     version range this targets, which is why these are best-effort.
+//   - BIGINT and VARCHAR(n) rather than INTEGER/TEXT. SQLite accepts both
+//     under its type affinity rules; MySQL needs the length.
 var Migrations = []string{
 	`ALTER TABLE whodunit_events ADD COLUMN outcome VARCHAR(16) NOT NULL DEFAULT ''`,
+
+	// NAV-88. NULLable, unlike the columns declared in Schema above.
+	//
+	// Those default to '' or 0 because every agent can supply them. These
+	// cannot — agy records no branch at all, and only Claude Code reports
+	// whether a human edited the agent's output. Writing '' would assert
+	// "measured, and it was empty" about something never measurable, and
+	// nothing downstream could tell that apart afterwards (NAV-21).
+	//
+	// A dashboard panel reading these must render NULL as "not reported by
+	// this agent", never as zero — a zero on a cost panel reads as "this
+	// agent is free".
+	`ALTER TABLE whodunit_events ADD COLUMN model VARCHAR(64)`,
+	`ALTER TABLE whodunit_events ADD COLUMN branch VARCHAR(255)`,
+	`ALTER TABLE whodunit_events ADD COLUMN mcp_server VARCHAR(128)`,
+	`ALTER TABLE whodunit_events ADD COLUMN user_modified TINYINT`,
+
+	// Per-session measurements. agy supplies none of them — verified
+	// absent rather than merely unread — so they stay NULL for every agy
+	// session rather than reporting an agent that costs nothing.
+	`ALTER TABLE whodunit_sessions ADD COLUMN input_tokens BIGINT`,
+	`ALTER TABLE whodunit_sessions ADD COLUMN output_tokens BIGINT`,
+	`ALTER TABLE whodunit_sessions ADD COLUMN cache_read_tokens BIGINT`,
+	`ALTER TABLE whodunit_sessions ADD COLUMN cache_write_tokens BIGINT`,
+
+	// Codex alone separates reasoning tokens and records timing, so two
+	// agents out of three leave these NULL permanently. That is a fact
+	// about the agents, not a gap awaiting work.
+	`ALTER TABLE whodunit_sessions ADD COLUMN reasoning_tokens BIGINT`,
+	`ALTER TABLE whodunit_sessions ADD COLUMN duration_ms BIGINT`,
+	`ALTER TABLE whodunit_sessions ADD COLUMN time_to_first_token_ms BIGINT`,
+
+	`ALTER TABLE whodunit_sessions ADD COLUMN effort VARCHAR(16)`,
+	`ALTER TABLE whodunit_sessions ADD COLUMN permission_mode VARCHAR(32)`,
+	`ALTER TABLE whodunit_sessions ADD COLUMN model VARCHAR(64)`,
 }
 
 var Indexes = []string{

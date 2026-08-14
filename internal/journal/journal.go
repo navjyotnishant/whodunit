@@ -78,6 +78,19 @@ CREATE TABLE IF NOT EXISTS entries (
 	hunk_hash     TEXT NOT NULL DEFAULT '',
 	spec_version  TEXT NOT NULL,
 	outcome       TEXT NOT NULL DEFAULT '',
+
+	-- NULLable, unlike everything above (NAV-88).
+	--
+	-- Those default to '' or 0 because every agent supplies them. These
+	-- cannot be: agy records no branch at all, and only Claude Code
+	-- reports whether a human edited the agent's output. A default asserts
+	-- "measured, and it was empty" about something never measurable, and
+	-- nothing downstream can tell the two apart afterwards (NAV-21).
+	model         TEXT,
+	branch        TEXT,
+	mcp_server    TEXT,
+	user_modified INTEGER,
+
 	UNIQUE(repo_id, session, ts, tool, file, hunk_hash)
 );
 CREATE INDEX IF NOT EXISTS idx_entries_repo_ts ON entries(repo_id, ts);
@@ -123,6 +136,22 @@ CREATE TABLE IF NOT EXISTS sessions (
 	tool_calls     INTEGER NOT NULL DEFAULT 0,
 	distinct_tools INTEGER NOT NULL DEFAULT 0,
 	mcp_calls      INTEGER NOT NULL DEFAULT 0,
+
+	-- Measured cost, timing and autonomy (NAV-88), all NULLable. agy
+	-- supplies none of them, and only Codex separates reasoning tokens or
+	-- records timing — so two agents out of three leave those NULL
+	-- permanently. Zero would read as "this agent is free".
+	input_tokens           INTEGER,
+	output_tokens          INTEGER,
+	cache_read_tokens      INTEGER,
+	cache_write_tokens     INTEGER,
+	reasoning_tokens       INTEGER,
+	duration_ms            INTEGER,
+	time_to_first_token_ms INTEGER,
+	effort                 TEXT,
+	permission_mode        TEXT,
+	model                  TEXT,
+
 	PRIMARY KEY (repo_id, session)
 );
 
@@ -142,6 +171,55 @@ CREATE TABLE IF NOT EXISTS repo_metadata (
 // surface as a failing read immediately afterwards.
 var migrations = []string{
 	`ALTER TABLE entries ADD COLUMN outcome TEXT NOT NULL DEFAULT ''`,
+
+	// NAV-88. Deliberately NULLable, unlike every column above.
+	//
+	// The existing columns default to '' or 0 because every agent can
+	// supply them. These cannot: agy records no branch at all, and neither
+	// Codex nor agy reports whether a human edited the agent's output. A
+	// NOT NULL DEFAULT '' would write "measured, and it was empty" for a
+	// field that was never measurable — which is precisely the confusion
+	// NAV-21 exists to prevent, and it is unrecoverable once written,
+	// because nothing downstream can tell the two apart afterwards.
+	//
+	// So: NULL means "this agent cannot tell us". A value means we looked.
+	`ALTER TABLE entries ADD COLUMN model TEXT`,
+	`ALTER TABLE entries ADD COLUMN branch TEXT`,
+	`ALTER TABLE entries ADD COLUMN mcp_server TEXT`,
+
+	// Whether a human edited the agent's output before it was committed.
+	// Claude Code alone reports it (toolUseResult.userModified), so for the
+	// other two this stays NULL rather than false — "nobody edited it" and
+	// "we cannot see edits" are different claims, and the second must not
+	// be reported as the first.
+	`ALTER TABLE entries ADD COLUMN user_modified INTEGER`,
+
+	// Per-session measurements (NAV-88), NULLable for the same reason.
+	//
+	// Token counts: Claude Code carries usage on 100% of assistant turns,
+	// Codex carries it in event_msg/token_count. agy has none — verified
+	// absent rather than merely unread, so every one of these stays NULL
+	// there. A 0 would report an agent that costs nothing.
+	`ALTER TABLE sessions ADD COLUMN input_tokens INTEGER`,
+	`ALTER TABLE sessions ADD COLUMN output_tokens INTEGER`,
+	`ALTER TABLE sessions ADD COLUMN cache_read_tokens INTEGER`,
+	`ALTER TABLE sessions ADD COLUMN cache_write_tokens INTEGER`,
+
+	// Codex alone separates reasoning tokens, and Codex alone records
+	// timing. Two agents out of three will always leave these NULL, which
+	// is a fact about the agents rather than a gap to be filled in later.
+	`ALTER TABLE sessions ADD COLUMN reasoning_tokens INTEGER`,
+	`ALTER TABLE sessions ADD COLUMN duration_ms INTEGER`,
+	`ALTER TABLE sessions ADD COLUMN time_to_first_token_ms INTEGER`,
+
+	// How much autonomy the agent was given, and how hard it was asked to
+	// think. Enums rather than counts, so they stay text.
+	`ALTER TABLE sessions ADD COLUMN effort TEXT`,
+	`ALTER TABLE sessions ADD COLUMN permission_mode TEXT`,
+
+	// The model that produced the session. On entries as well because a
+	// session can change model mid-way, and cost is attributed per turn.
+	`ALTER TABLE sessions ADD COLUMN model TEXT`,
 }
 
 // DBPath returns the journal database location inside the given data
