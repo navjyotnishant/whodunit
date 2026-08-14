@@ -58,7 +58,7 @@ func List() ([]Entry, error) {
 	if err != nil {
 		return nil, err
 	}
-	data, err := os.ReadFile(p)
+	data, err := readRetrying(p)
 	if os.IsNotExist(err) {
 		return nil, nil
 	}
@@ -72,6 +72,34 @@ func List() ([]Entry, error) {
 	}
 	sort.Slice(f.Repos, func(i, j int) bool { return f.Repos[i].Path < f.Repos[j].Path })
 	return f.Repos, nil
+}
+
+// readRetrying reads a file, waiting out a transient sharing conflict.
+//
+// The mirror of renameOver, and needed for the same reason. While a rename
+// replaces repos.json, Windows refuses to open it: "The process cannot
+// access the file because it is being used by another process". So the
+// writer waits for readers and the reader waits for writers — both sides of
+// the same restriction, and both are the ordinary case here, since the
+// atomic write exists precisely so reads and writes can overlap.
+//
+// A missing file is returned immediately rather than retried: absent is an
+// answer, and the caller reads it as an empty registry.
+//
+// On Unix this succeeds first time, every time.
+func readRetrying(p string) ([]byte, error) {
+	var err error
+	for attempt := 0; attempt < 12; attempt++ {
+		var data []byte
+		if data, err = os.ReadFile(p); err == nil {
+			return data, nil
+		}
+		if os.IsNotExist(err) {
+			return nil, err
+		}
+		time.Sleep(time.Duration(5*(attempt+1)*(attempt+1)) * time.Millisecond)
+	}
+	return nil, err
 }
 
 // Add records a repository as instrumented. Re-running init on the same
