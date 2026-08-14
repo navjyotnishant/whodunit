@@ -598,6 +598,18 @@ func ParseSessionActivity(path string, since time.Time) ([]journal.Session, erro
 	// adapter can distinguish, so message counts are left at zero rather
 	// than guessed — a real zero and a missing measurement are different
 	// claims, and the dashboard shows the denominator.
+	//
+	// Every token, timing and autonomy field is left unassigned, which
+	// means nil (NAV-95). That is not an omission to be filled in later:
+	// agy records no token usage, no per-turn timing and no reasoning
+	// split anywhere in its store, verified by survey rather than assumed
+	// from the adapter's silence. The apparent `input_tokens` hits in
+	// these databases are Gemini API *documentation the agent was
+	// reading*, in two steps of one conversation.
+	//
+	// Assigning zero would report an agent that costs nothing and answers
+	// instantly (NAV-21). TestAgySuppliesNoTokensOrTiming asserts this
+	// rather than leaving it to whoever edits this next.
 	return []journal.Session{{
 		Session:       strings.TrimSuffix(filepath.Base(path), ".db"),
 		Agent:         AgentName,
@@ -605,7 +617,22 @@ func ParseSessionActivity(path string, since time.Time) ([]journal.Session, erro
 		LastSeen:      ts,
 		ToolCalls:     steps,
 		DistinctTools: len(tools),
+
+		// The one thing agy does report, from executor_metadata (NAV-91).
+		Model: modelFor(calls),
 	}}, nil
+}
+
+// modelFor returns the model this conversation ran on, from whichever call
+// carries it. They all carry the same value — it is read once per database
+// — so the first non-empty one is the answer.
+func modelFor(calls []call) string {
+	for _, c := range calls {
+		if c.Model != "" {
+			return c.Model
+		}
+	}
+	return ""
 }
 
 func countLines(s string) int {

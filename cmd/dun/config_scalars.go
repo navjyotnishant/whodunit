@@ -39,22 +39,6 @@ type scalarSetting struct {
 func scalarSettings() []scalarSetting {
 	return []scalarSetting{
 		{
-			Key:  "monthly_spend",
-			Help: "what the agent subscriptions cost per month, for cost-per-line",
-			Get:  func(c config.Config) string { return strconv.FormatFloat(c.MonthlySpend, 'f', -1, 64) },
-			Set: func(c *config.Config, v string) error {
-				f, err := strconv.ParseFloat(strings.TrimPrefix(v, "$"), 64)
-				if err != nil {
-					return fmt.Errorf("monthly_spend must be a number, got %q", v)
-				}
-				if f < 0 {
-					return fmt.Errorf("monthly_spend cannot be negative")
-				}
-				c.MonthlySpend = f
-				return nil
-			},
-		},
-		{
 			Key:  "backup_days",
 			Help: "how many daily copies of the journal to keep (0 disables)",
 			Get:  func(c config.Config) string { return strconv.Itoa(c.BackupDays) },

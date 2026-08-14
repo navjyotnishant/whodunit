@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/navjyotnishant/whodunit/internal/journal"
 	"github.com/navjyotnishant/whodunit/internal/spec"
 )
 
@@ -20,10 +21,10 @@ func TestMissingMetricsNameThemselvesAndTheirFix(t *testing.T) {
 
 	items := unavailableFor(stats, act, stats.HasBaseline)
 	if len(items) == 0 {
-		t.Fatal("nothing reported as unavailable despite no baseline and no spend")
+		t.Fatal("nothing reported as unavailable despite no baseline and no tokens")
 	}
 
-	var haveBaseline, haveCost bool
+	var haveBaseline, haveTokens bool
 	for _, it := range items {
 		if it.Fix == "" {
 			t.Errorf("%q says what is missing but not what would fix it", it.What)
@@ -31,22 +32,24 @@ func TestMissingMetricsNameThemselvesAndTheirFix(t *testing.T) {
 		if strings.Contains(it.What, "Before-and-after") {
 			haveBaseline = true
 		}
-		if strings.Contains(it.What, "Cost") {
-			haveCost = true
+		if strings.Contains(it.What, "Token") {
+			haveTokens = true
 		}
 	}
-	if !haveBaseline || !haveCost {
-		t.Errorf("expected both the baseline and cost gaps, got %d item(s)", len(items))
+	if !haveBaseline || !haveTokens {
+		t.Errorf("expected both the baseline and token gaps, got %d item(s): %+v",
+			len(items), items)
 	}
 }
 
 // The inverse: a repository with everything configured must not be told it
 // is missing things.
 func TestNothingIsReportedMissingWhenEverythingExists(t *testing.T) {
-	stats := Stats{TotalCommits: 10, Covered: 10, MonthlySpend: 200, HasBaseline: true}
+	stats := Stats{TotalCommits: 10, Covered: 10, HasBaseline: true}
 	act := Activity{
 		Present:  true,
 		Outcomes: map[string]int{"accepted": 90, "rejected": 10},
+		Sessions: []journal.Session{{Model: "opus", InputTokens: int64Ptr(100)}},
 	}
 
 	if items := unavailableFor(stats, act, stats.HasBaseline); len(items) != 0 {
@@ -54,29 +57,30 @@ func TestNothingIsReportedMissingWhenEverythingExists(t *testing.T) {
 	}
 }
 
-// Cost per thousand lines rather than per commit: commits vary with how
-// people split them, which is not a property of the agent.
-func TestCostIsPerThousandAgentWrittenLines(t *testing.T) {
-	stats := Stats{MonthlySpend: 200, Assisted: 4}
-	act := Activity{Present: true, LinesByTool: map[string]int{"Edit": 8000, "Write": 2000}}
+// monthly_spend was removed (NAV-96): it was a hand-typed number divided
+// evenly over every line, which reported the same unit cost whether the
+// agent ran once or a thousand times — an allocation dressed as a
+// measurement. Measured tokens replace it.
+//
+// A repository whose sessions carry no token counts is told so, rather
+// than shown zeros.
+func TestTokenUseIsReportedMissingWhenNoSessionHasIt(t *testing.T) {
+	act := Activity{
+		Present: true,
+		// The shape of an agy-only repository: sessions exist, none report
+		// tokens.
+		Sessions: []journal.Session{{Model: "gemini-3.7-flash-high"}},
+		Outcomes: map[string]int{"accepted": 90, "rejected": 10},
+	}
 
-	got, lines, ok := costPerThousandLines(stats, act)
-	if !ok {
-		t.Fatal("no cost computed despite spend and lines")
+	var found bool
+	for _, item := range unavailableFor(Stats{HasBaseline: true, TotalCommits: 10, Covered: 10}, act, true) {
+		if strings.Contains(item.What, "Token") {
+			found = true
+		}
 	}
-	if lines != 10000 {
-		t.Errorf("counted %d lines, want 10000", lines)
-	}
-	// $200 over 10,000 lines is $20 per thousand.
-	if got < 19.99 || got > 20.01 {
-		t.Errorf("cost = %.4f, want 20.00 per 1,000 lines", got)
-	}
-}
-
-func TestCostIsWithheldWithoutSpend(t *testing.T) {
-	act := Activity{Present: true, LinesByTool: map[string]int{"Edit": 8000}}
-	if _, _, ok := costPerThousandLines(Stats{}, act); ok {
-		t.Error("computed a cost with no spend configured")
+	if !found {
+		t.Error("a repository with no token data was not told so")
 	}
 }
 
@@ -135,3 +139,5 @@ func TestCommitSizeSurvivesCommitsWithoutTrailers(t *testing.T) {
 		t.Errorf("untrailered commits were not counted as the comparison group:\n%s", out)
 	}
 }
+
+func int64Ptr(v int64) *int64 { return &v }

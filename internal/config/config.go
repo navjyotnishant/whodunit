@@ -28,9 +28,18 @@ import (
 
 // Config is the global settings file at ~/.whodunit/config.json.
 type Config struct {
-	// MonthlySpend is the AI agent subscription cost per month, in the
-	// smallest currency unit the user reports in (e.g. dollars). Used to
-	// compute cost-per-attributed-line; zero means "not configured".
+	// MonthlySpend is DEPRECATED and no longer read (NAV-96).
+	//
+	// It was a hand-typed subscription cost divided evenly over every
+	// agent-written line, which made the resulting figure an allocation
+	// dressed as a measurement: the same unit cost whether the agent ran
+	// once or a thousand times, and no way to answer per-model or
+	// per-branch. Measured token counts replace it.
+	//
+	// Kept on the struct so an existing config.json still parses. A file
+	// carrying it is not an error and the value is ignored; removing the
+	// field would make every such file fail to load, which is a worse
+	// outcome than a dead key.
 	MonthlySpend float64 `json:"monthly_spend,omitempty"`
 
 	// RetentionDays is how long agent line hashes are kept locally after
