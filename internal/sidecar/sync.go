@@ -300,11 +300,84 @@ func upsertLine(mysql bool) string {
 //
 // Returns the zero time when the repository has never synced. That is a
 // state worth reporting, not an error.
+// LastSyncAll returns when each repository last published, for the whole set
+// at once.
+//
+// One query and one connection for N repositories, rather than N of each. The
+// cross-repo view calls this: asking per repository meant a connection and a
+// handshake each, so a machine with ten repositories paid ten round trips —
+// and ten separate two-second timeouts if the target was slow, which turns a
+// status command into a twenty-second stall.
+//
+// Repositories that have never published are simply absent from the result;
+// the caller distinguishes that from a failed lookup by the error.
+func LastSyncAll(db *Store) (map[string]time.Time, error) {
+	rows, err := db.Query(`SELECT repo_id, synced_at FROM whodunit_repos`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	out := map[string]time.Time{}
+	for rows.Next() {
+		var id string
+		var ns sql.NullInt64
+		if err := rows.Scan(&id, &ns); err != nil {
+			return nil, err
+		}
+		if ns.Valid && ns.Int64 != 0 {
+			out[id] = time.Unix(0, ns.Int64)
+		}
+	}
+	return out, rows.Err()
+}
+
 func LastSync(db *Store, repoID string) (time.Time, error) {
 	var ns sql.NullInt64
+	// From whodunit_repos, which holds one row per repository keyed by its
+	// primary key — a single-row lookup whatever the store's size.
+	//
+	// Not MAX(synced_at) over whodunit_commits, which is the same answer at
+	// O(commits-for-this-repo): synced_at is in no index, so that aggregate
+	// walks every one of the repository's rows. Invisible against a laptop
+	// database and expensive against a team's, and `dun status` runs it on
+	// every invocation — once per repository in the cross-repo view.
 	err := db.QueryRow(
-		`SELECT MAX(synced_at) FROM whodunit_commits WHERE repo_id = ?`, repoID).Scan(&ns)
+		`SELECT synced_at FROM whodunit_repos WHERE repo_id = ?`, repoID).Scan(&ns)
+	if err == sql.ErrNoRows {
+		// Never published. Not an error — it is the answer for a repository
+		// that has only ever recorded locally.
+		return time.Time{}, nil
+	}
 	if err != nil {
+		return time.Time{}, err
+	}
+	if !ns.Valid || ns.Int64 == 0 {
+		return time.Time{}, nil
+	}
+	return time.Unix(0, ns.Int64), nil
+}
+
+// Unsynced reports how far behind the target is, from one indexed lookup.
+//
+// Deliberately not a COUNT. Counting rows for a repository walks every index
+// entry it has, which is fine on a laptop database and is not fine on a
+// shared one holding millions of events across a team — and `dun status`
+// runs constantly. MAX(observed_at) over the (repo_id, observed_at) index is
+// answered from the index alone: MySQL reports "Select tables optimized
+// away", meaning zero rows read, whatever the table's size.
+//
+// The trade is that this answers "how far behind in time" rather than "how
+// many rows behind". That is the more useful answer anyway — "nothing since
+// Tuesday" tells someone what to do; "412 events" does not — and it costs
+// one round trip instead of three.
+//
+// A zero newest means the repository has never published.
+func Unsynced(db *Store, repoID string) (remoteNewest time.Time, err error) {
+	var ns sql.NullInt64
+	if err := db.QueryRow(
+		`SELECT MAX(observed_at) FROM whodunit_events WHERE repo_id = ?`,
+		repoID).Scan(&ns); err != nil {
 		return time.Time{}, err
 	}
 	if !ns.Valid || ns.Int64 == 0 {

@@ -181,3 +181,75 @@ func TestSplitStatementsDropsCommentOnlyFragments(t *testing.T) {
 		}
 	}
 }
+
+func TestLastSyncReadsTheRepoRowNotTheCommits(t *testing.T) {
+	// The value is available two ways: a single indexed row in
+	// whodunit_repos, or MAX(synced_at) over every commit the repository
+	// has. They agree, so a test that only checks the returned time would
+	// pass either way — and the aggregate walks every row of a table that
+	// holds a whole team's history, on a command that runs constantly.
+	//
+	// So this pins the source: the commits carry a deliberately later
+	// synced_at than the repo row. Reading the repo row returns the earlier
+	// one; going back to the aggregate returns the later one and fails here.
+	db := openStore(t)
+	now := time.Now().UTC().Truncate(time.Second)
+
+	p := samplePayload(now)
+	if _, err := Write(db, p); err != nil {
+		t.Fatalf("Write: %v", err)
+	}
+
+	later := now.Add(48 * time.Hour)
+	if _, err := db.Exec(
+		`UPDATE whodunit_commits SET synced_at = ? WHERE repo_id = 'repo'`,
+		later.UnixNano()); err != nil {
+		t.Fatalf("skew the commits: %v", err)
+	}
+
+	got, err := LastSync(db, "repo")
+	if err != nil {
+		t.Fatalf("LastSync: %v", err)
+	}
+	if !got.Equal(now) {
+		t.Errorf("LastSync = %v, want the repo row's %v — reading the commit "+
+			"aggregate (%v) scans every row the repository has", got, now, later)
+	}
+}
+
+func TestLastSyncAllCoversEveryRepoInOneQuery(t *testing.T) {
+	// The cross-repo view asks once for the whole set rather than once per
+	// repository: per-repository meant a connection and a 2s timeout each,
+	// so ten repositories against a slow target stalled for twenty seconds.
+	db := openStore(t)
+	now := time.Now().UTC().Truncate(time.Second)
+
+	for _, id := range []string{"repo-a", "repo-b"} {
+		p := samplePayload(now)
+		p.Repo.RepoID = id
+		p.Commits[0].RepoID = id
+		p.Commits[0].CommitSHA = "sha-" + id
+		p.Events[0].RepoID = id
+		p.Events[0].EventID = "ev-" + id
+		p.Lines[0].RepoID = id
+		if _, err := Write(db, p); err != nil {
+			t.Fatalf("Write %s: %v", id, err)
+		}
+	}
+
+	all, err := LastSyncAll(db)
+	if err != nil {
+		t.Fatalf("LastSyncAll: %v", err)
+	}
+	for _, id := range []string{"repo-a", "repo-b"} {
+		if got, ok := all[id]; !ok || !got.Equal(now) {
+			t.Errorf("LastSyncAll[%s] = %v (present=%v), want %v", id, got, ok, now)
+		}
+	}
+
+	// A repository that has never published is absent rather than zero, so
+	// the caller can tell "never synced" from "synced at the epoch".
+	if _, ok := all["never-published"]; ok {
+		t.Error("LastSyncAll invented an entry for a repository that never published")
+	}
+}

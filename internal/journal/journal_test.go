@@ -1,6 +1,7 @@
 package journal
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -522,5 +523,65 @@ func TestPurgeRemovesMetadataToo(t *testing.T) {
 	survived, _ := GetMetadata(dataDir, "other-repo")
 	if survived == nil {
 		t.Error("purge destroyed another repository's metadata")
+	}
+}
+
+func TestCountSinceExcludesAlreadyPublishedWork(t *testing.T) {
+	// The backlog is what a repository has recorded since it last published,
+	// not its whole history. Counting everything made a fully-synced
+	// repository report thousands of events still "to sync" — which reads as
+	// though publishing had done nothing at all.
+	dataDir := t.TempDir()
+	w, err := NewWriter(dataDir, testRepo)
+	if err != nil {
+		t.Fatalf("NewWriter: %v", err)
+	}
+
+	published := time.Now().UTC().Add(-2 * time.Hour)
+	// Three entries before the last publish, two after, across two sessions.
+	older := []time.Time{
+		published.Add(-90 * time.Minute),
+		published.Add(-60 * time.Minute),
+		published.Add(-30 * time.Minute),
+	}
+	newer := []time.Time{
+		published.Add(30 * time.Minute),
+		published.Add(60 * time.Minute),
+	}
+	for i, ts := range append(append([]time.Time{}, older...), newer...) {
+		session := "sess-old"
+		if i >= len(older) {
+			session = "sess-new"
+		}
+		if err := w.Append(Entry{
+			Timestamp: ts, Agent: "claude-code", Event: "tool_use",
+			Session: session, File: fmt.Sprintf("f%d.go", i),
+		}); err != nil {
+			t.Fatalf("Append %d: %v", i, err)
+		}
+	}
+	w.Close()
+
+	events, sessions, err := CountSince(dataDir, testRepo, published)
+	if err != nil {
+		t.Fatalf("CountSince: %v", err)
+	}
+	if events != len(newer) {
+		t.Errorf("events = %d, want %d — counting the whole history (%d) "+
+			"reports published work as still pending",
+			events, len(newer), len(older)+len(newer))
+	}
+	if sessions != 1 {
+		t.Errorf("sessions = %d, want 1 (only sess-new is after the publish)", sessions)
+	}
+
+	// Never published: the backlog genuinely is everything.
+	all, allSessions, err := CountSince(dataDir, testRepo, time.Time{})
+	if err != nil {
+		t.Fatalf("CountSince(zero): %v", err)
+	}
+	if all != len(older)+len(newer) || allSessions != 2 {
+		t.Errorf("CountSince(zero) = %d events/%d sessions, want %d/2",
+			all, allSessions, len(older)+len(newer))
 	}
 }

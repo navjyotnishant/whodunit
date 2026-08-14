@@ -498,6 +498,36 @@ func ReadRange(dataDir, repoID string, since, until time.Time) ([]Entry, error) 
 	return entries, nil
 }
 
+// CountSince reports how many entries and distinct sessions a repository has
+// recorded since a moment, without loading any of them.
+//
+// ReadRange answers the same question by deserialising every row and taking
+// len(), which is right when the caller wants the entries and wasteful when
+// it wants a number: `dun status` was materialising thousands of structs per
+// repository to print two integers.
+//
+// A zero `since` counts everything, which is what a repository that has never
+// published needs.
+func CountSince(dataDir, repoID string, since time.Time) (entries, sessions int, err error) {
+	if _, err := os.Stat(DBPath(dataDir)); os.IsNotExist(err) {
+		return 0, 0, nil
+	}
+	db, err := open(dataDir)
+	if err != nil {
+		return 0, 0, err
+	}
+	defer db.Close()
+
+	err = db.QueryRow(
+		`SELECT COUNT(*), COUNT(DISTINCT session) FROM entries
+		 WHERE repo_id = ? AND ts >= ?`,
+		repoID, since.UnixNano()).Scan(&entries, &sessions)
+	if err != nil {
+		return 0, 0, fmt.Errorf("journal: count: %w", err)
+	}
+	return entries, sessions, nil
+}
+
 // Purge deletes every entry for one repository, leaving other repositories
 // untouched. `dun journal purge` means "forget what I did in this repo" —
 // a global store must not turn that into forgetting everything.

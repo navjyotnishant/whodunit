@@ -147,74 +147,117 @@ func printSyncStatus(w io.Writer, dir string) {
 		c.S(termcolor.Muted, "target"), cfg.Sync.Redacted())
 	fmt.Fprintf(w, "  %-13s %s\n", c.S(termcolor.Muted, "publishes"), when)
 
-	// What the next sync would carry. Built through the same function the
-	// sync itself uses, so this cannot drift from what actually gets sent.
+	// The target's own timestamp, from the single-row lookup that also
+	// answers "last synced" — one query, and no counting of remote rows.
+	synced := lastSyncedAll(cfg.Sync)
+	repoID, err := currentRepoID()
+	if err != nil {
+		return
+	}
+	last, published := synced[repoID]
+
+	// The backlog: what has been recorded since the target last heard from
+	// this repository. Counted in the journal, bounded by that timestamp.
+	//
+	// This is not the same number as what a sync transmits, and conflating
+	// the two is what made this line wrong before: it reported the whole
+	// history as pending, so a repository that had just published still
+	// claimed thousands of events outstanding.
+	dataDir, derr := journalDataDir()
+	backlog, backlogSessions := 0, 0
+	if derr == nil {
+		backlog, backlogSessions, derr = journal.CountSince(dataDir, repoID, last)
+	}
+
+	switch {
+	case synced == nil:
+		fmt.Fprintf(w, "  %-13s %s\n", c.S(termcolor.Muted, "not synced"),
+			c.S(termcolor.Muted, "unknown — the target could not be reached"))
+	case derr != nil:
+		fmt.Fprintf(w, "  %-13s %s\n", c.S(termcolor.Muted, "not synced"),
+			c.S(termcolor.Muted, "unknown — the journal could not be read"))
+	case !published:
+		fmt.Fprintf(w, "  %-13s %s\n", c.S(termcolor.Muted, "not synced"),
+			c.S(termcolor.Warn, fmt.Sprintf("%d event(s), %d session(s) — "+
+				"this repository has never published", backlog, backlogSessions)))
+	case backlog > 0:
+		fmt.Fprintf(w, "  %-13s %s\n", c.S(termcolor.Muted, "not synced"),
+			c.S(termcolor.Warn, fmt.Sprintf("%d event(s), %d session(s) — recorded since %s",
+				backlog, backlogSessions, humanAge(last))))
+	default:
+		fmt.Fprintf(w, "  %-13s %s\n", c.S(termcolor.Muted, "not synced"),
+			c.S(termcolor.Good, "nothing — the target is current"))
+	}
+
+	if published {
+		fmt.Fprintf(w, "  %-13s %s\n", c.S(termcolor.Muted, "last synced"),
+			fmt.Sprintf("%s (%s)", humanAge(last), last.Format("2006-01-02 15:04")))
+	}
+
+	// What a sync actually transmits, which is the whole journal rather than
+	// the backlog: the write is an upsert, so it republishes everything and
+	// relies on the target to collapse the duplicates.
+	//
+	// Stated separately rather than folded into the line above, because the
+	// two answer different questions — "how far behind am I" and "what will
+	// this command push over the network" — and showing only the second is
+	// what made `dun status` read as though nothing had ever synced.
 	payload, err := buildPayload(defaultSyncLimit)
 	if err != nil {
 		return
 	}
-	fmt.Fprintf(w, "  %-13s %s\n", c.S(termcolor.Muted, "would send"),
-		fmt.Sprintf("%d commit(s), %d event(s), %d session(s)",
-			len(payload.Commits), len(payload.Events), len(payload.Sessions)))
-
-	if last, ok := lastSyncedAt(cfg.Sync, payload.Repo.RepoID); ok {
-		fmt.Fprintf(w, "  %-13s %s\n", c.S(termcolor.Muted, "last synced"),
-			fmt.Sprintf("%s (%s)", humanAge(last), last.Format("2006-01-02 15:04")))
-	} else {
-		fmt.Fprintf(w, "  %-13s %s\n", c.S(termcolor.Muted, "last synced"),
-			c.S(termcolor.Muted, "never, or the target could not be reached"))
-	}
+	fmt.Fprintf(w, "  %-13s %s\n", c.S(termcolor.Muted, "sync sends"),
+		c.S(termcolor.Muted, fmt.Sprintf("%d commit(s), %d event(s), %d session(s) "+
+			"— the full history each time",
+			len(payload.Commits), len(payload.Events), len(payload.Sessions))))
 }
 
-// lastSyncedAt asks the target when this repository last published.
+// lastSyncedAll asks the target when each repository last published.
 //
-// The answer lives in the store's synced_at column rather than in a local
-// file, because the remote is what actually knows: a local timestamp would
-// record that a sync was attempted, not that the rows arrived, and those
-// diverge precisely when it matters — a half-failed write, or a database
-// restored from an older backup.
+// The answer lives in the store rather than in a local file, because the
+// remote is what actually knows: a local timestamp would record that a sync
+// was attempted, not that the rows arrived, and those diverge precisely when
+// it matters — a half-failed write, or a database restored from an older
+// backup.
 //
-// The cost is a connection, so this is bounded and never fatal. `dun status`
-// runs constantly and must not hang because a database is down; an
-// unreachable target reports as unknown, which is honest.
-func lastSyncedAt(sync *config.SyncConfig, repoID string) (time.Time, bool) {
-	if repoID == "" {
-		return time.Time{}, false
-	}
+// One connection and one query for every repository, so the cost does not
+// scale with how many are instrumented. It reads whodunit_repos, which holds
+// a row per repository, so the cost does not scale with how much history the
+// store holds either — a shared database with a team's commits in it answers
+// this as fast as an empty one.
+//
+// Bounded and never fatal. `dun status` runs constantly and must not hang
+// because a database is down; nil reads as unknown, which is honest.
+func lastSyncedAll(sync *config.SyncConfig) map[string]time.Time {
 	dsn, err := sync.Resolve()
 	if err != nil {
-		return time.Time{}, false
+		return nil
 	}
 
-	done := make(chan struct {
-		t  time.Time
-		ok bool
-	}, 1)
+	done := make(chan map[string]time.Time, 1)
 	go func() {
 		db, err := sidecar.Open(dsn)
 		if err != nil {
-			done <- struct {
-				t  time.Time
-				ok bool
-			}{}
+			done <- nil
 			return
 		}
 		defer db.Close()
-		t, err := sidecar.LastSync(db, repoID)
-		done <- struct {
-			t  time.Time
-			ok bool
-		}{t, err == nil && !t.IsZero()}
+		m, err := sidecar.LastSyncAll(db)
+		if err != nil {
+			done <- nil
+			return
+		}
+		done <- m
 	}()
 
 	select {
-	case r := <-done:
-		return r.t, r.ok
+	case m := <-done:
+		return m
 	case <-time.After(2 * time.Second):
 		// The goroutine finishes on its own and its result is dropped. A
 		// status command that stalls on a slow network is worse than one
 		// that says it could not tell.
-		return time.Time{}, false
+		return nil
 	}
 }
 
@@ -234,16 +277,23 @@ func truncate(s string, n int) string {
 	return string(r[:n-1]) + "…"
 }
 
-// syncCounts reports what one repository would publish, without running git.
+// syncCounts reports what one repository has recorded since it last
+// published — the backlog, not its whole history.
+//
+// The distinction is the whole point of the column. Counting everything ever
+// recorded meant a fully-published repository reported thousands of events
+// "to sync", which is not merely imprecise: it says publishing did nothing.
+//
+// `since` is the target's own timestamp for this repository, already fetched
+// once for the whole table. Zero means it has never published, and then the
+// backlog genuinely is everything.
 //
 // buildPayload answers this properly for the current repository, but it
 // resolves the repo id from the working directory and runs a full git
 // analysis — too expensive to repeat for every row of a cross-repo table.
-// The journal counts are the part that varies between repositories, and
-// they come straight from the store.
 //
 // Zero on any failure: this is a column in a report, not a gate.
-func syncCounts(dir string) (events, sessions int, ok bool) {
+func syncCounts(dir string, since time.Time) (events, sessions int, ok bool) {
 	dataDir, err := journalDataDir()
 	if err != nil {
 		return 0, 0, false
@@ -252,15 +302,11 @@ func syncCounts(dir string) (events, sessions int, ok bool) {
 	if err != nil {
 		return 0, 0, false
 	}
-	entries, err := journal.ReadRange(dataDir, repoID, time.Time{}, time.Time{})
+	events, sessions, err = journal.CountSince(dataDir, repoID, since)
 	if err != nil {
 		return 0, 0, false
 	}
-	sess, err := journal.ReadSessions(dataDir, repoID)
-	if err != nil {
-		return len(entries), 0, true
-	}
-	return len(entries), len(sess), true
+	return events, sessions, true
 }
 
 // statusAcrossRepos summarises every instrumented repository, one line each.
@@ -292,6 +338,14 @@ func statusAcrossRepos(w io.Writer) error {
 	fmt.Fprintf(w, "  %s\n", c.S(termcolor.Muted,
 		fmt.Sprintf("%-30s %9s  %-26s %-22s %s",
 			"repository", "coverage", "method mix", "to sync", "last synced")))
+
+	// Asked once for every repository, before the loop rather than inside it.
+	// Nil when sync is off or the target is unreachable, which reads as
+	// "unknown" per row without each row paying to find that out again.
+	var syncedAll map[string]time.Time
+	if syncOn {
+		syncedAll = lastSyncedAll(cfg.Sync)
+	}
 
 	var available int
 	// Methods actually seen, gathered while listing: the legend below
@@ -325,7 +379,26 @@ func statusAcrossRepos(w io.Writer) error {
 		// recorded agent activity and no commits carrying it yet.
 		pending, synced := "", ""
 		if syncOn {
-			events, sessions, ok := syncCounts(e.Path)
+			// The target's timestamp first: it decides both columns, and
+			// the backlog is only meaningful relative to it.
+			var last time.Time
+			published := false
+			if id, err := repoid.ForRepo(e.Path); err == nil && syncedAll != nil {
+				last, published = syncedAll[id]
+			}
+
+			switch {
+			case syncedAll == nil:
+				synced = "—"
+			case published:
+				synced = humanAge(last)
+			default:
+				synced = "never"
+			}
+
+			// A zero `last` counts everything, which is right for a
+			// repository that has never published.
+			events, sessions, ok := syncCounts(e.Path, last)
 			switch {
 			case !ok:
 				pending = "—"
@@ -333,13 +406,6 @@ func statusAcrossRepos(w io.Writer) error {
 				pending = "nothing"
 			default:
 				pending = fmt.Sprintf("%d ev, %d sess", events, sessions)
-			}
-			if id, err := repoid.ForRepo(e.Path); err == nil {
-				if last, ok := lastSyncedAt(cfg.Sync, id); ok {
-					synced = humanAge(last)
-				} else {
-					synced = "never"
-				}
 			}
 		}
 
