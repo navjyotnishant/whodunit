@@ -302,7 +302,8 @@
       ],
       "fieldConfig": {
         "defaults": {
-          "decimals": 2,
+          "unit": "suffix: \u00d7",
+          "decimals": 1,
           "noValue": "no agent reported cache writes",
           "thresholds": {
             "mode": "absolute",
@@ -320,7 +321,7 @@
         },
         "overrides": []
       },
-      "description": "Reads returned per token written to cache. Below 1.25x the writes cost more than they saved \u2014 a write is billed at about 1.25x base and a read at 0.1x.\n\n**The obvious break-even of 1.0 is wrong**: a series at 1.10x lost money while looking healthy.\n\nEmpty for Codex, which reports cache reads but never writes.",
+      "description": "Reads returned per token written to cache \u2014 a **ratio, not a percentage**. 135 means each cached token was read back 135 times.\n\nBelow 1.25x the writes cost more than they saved \u2014 a write is billed at about 1.25x base and a read at 0.1x.\n\n**The obvious break-even of 1.0 is wrong**: a series at 1.10x lost money while looking healthy.\n\nEmpty for Codex, which reports cache reads but never writes.",
       "options": {
         "graphMode": "none",
         "textMode": "value",
@@ -704,7 +705,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT\n  COALESCE(NULLIF(s.model, ''), '(unattributed)') AS Model,\n  COUNT(*)                                        AS Sessions,\n  SUM(s.input_tokens)                             AS `Uncached in`,\n  SUM(s.output_tokens)                            AS `Out`,\n  SUM(COALESCE(s.cache_read_tokens,0))            AS `Cache read`,\n  SUM(COALESCE(s.cache_write_tokens,0))           AS `Cache write`,\n  ROUND(100.0 * SUM(COALESCE(s.cache_read_tokens,0))\n    / NULLIF(SUM(s.input_tokens + COALESCE(s.cache_read_tokens,0)\n               + COALESCE(s.cache_write_tokens,0)), 0), 1) AS `From cache %`,\n  ROUND(SUM(COALESCE(s.cache_read_tokens,0))\n    / NULLIF(SUM(s.cache_write_tokens), 0), 2)    AS `Write payback`\nFROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id\nWHERE s.input_tokens IS NOT NULL AND ('$contributor' = '__all__' OR r.contributor = '$contributor')\nGROUP BY COALESCE(NULLIF(s.model, ''), '(unattributed)')\nORDER BY SUM(s.input_tokens + s.output_tokens\n           + COALESCE(s.cache_read_tokens,0)\n           + COALESCE(s.cache_write_tokens,0)) DESC"
+          "rawSql": "SELECT\n  COALESCE(NULLIF(s.model, ''), '(unattributed)') AS Model,\n  COUNT(*)                                        AS Sessions,\n  SUM(s.input_tokens)                             AS `Uncached in`,\n  SUM(s.output_tokens)                            AS `Out`,\n  SUM(COALESCE(s.cache_read_tokens,0))            AS `Cache read`,\n  SUM(COALESCE(s.cache_write_tokens,0))           AS `Cache write`,\n  ROUND(100.0 * SUM(COALESCE(s.cache_read_tokens,0))\n    / NULLIF(SUM(s.input_tokens + COALESCE(s.cache_read_tokens,0)\n               + COALESCE(s.cache_write_tokens,0)), 0), 1) AS `From cache %`,\n  ROUND(SUM(COALESCE(s.cache_read_tokens,0))\n    / NULLIF(SUM(s.cache_write_tokens), 0), 1)    AS `Write payback \u00d7`\nFROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id\nWHERE s.input_tokens IS NOT NULL AND ('$contributor' = '__all__' OR r.contributor = '$contributor')\nGROUP BY COALESCE(NULLIF(s.model, ''), '(unattributed)')\nORDER BY SUM(s.input_tokens + s.output_tokens\n           + COALESCE(s.cache_read_tokens,0)\n           + COALESCE(s.cache_write_tokens,0)) DESC"
         }
       ],
       "fieldConfig": {
@@ -715,7 +716,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "Write payback"
+              "options": "Write payback \u00d7"
             },
             "properties": [
               {

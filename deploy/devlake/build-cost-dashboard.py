@@ -225,9 +225,12 @@ panels.append(panel(
   / NULLIF(SUM(s.cache_write_tokens), 0), 2) AS v
 FROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id
 WHERE s.cache_write_tokens IS NOT NULL AND s.cache_write_tokens > 0 AND {CONTRIBUTOR}""",
-    decimals=2, novalue="no agent reported cache writes",
+    unit="suffix: ×", decimals=1, novalue="no agent reported cache writes",
     description=(
-        f"Reads returned per token written to cache. Below {BREAK_EVEN}x the "
+        f"Reads returned per token written to cache — a **ratio, not a "
+        f"percentage**. 135 means each cached token was read back 135 "
+        f"times.\n\n"
+        f"Below {BREAK_EVEN}x the "
         "writes cost more than they saved — a write is billed at about 1.25x "
         "base and a read at 0.1x.\n\n"
         "**The obvious break-even of 1.0 is wrong**: a series at 1.10x lost "
@@ -391,7 +394,7 @@ panels.append(panel(
     / NULLIF(SUM(s.input_tokens + COALESCE(s.cache_read_tokens,0)
                + COALESCE(s.cache_write_tokens,0)), 0), 1) AS `From cache %`,
   ROUND(SUM(COALESCE(s.cache_read_tokens,0))
-    / NULLIF(SUM(s.cache_write_tokens), 0), 2)    AS `Write payback`
+    / NULLIF(SUM(s.cache_write_tokens), 0), 1)    AS `Write payback ×`
 FROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id
 WHERE s.input_tokens IS NOT NULL AND {CONTRIBUTOR}
 GROUP BY COALESCE(NULLIF(s.model, ''), '(unattributed)')
@@ -407,7 +410,7 @@ ORDER BY SUM(s.input_tokens + s.output_tokens
         "than they saved. Empty means the agent does not report cache writes "
         "rather than that it wrote none."),
     overrides=[
-        {"matcher": {"id": "byName", "options": "Write payback"},
+        {"matcher": {"id": "byName", "options": "Write payback ×"},
          "properties": [
              {"id": "custom.cellOptions",
               "value": {"type": "color-text"}},
