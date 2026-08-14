@@ -64,8 +64,14 @@ bench:
 # The importable dashboards are generated from the mounted ones and must
 # not drift. A stale export is only discovered when someone imports it and
 # finds a panel missing.
+#
+# The second check is a different failure: import-dashboards.sh names its
+# dashboards in a literal list, so a new one is silently never imported.
+# Both copies agree, every test passes, and the dashboard is simply absent
+# from Grafana — which is how whodunit-cost shipped without being live.
 dashboards:
 	@deploy/devlake/export-dashboards.py --check
+	@deploy/devlake/check-dashboard-list.py
 
 clean:
 	@rm -rf dist

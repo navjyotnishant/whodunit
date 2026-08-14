@@ -87,7 +87,17 @@ main() {
 
 	imported=0
 	failed=0
-	for name in whodunit whodunit-adoption whodunit-dora \
+	# The list is here rather than discovered because this script is
+	# curl-piped: there is no checkout to glob, only whatever the fetch
+	# step pulls down.
+	#
+	# It is therefore the one place a new dashboard has to be registered by
+	# hand, and forgetting is silent — the file is generated, exported and
+	# committed, CI passes because the two copies agree, and the dashboard
+	# simply never appears in Grafana. That happened to whodunit-cost.
+	# check-dashboard-list.py fails the build when this list and
+	# dashboards/ disagree.
+	for name in whodunit whodunit-adoption whodunit-cost whodunit-dora \
 		whodunit-exec whodunit-hours whodunit-funnel; do
 		if import_one "$name"; then
 			imported=$((imported + 1))
