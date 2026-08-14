@@ -5,6 +5,19 @@ All notable changes to whodunit are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- Codex MCP calls were undercounted by 44%. Codex tags an MCP call one of two ways — a prefixed name (`mcp__linear__save_comment`) or a bare name with the server in a separate `namespace` field — and only the first was counted; the `namespace` field was not read at all. Measured on one machine, 311 calls used the counted form and 243 used the ignored one. MCP tool names are now qualified as `server__tool`, so a server's `save_comment` no longer merges with a local tool of the same name. A namespace alone does not imply MCP: Codex also uses it for built-ins such as `multi_agent_v1`, which are correctly not counted.
+- Antigravity (`agy`) acceptance rate was structurally unmeasurable. Every entry was written with outcome `unknown`, and the adapter's own comment stated that agy records no rejection signal — it does. `steps.status` is `NOT NULL`, indexed, and populated on every row. The eight non-success rows on this machine resolve into three distinct meanings rather than one: six carry `error_details` beginning "Permission denied" (a human declining, which is exactly what an acceptance rate is measured against), one "context cancelled", one nothing at all. An unrecognised status still maps to `unknown` rather than being folded into `failed`, because a status this code has not seen is a gap in what we know, not evidence of an error.
+
+### Changed
+
+- `make check` is now the single entrypoint for every gate — formatting, vet, tests, race detector, performance budgets, benchmark smoke-check, and the dashboard export check. CI calls these targets rather than keeping its own copy of each command, so the checks a developer runs and the checks CI runs cannot drift apart.
+- Performance budgets extended from 3 gates to 13, covering both adapters that were previously unguarded. They assert and fail rather than printing a number, and scaling tests take the best of five runs on each side — a single timing on a shared runner is mostly noise.
+- A test that asserts on elapsed time but is not selected by `make perf` now fails the build. The performance gate selects tests by name, so a badly-named timing test does not report as skipped, it simply never runs — which had already happened to two new tests before this check was added.
+
 ## [0.2.0] - 2026-08-14
 
 ### Added

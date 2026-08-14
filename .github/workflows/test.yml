@@ -43,22 +43,18 @@ jobs:
           # go.mod required 1.26.5, which CI could not build at all.
           go-version-file: go.mod
 
-      - name: Verify formatting
-        run: |
-          unformatted="$(gofmt -l .)"
-          if [ -n "$unformatted" ]; then
-            echo "::error::gofmt needed for: $unformatted"
-            exit 1
-          fi
-
-      - name: Vet
-        run: go vet ./...
+      # Both of these delegate to the Makefile rather than inlining the
+      # commands. A workflow that keeps its own copy of a check drifts from
+      # the one people run locally, and the drift is only found when CI
+      # fails on something that passed on a laptop.
+      - name: Lint
+        run: make lint
 
       # The importable dashboards are generated from the mounted ones, so
       # they cannot drift silently — a stale export is only discovered when
       # someone imports it and finds a panel missing.
       - name: Dashboards are exportable and current
-        run: deploy/devlake/export-dashboards.py --check
+        run: make dashboards
 
   # Tests run on all three platforms.
   #
@@ -80,6 +76,18 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
+
+    # bash on every platform, because these steps call make and the
+    # windows-latest image does not ship GNU make on PATH for the default
+    # PowerShell shell. Git for Windows bundles it, so bash finds it.
+    #
+    # Not merely a convenience: make under PowerShell also hits
+    # actions/runner-images#7253, where sh.exe on PATH breaks make's shell
+    # selection and submakes fail with a WSL error. bash avoids both.
+    defaults:
+      run:
+        shell: bash
+
     steps:
       - uses: actions/checkout@v4
 
@@ -96,7 +104,15 @@ jobs:
         run: go test ./internal/adapter/... -run 'TestEveryFixtureVersionStillParses|TestUnrecognizedFormatYieldsNothingRatherThanGuessing|TestNoFixtureLeaksPromptText' -v
 
       - name: Test
-        run: go test ./...
+        run: make test
+
+      # The budget-asserting tests, on every platform. These are ordinary
+      # tests that fail the build when a budget is exceeded, not benchmarks
+      # that print a number nobody reads — and they run everywhere because
+      # the cost they guard is filesystem work, which is exactly where the
+      # three platforms differ.
+      - name: Performance budgets
+        run: make perf
 
       # Races are invisible to a plain `go test`, and this project has
       # several concurrency surfaces: the hook writes the journal while a
@@ -108,16 +124,14 @@ jobs:
       # they are a property of the code, not of the operating system.
       - name: Race detector
         if: matrix.os == 'ubuntu-latest'
-        run: go test -race ./...
+        run: make race
 
       # Benchmarks are compiled but never executed by `go test`, so a
       # benchmark can rot for months and nobody notices until they try to
       # measure something. One iteration each proves they still run.
       #
-      # This is a compile-and-execute check, not a performance gate: the
-      # gates that assert a budget are ordinary tests (hook_budget_test.go
-      # and friends), because a wall-clock assertion on a shared runner has
-      # to fail loudly and reproducibly rather than print a number.
+      # A compile-and-execute check, not a performance gate — `make perf`
+      # above is the gate.
       - name: Benchmarks still run
         if: matrix.os == 'ubuntu-latest'
-        run: go test ./... -run '^$' -bench . -benchtime 1x
+        run: make bench
