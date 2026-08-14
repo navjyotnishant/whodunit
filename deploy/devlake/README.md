@@ -204,7 +204,9 @@ from them, with the datasource replaced by a placeholder the import dialog
 fills in. Never hand-edit the generated ones.
 
 ```sh
-./export-dashboards.py           # regenerate after changing a dashboard
+./build-cost-dashboard.py        # regenerate the cost dashboard
+./build-funnel-dashboard.py      # regenerate the funnel
+./export-dashboards.py           # regenerate the importable copies
 ./export-dashboards.py --check   # what CI runs
 ```
 
