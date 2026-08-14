@@ -482,6 +482,24 @@ func ParseSessionActivity(path string, since time.Time) ([]journal.Session, erro
 	if s.Session == "" {
 		return nil, nil
 	}
+
+	// A session whose every record predates the cutoff is not a session
+	// with nothing in it — it is a session this window cannot see.
+	//
+	// s.Session comes from the rollout's session_meta, which is read
+	// before the cutoff is applied, so without this a `dun ingest --since`
+	// over a recent window wrote a row per historical rollout: all
+	// counters zero, and FirstSeen the zero time, which reaches SQLite as
+	// -6795364578871345152. Measured on a real repository: 74 Codex
+	// sessions written, every one of them empty.
+	//
+	// Worse than useless, because those rows then take part in averages —
+	// a per-session token average is divided by a denominator mostly made
+	// of sessions that were never read (NAV-21).
+	if s.FirstSeen.IsZero() {
+		return nil, nil
+	}
+
 	s.DistinctTools = len(tools)
 	return []journal.Session{s}, nil
 }

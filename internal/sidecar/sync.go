@@ -176,7 +176,10 @@ func WriteProgress(db *Store, p Payload, onRow func(done, total int)) (Counts, e
 			s.RepoID, s.Session, s.Agent, s.AgentVersion,
 			s.FirstSeen.UnixNano(), s.LastSeen.UnixNano(),
 			s.UserMessages, s.AgentMessages, s.ToolCalls, s.DistinctTools,
-			s.MCPCalls, s.SyncedAt.UnixNano()); err != nil {
+			s.MCPCalls, s.SyncedAt.UnixNano(),
+			s.InputTokens, s.OutputTokens, s.CacheReadTokens, s.CacheWriteTokens,
+			s.ReasoningTokens, s.DurationMS, s.TimeToFirstTokenMS,
+			nullString(s.Effort), nullString(s.PermissionMode), nullString(s.Model)); err != nil {
 			return counts, fmt.Errorf("write session: %w", err)
 		}
 		counts.Sessions++
@@ -261,24 +264,71 @@ func upsertEvent(mysql bool) string {
 		synced_at=excluded.synced_at`
 }
 
+// upsertSession refreshes a session's counters and fills in its
+// measurements without ever erasing one.
+//
+// The counters are replaced outright: a session grows while it is open, so
+// the newest read is the right one.
+//
+// The measured columns are COALESCEd instead. A developer machine that
+// re-syncs after an ingest over a narrow window sends nil for tokens that
+// were measured on an earlier pass, and a plain overwrite would replace a
+// real figure with NULL — silently, permanently, and centrally, where the
+// original transcript is not available to re-read. COALESCE takes a new
+// value when there is one and keeps the old when there is not.
+//
+// Each engine spells the incoming row differently: MySQL as VALUES(col),
+// SQLite as excluded.col. Same shape, two dialects, which is why this
+// function exists rather than one shared string.
+// nullString writes an empty string as SQL NULL, so COALESCE does not
+// mistake "not reported" for a measured empty value (NAV-21).
+func nullString(s string) any {
+	if s == "" {
+		return nil
+	}
+	return s
+}
+
 func upsertSession(mysql bool) string {
 	cols := `INSERT INTO whodunit_sessions
 		(repo_id, session, agent, agent_version, first_seen, last_seen,
-		 user_messages, agent_messages, tool_calls, distinct_tools, mcp_calls, synced_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-	// A session grows while it is open, so every counter is refreshed.
+		 user_messages, agent_messages, tool_calls, distinct_tools, mcp_calls, synced_at,
+		 input_tokens, output_tokens, cache_read_tokens, cache_write_tokens,
+		 reasoning_tokens, duration_ms, time_to_first_token_ms,
+		 effort, permission_mode, model)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 	if mysql {
 		return cols + ` ON DUPLICATE KEY UPDATE
 			last_seen=VALUES(last_seen), user_messages=VALUES(user_messages),
 			agent_messages=VALUES(agent_messages), tool_calls=VALUES(tool_calls),
 			distinct_tools=VALUES(distinct_tools), mcp_calls=VALUES(mcp_calls),
-			synced_at=VALUES(synced_at)`
+			synced_at=VALUES(synced_at),
+			input_tokens=COALESCE(VALUES(input_tokens), input_tokens),
+			output_tokens=COALESCE(VALUES(output_tokens), output_tokens),
+			cache_read_tokens=COALESCE(VALUES(cache_read_tokens), cache_read_tokens),
+			cache_write_tokens=COALESCE(VALUES(cache_write_tokens), cache_write_tokens),
+			reasoning_tokens=COALESCE(VALUES(reasoning_tokens), reasoning_tokens),
+			duration_ms=COALESCE(VALUES(duration_ms), duration_ms),
+			time_to_first_token_ms=COALESCE(VALUES(time_to_first_token_ms), time_to_first_token_ms),
+			effort=COALESCE(VALUES(effort), effort),
+			permission_mode=COALESCE(VALUES(permission_mode), permission_mode),
+			model=COALESCE(VALUES(model), model)`
 	}
 	return cols + ` ON CONFLICT(repo_id, session) DO UPDATE SET
 		last_seen=excluded.last_seen, user_messages=excluded.user_messages,
 		agent_messages=excluded.agent_messages, tool_calls=excluded.tool_calls,
 		distinct_tools=excluded.distinct_tools, mcp_calls=excluded.mcp_calls,
-		synced_at=excluded.synced_at`
+		synced_at=excluded.synced_at,
+		input_tokens=COALESCE(excluded.input_tokens, whodunit_sessions.input_tokens),
+		output_tokens=COALESCE(excluded.output_tokens, whodunit_sessions.output_tokens),
+		cache_read_tokens=COALESCE(excluded.cache_read_tokens, whodunit_sessions.cache_read_tokens),
+		cache_write_tokens=COALESCE(excluded.cache_write_tokens, whodunit_sessions.cache_write_tokens),
+		reasoning_tokens=COALESCE(excluded.reasoning_tokens, whodunit_sessions.reasoning_tokens),
+		duration_ms=COALESCE(excluded.duration_ms, whodunit_sessions.duration_ms),
+		time_to_first_token_ms=COALESCE(excluded.time_to_first_token_ms, whodunit_sessions.time_to_first_token_ms),
+		effort=COALESCE(excluded.effort, whodunit_sessions.effort),
+		permission_mode=COALESCE(excluded.permission_mode, whodunit_sessions.permission_mode),
+		model=COALESCE(excluded.model, whodunit_sessions.model)`
 }
 
 func upsertLine(mysql bool) string {

@@ -76,6 +76,24 @@ type SessionRow struct {
 	DistinctTools int
 	MCPCalls      int
 	SyncedAt      time.Time
+
+	// Measured cost, timing and autonomy. Pointers so a nil survives all
+	// the way to the database as NULL — an agent that does not report a
+	// figure must not be recorded as having measured zero (NAV-21).
+	InputTokens        *int64
+	OutputTokens       *int64
+	CacheReadTokens    *int64
+	CacheWriteTokens   *int64
+	ReasoningTokens    *int64
+	DurationMS         *int64
+	TimeToFirstTokenMS *int64
+
+	// Empty means not reported. Converted to NULL at the bind, so an
+	// empty string never lands in the column — COALESCE would then treat
+	// it as a real value and refuse to let a later sync fill it in.
+	Effort         string
+	PermissionMode string
+	Model          string
 }
 
 // LineRow is one row of whodunit_event_lines.
@@ -189,6 +207,12 @@ func SessionRowsFrom(sessions []journal.Session, repoID string, syncedAt time.Ti
 			UserMessages: s.UserMessages, AgentMessages: s.AgentMessages,
 			ToolCalls: s.ToolCalls, DistinctTools: s.DistinctTools,
 			MCPCalls: s.MCPCalls, SyncedAt: syncedAt,
+
+			InputTokens: s.InputTokens, OutputTokens: s.OutputTokens,
+			CacheReadTokens: s.CacheReadTokens, CacheWriteTokens: s.CacheWriteTokens,
+			ReasoningTokens: s.ReasoningTokens, DurationMS: s.DurationMS,
+			TimeToFirstTokenMS: s.TimeToFirstTokenMS,
+			Effort:             s.Effort, PermissionMode: s.PermissionMode, Model: s.Model,
 		})
 	}
 	return rows

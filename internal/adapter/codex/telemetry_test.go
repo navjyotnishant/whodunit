@@ -417,3 +417,67 @@ func TestNoProhibitedTextReachesTheSession(t *testing.T) {
 	}
 	assertInt64(t, "DurationMS", s.DurationMS, 100)
 }
+
+// A session whose every record predates the cutoff must yield nothing, not
+// an empty row.
+//
+// The rollout's session_meta is read before the cutoff is applied, so the
+// session id exists regardless of the window. Without an explicit check,
+// `dun ingest --since` over a recent window wrote one row per historical
+// rollout: every counter zero, and FirstSeen the zero time, which reaches
+// SQLite as -6795364578871345152.
+//
+// Found by running the real pipeline against a real repository rather than
+// by reading the code — 74 Codex sessions written, every one empty. Those
+// rows then take part in averages, so a per-session token average is
+// divided by a denominator mostly made of sessions nobody read.
+func TestASessionEntirelyBeforeTheCutoffIsNotWritten(t *testing.T) {
+	old := time.Now().UTC().Add(-48 * time.Hour)
+	path := writeRollout2(t, []map[string]any{
+		{"timestamp": old, "type": "session_meta", "payload": map[string]any{
+			"id": "s-old", "cwd": "/repo", "cli_version": "1.0.0",
+		}},
+		{"timestamp": old, "type": "event_msg", "payload": map[string]any{
+			"type": "token_count",
+			"info": map[string]any{"total_token_usage": map[string]any{"input_tokens": 999}},
+		}},
+	})
+
+	sessions, err := ParseSessionActivity(path, time.Now().UTC().Add(-time.Hour))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(sessions) != 0 {
+		t.Errorf("got %d sessions for a rollout entirely before the cutoff, want 0 "+
+			"(FirstSeen=%v, ToolCalls=%d) — an empty row still counts in every "+
+			"average computed over sessions",
+			len(sessions), sessions[0].FirstSeen, sessions[0].ToolCalls)
+	}
+}
+
+// The other direction: a session partly inside the window is still read,
+// over the part that is visible.
+func TestASessionPartlyInsideTheWindowIsStillRead(t *testing.T) {
+	old := time.Now().UTC().Add(-48 * time.Hour)
+	recent := time.Now().UTC().Add(-30 * time.Minute)
+
+	path := writeRollout2(t, []map[string]any{
+		{"timestamp": old, "type": "session_meta", "payload": map[string]any{
+			"id": "s1", "cwd": "/repo", "cli_version": "1.0.0",
+		}},
+		{"timestamp": recent, "type": "turn_context", "payload": map[string]any{
+			"model": "gpt-5.5",
+		}},
+	})
+
+	sessions, err := ParseSessionActivity(path, time.Now().UTC().Add(-time.Hour))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(sessions) != 1 {
+		t.Fatalf("got %d sessions, want 1", len(sessions))
+	}
+	if sessions[0].Model != "gpt-5.5" {
+		t.Errorf("Model = %q, want gpt-5.5", sessions[0].Model)
+	}
+}

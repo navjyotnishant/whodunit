@@ -359,21 +359,70 @@ func (w *Writer) UpsertSession(s Session) error {
 		return nil
 	}
 	_, err := w.db.Exec(
+		// COALESCE on every measured column, so a re-ingest cannot erase
+		// what an earlier one established.
+		//
+		// The failure without it: `dun ingest --since` reads a narrow
+		// window, and a session whose token-bearing turns fall outside it
+		// parses with nil tokens. A plain excluded.* would overwrite real
+		// measurements with NULL, and the loss is silent and permanent —
+		// the transcript may have been rotated away by the time anyone
+		// notices the cost column emptied out.
+		//
+		// COALESCE(excluded.x, sessions.x) takes the new value when there
+		// is one and keeps the old when there is not. It cannot un-set a
+		// column, which is the right trade: these are measurements of
+		// something that happened, and a later narrower read is a smaller
+		// view of the same past, not a correction of it.
+		//
+		// The engagement counts above are NOT coalesced. They are computed
+		// for whatever window was read and are meant to be replaced.
 		`INSERT INTO sessions (repo_id, session, agent, agent_version, first_seen, last_seen,
-		   user_messages, agent_messages, tool_calls, distinct_tools, mcp_calls)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		   user_messages, agent_messages, tool_calls, distinct_tools, mcp_calls,
+		   input_tokens, output_tokens, cache_read_tokens, cache_write_tokens,
+		   reasoning_tokens, duration_ms, time_to_first_token_ms,
+		   effort, permission_mode, model)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		 ON CONFLICT(repo_id, session) DO UPDATE SET
 		   agent_version=excluded.agent_version, last_seen=excluded.last_seen,
 		   user_messages=excluded.user_messages, agent_messages=excluded.agent_messages,
 		   tool_calls=excluded.tool_calls, distinct_tools=excluded.distinct_tools,
-		   mcp_calls=excluded.mcp_calls`,
+		   mcp_calls=excluded.mcp_calls,
+		   input_tokens=COALESCE(excluded.input_tokens, sessions.input_tokens),
+		   output_tokens=COALESCE(excluded.output_tokens, sessions.output_tokens),
+		   cache_read_tokens=COALESCE(excluded.cache_read_tokens, sessions.cache_read_tokens),
+		   cache_write_tokens=COALESCE(excluded.cache_write_tokens, sessions.cache_write_tokens),
+		   reasoning_tokens=COALESCE(excluded.reasoning_tokens, sessions.reasoning_tokens),
+		   duration_ms=COALESCE(excluded.duration_ms, sessions.duration_ms),
+		   time_to_first_token_ms=COALESCE(excluded.time_to_first_token_ms, sessions.time_to_first_token_ms),
+		   effort=COALESCE(excluded.effort, sessions.effort),
+		   permission_mode=COALESCE(excluded.permission_mode, sessions.permission_mode),
+		   model=COALESCE(excluded.model, sessions.model)`,
 		w.repoID, s.Session, s.Agent, s.AgentVersion,
 		s.FirstSeen.UnixNano(), s.LastSeen.UnixNano(),
-		s.UserMessages, s.AgentMessages, s.ToolCalls, s.DistinctTools, s.MCPCalls)
+		s.UserMessages, s.AgentMessages, s.ToolCalls, s.DistinctTools, s.MCPCalls,
+		s.InputTokens, s.OutputTokens, s.CacheReadTokens, s.CacheWriteTokens,
+		s.ReasoningTokens, s.DurationMS, s.TimeToFirstTokenMS,
+		nullString(s.Effort), nullString(s.PermissionMode), nullString(s.Model))
 	if err != nil {
 		return fmt.Errorf("journal: upsert session: %w", err)
 	}
 	return nil
+}
+
+// nullString writes an empty string as SQL NULL.
+//
+// The pointer fields carry their own nil, but Effort, PermissionMode and
+// Model are plain strings — an agent that does not report them leaves ""
+// rather than nil. Written as-is, "" would land in the column as a value,
+// and COALESCE would then treat it as a real measurement and refuse to let
+// a later ingest fill it in. It also reads downstream as "measured, and it
+// was empty" (NAV-21).
+func nullString(s string) any {
+	if s == "" {
+		return nil
+	}
+	return s
 }
 
 // ReadSessions returns a repository's session activity.
@@ -389,7 +438,10 @@ func ReadSessions(dataDir, repoID string) ([]Session, error) {
 
 	rows, err := db.Query(
 		`SELECT session, agent, agent_version, first_seen, last_seen,
-		        user_messages, agent_messages, tool_calls, distinct_tools, mcp_calls
+		        user_messages, agent_messages, tool_calls, distinct_tools, mcp_calls,
+		        input_tokens, output_tokens, cache_read_tokens, cache_write_tokens,
+		        reasoning_tokens, duration_ms, time_to_first_token_ms,
+		        effort, permission_mode, model
 		 FROM sessions WHERE repo_id = ? ORDER BY first_seen`, repoID)
 	if err != nil {
 		return nil, fmt.Errorf("journal: query sessions: %w", err)
@@ -400,15 +452,48 @@ func ReadSessions(dataDir, repoID string) ([]Session, error) {
 	for rows.Next() {
 		var s Session
 		var first, last int64
+
+		// Scanned through Null* types and only then converted, so a NULL
+		// column stays nil on the way out. Scanning straight into *int64
+		// would give a non-nil pointer to zero, and the distinction
+		// between "reported nothing" and "reported zero" would be lost at
+		// the last step after being preserved everywhere else (NAV-21).
+		var in, outTok, cacheR, cacheW, reasoning, dur, ttft sql.NullInt64
+		var effort, permission, model sql.NullString
+
 		if err := rows.Scan(&s.Session, &s.Agent, &s.AgentVersion, &first, &last,
-			&s.UserMessages, &s.AgentMessages, &s.ToolCalls, &s.DistinctTools, &s.MCPCalls); err != nil {
+			&s.UserMessages, &s.AgentMessages, &s.ToolCalls, &s.DistinctTools, &s.MCPCalls,
+			&in, &outTok, &cacheR, &cacheW, &reasoning, &dur, &ttft,
+			&effort, &permission, &model); err != nil {
 			return nil, fmt.Errorf("journal: scan session: %w", err)
 		}
 		s.FirstSeen = time.Unix(0, first).UTC()
 		s.LastSeen = time.Unix(0, last).UTC()
+
+		s.InputTokens = nullInt(in)
+		s.OutputTokens = nullInt(outTok)
+		s.CacheReadTokens = nullInt(cacheR)
+		s.CacheWriteTokens = nullInt(cacheW)
+		s.ReasoningTokens = nullInt(reasoning)
+		s.DurationMS = nullInt(dur)
+		s.TimeToFirstTokenMS = nullInt(ttft)
+		s.Effort = effort.String
+		s.PermissionMode = permission.String
+		s.Model = model.String
+
 		out = append(out, s)
 	}
 	return out, rows.Err()
+}
+
+// nullInt converts a scanned NULL into a nil pointer rather than a pointer
+// to zero.
+func nullInt(v sql.NullInt64) *int64 {
+	if !v.Valid {
+		return nil
+	}
+	n := v.Int64
+	return &n
 }
 
 // Metadata describes a repository's journal rather than any event within
