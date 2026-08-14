@@ -190,12 +190,27 @@ wait_for_mysql() {
 	die "mysql did not come up within 3 minutes — check: docker compose logs mysql"
 }
 
+# Waits for Grafana to answer an authenticated write, not merely to be up.
+#
+# /api/health returns 200 well before the API will accept one: on a clean
+# machine the datasource POST came back 500 while health was already green,
+# because Grafana was still initialising. Polling the endpoint we actually
+# need means the readiness check tests the thing it is standing in for.
+#
+# It also outlasts DevLake's own entrypoint, which deletes any datasource
+# named "mysql" and recreates it a few seconds after Grafana starts. Racing
+# that is how a datasource created here vanishes moments later.
 wait_for_grafana() {
 	printf 'waiting for grafana '
+	_pass="$(grafana_password)"
 	_i=0
 	while [ "$_i" -lt 90 ]; do
-		if curl -fsS -o /dev/null http://localhost:3002/api/health 2>/dev/null; then
+		if grafana_auth "$_pass" | curl -fsS --config - -o /dev/null \
+			http://localhost:3002/api/datasources 2>/dev/null; then
 			echo " ok"
+			# Let the entrypoint's delete-then-create settle before we
+			# touch datasources ourselves.
+			sleep 5
 			return 0
 		fi
 		printf '.'
@@ -233,14 +248,34 @@ ensure_datasource() {
 			"$(db_field host)" "$(db_field database)" "$(db_field user)"
 		printf '"secureJsonData":{"password":"%s"}}' "$(db_field password)")"
 
-	if grafana_auth "$_pass" | curl -fsS --config - -o /dev/null \
-		-H 'Content-Type: application/json' \
-		-d "$_body" "http://localhost:3002/api/datasources" 2>/dev/null; then
-		echo "created"
-	else
-		echo "could not create"
-		echo "  add it by hand at http://localhost:3002/connections/datasources" >&2
-	fi
+	# Retried, because the first attempt on a clean machine can land while
+	# Grafana is still initialising and come back 500 — and because DevLake's
+	# entrypoint may delete a datasource named "mysql" moments after we
+	# create it. One shot at this meant a fresh install silently ended up
+	# with no datasource and no dashboards.
+	_try=0
+	while [ "$_try" -lt 5 ]; do
+		_out="$(grafana_auth "$_pass" | curl -sS --config - \
+			-w '\n%{http_code}' \
+			-H 'Content-Type: application/json' \
+			-d "$_body" "http://localhost:3002/api/datasources" 2>/dev/null)"
+		_code="$(printf '%s' "$_out" | tail -1)"
+
+		case "$_code" in
+		200 | 409)
+			# 409 is "already exists", which is success for our purposes:
+			# the entrypoint won the race and made the same thing.
+			echo "created"
+			return 0
+			;;
+		esac
+		_try=$((_try + 1))
+		sleep 3
+	done
+
+	echo "could not create (http $_code)"
+	printf '%s\n' "$_out" | head -2 | sed 's/^/    /' >&2
+	echo "  add it by hand at http://localhost:3002/connections/datasources" >&2
 }
 
 # Credentials as a curl config stanza on stdin, not -u on the command line:
