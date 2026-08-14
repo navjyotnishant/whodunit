@@ -122,7 +122,14 @@ func touchesRepo(dbPath, repo string) bool {
 }
 
 func under(path, dir string) bool {
-	rel, err := filepath.Rel(dir, path)
+	// Both sides converted to the host's separator first.
+	//
+	// The path comes from a transcript, where it is written with forward
+	// slashes; dir comes from the working directory, which on Windows uses
+	// backslashes. filepath.Rel compares them with native semantics, so on
+	// Windows every transcript path looked outside the repository and no
+	// session matched — attribution silently found nothing.
+	rel, err := filepath.Rel(filepath.FromSlash(dir), filepath.FromSlash(path))
 	return err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
 }
 

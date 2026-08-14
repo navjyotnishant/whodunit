@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
+
+	"github.com/navjyotnishant/whodunit/internal/testmode"
 )
 
 func isolate(t *testing.T) string {
@@ -130,6 +132,7 @@ func TestRemoveUnknownRepoIsNotAnError(t *testing.T) {
 }
 
 func TestRegistryFileIsNotWorldReadable(t *testing.T) {
+	testmode.SkipIfNoPermissionBits(t)
 	// The registry lists local paths of everything being tracked — same
 	// sensitivity as the journal.
 	home := isolate(t)

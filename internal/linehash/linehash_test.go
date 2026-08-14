@@ -87,3 +87,39 @@ func TestSetOperations(t *testing.T) {
 		t.Error("added hash not found")
 	}
 }
+
+func TestOfNormalizesSeparators(t *testing.T) {
+	// The two sides of a match assemble the path differently: the staged
+	// side joins with filepath.Join (backslashes on Windows), the agent side
+	// takes what the transcript recorded (forward slashes, because the
+	// agents are Node programs). Hashing the raw string made them disagree,
+	// so on Windows no staged line matched a recorded one and every commit
+	// silently degraded to observed — attribution quietly worse, with
+	// nothing to say why.
+	windows := Of(`C:\repo\main.go`, "doWork()")
+	posix := Of("C:/repo/main.go", "doWork()")
+	if windows != posix {
+		t.Errorf("Of(%q) = %d and Of(%q) = %d; the same file must hash alike "+
+			"however the path was built", `C:\repo\main.go`, windows,
+			"C:/repo/main.go", posix)
+	}
+}
+
+func TestOfIgnoresLineEndings(t *testing.T) {
+	// git hands back CRLF on a Windows checkout with core.autocrlf on, while
+	// a transcript records the same line with a bare newline.
+	if Of("/repo/x.go", "doWork()") != Of("/repo/x.go", "doWork()\r") {
+		t.Error("a trailing carriage return changes the hash")
+	}
+
+	crlf := OfText("/repo/x.go", "alpha()\r\nbeta()\r\n")
+	lf := OfText("/repo/x.go", "alpha()\nbeta()\n")
+	if len(crlf) != len(lf) {
+		t.Fatalf("CRLF text produced %d hashes, LF text %d", len(crlf), len(lf))
+	}
+	for i := range lf {
+		if crlf[i] != lf[i] {
+			t.Errorf("line %d hashes differently under CRLF", i)
+		}
+	}
+}

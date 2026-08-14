@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
+
+	"github.com/navjyotnishant/whodunit/internal/testmode"
 )
 
 const testRepo = "root-sha-aaa"
@@ -211,6 +213,7 @@ func TestNewWriterRequiresRepoID(t *testing.T) {
 }
 
 func TestDatabaseIsNotWorldReadable(t *testing.T) {
+	testmode.SkipIfNoPermissionBits(t)
 	// The journal records which files were edited and when. The SQLite
 	// driver creates the file 0644 by default, which is readable by every
 	// user on a shared machine.
@@ -234,6 +237,7 @@ func TestDatabaseIsNotWorldReadable(t *testing.T) {
 }
 
 func TestExistingWorldReadableDatabaseIsTightened(t *testing.T) {
+	testmode.SkipIfNoPermissionBits(t)
 	// A database created before this rule existed must be repaired, not
 	// left permissive forever.
 	dataDir := t.TempDir()
@@ -263,6 +267,7 @@ func TestExistingWorldReadableDatabaseIsTightened(t *testing.T) {
 }
 
 func TestExistingPermissiveDataDirIsTightened(t *testing.T) {
+	testmode.SkipIfNoPermissionBits(t)
 	// A data directory created by hand (or by an older version) must be
 	// repaired on the next open, not left readable by everyone.
 	parent := t.TempDir()

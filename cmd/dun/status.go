@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"fmt"
 	"io"
-	"os"
 	"os/exec"
 	"sort"
 	"strings"
@@ -582,7 +581,14 @@ func pathForRepoID(repoID string) (string, bool) {
 // shortRepoName is the last two path segments, which identifies a
 // repository without a column of identical parent directories.
 func shortRepoName(path string) string {
-	parts := strings.Split(strings.TrimSuffix(path, string(os.PathSeparator)), string(os.PathSeparator))
+	// Split on either separator rather than the platform's own.
+	//
+	// os.PathSeparator is '\' on Windows, so a path written with forward
+	// slashes — which Go's APIs accept, and which arrives from config files,
+	// git, and anything MSYS-flavoured — did not split at all and the whole
+	// path was printed where two segments belong.
+	normalized := strings.ReplaceAll(path, `\`, "/")
+	parts := strings.Split(strings.TrimSuffix(normalized, "/"), "/")
 	if len(parts) <= 2 {
 		return path
 	}

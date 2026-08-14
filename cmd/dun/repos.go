@@ -169,10 +169,29 @@ func candidatePaths() ([]string, error) {
 // indistinguishable from a path separator. Rather than guess, this walks
 // the candidates and returns the first that actually exists on disk.
 func decodeSlug(slug string) string {
-	if !strings.HasPrefix(slug, "-") {
+	// The prefix says where the path started, and the two platforms differ.
+	//
+	// A Unix slug begins with the dash that encoded the leading '/', so the
+	// root has to be put back. A Windows slug begins with the drive letter,
+	// whose colon SlugForCwd dropped because Windows will not accept it in a
+	// filename — so "C-Users-me-repo" has to become "C:\Users\me\repo".
+	//
+	// Requiring the leading dash rejected every Windows slug outright, and
+	// decodeSlug returned "" for all of them.
+	var root string
+	var rest string
+	switch {
+	case strings.HasPrefix(slug, "-"):
+		root = string(filepath.Separator)
+		rest = strings.TrimPrefix(slug, "-")
+	case len(slug) > 1 && slug[1] == '-' && isDriveLetter(slug[0]):
+		root = string(slug[0]) + `:\`
+		rest = slug[2:]
+	default:
 		return ""
 	}
-	parts := strings.Split(strings.TrimPrefix(slug, "-"), "-")
+
+	parts := strings.Split(rest, "-")
 
 	// Try the longest prefix as directory names first, then progressively
 	// treat trailing dashes as literal characters in the final segment.
@@ -181,12 +200,16 @@ func decodeSlug(slug string) string {
 		if join > 0 {
 			segments[len(segments)-1] = strings.Join(parts[len(parts)-join-1:], "-")
 		}
-		candidate := string(filepath.Separator) + filepath.Join(segments...)
+		candidate := root + filepath.Join(segments...)
 		if info, err := os.Stat(candidate); err == nil && info.IsDir() {
 			return candidate
 		}
 	}
 	return ""
+}
+
+func isDriveLetter(c byte) bool {
+	return (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z')
 }
 
 func newReposRemoveCmd() *cobra.Command {

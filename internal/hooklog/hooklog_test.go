@@ -11,6 +11,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/navjyotnishant/whodunit/internal/testmode"
 )
 
 func TestWriteThenRead(t *testing.T) {
@@ -178,6 +180,7 @@ func TestReadOfAnAbsentLogIsNotAnError(t *testing.T) {
 // The log records which repositories were worked on and when, which is not
 // something to leave readable by every account on a shared machine.
 func TestTheLogIsOwnerOnly(t *testing.T) {
+	testmode.SkipIfNoPermissionBits(t)
 	home := t.TempDir()
 	Write(home, Entry{Hook: "pre-push", Detail: "x"})
 

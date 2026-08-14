@@ -190,12 +190,15 @@ func Stored(dir string) bool {
 func CheckPermissions(dir string) []string {
 	var wide []string
 	for _, p := range []string{encPath(dir), keyPath(dir)} {
-		info, err := os.Stat(p)
-		if err != nil {
+		if _, err := os.Stat(p); err != nil {
 			continue
 		}
-		if mode := info.Mode().Perm(); mode&^FileMode != 0 {
-			wide = append(wide, fmt.Sprintf("%s: %04o", filepath.Base(p), mode))
+		// checkFile is platform-specific: the mode bits on Unix, the access
+		// control list on Windows. Reading Windows' synthesised mode instead
+		// reported every file as 0666 whatever its real protection, which is
+		// a warning nobody could act on and evidence of nothing.
+		if problem := checkFile(p); problem != "" {
+			wide = append(wide, fmt.Sprintf("%s: %s", filepath.Base(p), problem))
 		}
 	}
 	return wide
@@ -271,7 +274,10 @@ func writePrivate(path string, b []byte) error {
 	if err := os.WriteFile(path, b, FileMode); err != nil {
 		return err
 	}
-	return os.Chmod(path, FileMode)
+	// Platform-specific: chmod on Unix, an owner-only access control list on
+	// Windows, where the mode bits mean nothing and os.Stat reports a
+	// fabricated 0666 for every writable file.
+	return secureFile(path)
 }
 
 // machineID is a variable so a test can substitute another machine's

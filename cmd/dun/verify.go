@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
@@ -303,16 +304,25 @@ func checkHooks(repoPath string) []finding {
 	missing, stale := staleHooks(gitDir)
 
 	var notExecutable []string
-	for _, name := range trackedHooks {
-		path := filepath.Join(gitDir, "hooks", name)
-		info, err := os.Stat(path)
-		if err != nil {
-			continue // already counted as missing
-		}
-		if info.Mode()&0o111 == 0 {
-			// A hook git cannot execute is the same as no hook, and gives
-			// no error when git skips it.
-			notExecutable = append(notExecutable, name)
+	// Skipped on Windows, which has no execute bit to test.
+	//
+	// os.Stat there synthesises the mode from the read-only attribute, so
+	// Mode()&0o111 is zero for every file that exists and this reported all
+	// three hooks as broken on a perfectly working install. Git for Windows
+	// runs hooks through its bundled sh regardless of any such bit, so there
+	// is nothing being checked even in principle.
+	if runtime.GOOS != "windows" {
+		for _, name := range trackedHooks {
+			path := filepath.Join(gitDir, "hooks", name)
+			info, err := os.Stat(path)
+			if err != nil {
+				continue // already counted as missing
+			}
+			if info.Mode()&0o111 == 0 {
+				// A hook git cannot execute is the same as no hook, and
+				// gives no error when git skips it.
+				notExecutable = append(notExecutable, name)
+			}
 		}
 	}
 

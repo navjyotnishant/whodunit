@@ -1,6 +1,7 @@
 package adapter
 
 import (
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
@@ -157,8 +158,20 @@ func writeAgentConfig(t *testing.T, agent, path string) {
 	if err := os.MkdirAll(home, 0o700); err != nil {
 		t.Fatal(err)
 	}
-	body := `{"agents":{"` + agent + `":{"path":"` + path + `"}}}`
-	if err := os.WriteFile(filepath.Join(home, "config.json"), []byte(body), 0o600); err != nil {
+	// Marshalled rather than concatenated. A Windows path carries
+	// backslashes, and pasting one into a JSON string literal produces
+	// invalid escapes — "C:\Users" is a bad \U — so the config failed to
+	// parse, no agent path was seen, and the test read the resulting
+	// "not installed" as a behaviour difference rather than as its own bug.
+	body, err := json.Marshal(map[string]any{
+		"agents": map[string]any{
+			agent: map[string]any{"path": path},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(home, "config.json"), body, 0o600); err != nil {
 		t.Fatal(err)
 	}
 }

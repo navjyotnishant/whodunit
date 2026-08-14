@@ -166,7 +166,11 @@ func sameDir(a, b string) bool {
 }
 
 func normalizeDir(p string) string {
-	p = filepath.Clean(p)
+	// FromSlash first: a transcript records the cwd with forward slashes,
+	// while the directory this is compared against comes from the OS with
+	// native ones. Cleaning without converting left the two spellings
+	// distinct on Windows, so a session never matched its own repository.
+	p = filepath.Clean(filepath.FromSlash(p))
 	if resolved, err := filepath.EvalSymlinks(p); err == nil {
 		p = resolved
 	}
@@ -253,7 +257,14 @@ func ParseSince(path string, since time.Time) ([]journal.Entry, error) {
 			file := fp.Path
 			if !filepath.IsAbs(file) && meta.CWD != "" {
 				// Patch paths are relative to the session's directory.
-				file = filepath.Join(meta.CWD, file)
+				//
+				// Normalised to forward slashes afterwards: filepath.Join
+				// produces backslashes on Windows, while every other
+				// producer of this field — the transcript itself, the other
+				// adapters — uses forward slashes. The journal, the reports
+				// and the dashboards all group by this string, so two
+				// spellings of one path split a file's history in two.
+				file = filepath.ToSlash(filepath.Join(meta.CWD, file))
 			}
 
 			added, removed := fp.Added, fp.Removed

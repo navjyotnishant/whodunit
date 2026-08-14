@@ -9,7 +9,7 @@ import (
 	"bytes"
 	"errors"
 	"os"
-	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -49,29 +49,33 @@ func TestTheStoredFileDoesNotContainThePassword(t *testing.T) {
 
 // NAV-80: both files owner-only. The encryption is theatre if the keyfile
 // beside the ciphertext is world-readable.
+// Asserted through CheckPermissions rather than by reading the mode.
+//
+// Windows has no Unix permission bits: os.Stat synthesises 0666 for any
+// writable file from the read-only attribute alone, so comparing the mode
+// there tests a number the operating system made up. CheckPermissions asks
+// the platform what it actually enforces — the mode on Unix, the access
+// control list on Windows — which is the property this test is named for.
 func TestBothFilesAreOwnerOnly(t *testing.T) {
 	dir := t.TempDir()
 	if err := Store(dir, password); err != nil {
 		t.Fatal(err)
-	}
-	for _, p := range []string{encPath(dir), keyPath(dir)} {
-		info, err := os.Stat(p)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if mode := info.Mode().Perm(); mode != FileMode {
-			t.Errorf("%s has mode %04o, want %04o", filepath.Base(p), mode, FileMode)
-		}
 	}
 	if wide := CheckPermissions(dir); len(wide) != 0 {
 		t.Errorf("a correctly written secret was reported as too permissive: %v", wide)
 	}
 }
 
-// A mode widened after the fact — chmod -R across a home directory is the
-// usual way — must be caught, because nothing else in the system would
+// A permission widened after the fact — chmod -R across a home directory is
+// the usual way — must be caught, because nothing else in the system would
 // notice.
+//
+// Unix-only: the equivalent on Windows is rewriting the ACL, which
+// perm_windows_test.go covers against the real thing.
 func TestWidenedPermissionsAreReported(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("no mode bits to widen; see TestSecureFileLeavesOnlyTheOwner")
+	}
 	dir := t.TempDir()
 	if err := Store(dir, password); err != nil {
 		t.Fatal(err)

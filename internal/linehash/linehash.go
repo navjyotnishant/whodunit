@@ -27,10 +27,30 @@ import (
 // Leading and trailing whitespace is trimmed: reindentation during review
 // should not sever the link to the line an agent wrote, and indentation is
 // not the part a reader would call authorship.
+//
+// The path is normalised to forward slashes first, because the two sides
+// build it differently. The staged side joins the repo root to a diff target
+// with filepath.Join, which yields `C:\repo\main.go` on Windows; the agent
+// side takes the path an agent wrote into its transcript, which is
+// `C:/repo/main.go` — Node and the agents themselves normalise that way.
+// Hashing the raw string made those two disagree, so on Windows no staged
+// line ever matched a recorded one and every commit fell back to observed
+// or undetermined, with nothing to indicate why.
 func Of(filePath, line string) uint64 {
 	trimmed := strings.TrimSpace(line)
-	sum := sha256.Sum256([]byte(filePath + "\x00" + trimmed))
+	sum := sha256.Sum256([]byte(normalizePath(filePath) + "\x00" + trimmed))
 	return binary.BigEndian.Uint64(sum[:8])
+}
+
+// normalizePath makes a path hash the same however it was assembled.
+//
+// Separators only. Case is left alone even though Windows filesystems are
+// usually case-insensitive: both sides of a match come from the same machine
+// within one commit, so they already agree on case, and folding it would
+// merge genuinely distinct paths on the case-sensitive filesystems where
+// most of this data is produced.
+func normalizePath(p string) string {
+	return strings.ReplaceAll(p, `\`, "/")
 }
 
 // Set is a collection of line hashes for lookup.
