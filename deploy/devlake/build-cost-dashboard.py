@@ -108,11 +108,11 @@ WHERE s.input_tokens IS NOT NULL AND {CONTRIBUTOR}""",
     description=(
         "Every token billed: uncached input + cache reads + cache writes + "
         "output.\n\n"
-        "**Almost all of it is cache reads.** Measured here, output is 0.1% "
-        "of the total — so this number tracks how much context was re-sent, "
-        "not how much the models produced. The tiles beside it break it "
-        "down, because a single figure in the billions invites the wrong "
-        "conclusion.\n\n"
+        "**Almost all of it is cache reads.** Measured here: 7.53B cache "
+        "reads, 54.6M cache writes, 13.2M uncached input, 7.9M output — so "
+        "this number tracks how much context was re-sent, not how much the "
+        "models produced. The four tiles to the right hold the same "
+        "breakdown as live figures.\n\n"
         "Tokens, not currency: under a subscription the marginal cost of a "
         "token is zero, so a price table would report money nobody spent. "
         "Multiply by your own contract if you need a figure."),
@@ -128,9 +128,11 @@ WHERE s.output_tokens IS NOT NULL AND {CONTRIBUTOR}""",
         "What the models actually produced, as opposed to what was re-sent "
         "to them.\n\n"
         "Typically a fraction of a percent of the total — 0.1% measured "
-        "here. The two tiles carry different units at these magnitudes "
-        "(billions against millions), so read the share below rather than "
-        "comparing them by eye."),
+        "here.\n\n"
+        "**Total and Output are three orders of magnitude apart**, so they "
+        "render in different units (B against M) and comparing them by eye "
+        "reads as a contradiction. They are not: 7.6 B is a thousand times "
+        "7.6 M."),
     options=STAT))
 
 panels.append(panel(
@@ -196,22 +198,7 @@ WHERE s.cache_write_tokens IS NOT NULL AND s.cache_write_tokens > 0 AND {CONTRIB
     options=STAT))
 
 panels.append(panel(
-    104, "Sessions with cost data", "stat", 0, y + 4, 6, 3,
-    f"""SELECT CONCAT(
-  SUM(CASE WHEN s.input_tokens IS NOT NULL THEN 1 ELSE 0 END),
-  ' of ', COUNT(*)) AS v
-FROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id
-WHERE {CONTRIBUTOR}""",
-    novalue="no sessions",
-    description=(
-        "The denominator, shown because a total is meaningless without it.\n\n"
-        "Antigravity reports no tokens at all, so a repository using it will "
-        "never reach 100% — that is a property of the agent, not a gap to be "
-        "filled."),
-    options={**STAT, "textMode": "value"}))
-
-panels.append(panel(
-    105, "Reasoning tokens", "stat", 6, y + 4, 6, 3,
+    105, "Reasoning tokens", "stat", 0, y + 4, 6, 4,
     f"""SELECT COALESCE(SUM(s.reasoning_tokens), 0) AS v
 FROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id
 WHERE s.reasoning_tokens IS NOT NULL AND {CONTRIBUTOR}""",
@@ -222,41 +209,57 @@ WHERE s.reasoning_tokens IS NOT NULL AND {CONTRIBUTOR}""",
         "separate it, so an empty panel here means 'not reported', not zero."),
     options=STAT))
 
-# The composition pie sits on the same second row as the two tiles
-# above, so its y is captured before the cursor advances.
-PIE_Y = y + 4
-y += 7
+# The three signals below sit on the headline's second row rather than in
+# a section of their own further down.
+#
+# They answer "what did this cost us" as directly as the token counts do —
+# effort is the setting that drives token spend, latency is the wait it
+# buys, and the human-edited share is whether the output survived contact
+# with a reviewer. A reader who only looks at the top of the page should
+# see them.
+SHAPE_Y = y + 4
+y += 8
 
 panels.append(panel(
-    108, "What the tokens are", "piechart", 12, PIE_Y, 12, 3,
-    f"""SELECT 'Cache read' AS metric, SUM(COALESCE(s.cache_read_tokens,0)) AS value
-FROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id
-WHERE s.input_tokens IS NOT NULL AND {CONTRIBUTOR}
-UNION ALL
-SELECT 'Uncached input', SUM(s.input_tokens)
-FROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id
-WHERE s.input_tokens IS NOT NULL AND {CONTRIBUTOR}
-UNION ALL
-SELECT 'Cache write', SUM(COALESCE(s.cache_write_tokens,0))
-FROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id
-WHERE s.input_tokens IS NOT NULL AND {CONTRIBUTOR}
-UNION ALL
-SELECT 'Output', SUM(s.output_tokens)
-FROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id
-WHERE s.output_tokens IS NOT NULL AND {CONTRIBUTOR}""",
-    unit=TOKEN_UNIT, novalue="no session reported tokens",
+    130, "Human edited the agent's output", "stat", 6, SHAPE_Y, 6, 4,
+    f"""SELECT ROUND(100.0 * SUM(CASE WHEN e.user_modified = 1 THEN 1 ELSE 0 END)
+  / NULLIF(COUNT(*), 0), 1) AS v
+FROM whodunit_events e JOIN whodunit_repos r ON r.repo_id = e.repo_id
+WHERE e.user_modified IS NOT NULL AND {CONTRIBUTOR}""",
+    unit="percent", decimals=1, novalue="only Claude Code reports this",
     description=(
-        "The headline total, broken into its parts.\n\n"
-        "Without this, a total in the billions beside an output in the "
-        "millions reads as a contradiction — the units differ by a factor "
-        "of a thousand and the eye does not correct for that. Here the "
-        "answer is visible: cache reads dominate, output is a sliver.\n\n"
-        "A cache read is billed at roughly a tenth of base rate and a write "
-        "at 1.25x, so the largest slice is not the most expensive one."),
-    options={"legend": {"displayMode": "table", "placement": "right",
-                        "values": ["value", "percent"]},
-             "reduceOptions": {"calcs": ["lastNotNull"], "values": True},
-             "pieType": "donut"}))
+        "Share of edits a human changed before committing — the difference "
+        "between 'the agent wrote this' and 'the agent wrote this and it was "
+        "kept'.\n\n"
+        "Claude Code alone reports it. The denominator counts only calls that "
+        "carried the signal, so agents without it do not dilute the rate."),
+    options=STAT))
+
+panels.append(panel(
+    132, "Turn latency", "stat", 12, SHAPE_Y, 6, 4,
+    f"""SELECT ROUND(AVG(s.duration_ms) / 1000, 1) AS v
+FROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id
+WHERE s.duration_ms IS NOT NULL AND {CONTRIBUTOR}""",
+    unit="s", decimals=1, novalue="only Codex records timing",
+    description=(
+        "Codex alone records per-turn timing. Claude Code and Antigravity "
+        "report none, so this is empty for them rather than zero — a zero "
+        "would make them the fastest agents on this panel."),
+    options=STAT))
+
+panels.append(panel(
+    133, "Reasoning effort", "piechart", 18, SHAPE_Y, 6, 4,
+    f"""SELECT s.effort AS metric, COUNT(*) AS value
+FROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id
+WHERE s.effort IS NOT NULL AND {CONTRIBUTOR}
+GROUP BY s.effort""",
+    novalue="no session recorded an effort tier",
+    description=(
+        "How hard the model was asked to think, where the agent says.\n\n"
+        "The lever behind the token counts above: a higher tier spends more "
+        "on the same task."),
+    options={"legend": {"displayMode": "list", "placement": "bottom"},
+             "reduceOptions": {"calcs": ["lastNotNull"], "values": True}}))
 
 # ------------------------------------------------------------- per model
 panels.append(row("Per model — where the aggregate hides a loss", y)); y += 1
@@ -395,7 +398,7 @@ GROUP BY 1, 2 ORDER BY 1""",
 y += 8
 
 # ------------------------------------------------------- branch & autonomy
-panels.append(row("Where it landed, and how much rope the agent had", y)); y += 1
+panels.append(row("Where it landed, how much rope, and how long", y)); y += 1
 
 panels.append(panel(
     120, "Agent-written lines by branch", "table", 0, y, 12, 8,
@@ -435,26 +438,8 @@ GROUP BY s.permission_mode, s.agent ORDER BY COUNT(*) DESC""",
     options={"showHeader": True}))
 y += 8
 
-# --------------------------------------------------------- session shape
-panels.append(row("Session shape — the actionable half", y)); y += 1
-
 panels.append(panel(
-    130, "Human edited the agent's output", "stat", 0, y, 6, 4,
-    f"""SELECT ROUND(100.0 * SUM(CASE WHEN e.user_modified = 1 THEN 1 ELSE 0 END)
-  / NULLIF(COUNT(*), 0), 1) AS v
-FROM whodunit_events e JOIN whodunit_repos r ON r.repo_id = e.repo_id
-WHERE e.user_modified IS NOT NULL AND {CONTRIBUTOR}""",
-    unit="percent", decimals=1, novalue="only Claude Code reports this",
-    description=(
-        "Share of edits a human changed before committing — the difference "
-        "between 'the agent wrote this' and 'the agent wrote this and it was "
-        "kept'.\n\n"
-        "Claude Code alone reports it. The denominator counts only calls that "
-        "carried the signal, so agents without it do not dilute the rate."),
-    options=STAT))
-
-panels.append(panel(
-    131, "Longest sessions", "table", 6, y, 9, 4,
+    131, "Longest sessions", "table", 0, y, 24, 6,
     f"""SELECT
   s.agent                                            AS Agent,
   COALESCE(NULLIF(s.model, ''), '—')                 AS Model,
@@ -480,29 +465,7 @@ ORDER BY (s.last_seen - s.first_seen) DESC LIMIT 10""",
         "shown as impossibly long."),
     options={"showHeader": True}))
 
-panels.append(panel(
-    132, "Turn latency", "stat", 15, y, 5, 4,
-    f"""SELECT ROUND(AVG(s.duration_ms) / 1000, 1) AS v
-FROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id
-WHERE s.duration_ms IS NOT NULL AND {CONTRIBUTOR}""",
-    unit="s", decimals=1, novalue="only Codex records timing",
-    description=(
-        "Codex alone records per-turn timing. Claude Code and Antigravity "
-        "report none, so this is empty for them rather than zero — a zero "
-        "would make them the fastest agents on this panel."),
-    options=STAT))
-
-panels.append(panel(
-    133, "Reasoning effort", "piechart", 20, y, 4, 4,
-    f"""SELECT s.effort AS metric, COUNT(*) AS value
-FROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id
-WHERE s.effort IS NOT NULL AND {CONTRIBUTOR}
-GROUP BY s.effort""",
-    novalue="no session recorded an effort tier",
-    description="How hard the model was asked to think, where the agent says.",
-    options={"legend": {"displayMode": "list", "placement": "bottom"},
-             "reduceOptions": {"calcs": ["lastNotNull"], "values": True}}))
-y += 4
+y += 6
 
 # ------------------------------------------------------------ MCP servers
 panels.append(row("MCP", y)); y += 1

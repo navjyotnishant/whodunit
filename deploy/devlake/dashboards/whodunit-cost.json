@@ -84,7 +84,7 @@
         },
         "overrides": []
       },
-      "description": "Every token billed: uncached input + cache reads + cache writes + output.\n\n**Almost all of it is cache reads.** Measured here, output is 0.1% of the total \u2014 so this number tracks how much context was re-sent, not how much the models produced. The tiles beside it break it down, because a single figure in the billions invites the wrong conclusion.\n\nTokens, not currency: under a subscription the marginal cost of a token is zero, so a price table would report money nobody spent. Multiply by your own contract if you need a figure.",
+      "description": "Every token billed: uncached input + cache reads + cache writes + output.\n\n**Almost all of it is cache reads.** Measured here: 7.53B cache reads, 54.6M cache writes, 13.2M uncached input, 7.9M output \u2014 so this number tracks how much context was re-sent, not how much the models produced. The four tiles to the right hold the same breakdown as live figures.\n\nTokens, not currency: under a subscription the marginal cost of a token is zero, so a price table would report money nobody spent. Multiply by your own contract if you need a figure.",
       "options": {
         "graphMode": "none",
         "textMode": "value",
@@ -123,7 +123,7 @@
         },
         "overrides": []
       },
-      "description": "What the models actually produced, as opposed to what was re-sent to them.\n\nTypically a fraction of a percent of the total \u2014 0.1% measured here. The two tiles carry different units at these magnitudes (billions against millions), so read the share below rather than comparing them by eye.",
+      "description": "What the models actually produced, as opposed to what was re-sent to them.\n\nTypically a fraction of a percent of the total \u2014 0.1% measured here.\n\n**Total and Output are three orders of magnitude apart**, so they render in different units (B against M) and comparing them by eye reads as a contradiction. They are not: 7.6 B is a thousand times 7.6 M.",
       "options": {
         "graphMode": "none",
         "textMode": "value",
@@ -318,52 +318,15 @@
       }
     },
     {
-      "id": 104,
-      "title": "Sessions with cost data",
+      "id": 105,
+      "title": "Reasoning tokens",
       "type": "stat",
       "datasource": "${datasource}",
       "gridPos": {
         "x": 0,
         "y": 5,
         "w": 6,
-        "h": 3
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "format": "table",
-          "rawSql": "SELECT CONCAT(\n  SUM(CASE WHEN s.input_tokens IS NOT NULL THEN 1 ELSE 0 END),\n  ' of ', COUNT(*)) AS v\nFROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id\nWHERE ('$contributor' = '__all__' OR r.contributor = '$contributor')"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "noValue": "no sessions"
-        },
-        "overrides": []
-      },
-      "description": "The denominator, shown because a total is meaningless without it.\n\nAntigravity reports no tokens at all, so a repository using it will never reach 100% \u2014 that is a property of the agent, not a gap to be filled.",
-      "options": {
-        "graphMode": "none",
-        "textMode": "value",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        }
-      }
-    },
-    {
-      "id": 105,
-      "title": "Reasoning tokens",
-      "type": "stat",
-      "datasource": "${datasource}",
-      "gridPos": {
-        "x": 6,
-        "y": 5,
-        "w": 6,
-        "h": 3
+        "h": 4
       },
       "targets": [
         {
@@ -394,47 +357,119 @@
       }
     },
     {
-      "id": 108,
-      "title": "What the tokens are",
-      "type": "piechart",
+      "id": 130,
+      "title": "Human edited the agent's output",
+      "type": "stat",
       "datasource": "${datasource}",
       "gridPos": {
-        "x": 12,
+        "x": 6,
         "y": 5,
-        "w": 12,
-        "h": 3
+        "w": 6,
+        "h": 4
       },
       "targets": [
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT 'Cache read' AS metric, SUM(COALESCE(s.cache_read_tokens,0)) AS value\nFROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id\nWHERE s.input_tokens IS NOT NULL AND ('$contributor' = '__all__' OR r.contributor = '$contributor')\nUNION ALL\nSELECT 'Uncached input', SUM(s.input_tokens)\nFROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id\nWHERE s.input_tokens IS NOT NULL AND ('$contributor' = '__all__' OR r.contributor = '$contributor')\nUNION ALL\nSELECT 'Cache write', SUM(COALESCE(s.cache_write_tokens,0))\nFROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id\nWHERE s.input_tokens IS NOT NULL AND ('$contributor' = '__all__' OR r.contributor = '$contributor')\nUNION ALL\nSELECT 'Output', SUM(s.output_tokens)\nFROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id\nWHERE s.output_tokens IS NOT NULL AND ('$contributor' = '__all__' OR r.contributor = '$contributor')"
+          "rawSql": "SELECT ROUND(100.0 * SUM(CASE WHEN e.user_modified = 1 THEN 1 ELSE 0 END)\n  / NULLIF(COUNT(*), 0), 1) AS v\nFROM whodunit_events e JOIN whodunit_repos r ON r.repo_id = e.repo_id\nWHERE e.user_modified IS NOT NULL AND ('$contributor' = '__all__' OR r.contributor = '$contributor')"
         }
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "sishort",
-          "noValue": "no session reported tokens"
+          "unit": "percent",
+          "decimals": 1,
+          "noValue": "only Claude Code reports this"
         },
         "overrides": []
       },
-      "description": "The headline total, broken into its parts.\n\nWithout this, a total in the billions beside an output in the millions reads as a contradiction \u2014 the units differ by a factor of a thousand and the eye does not correct for that. Here the answer is visible: cache reads dominate, output is a sliver.\n\nA cache read is billed at roughly a tenth of base rate and a write at 1.25x, so the largest slice is not the most expensive one.",
+      "description": "Share of edits a human changed before committing \u2014 the difference between 'the agent wrote this' and 'the agent wrote this and it was kept'.\n\nClaude Code alone reports it. The denominator counts only calls that carried the signal, so agents without it do not dilute the rate.",
+      "options": {
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 132,
+      "title": "Turn latency",
+      "type": "stat",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "x": 12,
+        "y": 5,
+        "w": 6,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT ROUND(AVG(s.duration_ms) / 1000, 1) AS v\nFROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id\nWHERE s.duration_ms IS NOT NULL AND ('$contributor' = '__all__' OR r.contributor = '$contributor')"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "decimals": 1,
+          "noValue": "only Codex records timing"
+        },
+        "overrides": []
+      },
+      "description": "Codex alone records per-turn timing. Claude Code and Antigravity report none, so this is empty for them rather than zero \u2014 a zero would make them the fastest agents on this panel.",
+      "options": {
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 133,
+      "title": "Reasoning effort",
+      "type": "piechart",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "x": 18,
+        "y": 5,
+        "w": 6,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT s.effort AS metric, COUNT(*) AS value\nFROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id\nWHERE s.effort IS NOT NULL AND ('$contributor' = '__all__' OR r.contributor = '$contributor')\nGROUP BY s.effort"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "no session recorded an effort tier"
+        },
+        "overrides": []
+      },
+      "description": "How hard the model was asked to think, where the agent says.\n\nThe lever behind the token counts above: a higher tier spends more on the same task.",
       "options": {
         "legend": {
-          "displayMode": "table",
-          "placement": "right",
-          "values": [
-            "value",
-            "percent"
-          ]
+          "displayMode": "list",
+          "placement": "bottom"
         },
         "reduceOptions": {
           "calcs": [
             "lastNotNull"
           ],
           "values": true
-        },
-        "pieType": "donut"
+        }
       }
     },
     {
@@ -443,7 +478,7 @@
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 8,
+        "y": 9,
         "w": 24,
         "h": 1
       },
@@ -456,7 +491,7 @@
       "datasource": "${datasource}",
       "gridPos": {
         "x": 0,
-        "y": 9,
+        "y": 10,
         "w": 24,
         "h": 5
       },
@@ -496,7 +531,7 @@
       "datasource": "${datasource}",
       "gridPos": {
         "x": 0,
-        "y": 14,
+        "y": 15,
         "w": 24,
         "h": 9
       },
@@ -622,7 +657,7 @@
       "datasource": "${datasource}",
       "gridPos": {
         "x": 0,
-        "y": 23,
+        "y": 24,
         "w": 12,
         "h": 8
       },
@@ -663,7 +698,7 @@
       "datasource": "${datasource}",
       "gridPos": {
         "x": 12,
-        "y": 23,
+        "y": 24,
         "w": 12,
         "h": 8
       },
@@ -714,11 +749,11 @@
     },
     {
       "type": "row",
-      "title": "Where it landed, and how much rope the agent had",
+      "title": "Where it landed, how much rope, and how long",
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 31,
+        "y": 32,
         "w": 24,
         "h": 1
       },
@@ -731,7 +766,7 @@
       "datasource": "${datasource}",
       "gridPos": {
         "x": 0,
-        "y": 32,
+        "y": 33,
         "w": 12,
         "h": 8
       },
@@ -760,7 +795,7 @@
       "datasource": "${datasource}",
       "gridPos": {
         "x": 12,
-        "y": 32,
+        "y": 33,
         "w": 12,
         "h": 8
       },
@@ -783,66 +818,15 @@
       }
     },
     {
-      "type": "row",
-      "title": "Session shape \u2014 the actionable half",
-      "collapsed": false,
-      "gridPos": {
-        "x": 0,
-        "y": 40,
-        "w": 24,
-        "h": 1
-      },
-      "panels": []
-    },
-    {
-      "id": 130,
-      "title": "Human edited the agent's output",
-      "type": "stat",
-      "datasource": "${datasource}",
-      "gridPos": {
-        "x": 0,
-        "y": 41,
-        "w": 6,
-        "h": 4
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "format": "table",
-          "rawSql": "SELECT ROUND(100.0 * SUM(CASE WHEN e.user_modified = 1 THEN 1 ELSE 0 END)\n  / NULLIF(COUNT(*), 0), 1) AS v\nFROM whodunit_events e JOIN whodunit_repos r ON r.repo_id = e.repo_id\nWHERE e.user_modified IS NOT NULL AND ('$contributor' = '__all__' OR r.contributor = '$contributor')"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "percent",
-          "decimals": 1,
-          "noValue": "only Claude Code reports this"
-        },
-        "overrides": []
-      },
-      "description": "Share of edits a human changed before committing \u2014 the difference between 'the agent wrote this' and 'the agent wrote this and it was kept'.\n\nClaude Code alone reports it. The denominator counts only calls that carried the signal, so agents without it do not dilute the rate.",
-      "options": {
-        "graphMode": "none",
-        "textMode": "value",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        }
-      }
-    },
-    {
       "id": 131,
       "title": "Longest sessions",
       "type": "table",
       "datasource": "${datasource}",
       "gridPos": {
-        "x": 6,
+        "x": 0,
         "y": 41,
-        "w": 9,
-        "h": 4
+        "w": 24,
+        "h": 6
       },
       "targets": [
         {
@@ -863,89 +847,12 @@
       }
     },
     {
-      "id": 132,
-      "title": "Turn latency",
-      "type": "stat",
-      "datasource": "${datasource}",
-      "gridPos": {
-        "x": 15,
-        "y": 41,
-        "w": 5,
-        "h": 4
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "format": "table",
-          "rawSql": "SELECT ROUND(AVG(s.duration_ms) / 1000, 1) AS v\nFROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id\nWHERE s.duration_ms IS NOT NULL AND ('$contributor' = '__all__' OR r.contributor = '$contributor')"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "s",
-          "decimals": 1,
-          "noValue": "only Codex records timing"
-        },
-        "overrides": []
-      },
-      "description": "Codex alone records per-turn timing. Claude Code and Antigravity report none, so this is empty for them rather than zero \u2014 a zero would make them the fastest agents on this panel.",
-      "options": {
-        "graphMode": "none",
-        "textMode": "value",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        }
-      }
-    },
-    {
-      "id": 133,
-      "title": "Reasoning effort",
-      "type": "piechart",
-      "datasource": "${datasource}",
-      "gridPos": {
-        "x": 20,
-        "y": 41,
-        "w": 4,
-        "h": 4
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "format": "table",
-          "rawSql": "SELECT s.effort AS metric, COUNT(*) AS value\nFROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id\nWHERE s.effort IS NOT NULL AND ('$contributor' = '__all__' OR r.contributor = '$contributor')\nGROUP BY s.effort"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "noValue": "no session recorded an effort tier"
-        },
-        "overrides": []
-      },
-      "description": "How hard the model was asked to think, where the agent says.",
-      "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom"
-        },
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "values": true
-        }
-      }
-    },
-    {
       "type": "row",
       "title": "MCP",
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 45,
+        "y": 47,
         "w": 24,
         "h": 1
       },
@@ -958,7 +865,7 @@
       "datasource": "${datasource}",
       "gridPos": {
         "x": 0,
-        "y": 46,
+        "y": 48,
         "w": 12,
         "h": 7
       },
@@ -990,7 +897,7 @@
       "datasource": "${datasource}",
       "gridPos": {
         "x": 12,
-        "y": 46,
+        "y": 48,
         "w": 12,
         "h": 7
       },
