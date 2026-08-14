@@ -5,6 +5,28 @@ on:
     branches: [main, PRD]
   pull_request:
 
+# One run per commit, and the newest wins.
+#
+# Keyed on the commit rather than the ref, which is what actually collapses
+# the duplicate. A branch with an open pull request matches both triggers
+# above, and those arrive on different refs — refs/heads/main against
+# refs/pull/N/merge — so grouping by ref leaves both running. They are the
+# same commit, so grouping by SHA does not.
+#
+# That doubling was real: every push to `main` while the release PR was open
+# ran the full matrix twice, three platforms each, for an identical result.
+#
+# cancel-in-progress also stops a superseded run. Pushing a fix used to mean
+# queueing behind the run for the commit it replaced, so the answer arrived
+# late and described code nobody was looking at any more.
+#
+# Deliberately not applied to release.yml: cancelling a half-finished
+# publish would leave a release holding some of its artifacts, and that is
+# worse than waiting.
+concurrency:
+  group: test-${{ github.event.pull_request.head.sha || github.sha }}
+  cancel-in-progress: true
+
 jobs:
   # Formatting and vet run once, on Linux. They are platform-independent,
   # and the gofmt check below is a shell expression that would need
