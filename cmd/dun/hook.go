@@ -131,7 +131,10 @@ func determineTrailer() spec.Trailer {
 	for i, f := range staged {
 		staged[i] = filepath.Join(cwd, f)
 	}
-	since := now.Add(-7 * 24 * time.Hour)
+	// The same window attribution.Determine applies, not a second copy of
+	// the number. These two have always had to agree and nothing enforced
+	// it.
+	since := now.Add(-attribution.LookbackWindow)
 
 	// Record what the agents did before deciding what to stamp.
 	//

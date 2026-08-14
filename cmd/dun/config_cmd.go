@@ -84,9 +84,26 @@ func agentPathKey(key string) string {
 }
 
 func runConfigSet(cmd *cobra.Command, key, value string) error {
+	// Scalars first: they are the settings people go looking for, and until
+	// now the only way to set one was to edit the JSON by hand.
+	if sc, ok := scalarByKey(key); ok {
+		cfg, err := config.Load()
+		if err != nil {
+			return err
+		}
+		if err := sc.Set(&cfg, value); err != nil {
+			return err
+		}
+		if err := config.Save(cfg); err != nil {
+			return err
+		}
+		fmt.Fprintf(cmd.OutOrStdout(), "%s = %s\n", key, sc.Get(cfg))
+		return nil
+	}
+
 	agent := agentPathKey(key)
 	if agent == "" {
-		return fmt.Errorf("unknown setting %q (try agent.<name>.path)", key)
+		return fmt.Errorf("unknown setting %q — known settings: %s", key, settingKeys())
 	}
 	if adapter.ByName(agent) == nil {
 		return fmt.Errorf("unknown agent %q — known agents: %s", agent, strings.Join(agentNames(), ", "))
@@ -122,9 +139,18 @@ func runConfigSet(cmd *cobra.Command, key, value string) error {
 }
 
 func runConfigGet(cmd *cobra.Command, key string) error {
+	if sc, ok := scalarByKey(key); ok {
+		cfg, err := config.Load()
+		if err != nil {
+			return err
+		}
+		fmt.Fprintln(cmd.OutOrStdout(), sc.Get(cfg))
+		return nil
+	}
+
 	agent := agentPathKey(key)
 	if agent == "" {
-		return fmt.Errorf("unknown setting %q (try agent.<name>.path)", key)
+		return fmt.Errorf("unknown setting %q — known settings: %s", key, settingKeys())
 	}
 	cfg, err := config.Load()
 	if err != nil {

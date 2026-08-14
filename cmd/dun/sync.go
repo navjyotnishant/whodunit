@@ -132,6 +132,13 @@ func runSync(cmd *cobra.Command, dsn string, limit int, dryRun bool, repoFlag st
 
 	fmt.Fprintf(w, "\nsent %d commit(s), %d event(s), %d session(s), %d line hash(es)\n",
 		counts.Commits, counts.Events, counts.Sessions, counts.Lines)
+
+	// The same housekeeping the pre-push hook does, for the same reason:
+	// the data has just reached a second place, which is the only condition
+	// under which removing it locally is safe. Running it here too means
+	// `dun sync` and a push behave identically rather than one of them
+	// quietly skipping the copy.
+	afterSuccessfulSync("sync")
 	return nil
 }
 

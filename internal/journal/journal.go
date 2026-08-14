@@ -572,3 +572,91 @@ func open(dataDir string) (*sql.DB, error) {
 	}
 	return db, nil
 }
+
+// vacuumThreshold is how much free space must accumulate before Prune
+// rewrites the file.
+//
+// Deleting rows moves pages to SQLite's freelist rather than shrinking the
+// file, and VACUUM reclaims them by rewriting the whole database — which
+// needs free disk equal to the file size and holds an exclusive lock. Doing
+// that after every prune would rewrite megabytes to reclaim kilobytes on
+// every run but the first, since freed pages are reused by later inserts.
+const vacuumThreshold = 4 << 20
+
+// Prune deletes line hashes older than the given time, across every
+// repository.
+//
+// Global rather than repository-scoped, unlike Purge. Purge means "forget
+// what I did in this repository" and must be scoped to be honest; retention
+// is disk hygiene, and scoping it would leave the hashes of a repository
+// nobody works in any more sitting there forever.
+//
+// Only agent_lines is touched. That table and its indexes are roughly 72% of
+// the file and grow about seven rows per journal entry, so it is the whole
+// of the growth problem. Entries, sessions and metadata are kept: the report
+// builds its history from them, `dun verify` reports recency from them, and
+// an old commit stays checkable against them long after its line hashes have
+// gone (NAV-21).
+//
+// The caller decides the cutoff. Nothing here reads the configured retention
+// window, because the safety of any cutoff depends on the caller having
+// published the data first.
+func Prune(dataDir string, olderThan time.Time) (deleted int64, vacuumed bool, err error) {
+	if _, err := os.Stat(DBPath(dataDir)); os.IsNotExist(err) {
+		return 0, false, nil
+	}
+
+	db, err := open(dataDir)
+	if err != nil {
+		return 0, false, err
+	}
+	defer db.Close()
+
+	res, err := db.Exec(`DELETE FROM agent_lines WHERE first_ts < ?`, olderThan.UnixNano())
+	if err != nil {
+		return 0, false, fmt.Errorf("journal: prune: %w", err)
+	}
+	deleted, _ = res.RowsAffected()
+	if deleted == 0 {
+		return 0, false, nil
+	}
+
+	// Rewrite only when there is something worth reclaiming. VACUUM cannot
+	// run inside a transaction and is the one operation here that is slow
+	// in proportion to the whole file rather than to what was deleted.
+	var freePages, pageSize int64
+	if err := db.QueryRow(`PRAGMA freelist_count`).Scan(&freePages); err != nil {
+		return deleted, false, nil // the delete stands; reclaiming is best-effort
+	}
+	if err := db.QueryRow(`PRAGMA page_size`).Scan(&pageSize); err != nil {
+		return deleted, false, nil
+	}
+	if freePages*pageSize < vacuumThreshold {
+		return deleted, false, nil
+	}
+
+	if _, err := db.Exec(`VACUUM`); err != nil {
+		// A failed vacuum leaves a correct database that is merely larger
+		// than it needs to be, so it is not worth failing the prune over.
+		return deleted, false, nil
+	}
+	return deleted, true, nil
+}
+
+// PruneCount reports how many line hashes a prune would delete, without
+// deleting anything. For `dun journal prune --dry-run`.
+func PruneCount(dataDir string, olderThan time.Time) (int64, error) {
+	if _, err := os.Stat(DBPath(dataDir)); os.IsNotExist(err) {
+		return 0, nil
+	}
+	db, err := open(dataDir)
+	if err != nil {
+		return 0, err
+	}
+	defer db.Close()
+
+	var n int64
+	err = db.QueryRow(`SELECT COUNT(*) FROM agent_lines WHERE first_ts < ?`,
+		olderThan.UnixNano()).Scan(&n)
+	return n, err
+}

@@ -9,8 +9,11 @@ import (
 	"fmt"
 	"io"
 
+	"time"
+
 	"github.com/navjyotnishant/whodunit/internal/config"
 	"github.com/navjyotnishant/whodunit/internal/hooklog"
+	"github.com/navjyotnishant/whodunit/internal/journal"
 	"github.com/navjyotnishant/whodunit/internal/sidecar"
 	"github.com/navjyotnishant/whodunit/internal/termcolor"
 )
@@ -96,7 +99,60 @@ func syncNow(sync *config.SyncConfig, w io.Writer) error {
 	logHook(hookPrePush, hooklog.LevelInfo, "sync",
 		fmt.Sprintf("published %d commit(s), %d event(s), %d session(s)",
 			counts.Commits, counts.Events, counts.Sessions))
+
+	afterSuccessfulSync(hookPrePush)
 	return nil
+}
+
+// afterSuccessfulSync takes a backup and prunes what has now been published.
+//
+// Ordering is the whole safety argument. Sync sends the entire journal and
+// the sidecar upserts on the same keys, so anything pruned after a successful
+// write already exists in a second place — no watermark to keep, and no
+// query to the remote asking what it has.
+//
+// Both halves are best-effort and neither can fail a push. A backup that
+// failed leaves the previous one; a prune that failed leaves a larger file.
+// Blocking someone's push over disk hygiene would be the worse trade, and
+// `dun log` records what happened either way.
+func afterSuccessfulSync(hook string) {
+	home, err := config.Dir()
+	if err != nil {
+		return
+	}
+	dataDir, err := journalDataDir()
+	if err != nil {
+		return
+	}
+
+	// Backup first. Pruning removes rows the copy should still contain, so
+	// taking the copy afterwards would bake the prune into the only local
+	// history of it.
+	cfg, err := config.Load()
+	if err != nil {
+		return
+	}
+
+	if taken, err := journal.Backup(home, dataDir, cfg.BackupDays); err != nil {
+		logHook(hook, hooklog.LevelWarn, "backup", err.Error())
+	} else if taken {
+		logHook(hook, hooklog.LevelInfo, "backup", "wrote a daily copy of the journal")
+	}
+
+	cutoff := time.Now().AddDate(0, 0, -cfg.RetentionDays)
+	deleted, vacuumed, err := journal.Prune(dataDir, cutoff)
+	if err != nil {
+		logHook(hook, hooklog.LevelWarn, "prune", err.Error())
+		return
+	}
+	if deleted > 0 {
+		detail := fmt.Sprintf("removed %d line hash(es) older than %d days",
+			deleted, cfg.RetentionDays)
+		if vacuumed {
+			detail += ", and reclaimed the space"
+		}
+		logHook(hook, hooklog.LevelInfo, "prune", detail)
+	}
 }
 
 // defaultSyncLimit is how many recent commits a push publishes.

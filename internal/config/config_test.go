@@ -19,7 +19,11 @@ func TestLoadDefaultsWhenMissing(t *testing.T) {
 func TestSaveAndLoadRoundTrip(t *testing.T) {
 	t.Setenv("WHODUNIT_HOME", t.TempDir())
 
-	want := Config{MonthlySpend: 20, RetentionDays: 30}
+	// Every defaulted field is set explicitly. Load fills a zero value with
+	// its default, so a round-trip of a partially-filled Config compares
+	// unequal to what was saved — which is correct behaviour, not a bug to
+	// assert against.
+	want := Config{MonthlySpend: 20, RetentionDays: 30, BackupDays: defaultBackupDays}
 	if err := Save(want); err != nil {
 		t.Fatalf("Save: %v", err)
 	}

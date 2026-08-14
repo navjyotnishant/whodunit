@@ -33,8 +33,30 @@ type Config struct {
 	// compute cost-per-attributed-line; zero means "not configured".
 	MonthlySpend float64 `json:"monthly_spend,omitempty"`
 
-	// RetentionDays is the default journal retention window (NAV-33).
+	// RetentionDays is how long agent line hashes are kept locally after
+	// they have been published.
+	//
+	// Line hashes only — entries, sessions and metadata are never pruned.
+	// That table is roughly 72% of the journal and grows about seven rows
+	// per entry, so it is the whole of the growth problem, while the others
+	// are what the report's history and after-the-fact verification are
+	// built from.
+	//
+	// Pruning happens after a successful sync and never before one, so
+	// anything removed already exists in a second place. A repository that
+	// never syncs is never pruned automatically.
 	RetentionDays int `json:"retention_days,omitempty"`
+
+	// BackupDays is how many daily copies of the journal are kept.
+	//
+	// A copy is taken on push, at most once a day, and the oldest is
+	// dropped once this many exist. Compressed, seven of them cost a
+	// fraction of the live database.
+	//
+	// Zero means the default rather than "no backups" — a user who wants
+	// none says so explicitly with `dun config set backup_days 0`, which
+	// is a different thing from having never configured it.
+	BackupDays int `json:"backup_days,omitempty"`
 
 	// Agents overrides where an agent's transcripts are looked for, keyed
 	// by the agent name that appears in the trailer ("claude-code",
@@ -171,7 +193,23 @@ type AgentConfig struct {
 	Path string `json:"path,omitempty"`
 }
 
-const defaultRetentionDays = 14
+// MinRetentionDays is the shortest retention that does not undermine
+// attribution.
+//
+// The commit hook looks back 30 days for line hashes, so pruning inside that
+// window deletes evidence a commit was about to match — silently downgrading
+// an intersected commit to observed. Kept as a plain number rather than
+// importing attribution, which would make config depend on the package that
+// depends on it.
+const MinRetentionDays = 30
+
+// defaultRetentionDays is twice the hook's lookback, so a prune can never
+// remove a hash still inside the window the hook queries.
+const defaultRetentionDays = 60
+
+// defaultBackupDays is a week: long enough that a mistake noticed on Monday
+// about last Tuesday is still recoverable.
+const defaultBackupDays = 7
 
 // dirPerm is owner-only. The journal records which files you edited and
 // when, which is nobody else's business on a shared machine.
@@ -248,6 +286,9 @@ func Load() (Config, error) {
 	}
 	if err := json.Unmarshal(data, &cfg); err != nil {
 		return cfg, err
+	}
+	if cfg.BackupDays == 0 {
+		cfg.BackupDays = defaultBackupDays
 	}
 	if cfg.RetentionDays == 0 {
 		cfg.RetentionDays = defaultRetentionDays
