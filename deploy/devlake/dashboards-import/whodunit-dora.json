@@ -451,13 +451,177 @@
       }
     },
     {
+      "type": "row",
+      "title": "Rework and cost per delivered unit",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 22,
+        "w": 24,
+        "h": 1
+      },
+      "panels": []
+    },
+    {
+      "id": 210,
+      "title": "Fix-commit share by change size",
+      "type": "table",
+      "datasource": "${DS_WHODUNIT}",
+      "gridPos": {
+        "x": 0,
+        "y": 23,
+        "w": 14,
+        "h": 7
+      },
+      "description": "**A rework proxy, not a defect rate.** `purpose` is derived from Conventional Commits prefixes and path heuristics, so this measures what commits were *labelled* — not what actually broke.\n\n**Banded by change size, and that changes the answer.** The unbanded figure is 28.4% assisted against 33.3% unassisted, which looks favourable. Split by size it reverses in the middle band: assisted work is 42.1% fixes against 24.7% at 50-300 lines, while at under 50 lines it is 38.5% against 46.6%. The aggregate was a size-mix artefact — assisted commits skew larger, and large commits are rarely labelled fixes.\n\nBoth denominators are shown because several bands are thin. Selection bias is uncontrolled either way: an agent is reached for on some kinds of work and not others, so part of this measures which work was assigned rather than what the agent did to it.",
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT\n  CASE WHEN c.lines_added+c.lines_removed < 50 THEN 'small (<50)'\n     WHEN c.lines_added+c.lines_removed < 300 THEN 'medium (50-300)'\n     ELSE 'large (300+)' END                                                          AS `Change size`,\n  SUM(c.status='assisted')                                        AS `Assisted n`,\n  ROUND(100.0*SUM(c.status='assisted' AND c.purpose='fix')\n    / NULLIF(SUM(c.status='assisted'),0),1)                       AS `Assisted fix %`,\n  SUM(c.status='undetermined')                                    AS `Unassisted n`,\n  ROUND(100.0*SUM(c.status='undetermined' AND c.purpose='fix')\n    / NULLIF(SUM(c.status='undetermined'),0),1)                   AS `Unassisted fix %`\nFROM whodunit_commits c JOIN whodunit_repos r ON r.repo_id = c.repo_id\nWHERE c.status IN ('assisted','undetermined') AND ('$contributor' = '__all__' OR r.contributor = '$contributor')\nGROUP BY 1 ORDER BY 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          },
+          "noValue": "no commits in range"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*fix %$"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percent"
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true
+      }
+    },
+    {
+      "id": 211,
+      "title": "Output tokens per delivered line",
+      "type": "stat",
+      "datasource": "${DS_WHODUNIT}",
+      "gridPos": {
+        "x": 14,
+        "y": 23,
+        "w": 5,
+        "h": 7
+      },
+      "description": "Output tokens spent per line of assisted work that **reached a commit**.\n\nThe denominator is what distinguishes this from the token-per-attributed-line panel above: that one divides by agent activity, this one by work that shipped. Tokens spent on edits that were abandoned or rewritten count in the numerator and not the denominator, which is the point — that gap is the cost of work that did not land.\n\nTokens, never currency: under a subscription the marginal cost of a token is zero, so a price table would report money nobody spent.\n\nSessions and commits are counted over the same window but are not joined row-to-row — a session can span commits and a commit can span sessions. Read it as a rate for the period, not as an attribution per commit.",
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT ROUND(\n  (SELECT SUM(s.output_tokens)\n     FROM whodunit_sessions s JOIN whodunit_repos r2 ON r2.repo_id = s.repo_id\n    WHERE s.output_tokens IS NOT NULL AND ('$contributor' = '__all__' OR r2.contributor = '$contributor'))\n  / NULLIF((SELECT SUM(c.lines_added + c.lines_removed)\n     FROM whodunit_commits c JOIN whodunit_repos r3 ON r3.repo_id = c.repo_id\n    WHERE c.status = 'assisted' AND ('$contributor' = '__all__' OR r3.contributor = '$contributor')), 0)\n) AS v"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          },
+          "decimals": 0,
+          "noValue": "no tokens or no assisted lines in range"
+        },
+        "overrides": []
+      },
+      "options": {
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 212,
+      "title": "Autonomy and what it produced",
+      "type": "table",
+      "datasource": "${DS_WHODUNIT}",
+      "gridPos": {
+        "x": 19,
+        "y": 23,
+        "w": 5,
+        "h": 7
+      },
+      "description": "How much work happened at each level of autonomy.\n\n**The session counts are thin and shown for that reason** — measured here, `default` is 3 sessions and `auto` is 1, against 64 for `never`. A mode with one session tells you about that session.\n\nTool calls are not shipped work. A mode that permits more actions produces more actions by construction; whether that becomes delivered code is the question this panel raises and cannot answer.\n\nEach agent's own vocabulary is kept rather than mapped onto a shared enum — Codex says `never` and `on-request`, Claude Code says `acceptEdits`, `auto` and `default`.",
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT\n  s.permission_mode          AS Mode,\n  COUNT(*)                   AS Sessions,\n  SUM(s.tool_calls)          AS `Tool calls`\nFROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id\nWHERE s.permission_mode IS NOT NULL AND ('$contributor' = '__all__' OR r.contributor = '$contributor')\nGROUP BY s.permission_mode ORDER BY SUM(s.tool_calls) DESC"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          },
+          "noValue": "no session recorded a permission mode"
+        },
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true
+      }
+    },
+    {
       "id": 9,
       "type": "row",
       "title": "Delivery outcomes — projects with deployments",
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 22,
+        "y": 31,
         "w": 24,
         "h": 1
       },
@@ -470,7 +634,7 @@
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
         "x": 0,
-        "y": 23,
+        "y": 32,
         "w": 4,
         "h": 5
       },
@@ -516,7 +680,7 @@
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
         "x": 4,
-        "y": 23,
+        "y": 32,
         "w": 4,
         "h": 5
       },
@@ -571,7 +735,7 @@
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
         "x": 8,
-        "y": 23,
+        "y": 32,
         "w": 4,
         "h": 5
       },
@@ -617,7 +781,7 @@
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
         "x": 12,
-        "y": 23,
+        "y": 32,
         "w": 4,
         "h": 5
       },
@@ -664,7 +828,7 @@
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
         "x": 16,
-        "y": 23,
+        "y": 32,
         "w": 4,
         "h": 5
       },
@@ -710,7 +874,7 @@
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
         "x": 20,
-        "y": 23,
+        "y": 32,
         "w": 4,
         "h": 5
       },
@@ -757,7 +921,7 @@
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
         "x": 0,
-        "y": 28,
+        "y": 37,
         "w": 12,
         "h": 7
       },
@@ -786,7 +950,7 @@
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
         "x": 12,
-        "y": 28,
+        "y": 37,
         "w": 12,
         "h": 7
       },
@@ -850,7 +1014,7 @@
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 35,
+        "y": 44,
         "w": 24,
         "h": 1
       },
@@ -862,7 +1026,7 @@
       "title": "",
       "gridPos": {
         "x": 0,
-        "y": 36,
+        "y": 45,
         "w": 24,
         "h": 4
       },
@@ -878,7 +1042,7 @@
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
         "x": 0,
-        "y": 40,
+        "y": 49,
         "w": 8,
         "h": 9
       },
@@ -971,7 +1135,7 @@
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
         "x": 8,
-        "y": 40,
+        "y": 49,
         "w": 8,
         "h": 9
       },
@@ -1064,7 +1228,7 @@
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
         "x": 16,
-        "y": 40,
+        "y": 49,
         "w": 8,
         "h": 9
       },
@@ -1157,7 +1321,7 @@
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
         "x": 0,
-        "y": 49,
+        "y": 58,
         "w": 4,
         "h": 4
       },
@@ -1203,7 +1367,7 @@
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
         "x": 4,
-        "y": 49,
+        "y": 58,
         "w": 4,
         "h": 4
       },
@@ -1253,7 +1417,7 @@
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
         "x": 8,
-        "y": 49,
+        "y": 58,
         "w": 4,
         "h": 4
       },
@@ -1299,7 +1463,7 @@
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
         "x": 12,
-        "y": 49,
+        "y": 58,
         "w": 4,
         "h": 4
       },
@@ -1349,7 +1513,7 @@
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
         "x": 16,
-        "y": 49,
+        "y": 58,
         "w": 4,
         "h": 4
       },
@@ -1395,7 +1559,7 @@
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
         "x": 20,
-        "y": 49,
+        "y": 58,
         "w": 4,
         "h": 4
       },
