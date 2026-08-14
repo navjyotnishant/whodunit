@@ -1,8 +1,10 @@
 package registry
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
@@ -180,4 +182,93 @@ func contains(haystack, needle string) bool {
 		}
 	}
 	return false
+}
+
+// The registry is user-created, opt-in, and not regenerable from anywhere:
+// it is the list of repositories someone chose to instrument. Losing it
+// means every cross-repo command goes blind until they re-run `dun init`
+// in each one, and nothing tells them that is what happened.
+//
+// write used a bare os.WriteFile, which truncates before it writes. Two
+// `dun init` runs in different repositories at the same moment, or a crash
+// mid-write, leaves a truncated repos.json that fails to parse — and then
+// List errors and every cross-repo command fails.
+func TestConcurrentAddsDoNotCorruptTheRegistry(t *testing.T) {
+	t.Setenv("WHODUNIT_HOME", t.TempDir())
+
+	const writers = 8
+	var wg sync.WaitGroup
+	errs := make(chan error, writers)
+
+	for i := 0; i < writers; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			if err := Add(fmt.Sprintf("repo-%d", i),
+				fmt.Sprintf("/path/to/repo-%d", i), time.Now()); err != nil {
+				errs <- err
+			}
+		}(i)
+	}
+	wg.Wait()
+	close(errs)
+
+	for err := range errs {
+		t.Errorf("a concurrent Add failed: %v", err)
+	}
+
+	// Whatever interleaving happened, the file must still parse. A registry
+	// that fails to unmarshal takes every cross-repo command down with it.
+	entries, err := List()
+	if err != nil {
+		t.Fatalf("the registry no longer parses after concurrent writes: %v\n\n"+
+			"This file is not regenerable — it is the list of repositories "+
+			"the user chose to instrument.", err)
+	}
+	if len(entries) == 0 {
+		t.Fatal("every entry was lost")
+	}
+}
+
+// A reader must never observe a half-written file, which is what truncating
+// in place allows.
+func TestReadingWhileWritingNeverSeesAPartialRegistry(t *testing.T) {
+	t.Setenv("WHODUNIT_HOME", t.TempDir())
+
+	// Enough entries that a write is not instantaneous.
+	for i := 0; i < 50; i++ {
+		if err := Add(fmt.Sprintf("seed-%d", i), fmt.Sprintf("/seed/%d", i), time.Now()); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	stop := make(chan struct{})
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for i := 0; ; i++ {
+			select {
+			case <-stop:
+				return
+			default:
+			}
+			_ = Add(fmt.Sprintf("churn-%d", i), fmt.Sprintf("/churn/%d", i), time.Now())
+		}
+	}()
+
+	var failures int
+	for i := 0; i < 100; i++ {
+		if _, err := List(); err != nil {
+			failures++
+			t.Logf("read %d: %v", i, err)
+		}
+	}
+	close(stop)
+	wg.Wait()
+
+	if failures > 0 {
+		t.Fatalf("%d of 100 reads saw an unparseable registry while another "+
+			"writer was active", failures)
+	}
 }

@@ -4,6 +4,8 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
+
+	"github.com/navjyotnishant/whodunit/internal/journal"
 )
 
 func openStore(t *testing.T) *Store {
@@ -251,5 +253,95 @@ func TestLastSyncAllCoversEveryRepoInOneQuery(t *testing.T) {
 	// the caller can tell "never synced" from "synced at the epoch".
 	if _, ok := all["never-published"]; ok {
 		t.Error("LastSyncAll invented an entry for a repository that never published")
+	}
+}
+
+// The session pipeline reaches the sidecar intact.
+//
+// SessionRowsFrom was the one *RowsFrom in this package with no test, and
+// sessions are the engagement grain the adoption dashboards read. A field
+// dropped here surfaces as a panel that has always shown zero — which reads
+// as "the agent did nothing" rather than "the number never arrived".
+func TestSessionRowsCarryEveryField(t *testing.T) {
+	now := time.Now().UTC().Truncate(time.Second)
+	first := now.Add(-2 * time.Hour)
+
+	rows := SessionRowsFrom([]journal.Session{{
+		Session:       "sess-1",
+		Agent:         "claude-code",
+		AgentVersion:  "2.1.0",
+		FirstSeen:     first,
+		LastSeen:      now,
+		UserMessages:  7,
+		AgentMessages: 11,
+		ToolCalls:     23,
+		DistinctTools: 5,
+		MCPCalls:      3,
+	}}, "repo", now)
+
+	if len(rows) != 1 {
+		t.Fatalf("got %d rows, want 1", len(rows))
+	}
+	r := rows[0]
+
+	checks := []struct {
+		name      string
+		got, want any
+	}{
+		{"RepoID", r.RepoID, "repo"},
+		{"Session", r.Session, "sess-1"},
+		{"Agent", r.Agent, "claude-code"},
+		{"AgentVersion", r.AgentVersion, "2.1.0"},
+		{"UserMessages", r.UserMessages, 7},
+		{"AgentMessages", r.AgentMessages, 11},
+		{"ToolCalls", r.ToolCalls, 23},
+		{"DistinctTools", r.DistinctTools, 5},
+		{"MCPCalls", r.MCPCalls, 3},
+	}
+	for _, c := range checks {
+		if c.got != c.want {
+			t.Errorf("%s = %v, want %v", c.name, c.got, c.want)
+		}
+	}
+	if !r.FirstSeen.Equal(first) {
+		t.Errorf("FirstSeen = %v, want %v", r.FirstSeen, first)
+	}
+	if !r.LastSeen.Equal(now) {
+		t.Errorf("LastSeen = %v, want %v", r.LastSeen, now)
+	}
+	if !r.SyncedAt.Equal(now) {
+		t.Errorf("SyncedAt = %v, want %v", r.SyncedAt, now)
+	}
+}
+
+// Sessions survive a write and read back with their counts intact.
+func TestSessionsRoundTripThroughTheStore(t *testing.T) {
+	db := openStore(t)
+	now := time.Now().UTC().Truncate(time.Second)
+
+	p := samplePayload(now)
+	p.Sessions = SessionRowsFrom([]journal.Session{{
+		Session: "sess-1", Agent: "claude-code", AgentVersion: "2.1.0",
+		FirstSeen: now.Add(-time.Hour), LastSeen: now,
+		UserMessages: 7, AgentMessages: 11, ToolCalls: 23,
+		DistinctTools: 5, MCPCalls: 3,
+	}}, "repo", now)
+
+	counts, err := Write(db, p)
+	if err != nil {
+		t.Fatalf("Write: %v", err)
+	}
+	if counts.Sessions != 1 {
+		t.Errorf("wrote %d sessions, want 1", counts.Sessions)
+	}
+
+	var toolCalls, mcp int
+	if err := db.QueryRow(
+		`SELECT tool_calls, mcp_calls FROM whodunit_sessions WHERE session='sess-1'`,
+	).Scan(&toolCalls, &mcp); err != nil {
+		t.Fatalf("read the session back: %v", err)
+	}
+	if toolCalls != 23 || mcp != 3 {
+		t.Errorf("tool_calls=%d mcp_calls=%d, want 23 and 3", toolCalls, mcp)
 	}
 }
