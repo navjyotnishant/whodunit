@@ -103,7 +103,16 @@ func SlugForCwd(cwd string) string {
 // SessionDir returns the directory Claude Code stores this repo's session
 // transcripts in.
 func SessionDir(cwd string) string {
-	return filepath.Join(ProjectsDir(), SlugForCwd(cwd))
+	// Resolved first, because Claude Code encodes the directory it actually
+	// resolved to and the hook is handed whatever path the shell was in.
+	//
+	// One location, several names: /tmp against /private/tmp on macOS, and
+	// on Windows the 8.3 short form (C:\Users\RUNNER~1\…) against the long
+	// one. Slugging the unresolved spelling produces a directory name that
+	// exists nowhere, so no transcript is found, and every commit is stamped
+	// undetermined — reading as "no AI was used" rather than "the adapter
+	// looked in the wrong place" (NAV-21).
+	return filepath.Join(ProjectsDir(), SlugForCwd(resolvePath(cwd)))
 }
 
 // SessionFiles returns every .jsonl transcript path for the given repo cwd.

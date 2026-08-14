@@ -1,6 +1,7 @@
 package codex
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -240,7 +241,17 @@ func TestSessionFilesMatchesByRecordedCwd(t *testing.T) {
 	}
 
 	write := func(name, cwd string) {
-		line := `{"timestamp":"2026-08-12T10:00:00.000Z","type":"session_meta","payload":{"id":"s","cwd":"` + cwd + `","cli_version":"1"}}` + "\n"
+		// Marshalled, not concatenated: a Windows path carries backslashes,
+		// and pasting one into a JSON string literal produces invalid
+		// escapes — "C:\Users" is a bad \U — so the transcript failed to
+		// parse and the test read "no sessions" as a behaviour difference
+		// rather than as its own bug.
+		cwdJSON, err := json.Marshal(cwd)
+		if err != nil {
+			t.Fatal(err)
+		}
+		line := `{"timestamp":"2026-08-12T10:00:00.000Z","type":"session_meta","payload":{"id":"s","cwd":` +
+			string(cwdJSON) + `,"cli_version":"1"}}` + "\n"
 		if err := os.WriteFile(filepath.Join(day, name), []byte(line), 0o600); err != nil {
 			t.Fatal(err)
 		}

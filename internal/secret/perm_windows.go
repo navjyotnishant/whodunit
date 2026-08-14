@@ -89,18 +89,39 @@ func checkFile(path string) string {
 		return ""
 	}
 
-	owner, _, err := sd.Owner()
-	if err != nil {
-		return ""
+	// Compared against both the file's owner and the account this process
+	// runs as.
+	//
+	// They are not always the same. Windows gives a file created by an
+	// administrator an owner of the Administrators group rather than the
+	// creating user, so an ACL naming the process user — which is what
+	// secureFile writes — sits on a file owned by somebody else. Checking
+	// only the owner reported that correct file as "readable by" the very
+	// account that wrote it.
+	var permitted []*windows.SID
+	if owner, _, err := sd.Owner(); err == nil && owner != nil {
+		permitted = append(permitted, owner)
+	}
+	if self, err := currentUserSID(); err == nil && self != nil {
+		permitted = append(permitted, self)
 	}
 
 	for _, trustee := range allowedTrustees(sd.String()) {
-		if isOwner(trustee, owner) || allowedByDefault(trustee) {
+		if isAnyOf(trustee, permitted) || allowedByDefault(trustee) {
 			continue
 		}
 		return fmt.Sprintf("readable by %s", trustee)
 	}
 	return ""
+}
+
+func isAnyOf(trustee string, sids []*windows.SID) bool {
+	for _, sid := range sids {
+		if isOwner(trustee, sid) {
+			return true
+		}
+	}
+	return false
 }
 
 // isOwner reports whether an SDDL trustee names the file's owner.
