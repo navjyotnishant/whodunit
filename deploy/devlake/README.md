@@ -209,6 +209,40 @@ datasource by that literal name, so anything else leaves *their* panels
 reporting *"datasource mysql wasn't found"* — ours bind by uid at import and
 do not care.
 
+
+### If the devlake container restarts in a loop
+
+Symptom: `docker compose ps` shows `devlake: Restarting`, while mysql,
+grafana and config-ui stay up — so the dashboards still render and only
+collection is dead. The logs repeat:
+
+```
+Scan error on column index 0, name "created_at": unsupported Scan,
+storing driver.Value type []uint8 into type *time.Time
+```
+
+That is the Go MySQL driver refusing to read a `datetime` into a
+`time.Time`, which it can only do when the DSN carries `parseTime=True`.
+`.env` ships with it, so the usual cause is a container created before the
+current `.env` and never recreated — `docker compose restart` reuses the
+old environment, so it restarts forever with the same stale value.
+
+Check what the container actually has, rather than what `.env` says:
+
+```sh
+docker inspect devlake-devlake-1 \
+  --format '{{range .Config.Env}}{{println .}}{{end}}' | grep DB_URL
+```
+
+If the query string is missing, recreate it:
+
+```sh
+docker compose up -d --force-recreate devlake
+```
+
+`--force-recreate` is the point: without it Compose sees a container that
+already exists and leaves its environment alone.
+
 ## What this is not
 
 **Not a supported deployment.** It is upstream's compose file, fetched
