@@ -416,10 +416,10 @@ GROUP BY 1, 2 ORDER BY 1""",
 y += 8
 
 # ------------------------------------------------------- branch & autonomy
-panels.append(row("Where it landed, and for how long", y)); y += 1
+panels.append(row("Where it landed", y)); y += 1
 
 panels.append(panel(
-    120, "Top agent-written lines by branch", "barchart", 0, y, 12, 8,
+    120, "Top agent-written lines by branch", "barchart", 0, y, 24, 8,
     # Twelve, not the twenty-five the table showed.
     #
     # Branch names here run to 76 characters and there are 42 of them, most
@@ -427,20 +427,49 @@ panels.append(panel(
     # per branch that mostly renders as a hairline is unreadable AND
     # pointless. The tail is summarised by the panel beside this one rather
     # than truncated silently, which is what the old LIMIT 25 did.
-    f"""SELECT
-  CASE WHEN CHAR_LENGTH(e.branch) > 34
-       THEN CONCAT(LEFT(e.branch, 31), '...')
-       ELSE e.branch END        AS branch,
-  SUM(e.lines_added)            AS `Lines added`
-FROM whodunit_events e JOIN whodunit_repos r ON r.repo_id = e.repo_id
-WHERE e.branch IS NOT NULL AND {CONTRIBUTOR}
-GROUP BY e.branch
-HAVING SUM(e.lines_added) > 0
-ORDER BY SUM(e.lines_added) DESC LIMIT 12""",
+    # The twelve named branches, then everything else as one bar.
+    #
+    # That last bar is what replaced a separate "42 branches touched"
+    # stat: it answers the same question — is this the whole picture? —
+    # inside the chart, at the scale of the thing it is being compared
+    # against. Measured here the top twelve are 90% of all lines written,
+    # so the tail is visibly small rather than merely absent.
+    f"""SELECT branch, `Lines added` FROM (
+  SELECT
+    CASE WHEN CHAR_LENGTH(e.branch) > 34
+         THEN CONCAT(LEFT(e.branch, 31), '...')
+         ELSE e.branch END      AS branch,
+    SUM(e.lines_added)          AS `Lines added`,
+    1                           AS grp,
+    ROW_NUMBER() OVER (ORDER BY SUM(e.lines_added) DESC) AS rn
+  FROM whodunit_events e JOIN whodunit_repos r ON r.repo_id = e.repo_id
+  WHERE e.branch IS NOT NULL AND {CONTRIBUTOR}
+  GROUP BY e.branch
+  HAVING SUM(e.lines_added) > 0
+) ranked WHERE rn <= 12
+UNION ALL
+SELECT
+  CONCAT('+ ', COUNT(*), ' more branches'),
+  SUM(lines_added)
+FROM (
+  SELECT
+    SUM(e.lines_added) AS lines_added,
+    ROW_NUMBER() OVER (ORDER BY SUM(e.lines_added) DESC) AS rn
+  FROM whodunit_events e JOIN whodunit_repos r ON r.repo_id = e.repo_id
+  WHERE e.branch IS NOT NULL AND {CONTRIBUTOR}
+  GROUP BY e.branch
+  HAVING SUM(e.lines_added) > 0
+) tail WHERE rn > 12
+HAVING COUNT(*) > 0""",
     unit=TOKEN_UNIT, novalue="no event recorded a branch",
     description=(
         "Where the agent's output actually landed, top twelve branches by "
-        "lines written.\n\n"
+        "lines written, with everything below them summed into a final "
+        "bar.\n\n"
+        "That last bar is there so the top twelve reads as a slice rather "
+        "than as everything — the failure the old table's silent LIMIT 25 "
+        "already caused once. Measured here the twelve are 90% of all lines "
+        "written across 42 branches.\n\n"
         "Branches contributing zero lines are excluded — those are sessions "
         "that read and ran things without writing, which the events count "
         "already covers elsewhere.\n\n"
@@ -457,29 +486,6 @@ ORDER BY SUM(e.lines_added) DESC LIMIT 12""",
              "legend": {"showLegend": False},
              "tooltip": {"mode": "single"}}))
 
-panels.append(panel(
-    122, "Branch coverage", "stat", 12, y, 12, 8,
-    f"""SELECT
-  (SELECT COUNT(DISTINCT e2.branch)
-     FROM whodunit_events e2 JOIN whodunit_repos r2 ON r2.repo_id = e2.repo_id
-    WHERE e2.branch IS NOT NULL AND {CONTRIBUTOR.replace('r.', 'r2.')}) AS `Branches touched`,
-  (SELECT ROUND(SUM(e3.lines_added) / NULLIF(COUNT(DISTINCT e3.session), 0))
-     FROM whodunit_events e3 JOIN whodunit_repos r3 ON r3.repo_id = e3.repo_id
-    WHERE e3.branch IS NOT NULL AND {CONTRIBUTOR.replace('r.', 'r3.')}) AS `Lines per session`""",
-    novalue="no event recorded a branch",
-    description=(
-        "The chart beside this shows twelve branches; this says how many "
-        "there are in total, so the top twelve is read as a slice rather "
-        "than as everything. The old table's LIMIT 25 hid seventeen of them "
-        "with nothing to say so.\n\n"
-        "**Lines per session is an average over a very wide spread.** "
-        "Measured here it runs from roughly 70 to over 4,500 depending on "
-        "the branch — a long-running integration branch accumulates many "
-        "short sessions, a focused feature branch a few large ones. Read it "
-        "as a scale, not as a typical value."),
-    options={**STAT, "textMode": "value_and_name",
-             "reduceOptions": {"calcs": ["lastNotNull"], "fields": "",
-                               "values": False}}))
 
 y += 8
 
