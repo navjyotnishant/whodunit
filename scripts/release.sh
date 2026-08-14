@@ -61,13 +61,21 @@ for target in $TARGETS; do
 
   archive_base="dun_${VERSION}_${os}_${arch}"
   if [ "$os" = "windows" ]; then
-    ( cd "$DIST" && zip -q "${archive_base}.zip" "$binary" && rm "$binary" )
+    # -X drops the extra-attribute records macOS zip adds. Without it the
+    # archive carries a second entry (__MACOSX/._dun.exe) that means nothing
+    # on the machine unpacking it.
+    ( cd "$DIST" && zip -qX "${archive_base}.zip" "$binary" && rm "$binary" )
   else
-    ( cd "$DIST" && tar czf "${archive_base}.tar.gz" "$binary" && rm "$binary" )
+    # COPYFILE_DISABLE stops bsdtar on macOS writing an AppleDouble "._dun"
+    # beside the binary. Harmless on Linux, where the variable is ignored.
+    ( cd "$DIST" && COPYFILE_DISABLE=1 tar czf "${archive_base}.tar.gz" "$binary" && rm "$binary" )
   fi
 done
 
-( cd "$DIST" && shasum -a 256 * > checksums.txt )
+# Globbing whatever is in dist/ would checksum any stray file that happened
+# to be there. dist/ is wiped on entry so it should hold only what was just
+# built, but a checksum manifest is the wrong place to find out otherwise.
+( cd "$DIST" && shasum -a 256 dun_* > checksums.txt )
 
 echo "built:"
 ls -1 "$DIST"
