@@ -32,7 +32,7 @@
           "type": "mysql",
           "uid": "${datasource}"
         },
-        "query": "SELECT DISTINCT contributor FROM whodunit_repos WHERE contributor <> '' ORDER BY contributor",
+        "query": "SELECT DISTINCT COALESCE(NULLIF(contributor, ''), '(unattributed)') AS __text, COALESCE(NULLIF(contributor, ''), '') AS __value FROM whodunit_repos ORDER BY 1 ORDER BY contributor",
         "includeAll": true,
         "multi": false,
         "current": {

@@ -72,6 +72,7 @@ bench:
 dashboards:
 	@deploy/devlake/export-dashboards.py --check
 	@deploy/devlake/check-dashboard-list.py
+	@deploy/devlake/check-contributor-filter.py
 
 clean:
 	@rm -rf dist

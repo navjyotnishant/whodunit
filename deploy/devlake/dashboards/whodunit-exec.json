@@ -77,7 +77,7 @@
         "name": "contributor",
         "type": "query",
         "datasource": "${datasource}",
-        "query": "SELECT DISTINCT contributor FROM whodunit_repos WHERE contributor <> ''",
+        "query": "SELECT DISTINCT COALESCE(NULLIF(contributor, ''), '(unattributed)') AS __text, COALESCE(NULLIF(contributor, ''), '') AS __value FROM whodunit_repos ORDER BY 1",
         "current": {
           "selected": true,
           "text": "All",

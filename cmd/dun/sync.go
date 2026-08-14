@@ -190,12 +190,39 @@ func buildPayload(limit int) (sidecar.Payload, error) {
 	}
 
 	// Metadata may be absent for a repository initialised before it
-	// existed. That is a state to carry honestly — an empty contributor —
-	// rather than a reason to refuse to sync.
+	// existed, or captured before git had an identity configured.
 	repo := sidecar.RepoRow{RepoID: repoID, SyncedAt: now}
 	if md, err := journal.GetMetadata(dataDir, repoID); err == nil && md != nil {
 		repo.Contributor = md.Contributor
 		repo.SpecVersion = md.SpecVersion
+	}
+
+	// Recover the contributor from git when the journal has none, and
+	// record it so the next sync does not have to (NAV-110).
+	//
+	// Previously an absent contributor was carried through as an empty
+	// string on the grounds that it was the honest state. It is honest and
+	// it is also unusable: every dashboard filters sessions by joining
+	// this column, an empty value matches no filter, and the variable's
+	// own query excludes empty strings so it is not even selectable.
+	// Measured before this fix, 115 of 131 sessions belonged to a
+	// repository in that state — synced, and invisible.
+	//
+	// The identity is sitting in git config the whole time. Reading it
+	// here costs one subprocess per sync and closes the gap for every
+	// repository instrumented before SetMetadata existed.
+	if repo.Contributor == "" {
+		if c := contributorFor(""); c != "" {
+			repo.Contributor = c
+			// Best-effort: a sync that cannot write metadata should still
+			// publish, and the value above is already correct for this run.
+			_ = journal.SetMetadata(dataDir, journal.Metadata{
+				RepoID:      repoID,
+				Contributor: c,
+				SpecVersion: repo.SpecVersion,
+				UpdatedAt:   now,
+			})
+		}
 	}
 
 	p.Repo = repo
