@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -352,4 +353,67 @@ func writeRollout2(t *testing.T, lines []map[string]any) string {
 		}
 	}
 	return path
+}
+
+// Widening what is READ must not widen what is STORED (NAV-25).
+//
+// This is the risk the wider intake creates. The newly-visible records are
+// precisely the ones carrying prohibited free text: agent_message.message,
+// agent_reasoning.text, turn_context.user_instructions, and
+// task_complete.last_agent_message — which sits in the same payload as the
+// timing this change reads, one field away.
+//
+// Distinctive sentinels, checked against the whole rendered session, so a
+// leak through any field is caught rather than only the ones anticipated.
+func TestNoProhibitedTextReachesTheSession(t *testing.T) {
+	const secret = "SENTINEL-cf4b21-prompt-text-must-not-be-stored"
+
+	ts := time.Now().UTC().Add(-time.Hour)
+	s := parseOne(t, writeRollout2(t, []map[string]any{
+		{"timestamp": ts, "type": "session_meta", "payload": map[string]any{
+			"id": "s1", "cwd": "/repo", "cli_version": "1.0.0",
+		}},
+		{"timestamp": ts, "type": "turn_context", "payload": map[string]any{
+			"model": "gpt-5.5", "effort": "high", "approval_policy": "never",
+			"user_instructions":      secret,
+			"developer_instructions": secret,
+			"base_instructions":      secret,
+		}},
+		{"timestamp": ts, "type": "event_msg", "payload": map[string]any{
+			"type": "agent_message", "message": secret,
+		}},
+		{"timestamp": ts, "type": "event_msg", "payload": map[string]any{
+			"type": "agent_reasoning", "text": secret,
+		}},
+		{"timestamp": ts, "type": "event_msg", "payload": map[string]any{
+			"type": "user_message", "message": secret,
+		}},
+		// The dangerous one: last_agent_message shares a payload with the
+		// timing fields this change reads.
+		{"timestamp": ts, "type": "event_msg", "payload": map[string]any{
+			"type": "task_complete", "duration_ms": 100,
+			"last_agent_message": secret,
+		}},
+		{"timestamp": ts, "type": "event_msg", "payload": map[string]any{
+			"type": "web_search_end", "query": secret,
+		}},
+		{"timestamp": ts, "type": "response_item", "payload": map[string]any{
+			"type": "function_call", "name": "shell", "arguments": secret,
+		}},
+	}), ts.Add(-time.Minute))
+
+	rendered, err := json.Marshal(s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(rendered), secret) {
+		t.Errorf("prompt text reached the session record (NAV-25):\n%s", rendered)
+	}
+
+	// And the telemetry it SHOULD have taken from those same records is
+	// still there — a test that passes by reading nothing proves nothing.
+	if s.Model != "gpt-5.5" {
+		t.Errorf("Model = %q; the test is passing because nothing was read at all", s.Model)
+	}
+	assertInt64(t, "DurationMS", s.DurationMS, 100)
 }
