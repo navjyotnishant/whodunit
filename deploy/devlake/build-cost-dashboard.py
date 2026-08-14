@@ -265,7 +265,7 @@ GROUP BY s.effort""",
 panels.append(row("Per model — where the aggregate hides a loss", y)); y += 1
 
 panels.append(panel(
-    109, "Output tokens by model", "bargauge", 0, y, 24, 5,
+    109, "Output tokens by model", "bargauge", 0, y, 12, 6,
     f"""SELECT
   COALESCE(NULLIF(s.model, ''), '(unattributed)') AS metric,
   SUM(s.output_tokens)                            AS value
@@ -288,7 +288,42 @@ GROUP BY 1 ORDER BY 2 DESC""",
              "reduceOptions": {"calcs": ["lastNotNull"], "values": True}}))
 
 panels.append(panel(
-    110, "Token use and cache efficiency by model", "table", 0, y + 5, 24, 9,
+    131, "Longest sessions", "bargauge", 12, y, 12, 6,
+    f"""SELECT
+  CONCAT(
+    ROW_NUMBER() OVER (ORDER BY (s.last_seen - s.first_seen) DESC),
+    '. ', s.agent, ' · ',
+    COALESCE(NULLIF(s.model, ''), 'model not reported')) AS metric,
+  ROUND((s.last_seen - s.first_seen) / 1000000000 / 3600, 1) AS value
+FROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id
+WHERE {CONTRIBUTOR}
+  AND s.last_seen > s.first_seen
+  -- A session whose first record predates the ingest window carries the
+  -- zero time, which reaches the database as -6795364578871345152 and
+  -- renders as a 272-year session. The adapter no longer writes those,
+  -- but a database synced before that fix still holds them, and one such
+  -- row at the top of a DESC sort makes the whole panel nonsense.
+  AND s.first_seen > 0
+ORDER BY (s.last_seen - s.first_seen) DESC LIMIT 8""",
+    unit="h", decimals=1, novalue="no sessions with a usable duration",
+    description=(
+        "The eight longest sessions, in hours. A long session costs more even "
+        "when cached, because the whole context is re-sent every turn.\n\n"
+        "Individual sessions rather than an average, deliberately: the mean "
+        "here is a few hours and the top session is 339, so an average would "
+        "hide exactly the ones worth looking at.\n\n"
+        "**Rows are numbered because the labels repeat.** Several of the "
+        "longest sessions are the same agent with no model recorded, and a "
+        "bar gauge needs distinct labels or it silently collapses them into "
+        "one bar.\n\n"
+        "Sessions whose start time was never recorded are excluded rather "
+        "than rendered as impossibly long."),
+    options={"displayMode": "gradient", "orientation": "horizontal",
+             "showUnfilled": True, "valueMode": "text",
+             "reduceOptions": {"calcs": ["lastNotNull"], "values": True}}))
+
+panels.append(panel(
+    110, "Token use and cache efficiency by model", "table", 0, y + 6, 24, 9,
     f"""SELECT
   COALESCE(NULLIF(s.model, ''), '(unattributed)') AS Model,
   COUNT(*)                                        AS Sessions,
@@ -345,8 +380,8 @@ ORDER BY SUM(s.input_tokens + s.output_tokens
     ],
     options={"showHeader": True,
              "sortBy": [{"displayName": "Uncached in", "desc": True}]}))
-# 5 for the bar gauge above, 9 for the table itself.
-y += 14
+# 6 for the two gauges above, 9 for the table itself.
+y += 15
 
 panels.append(panel(
     111, "Output tokens per model over time", "timeseries", 0, y, 24, 8,
@@ -384,25 +419,70 @@ y += 8
 panels.append(row("Where it landed, how much rope, and how long", y)); y += 1
 
 panels.append(panel(
-    120, "Agent-written lines by branch", "table", 0, y, 12, 8,
+    120, "Agent-written lines by branch", "barchart", 0, y, 12, 8,
+    # Twelve, not the twenty-five the table showed.
+    #
+    # Branch names here run to 76 characters and there are 42 of them, most
+    # contributing under 400 lines. A bar per branch is unreadable; a bar
+    # per branch that mostly renders as a hairline is unreadable AND
+    # pointless. The tail is summarised by the panel beside this one rather
+    # than truncated silently, which is what the old LIMIT 25 did.
     f"""SELECT
-  e.branch                        AS Branch,
-  COUNT(*)                        AS Events,
-  SUM(e.lines_added)              AS `Lines added`,
-  COUNT(DISTINCT e.session)       AS Sessions
+  CASE WHEN CHAR_LENGTH(e.branch) > 34
+       THEN CONCAT(LEFT(e.branch, 31), '...')
+       ELSE e.branch END        AS branch,
+  SUM(e.lines_added)            AS `Lines added`
 FROM whodunit_events e JOIN whodunit_repos r ON r.repo_id = e.repo_id
 WHERE e.branch IS NOT NULL AND {CONTRIBUTOR}
-GROUP BY e.branch ORDER BY SUM(e.lines_added) DESC LIMIT 25""",
-    novalue="no event recorded a branch",
+GROUP BY e.branch
+HAVING SUM(e.lines_added) > 0
+ORDER BY SUM(e.lines_added) DESC LIMIT 12""",
+    unit=TOKEN_UNIT, novalue="no event recorded a branch",
     description=(
+        "Where the agent's output actually landed, top twelve branches by "
+        "lines written.\n\n"
+        "Branches contributing zero lines are excluded — those are sessions "
+        "that read and ran things without writing, which the events count "
+        "already covers elsewhere.\n\n"
+        "Long branch names are truncated for the axis; the tooltip carries "
+        "the value and the panel beside this one says how much sits outside "
+        "the top twelve.\n\n"
         "Antigravity records no branch at all — its branch-like strings are a "
         "tracker's *suggested* branch inside an MCP response, not the "
         "checked-out one. Its events are absent here rather than grouped "
         "under a wrong name."),
-    options={"showHeader": True}))
+    options={"orientation": "horizontal",
+             "xTickLabelRotation": 0,
+             "showValue": "always",
+             "legend": {"showLegend": False},
+             "tooltip": {"mode": "single"}}))
 
 panels.append(panel(
-    121, "Autonomy granted", "barchart", 12, y, 12, 8,
+    122, "Branch coverage", "stat", 12, y, 12, 4,
+    f"""SELECT
+  (SELECT COUNT(DISTINCT e2.branch)
+     FROM whodunit_events e2 JOIN whodunit_repos r2 ON r2.repo_id = e2.repo_id
+    WHERE e2.branch IS NOT NULL AND {CONTRIBUTOR.replace('r.', 'r2.')}) AS `Branches touched`,
+  (SELECT ROUND(SUM(e3.lines_added) / NULLIF(COUNT(DISTINCT e3.session), 0))
+     FROM whodunit_events e3 JOIN whodunit_repos r3 ON r3.repo_id = e3.repo_id
+    WHERE e3.branch IS NOT NULL AND {CONTRIBUTOR.replace('r.', 'r3.')}) AS `Lines per session`""",
+    novalue="no event recorded a branch",
+    description=(
+        "The chart beside this shows twelve branches; this says how many "
+        "there are in total, so the top twelve is read as a slice rather "
+        "than as everything. The old table's LIMIT 25 hid seventeen of them "
+        "with nothing to say so.\n\n"
+        "**Lines per session is an average over a very wide spread.** "
+        "Measured here it runs from roughly 70 to over 4,500 depending on "
+        "the branch — a long-running integration branch accumulates many "
+        "short sessions, a focused feature branch a few large ones. Read it "
+        "as a scale, not as a typical value."),
+    options={**STAT, "textMode": "value_and_name",
+             "reduceOptions": {"calcs": ["lastNotNull"], "fields": "",
+                               "values": False}}))
+
+panels.append(panel(
+    121, "Autonomy granted", "barchart", 12, y + 4, 12, 4,
     f"""SELECT
   CONCAT(s.permission_mode, '  (', s.agent, ')') AS mode,
   COUNT(*)                                       AS Sessions,
@@ -446,34 +526,6 @@ ORDER BY SUM(s.tool_calls) DESC""",
              "tooltip": {"mode": "multi"}}))
 y += 8
 
-panels.append(panel(
-    131, "Longest sessions", "table", 0, y, 24, 6,
-    f"""SELECT
-  s.agent                                            AS Agent,
-  COALESCE(NULLIF(s.model, ''), '—')                 AS Model,
-  ROUND((s.last_seen - s.first_seen) / 1000000000 / 3600, 1) AS `Hours`,
-  s.tool_calls                                       AS `Tool calls`,
-  s.output_tokens                                    AS `Out tokens`
-FROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id
-WHERE {CONTRIBUTOR}
-  AND s.last_seen > s.first_seen
-  -- A session whose first record predates the ingest window carries the
-  -- zero time, which reaches the database as -6795364578871345152 and
-  -- renders as a 272-year session. The adapter no longer writes those,
-  -- but a database synced before that fix still holds them, and one such
-  -- row at the top of a DESC sort makes the whole panel nonsense.
-  AND s.first_seen > 0
-ORDER BY (s.last_seen - s.first_seen) DESC LIMIT 10""",
-    novalue="no sessions with a usable duration",
-    description=(
-        "A long session costs more even when cached, because the whole "
-        "context is re-sent each turn. Shown as a list rather than an average "
-        "— a mean hides the few sessions that are the problem.\n\n"
-        "Rows whose start time was never recorded are excluded rather than "
-        "shown as impossibly long."),
-    options={"showHeader": True}))
-
-y += 6
 
 # ------------------------------------------------------------ MCP servers
 panels.append(row("MCP", y)); y += 1

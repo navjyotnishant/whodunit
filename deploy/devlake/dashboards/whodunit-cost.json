@@ -492,8 +492,8 @@
       "gridPos": {
         "x": 0,
         "y": 10,
-        "w": 24,
-        "h": 5
+        "w": 12,
+        "h": 6
       },
       "targets": [
         {
@@ -525,13 +525,53 @@
       }
     },
     {
+      "id": 131,
+      "title": "Longest sessions",
+      "type": "bargauge",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "x": 12,
+        "y": 10,
+        "w": 12,
+        "h": 6
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT\n  CONCAT(\n    ROW_NUMBER() OVER (ORDER BY (s.last_seen - s.first_seen) DESC),\n    '. ', s.agent, ' \u00b7 ',\n    COALESCE(NULLIF(s.model, ''), 'model not reported')) AS metric,\n  ROUND((s.last_seen - s.first_seen) / 1000000000 / 3600, 1) AS value\nFROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id\nWHERE ('$contributor' = '__all__' OR r.contributor = '$contributor')\n  AND s.last_seen > s.first_seen\n  -- A session whose first record predates the ingest window carries the\n  -- zero time, which reaches the database as -6795364578871345152 and\n  -- renders as a 272-year session. The adapter no longer writes those,\n  -- but a database synced before that fix still holds them, and one such\n  -- row at the top of a DESC sort makes the whole panel nonsense.\n  AND s.first_seen > 0\nORDER BY (s.last_seen - s.first_seen) DESC LIMIT 8"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "h",
+          "decimals": 1,
+          "noValue": "no sessions with a usable duration"
+        },
+        "overrides": []
+      },
+      "description": "The eight longest sessions, in hours. A long session costs more even when cached, because the whole context is re-sent every turn.\n\nIndividual sessions rather than an average, deliberately: the mean here is a few hours and the top session is 339, so an average would hide exactly the ones worth looking at.\n\n**Rows are numbered because the labels repeat.** Several of the longest sessions are the same agent with no model recorded, and a bar gauge needs distinct labels or it silently collapses them into one bar.\n\nSessions whose start time was never recorded are excluded rather than rendered as impossibly long.",
+      "options": {
+        "displayMode": "gradient",
+        "orientation": "horizontal",
+        "showUnfilled": true,
+        "valueMode": "text",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": true
+        }
+      }
+    },
+    {
       "id": 110,
       "title": "Token use and cache efficiency by model",
       "type": "table",
       "datasource": "${datasource}",
       "gridPos": {
         "x": 0,
-        "y": 15,
+        "y": 16,
         "w": 24,
         "h": 9
       },
@@ -657,7 +697,7 @@
       "datasource": "${datasource}",
       "gridPos": {
         "x": 0,
-        "y": 24,
+        "y": 25,
         "w": 24,
         "h": 8
       },
@@ -697,7 +737,7 @@
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 32,
+        "y": 33,
         "w": 24,
         "h": 1
       },
@@ -706,11 +746,11 @@
     {
       "id": 120,
       "title": "Agent-written lines by branch",
-      "type": "table",
+      "type": "barchart",
       "datasource": "${datasource}",
       "gridPos": {
         "x": 0,
-        "y": 33,
+        "y": 34,
         "w": 12,
         "h": 8
       },
@@ -718,7 +758,45 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT\n  e.branch                        AS Branch,\n  COUNT(*)                        AS Events,\n  SUM(e.lines_added)              AS `Lines added`,\n  COUNT(DISTINCT e.session)       AS Sessions\nFROM whodunit_events e JOIN whodunit_repos r ON r.repo_id = e.repo_id\nWHERE e.branch IS NOT NULL AND ('$contributor' = '__all__' OR r.contributor = '$contributor')\nGROUP BY e.branch ORDER BY SUM(e.lines_added) DESC LIMIT 25"
+          "rawSql": "SELECT\n  CASE WHEN CHAR_LENGTH(e.branch) > 34\n       THEN CONCAT(LEFT(e.branch, 31), '...')\n       ELSE e.branch END        AS branch,\n  SUM(e.lines_added)            AS `Lines added`\nFROM whodunit_events e JOIN whodunit_repos r ON r.repo_id = e.repo_id\nWHERE e.branch IS NOT NULL AND ('$contributor' = '__all__' OR r.contributor = '$contributor')\nGROUP BY e.branch\nHAVING SUM(e.lines_added) > 0\nORDER BY SUM(e.lines_added) DESC LIMIT 12"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "sishort",
+          "noValue": "no event recorded a branch"
+        },
+        "overrides": []
+      },
+      "description": "Where the agent's output actually landed, top twelve branches by lines written.\n\nBranches contributing zero lines are excluded \u2014 those are sessions that read and ran things without writing, which the events count already covers elsewhere.\n\nLong branch names are truncated for the axis; the tooltip carries the value and the panel beside this one says how much sits outside the top twelve.\n\nAntigravity records no branch at all \u2014 its branch-like strings are a tracker's *suggested* branch inside an MCP response, not the checked-out one. Its events are absent here rather than grouped under a wrong name.",
+      "options": {
+        "orientation": "horizontal",
+        "xTickLabelRotation": 0,
+        "showValue": "always",
+        "legend": {
+          "showLegend": false
+        },
+        "tooltip": {
+          "mode": "single"
+        }
+      }
+    },
+    {
+      "id": 122,
+      "title": "Branch coverage",
+      "type": "stat",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "x": 12,
+        "y": 34,
+        "w": 12,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT\n  (SELECT COUNT(DISTINCT e2.branch)\n     FROM whodunit_events e2 JOIN whodunit_repos r2 ON r2.repo_id = e2.repo_id\n    WHERE e2.branch IS NOT NULL AND ('$contributor' = '__all__' OR r2.contributor = '$contributor')) AS `Branches touched`,\n  (SELECT ROUND(SUM(e3.lines_added) / NULLIF(COUNT(DISTINCT e3.session), 0))\n     FROM whodunit_events e3 JOIN whodunit_repos r3 ON r3.repo_id = e3.repo_id\n    WHERE e3.branch IS NOT NULL AND ('$contributor' = '__all__' OR r3.contributor = '$contributor')) AS `Lines per session`"
         }
       ],
       "fieldConfig": {
@@ -727,9 +805,17 @@
         },
         "overrides": []
       },
-      "description": "Antigravity records no branch at all \u2014 its branch-like strings are a tracker's *suggested* branch inside an MCP response, not the checked-out one. Its events are absent here rather than grouped under a wrong name.",
+      "description": "The chart beside this shows twelve branches; this says how many there are in total, so the top twelve is read as a slice rather than as everything. The old table's LIMIT 25 hid seventeen of them with nothing to say so.\n\n**Lines per session is an average over a very wide spread.** Measured here it runs from roughly 70 to over 4,500 depending on the branch \u2014 a long-running integration branch accumulates many short sessions, a focused feature branch a few large ones. Read it as a scale, not as a typical value.",
       "options": {
-        "showHeader": true
+        "graphMode": "none",
+        "textMode": "value_and_name",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
       }
     },
     {
@@ -739,9 +825,9 @@
       "datasource": "${datasource}",
       "gridPos": {
         "x": 12,
-        "y": 33,
+        "y": 38,
         "w": 12,
-        "h": 8
+        "h": 4
       },
       "targets": [
         {
@@ -809,41 +895,12 @@
       }
     },
     {
-      "id": 131,
-      "title": "Longest sessions",
-      "type": "table",
-      "datasource": "${datasource}",
-      "gridPos": {
-        "x": 0,
-        "y": 41,
-        "w": 24,
-        "h": 6
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "format": "table",
-          "rawSql": "SELECT\n  s.agent                                            AS Agent,\n  COALESCE(NULLIF(s.model, ''), '\u2014')                 AS Model,\n  ROUND((s.last_seen - s.first_seen) / 1000000000 / 3600, 1) AS `Hours`,\n  s.tool_calls                                       AS `Tool calls`,\n  s.output_tokens                                    AS `Out tokens`\nFROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id\nWHERE ('$contributor' = '__all__' OR r.contributor = '$contributor')\n  AND s.last_seen > s.first_seen\n  -- A session whose first record predates the ingest window carries the\n  -- zero time, which reaches the database as -6795364578871345152 and\n  -- renders as a 272-year session. The adapter no longer writes those,\n  -- but a database synced before that fix still holds them, and one such\n  -- row at the top of a DESC sort makes the whole panel nonsense.\n  AND s.first_seen > 0\nORDER BY (s.last_seen - s.first_seen) DESC LIMIT 10"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "noValue": "no sessions with a usable duration"
-        },
-        "overrides": []
-      },
-      "description": "A long session costs more even when cached, because the whole context is re-sent each turn. Shown as a list rather than an average \u2014 a mean hides the few sessions that are the problem.\n\nRows whose start time was never recorded are excluded rather than shown as impossibly long.",
-      "options": {
-        "showHeader": true
-      }
-    },
-    {
       "type": "row",
       "title": "MCP",
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 47,
+        "y": 42,
         "w": 24,
         "h": 1
       },
@@ -856,7 +913,7 @@
       "datasource": "${datasource}",
       "gridPos": {
         "x": 0,
-        "y": 48,
+        "y": 43,
         "w": 12,
         "h": 7
       },
@@ -888,7 +945,7 @@
       "datasource": "${datasource}",
       "gridPos": {
         "x": 12,
-        "y": 48,
+        "y": 43,
         "w": 12,
         "h": 7
       },
