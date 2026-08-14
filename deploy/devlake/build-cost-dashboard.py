@@ -297,7 +297,21 @@ FROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id
 WHERE s.effort IS NOT NULL AND {CONTRIBUTOR}
 GROUP BY s.effort""",
     novalue="no session recorded an effort tier",
-    color=CATEGORICAL,
+    # Explicit colours rather than a palette. Effort is an ORDERED scale —
+    # low through xhigh — and a palette assigns hues by hashing the series
+    # name, which put "medium" and "high" in the same red region and lost
+    # the ordering entirely. Cool to warm makes the tier legible without
+    # reading the legend.
+    color=NEUTRAL,
+    overrides=[
+        {"matcher": {"id": "byName", "options": tier},
+         "properties": [{"id": "color",
+                         "value": {"mode": "fixed", "fixedColor": hue}}]}
+        for tier, hue in (("low", "#5794F2"),      # blue
+                          ("medium", "#73BF69"),   # green
+                          ("high", "#FF9830"),     # orange
+                          ("xhigh", "#F2495C"))    # red — the top of the scale
+    ],
     description=(
         "How hard the model was asked to think, where the agent says.\n\n"
         "The lever behind the token counts above: a higher tier spends more "
