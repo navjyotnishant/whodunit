@@ -206,10 +206,55 @@ type toolArgs struct {
 	ToolAction   string `json:"toolAction"`
 }
 
+// Step status values, as observed in real conversation databases. agy
+// ships no schema documentation for them, so each is grounded in what the
+// rows carrying it actually contained.
+const (
+	statusRejected  = 7 // error_details begins "Permission denied"
+	statusCancelled = 6 // error_details begins "context cancelled"
+	statusFailed    = 2 // non-success, no error_details recorded
+	statusSuccess   = 3 // the overwhelming majority
+)
+
+// outcomeFor maps agy's step status onto the journal's outcome vocabulary
+// (NAV-54).
+//
+// This column was previously not even selected, and every entry was
+// written as "unknown" — with a comment asserting that agy records no
+// rejection signal. It does. `status` is NOT NULL, indexed
+// (idx_steps_status), and populated on every row: 215 success against 8
+// non-success across the databases on this machine. The consequence was
+// that agy's acceptance rate was structurally unmeasurable, so the
+// funnel's acceptance stage was permanently blank for agy users.
+//
+// The three non-success values mean different things, and collapsing them
+// would repeat the original mistake in a smaller way. Six of the eight
+// carry error_details beginning "Permission denied" — a human declining a
+// tool call, which is precisely the denominator an acceptance rate needs.
+// One reads "context cancelled", which is neither a human decision nor a
+// tool error. One carries no error_details at all.
+//
+// Anything unrecognised stays "unknown" rather than being folded into
+// failed: a status this code has not seen is a gap in what we know, not
+// evidence of an error (NAV-21).
+func outcomeFor(status int) string {
+	switch status {
+	case statusSuccess:
+		return "accepted"
+	case statusRejected:
+		return "rejected"
+	case statusFailed, statusCancelled:
+		return "failed"
+	default:
+		return "unknown"
+	}
+}
+
 // call is one tool invocation recovered from a step.
 type call struct {
 	Idx        int
 	StepType   int
+	Outcome    string
 	TargetFile string
 	Args       toolArgs
 	Tool       string
@@ -282,7 +327,7 @@ func readCalls(dbPath string) ([]call, error) {
 	}
 	defer cleanup()
 
-	rows, err := db.Query(`SELECT idx, step_type, step_payload FROM steps ORDER BY idx`)
+	rows, err := db.Query(`SELECT idx, step_type, status, step_payload FROM steps ORDER BY idx`)
 	if err != nil {
 		return nil, err
 	}
@@ -290,11 +335,12 @@ func readCalls(dbPath string) ([]call, error) {
 
 	var out []call
 	for rows.Next() {
-		var idx, stepType int
+		var idx, stepType, status int
 		var payload []byte
-		if err := rows.Scan(&idx, &stepType, &payload); err != nil {
+		if err := rows.Scan(&idx, &stepType, &status, &payload); err != nil {
 			continue
 		}
+		outcome := outcomeFor(status)
 		if len(payload) == 0 {
 			continue
 		}
@@ -309,7 +355,7 @@ func readCalls(dbPath string) ([]call, error) {
 				continue
 			}
 			isEdit = true
-			out = append(out, call{Idx: idx, StepType: stepType, TargetFile: a.TargetFile, Args: a, Tool: tool})
+			out = append(out, call{Idx: idx, StepType: stepType, Outcome: outcome, TargetFile: a.TargetFile, Args: a, Tool: tool})
 		}
 
 		// A step that produced no edit still names whatever tool it ran —
@@ -317,7 +363,7 @@ func readCalls(dbPath string) ([]call, error) {
 		// journal shows what the agent did rather than only what it wrote.
 		if !isEdit {
 			for _, name := range callNames(payload) {
-				out = append(out, call{Idx: idx, StepType: stepType, Tool: name})
+				out = append(out, call{Idx: idx, StepType: stepType, Outcome: outcome, Tool: name})
 			}
 		}
 	}
@@ -487,10 +533,10 @@ func ParseSince(path string, since time.Time) ([]journal.Entry, error) {
 			LinesRemoved: removed,
 			HunkHash:     hunkHash(c.TargetFile, produced),
 			LineHashes:   linehash.OfText(linehash.Canonical(c.TargetFile), produced),
-			// agy records no rejection signal: a declined call simply does
-			// not appear. Recording accepted would assert something the
-			// store does not say, so these stay unknown (NAV-21, NAV-54).
-			Outcome: "unknown",
+			// From steps.status — see outcomeFor. An earlier version
+			// hardcoded "unknown" here on the belief that agy records no
+			// rejection signal; it does, on every row.
+			Outcome: c.Outcome,
 		})
 	}
 	return entries, nil

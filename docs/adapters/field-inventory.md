@@ -76,10 +76,69 @@ reading.
 | `toolUseResult.userModified` | 3,298 | SAFE | **human edited the agent's output** |
 | `toolUseResult.structuredPatch[].oldLines/newLines` | — | SAFE | change size without the change |
 | `isSidechain` | 85,295 | SAFE | subagent vs main thread — always `false` here, so unverified |
+| `type=system, subtype=compact_boundary` | 27 | SAFE | **whether a session was ever compacted** — 4 of 60 sessions |
 | `cwd` | 81,644 | SAFE | already known from the repo |
 
 **Token coverage is total**: 43,873 of 43,873 assistant turns carry `usage`.
 Not sampled, not optional.
+
+**Cache efficiency is a real lever, and it varies by model.** An earlier
+draft of this document claimed caching was automatic and uniform, on the
+strength of a 99% figure. That figure was wrong: it counted only
+`input_tokens` as uncached and ignored `cache_creation_input_tokens`,
+which is equally uncached on arrival and priced at 1.25x base. Measured
+properly across 400 recent transcripts, 510 turns:
+
+| model | turns | read ratio | write amortization |
+|---|---|---|---|
+| opus-4-8 | 235 | 54.3% | 4.95x |
+| sonnet-5 | 231 | 41.5% | 2.58x |
+| fable-5 | 40 | 48.9% | 21.03x |
+| haiku-4-5 | 4 | 42.2% | **0.73x** |
+| **total** | **510** | **47.6%** | **3.60x** |
+
+Two derived metrics, both matching the names the Claude Console uses:
+
+    read_ratio   = cache_read / (input + cache_write + cache_read)
+    amortization = cache_read / cache_write
+
+Amortization is the one that finds waste. A write costs 1.25x base and a
+read costs 0.1x, so a write needs roughly 1.25x reads before it pays for
+itself. Haiku above sits at 0.73x — those writes never paid back. The
+same shape appears in the Console on a different model (Sonnet 4.6 at
+0.0% read ratio over 125K input tokens), which is what makes this worth
+reporting per model rather than as one number.
+
+### How to present it
+
+The Claude Console's own Caching page is the reference, and its panel set
+maps onto Grafana with one substantive divergence:
+
+| Console panel | Grafana equivalent | Note |
+|---|---|---|
+| three stat cards, sparkline + delta vs previous period | Stat, sparkline on | the delta matters — a ratio alone does not say whether it is improving |
+| per-model breakdown, stacked composition bar per row | Table with a bar-gauge cell | **three** segments, not four (below) |
+| input token composition over time, stacked area | Time series, stacked | |
+| cache read ratio, line per model | Time series | |
+| write amortization, line per model | Time series, log y axis | threshold at **1.25x**, not 1.00x |
+
+Two things not to copy verbatim:
+
+**The stacked bar has three segments here, not four.** The Console splits
+cache writes into 5-minute and 1-hour TTL bands. The transcript records
+`cache_creation_input_tokens` as a single scalar with no TTL, so that
+split is unavailable — show `uncached / write / read` and say the TTL
+band is not recorded, rather than rendering an empty 1h segment.
+
+**Mark break-even at 1.25x.** The Console's amortization chart draws
+gridlines at 0.50x/0.80x/1.00x and marks no break-even at all. A write
+costs 1.25x base and a read 0.1x, so 1.00x is still a loss. A log y axis
+is needed too: the measured spread runs 0.73x to 21.03x, and a linear
+axis flattens the low end into the floor — which is the end that matters.
+
+Context size is the other actionable signal: 92% of turns ran over 150k
+tokens, median 472k, while only 4 of 60 sessions ever hit a compact
+boundary. See NAV-104.
 
 ### Present, not to be read
 
@@ -168,7 +227,7 @@ table.
 
 | Source | Count | Class | What it would give |
 |---|---|---|---|
-| `steps.status` | 223 rows | SAFE | **accepted vs failed** — 215 / 8 |
+| `steps.status` | 223 rows | ~~SAFE~~ **now read** | accepted / rejected / failed — 215 / 6 / 2 |
 | `executor_metadata.data` → model | 21 rows | SAFE | model per turn; 2 distinct |
 | `executor_metadata.data` → permission tokens | 8 dbs | SAFE | autonomy granted |
 | `steps.permissions` | 13 rows | SAFE (identity half) | MCP server/tool, qualified |
@@ -176,9 +235,13 @@ table.
 | `steps.error_details` | 7 rows | RISKY | failure reason, may quote a line |
 | `trajectory_meta.cascade_id` | 8 | SAFE | conversation lineage |
 
-`steps.status` is the notable one: **indexed, populated on every row, and
-ignored**, while the adapter hardcodes `Outcome: "unknown"` and its own
-package comment states agy records no rejection signal.
+`steps.status` was the notable one: indexed, populated on every row, and
+ignored, while the adapter hardcoded `Outcome: "unknown"` and its own
+comment stated agy records no rejection signal. **Fixed (NAV-84)** — it is
+now read, and the eight non-success rows resolve into three distinct
+meanings rather than one: six carry `error_details` beginning "Permission
+denied" (a human declining, which is what an acceptance rate is measured
+against), one "context cancelled", one nothing at all.
 
 ### Confirmed genuinely absent
 
@@ -208,9 +271,9 @@ This is the clearest case of why greps do not settle these questions.
 | git branch | ✅ | ✅ + commit | ❌ absent |
 | turn timing | ❌ | ✅ | ❌ absent |
 | subagent | ⚠️ present, always false | ✅ | ❌ absent |
-| MCP identity | ✅ | ⚠️ 44% missed | ✅ unread |
+| MCP identity | ✅ | ✅ both tagging forms (NAV-83) | ✅ unread |
 | permission mode | ✅ | ✅ | ✅ unread |
-| outcome | ✅ read | ✅ read | ⚠️ present, ignored |
+| outcome | ✅ read | ✅ read | ✅ read (NAV-84) |
 
 Any metric built on these has to state which agents can support it. A
 dashboard panel showing cost is meaningful for Claude Code and Codex and
