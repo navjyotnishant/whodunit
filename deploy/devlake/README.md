@@ -36,7 +36,9 @@ curl -fsSL https://raw.githubusercontent.com/navjyotnishant/whodunit/main/deploy
 Step 1 offers to run this at the end, so a first install is one sitting.
 Against a Grafana you already run, start here and pass `--grafana URL`.
 Re-running replaces the dashboards in place — same uids, same URLs, no
-duplicates.
+duplicates. They land in a **Whodunit** folder rather than General, so they
+do not mix with DevLake own dashboards; `--folder NAME` puts them somewhere
+else.
 
 | | |
 |---|---|
