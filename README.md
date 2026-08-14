@@ -14,9 +14,17 @@ configure `dun sync` and run it yourself (see [Privacy](#privacy)).
 Every commit gets a plain git trailer:
 
 ```
-AI-Attribution: status=assisted; method=observed; agent=claude-code; agent_version=2.1.227; ratio=0.62; session=a3f9e21c
+AI-Attribution: v=1; status=assisted; method=observed; agent=claude-code; agent_version=2.1.227; ratio=0.62; session=a3f9e21c
 ```
 
+- **v** — the trailer format version, first so it is read before the
+  values it qualifies. It exists because `ratio=0.62` is well-formed under
+  any definition of ratio: change the rule and every trailer already
+  written silently means something else, with no error to notice. Trailers
+  live in commit messages, so that ambiguity would be permanent — a
+  migration can rewrite a column, nothing can rewrite pushed history. A
+  trailer with no `v` is version 1, permanently, since that is every
+  trailer written before the key existed.
 - **status** — `assisted` or `undetermined`. Absence of AI involvement is
   never asserted as fact; a commit with no evidence either way is
   `undetermined`, never silently treated as "no AI."
@@ -27,6 +35,12 @@ AI-Attribution: status=assisted; method=observed; agent=claude-code; agent_versi
 - **agent / agent_version** — which tool, which version.
 - **ratio** — fraction of the change attributable to the agent.
 - **session** — an opaque token, not an identity.
+
+The version is bumped only when the *meaning* of a value changes, not when
+a key is added. A parser that does not recognise a new key keeps it and
+re-emits it unchanged, so additions are backward compatible on their own —
+and bumping for them would make the version uninformative about the thing
+it exists to signal.
 
 Unknown keys are preserved, not dropped — the grammar is meant to outlive
 any one implementation of it.

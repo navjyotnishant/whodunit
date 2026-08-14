@@ -42,6 +42,39 @@ var validStatuses = map[Status]bool{
 // TrailerKey is the git trailer key this spec owns.
 const TrailerKey = "AI-Attribution"
 
+// Version is the trailer format version, emitted as v= on every trailer
+// (NAV-118).
+//
+// This exists because a trailer's VALUES have meanings that can change
+// while staying perfectly parseable. `ratio=0.66` means "66% of the
+// commit's changed lines overlap lines an agent touched, additions and
+// deletions both counted" — under today's rules. Change the denominator,
+// the matching, or how deletions count, and every trailer already written
+// silently means something else.
+//
+// That is worse than an ordinary schema change in one specific way:
+// trailers are in commit messages, so they are immutable. A migration can
+// rewrite a column; nothing can rewrite history that has been pushed and
+// cloned. Without a version, a reader in 2028 sees a well-formed 0.66 and
+// has no way to know which rules produced it — no error, no missing
+// field, just a plausible number with an invisible problem.
+//
+// The rules have already moved: NAV-8 settled the denominator, NAV-52
+// changed line hashing from whole files to fragments, NAV-26 added
+// content-hash matching. Any of those would have shifted a ratio computed
+// before it.
+//
+// Bump this ONLY when the meaning of a value changes. Adding an optional
+// key does not — a parser that does not know `model=` keeps it in Extra
+// and is otherwise unaffected — and bumping for additions would make the
+// version uninformative about the thing it exists to signal.
+const Version = 1
+
+// VersionKey is short deliberately. Trailers are read by humans on a
+// GitHub commit page and the line is already long; `v=1` costs four
+// characters where `attribution_spec_version=1` costs twenty-six.
+const VersionKey = "v"
+
 // Trailer is a parsed AI-Attribution trailer value.
 type Trailer struct {
 	Status  Status
@@ -57,7 +90,27 @@ type Trailer struct {
 	// contributed nothing.
 	Ratio   *float64
 	Session string
-	Extra   map[string]string // unknown keys, preserved verbatim per spec
+
+	// SpecVer is the trailer FORMAT version this trailer was written
+	// under — not to be confused with Version above, which is the agent's
+	// own version. Zero means the trailer carried none, which is every
+	// trailer written before NAV-118; see SpecVersion.
+	SpecVer int
+
+	Extra map[string]string // unknown keys, preserved verbatim per spec
+}
+
+// SpecVersion returns the format version to interpret this trailer under.
+//
+// An absent version is version 1, permanently. Every trailer written
+// before the key existed is implicitly the first format, and nothing can
+// be added to those commits — so this default is not a migration step to
+// be removed later, it is the rule.
+func (t Trailer) SpecVersion() int {
+	if t.SpecVer == 0 {
+		return 1
+	}
+	return t.SpecVer
 }
 
 // Undetermined is the trailer stamped when no determination could be made.
@@ -70,7 +123,11 @@ func Undetermined() Trailer {
 func (t Trailer) Format() string {
 	var b strings.Builder
 	b.WriteString(TrailerKey)
-	b.WriteString(": status=")
+	// Emitted first, before the values it qualifies. A version discovered
+	// after the number it describes has already been read is a version
+	// that arrived too late to help.
+	fmt.Fprintf(&b, ": %s=%d", VersionKey, t.SpecVersion())
+	b.WriteString("; status=")
 	b.WriteString(string(t.Status))
 	b.WriteString("; method=")
 	b.WriteString(string(t.Method))
@@ -133,6 +190,12 @@ func Parse(value string) (Trailer, error) {
 			t.Version = val
 		case "session":
 			t.Session = val
+		case VersionKey:
+			n, err := strconv.Atoi(val)
+			if err != nil || n < 1 {
+				return Trailer{}, fmt.Errorf("spec: invalid version %q", val)
+			}
+			t.SpecVer = n
 		case "ratio":
 			r, err := strconv.ParseFloat(val, 64)
 			if err != nil || r < 0 || r > 1 {
