@@ -76,6 +76,28 @@ BARGAUGE = {"displayMode": "gradient", "orientation": "horizontal",
             "text": {"valueSize": 18, "titleSize": 12},
             "reduceOptions": {"calcs": ["lastNotNull"], "values": True}}
 
+# Red / amber / green, for the panels where a value genuinely is a
+# problem, a concern, or fine.
+#
+# Applied ONLY to those. A magnitude coloured red — a large token count, a
+# long session — reads as a warning it is not, and once every panel is
+# traffic-lit the two that mean it stop standing out. Amber exists so
+# "watch this" is sayable: a two-step scale forces every value into good
+# or bad, and most of the interesting ones sit between.
+def traffic(bad_below=None, ok_above=None, *, invert=False):
+    """Three bands. Values below `bad_below` red, above `ok_above` green.
+
+    invert=True flips it for metrics where lower is better.
+    """
+    if invert:
+        return [{"color": "green", "value": None},
+                {"color": "orange", "value": bad_below},
+                {"color": "red", "value": ok_above}]
+    return [{"color": "red", "value": None},
+            {"color": "orange", "value": bad_below},
+            {"color": "green", "value": ok_above}]
+
+
 CONTINUOUS_BLUES = {"mode": "continuous-BlPu"}
 CONTINUOUS_GREENS = {"mode": "continuous-GrYlRd"}
 CATEGORICAL = {"mode": "palette-classic-by-name"}
@@ -215,8 +237,7 @@ WHERE s.input_tokens IS NOT NULL AND {CONTRIBUTOR}""",
         "**Cache writes count as uncached here**, because a write arrives "
         "uncached and is billed above base rate. Omitting them turns a real "
         "48% into a flattering 99% — measured on this project's own data."),
-    thresholds=[{"color": "orange", "value": None},
-                {"color": "green", "value": 50}],
+    thresholds=traffic(bad_below=50, ok_above=75),
     options=STAT))
 
 panels.append(panel(
@@ -236,8 +257,7 @@ WHERE s.cache_write_tokens IS NOT NULL AND s.cache_write_tokens > 0 AND {CONTRIB
         "**The obvious break-even of 1.0 is wrong**: a series at 1.10x lost "
         "money while looking healthy.\n\n"
         "Empty for Codex, which reports cache reads but never writes."),
-    thresholds=[{"color": "red", "value": None},
-                {"color": "green", "value": BREAK_EVEN}],
+    thresholds=traffic(bad_below=BREAK_EVEN, ok_above=3),
     options=STAT))
 
 panels.append(panel(
@@ -271,7 +291,7 @@ panels.append(panel(
 FROM whodunit_events e JOIN whodunit_repos r ON r.repo_id = e.repo_id
 WHERE e.user_modified IS NOT NULL AND {CONTRIBUTOR}""",
     unit="percent", decimals=1, novalue="only Claude Code reports this",
-    color=NEUTRAL,
+    thresholds=traffic(bad_below=20, ok_above=40, invert=True),
     description=(
         "Share of edits a human changed before committing — the difference "
         "between 'the agent wrote this' and 'the agent wrote this and it was "
@@ -415,9 +435,8 @@ ORDER BY SUM(s.input_tokens + s.output_tokens
              {"id": "custom.cellOptions",
               "value": {"type": "color-text"}},
              {"id": "thresholds",
-              "value": {"mode": "absolute", "steps": [
-                  {"color": "red", "value": None},
-                  {"color": "green", "value": BREAK_EVEN}]}},
+              "value": {"mode": "absolute",
+                        "steps": traffic(bad_below=BREAK_EVEN, ok_above=3)}},
              {"id": "noValue", "value": "not reported"}]},
         {"matcher": {"id": "byName", "options": "From cache %"},
          "properties": [{"id": "unit", "value": "percent"},

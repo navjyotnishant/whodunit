@@ -245,7 +245,7 @@
         "w": 5,
         "h": 5
       },
-      "description": "**This is a size difference, not a productivity gain.**\n\nMean lines changed per assisted commit against unassisted ones, within purposes where both sides have at least 20 commits \u2014 so `feature` is not being compared against `docs`.\n\nA positive number means assisted commits are larger. Larger is not faster and not better: it may mean the agent takes on bigger work, or that it writes more code for the same outcome. Both are consistent with this figure.\n\nEmpty when no purpose has 20 commits on both sides, rather than showing a ratio computed from a handful.",
+      "description": "**This is a size difference, not a productivity gain.**\n\nMean lines changed per assisted commit against unassisted ones, within purposes where both sides have at least 20 commits \u2014 so `feature` is not being compared against `docs`.\n\nA positive number means assisted commits are larger. Larger is not faster and not better: it may mean the agent takes on bigger work, or that it writes more code for the same outcome. Both are consistent with this figure.\n\nEmpty when no purpose has 20 commits on both sides, rather than showing a ratio computed from a handful.\n\n**Deliberately not colour-coded.** Green for positive would assert that larger commits are better, which is the claim the panel beside this one exists to refuse.",
       "targets": [
         {
           "refId": "A",

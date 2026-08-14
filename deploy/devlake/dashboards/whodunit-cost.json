@@ -257,12 +257,16 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "orange",
+                "color": "red",
                 "value": null
               },
               {
-                "color": "green",
+                "color": "orange",
                 "value": 50
+              },
+              {
+                "color": "green",
+                "value": 75
               }
             ]
           }
@@ -313,8 +317,12 @@
                 "value": null
               },
               {
-                "color": "green",
+                "color": "orange",
                 "value": 1.25
+              },
+              {
+                "color": "green",
+                "value": 3
               }
             ]
           }
@@ -400,9 +408,22 @@
           "unit": "percent",
           "decimals": 1,
           "noValue": "only Claude Code reports this",
-          "color": {
-            "mode": "fixed",
-            "fixedColor": "text"
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 20
+              },
+              {
+                "color": "red",
+                "value": 40
+              }
+            ]
           }
         },
         "overrides": []
@@ -735,8 +756,12 @@
                       "value": null
                     },
                     {
-                      "color": "green",
+                      "color": "orange",
                       "value": 1.25
+                    },
+                    {
+                      "color": "green",
+                      "value": 3
                     }
                   ]
                 }
