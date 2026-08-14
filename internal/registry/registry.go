@@ -189,5 +189,36 @@ func write(entries []Entry) error {
 	if err := tmp.Close(); err != nil {
 		return fmt.Errorf("write registry: %w", err)
 	}
-	return os.Rename(tmpName, p)
+	return renameOver(tmpName, p)
+}
+
+// renameOver replaces dst with src, retrying while the target is held open.
+//
+// On Unix rename(2) replaces an existing file unconditionally, and this is
+// one call. Windows is the reason for the loop: MoveFileEx is given
+// MOVEFILE_REPLACE_EXISTING by Go already, but it still fails with "Access
+// is denied" while another process has the target open for reading — and a
+// reader is exactly what this is protecting, so the collision is expected
+// rather than exceptional.
+//
+// Retried briefly rather than reported. A read takes microseconds, so
+// waiting one out is nearly free, and the alternative is failing `dun init`
+// because someone happened to run `dun status` at the same moment.
+//
+// If it still will not go through, the error is returned: the temporary
+// file is cleaned up by the caller's defer, the old registry is intact, and
+// the operation is reported as failed rather than silently dropped.
+func renameOver(src, dst string) error {
+	// Backs off up to roughly a second in total. Long enough to outlast any
+	// read of a file this size, short enough that a genuinely stuck target
+	// is reported rather than hung on.
+	var err error
+	for attempt := 0; attempt < 12; attempt++ {
+		if err = os.Rename(src, dst); err == nil {
+			return nil
+		}
+		time.Sleep(time.Duration(5*(attempt+1)*(attempt+1)) * time.Millisecond)
+	}
+	return fmt.Errorf("write registry: could not replace %s after 12 attempts "+
+		"(another process may be holding it open): %w", dst, err)
 }
