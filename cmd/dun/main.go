@@ -32,7 +32,7 @@ func newRootCmd() *cobra.Command {
 			if len(args) > 0 {
 				return fmt.Errorf("unknown command %q — run 'dun --help'", args[0])
 			}
-			return runWelcome(cmd.OutOrStdout())
+			return runWelcome(cmd.OutOrStdout(), cmd)
 		},
 		SilenceUsage: true,
 	}

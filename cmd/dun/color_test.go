@@ -120,7 +120,7 @@ func TestCheckOutputHasNoANSI(t *testing.T) {
 func TestWelcomeToBufferHasNoANSI(t *testing.T) {
 	t.Setenv("NO_COLOR", "1")
 	var out bytes.Buffer
-	if err := runWelcome(&out); err != nil {
+	if err := runWelcome(&out, newRootCmd()); err != nil {
 		t.Fatal(err)
 	}
 	if containsANSI(out.String()) {
@@ -135,7 +135,7 @@ func TestWelcomeToBufferHasNoANSI(t *testing.T) {
 // a banner.
 func TestWelcomeNamesANextCommand(t *testing.T) {
 	var out bytes.Buffer
-	if err := runWelcome(&out); err != nil {
+	if err := runWelcome(&out, newRootCmd()); err != nil {
 		t.Fatal(err)
 	}
 	s := out.String()
@@ -143,5 +143,40 @@ func TestWelcomeNamesANextCommand(t *testing.T) {
 		!strings.Contains(s, "dun status") &&
 		!strings.Contains(s, "dun repos list") {
 		t.Fatalf("welcome screen suggests no next command:\n%s", s)
+	}
+}
+
+// The welcome screen listed a hand-picked eight while `dun --help` listed
+// eighteen, so three user-facing commands were invisible to anyone who ran
+// `dun` and never thought to ask for help. The list is now read from the
+// command tree; this fails if someone reintroduces a hardcoded copy.
+func TestWelcomeListsEveryVisibleCommand(t *testing.T) {
+	root := newRootCmd()
+	var out bytes.Buffer
+	if err := runWelcome(&out, root); err != nil {
+		t.Fatal(err)
+	}
+	got := out.String()
+
+	for _, c := range root.Commands() {
+		if c.Hidden || c.Name() == "help" || c.Name() == "completion" {
+			continue
+		}
+		if !strings.Contains(got, c.Name()) {
+			t.Errorf("the welcome screen omits %q, which `dun --help` lists", c.Name())
+		}
+	}
+}
+
+// A hidden command is hidden for a reason — `dun hook` is git's entry point
+// and not something anyone types.
+func TestWelcomeOmitsHiddenCommands(t *testing.T) {
+	root := newRootCmd()
+	var out bytes.Buffer
+	if err := runWelcome(&out, root); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(out.String(), "hook ") {
+		t.Error("the welcome screen lists the hidden hook command")
 	}
 }

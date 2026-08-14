@@ -13,6 +13,7 @@ import (
 	"github.com/navjyotnishant/whodunit/internal/config"
 	"github.com/navjyotnishant/whodunit/internal/registry"
 	"github.com/navjyotnishant/whodunit/internal/termcolor"
+	"github.com/spf13/cobra"
 )
 
 // runWelcome prints what dun is, whether this repository is instrumented,
@@ -21,7 +22,7 @@ import (
 // Cobra's default help lists twelve commands with no indication of which
 // one applies right now. Someone running `dun` for the first time needs the
 // next step, not the full surface.
-func runWelcome(out io.Writer) error {
+func runWelcome(out io.Writer, root *cobra.Command) error {
 	w := termcolor.New(out)
 
 	renderWordmark(out, w)
@@ -59,21 +60,7 @@ func runWelcome(out io.Writer) error {
 	// people running `dun --help` to discover the surface, which is a step
 	// that did not need to exist.
 	fmt.Fprintln(out)
-	fmt.Fprintln(out, w.S(termcolor.Muted, "  commands"))
-	for _, c := range [][2]string{
-		{"init", "instrument this repository"},
-		{"status", "coverage, method mix, what would sync"},
-		{"verify", "check everything is working"},
-		{"report", "an HTML report you can open"},
-		{"log", "what the hooks did, and what they swallowed"},
-		{"journal", "the recorded events themselves"},
-		{"sync", "publish to a shared database"},
-		{"repos", "every repository you have instrumented"},
-	} {
-		fmt.Fprintf(out, "    %s %s\n",
-			w.S(termcolor.Bold, fmt.Sprintf("%-9s", c[0])),
-			w.S(termcolor.Muted, c[1]))
-	}
+	renderCommandList(out, w, root)
 
 	// One line, not the twelve `dun status` prints. This screen is seen on
 	// every bare invocation, and a warning that fills it gets scrolled past
@@ -189,4 +176,56 @@ func renderPanel(out io.Writer, w *termcolor.Writer, status string, lines [][2]s
 			cmd, l[1], strings.Repeat(" ", pad), w.S(termcolor.Muted, "│"))
 	}
 	fmt.Fprintf(out, "  %s\n", w.S(termcolor.Muted, "└"+bar+"┘"))
+}
+
+// renderCommandList prints every command cobra knows about.
+//
+// Read from the command tree rather than written out here. The list used to
+// be a hand-picked eight, which drifted the moment anything was added:
+// `baseline`, `delta` and `check` were all user-facing and missing, while
+// `dun --help` listed eighteen. A screen that claims to show the commands
+// and shows two-thirds of them is worse than one that sends you to --help.
+//
+// Cobra's own housekeeping commands are dropped, along with anything marked
+// hidden — `help` and `completion` are noise on a first screen, and the
+// hook entry point is not something anyone types.
+func renderCommandList(out io.Writer, w *termcolor.Writer, root *cobra.Command) {
+	if root == nil {
+		return
+	}
+
+	var cmds []*cobra.Command
+	width := 0
+	for _, c := range root.Commands() {
+		if c.Hidden || c.Name() == "help" || c.Name() == "completion" {
+			continue
+		}
+		cmds = append(cmds, c)
+		if n := len(c.Name()); n > width {
+			width = n
+		}
+	}
+	if len(cmds) == 0 {
+		return
+	}
+
+	fmt.Fprintln(out)
+	fmt.Fprintln(out, w.S(termcolor.Muted, "  commands"))
+	for _, c := range cmds {
+		fmt.Fprintf(out, "    %s %s\n",
+			w.S(termcolor.Bold, fmt.Sprintf("%-*s", width, c.Name())),
+			w.S(termcolor.Muted, firstSentence(c.Short)))
+	}
+}
+
+// firstSentence trims a Short to what fits on a line beside a command name.
+func firstSentence(s string) string {
+	if i := strings.IndexByte(s, '.'); i > 0 {
+		s = s[:i]
+	}
+	const max = 58
+	if len(s) > max {
+		s = s[:max-1] + "…"
+	}
+	return s
 }
