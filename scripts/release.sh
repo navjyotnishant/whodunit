@@ -39,7 +39,21 @@ for target in $TARGETS; do
   ext=""
   [ "$os" = "windows" ] && ext=".exe"
 
-  out="$DIST/dun_${VERSION}_${os}_${arch}${ext}"
+  # The archive keeps the version and platform in its name — that is how
+  # release assets are told apart. The binary inside is plain `dun`.
+  #
+  # Those used to be the same string, so unzipping on Windows produced
+  # dun_v0.2.0_windows_amd64.exe, which does nothing until the user renames
+  # it: the git hook resolves `dun` from PATH by name, so a differently-named
+  # binary means every commit is silently stamped undetermined.
+  #
+  # Homebrew hid this on macOS and Linux by renaming during install
+  # (`bin.install "dun_v0.2.0_darwin_arm64" => "dun"`). An archive has no
+  # install step, so the archive has to be right on its own — and the plain
+  # archive is a supported route for anyone whose policy forbids package
+  # managers.
+  binary="dun${ext}"
+  out="$DIST/$binary"
   echo "  $os/$arch"
   ( cd "$ROOT" && \
     CGO_ENABLED=0 GOOS="$os" GOARCH="$arch" \
@@ -47,9 +61,9 @@ for target in $TARGETS; do
 
   archive_base="dun_${VERSION}_${os}_${arch}"
   if [ "$os" = "windows" ]; then
-    ( cd "$DIST" && zip -q "${archive_base}.zip" "$(basename "$out")" && rm "$(basename "$out")" )
+    ( cd "$DIST" && zip -q "${archive_base}.zip" "$binary" && rm "$binary" )
   else
-    ( cd "$DIST" && tar czf "${archive_base}.tar.gz" "$(basename "$out")" && rm "$(basename "$out")" )
+    ( cd "$DIST" && tar czf "${archive_base}.tar.gz" "$binary" && rm "$binary" )
   fi
 done
 
