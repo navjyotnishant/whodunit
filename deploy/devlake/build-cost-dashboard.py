@@ -66,6 +66,16 @@ BREAK_EVEN = 1.25
 # gauges, bar charts — bigger is just bigger), a modern categorical
 # palette where series are distinct things (the per-model time series),
 # and explicit thresholds only where a colour is a judgement.
+# Bar gauges auto-scale their value text to fill the panel, so a panel
+# with few bars renders each number enormous — five bars in a seven-unit
+# panel gave "3,383" the height of a section heading. The cap keeps the
+# value readable as a label rather than as the headline; the bar length is
+# what carries the comparison.
+BARGAUGE = {"displayMode": "gradient", "orientation": "horizontal",
+            "showUnfilled": True, "valueMode": "text",
+            "text": {"valueSize": 18, "titleSize": 12},
+            "reduceOptions": {"calcs": ["lastNotNull"], "values": True}}
+
 CONTINUOUS_BLUES = {"mode": "continuous-BlPu"}
 CONTINUOUS_GREENS = {"mode": "continuous-GrYlRd"}
 CATEGORICAL = {"mode": "palette-classic-by-name"}
@@ -318,9 +328,7 @@ GROUP BY 1 ORDER BY 2 DESC""",
         "here report no cache writes at all, so that chart would render four "
         "bars and silently drop the rest. A table can show \"not reported\"; "
         "a bar cannot (NAV-21)."),
-    options={"displayMode": "gradient", "orientation": "horizontal",
-             "showUnfilled": True, "valueMode": "text",
-             "reduceOptions": {"calcs": ["lastNotNull"], "values": True}}))
+    options=BARGAUGE))
 
 panels.append(panel(
     131, "Longest sessions", "bargauge", 12, y, 12, 6,
@@ -354,9 +362,7 @@ ORDER BY (s.last_seen - s.first_seen) DESC LIMIT 8""",
         "one bar.\n\n"
         "Sessions whose start time was never recorded are excluded rather "
         "than rendered as impossibly long."),
-    options={"displayMode": "gradient", "orientation": "horizontal",
-             "showUnfilled": True, "valueMode": "text",
-             "reduceOptions": {"calcs": ["lastNotNull"], "values": True}}))
+    options=BARGAUGE))
 
 panels.append(panel(
     110, "Token use and cache efficiency by model", "table", 0, y + 6, 24, 9,
@@ -559,9 +565,7 @@ ORDER BY 2 DESC""",
         "kept rather than mapped onto a shared enum: asserting that `never` "
         "means the same as `default` would invent a comparison neither agent "
         "made."),
-    options={"displayMode": "gradient", "orientation": "horizontal",
-             "showUnfilled": True, "valueMode": "text",
-             "reduceOptions": {"calcs": ["lastNotNull"], "values": True}}))
+    options=BARGAUGE))
 
 panels.append(panel(
     140, "Calls per MCP server", "barchart", 0, y, 12, 7,

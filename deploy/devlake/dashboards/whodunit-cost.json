@@ -568,6 +568,10 @@
         "orientation": "horizontal",
         "showUnfilled": true,
         "valueMode": "text",
+        "text": {
+          "valueSize": 18,
+          "titleSize": 12
+        },
         "reduceOptions": {
           "calcs": [
             "lastNotNull"
@@ -620,6 +624,10 @@
         "orientation": "horizontal",
         "showUnfilled": true,
         "valueMode": "text",
+        "text": {
+          "valueSize": 18,
+          "titleSize": 12
+        },
         "reduceOptions": {
           "calcs": [
             "lastNotNull"
@@ -924,6 +932,10 @@
         "orientation": "horizontal",
         "showUnfilled": true,
         "valueMode": "text",
+        "text": {
+          "valueSize": 18,
+          "titleSize": 12
+        },
         "reduceOptions": {
           "calcs": [
             "lastNotNull"
