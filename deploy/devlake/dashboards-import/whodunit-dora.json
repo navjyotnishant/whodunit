@@ -726,7 +726,7 @@
           "values": false
         }
       },
-      "description": "Failed production deployments as a share of all of them."
+      "description": "Share of deployments that required a fix afterwards, from DevLake's own incident linkage.\n\n**Needs a deployment pattern configured**, or every CI run is unclassified and this reads empty rather than zero. Also needs incidents, which most trackers do not provide for free.\n\nThis is a delivery metric, not an AI metric — it is here so adoption can be read against it, not because whodunit measures it."
     },
     {
       "id": 12,
@@ -865,7 +865,7 @@
           "values": false
         }
       },
-      "description": "The sample size behind the cycle time to its left."
+      "description": "How many pull requests the cycle-time figure beside this was computed over.\n\nShown because a median over a handful of PRs is one PR moving. Empty means DevLake has collected no pull requests for the mapped repositories."
     },
     {
       "id": 15,
@@ -941,7 +941,7 @@
           }
         }
       },
-      "description": "Successful production deployments per bucket."
+      "description": "Deployments per day, from DevLake's CI collection.\n\nRequires a deployment pattern on the scope config — without one, `cicd_deployment_commits` stays empty and every DORA panel on this page reads blank while collection reports success."
     },
     {
       "id": 17,
@@ -1358,7 +1358,7 @@
           "values": false
         }
       },
-      "description": "Withheld until 10 overlapping weeks exist."
+      "description": "Pearson correlation between weekly adoption and weekly deployment frequency.\n\n**Correlation, not causation, and on very few weeks.** The overlapping-weeks count beside it is the number that decides whether this means anything — below about ten weeks it is noise wearing a decimal point."
     },
     {
       "id": 22,
@@ -1454,7 +1454,7 @@
           "values": false
         }
       },
-      "description": "Withheld until 10 overlapping weeks exist."
+      "description": "Pearson correlation between weekly adoption and weekly change failure rate.\n\nA negative r would mean failures fall as adoption rises. It would not mean adoption caused that — teams adopting AI are also doing other things — and the overlapping-weeks count beside it usually rules out reading it at all."
     },
     {
       "id": 25,
@@ -1550,7 +1550,7 @@
           "values": false
         }
       },
-      "description": "Withheld until 10 overlapping weeks exist."
+      "description": "Pearson correlation between weekly adoption and median PR cycle time.\n\nRead the overlapping-weeks count first. With few weeks this number is unstable enough that its sign can flip on one week of data."
     },
     {
       "id": 28,

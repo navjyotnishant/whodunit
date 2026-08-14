@@ -96,7 +96,7 @@
     {
       "type": "stat",
       "title": "Sessions",
-      "description": "Distinct agent sessions observed.",
+      "description": "Agent sessions recorded in the selected range.\n\nA session is one conversation, counted regardless of whether it produced an edit — so this measures how often an agent was opened, not how much it did. The engagement panels below separate those.",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
         "h": 5,
@@ -182,7 +182,7 @@
     {
       "type": "stat",
       "title": "Repositories",
-      "description": "Repositories instrumented and synced.",
+      "description": "Instrumented repositories that recorded activity in range.\n\nOnly repositories where `dun init` has run appear at all: enrolment is opt-in, so this is a count of what was instrumented, not of what exists.",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
         "h": 5,

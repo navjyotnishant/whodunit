@@ -73,6 +73,7 @@ dashboards:
 	@deploy/devlake/export-dashboards.py --check
 	@deploy/devlake/check-dashboard-list.py
 	@deploy/devlake/check-contributor-filter.py
+	@deploy/devlake/check-panel-descriptions.py
 
 clean:
 	@rm -rf dist

@@ -140,7 +140,8 @@
           "fields": "",
           "values": false
         }
-      }
+      },
+      "description": "Commits carrying evidence of agent involvement in the selected range.\n\nCounts `status = 'assisted'` only. A commit with no trailer is `undetermined` — no evidence either way — not proof it was written without an agent (NAV-21). Read this against Attribution coverage beside it, which is the share of commits that carry any verdict at all."
     },
     {
       "id": 3,
@@ -184,7 +185,8 @@
           "fields": "",
           "values": false
         }
-      }
+      },
+      "description": "Share of commits carrying any attribution verdict — anything other than `undetermined`.\n\nThis is a measure of **instrumentation, not of AI use**. A repository instrumented last week has low coverage for its whole history, because commits made before the hooks existed cannot be attributed retroactively.\n\nLow coverage means the numbers on this page describe a small slice. Read every other panel against it."
     },
     {
       "id": 4,
@@ -228,7 +230,8 @@
           "fields": "",
           "values": false
         }
-      }
+      },
+      "description": "Share of decided tool calls that were accepted.\n\n**The denominator is decided calls only** — accepted, rejected or failed — not all calls. A call whose outcome was never recorded is excluded rather than counted as accepted, which would flatter the rate. See Decided tool calls beside this for the size of that denominator.\n\nA rejection is a human declining; a failure is the tool erroring. Both count as decided, and only acceptance is in the numerator."
     },
     {
       "id": 5,
@@ -272,7 +275,8 @@
           "fields": "",
           "values": false
         }
-      }
+      },
+      "description": "How many tool calls have a recorded outcome, and therefore how much the acceptance rate beside this is actually measured on.\n\nShown because a percentage without its denominator is not a measurement. A rate over a handful of calls moves entirely on one of them."
     },
     {
       "id": 6,
@@ -316,7 +320,8 @@
           "fields": "",
           "values": false
         }
-      }
+      },
+      "description": "Distinct agent sessions that produced at least one recorded event in range.\n\nA session is one conversation with an agent. Sessions that only read or ran commands count here — this measures how often an agent was used, not how much code resulted."
     },
     {
       "id": 7,
@@ -465,7 +470,8 @@
           "fields": "",
           "values": false
         }
-      }
+      },
+      "description": "Tracker issues resolved in range whose linked commits include assisted work.\n\nThe denominator behind the cycle-time comparison. An issue counts as AI-assisted when **any** commit on it was assisted, so a mostly-manual issue with one assisted commit lands here.\n\nRequires a connected issue tracker in DevLake. Empty means no issues were linked, not that no AI work happened."
     },
     {
       "id": 11,
@@ -509,7 +515,8 @@
           "fields": "",
           "values": false
         }
-      }
+      },
+      "description": "Tracker issues resolved in range with no assisted commits linked.\n\nThe other half of the cycle-time comparison's denominator. Both counts are shown because a difference in medians means nothing without them — and these two groups are **not** matched work: an agent is reached for on some kinds of issue and not others."
     },
     {
       "id": 12,
@@ -583,7 +590,8 @@
       },
       "options": {
         "showHeader": true
-      }
+      },
+      "description": "Every compared issue with its cycle time, so the medians above can be checked against the rows that produced them.\n\nCycle time is DevLake's `lead_time_minutes`, rendered in hours. Attribution is per issue: assisted when any linked commit was.\n\nListed rather than summarised because with this few issues a median is one or two rows moving."
     },
     {
       "id": 14,
@@ -628,7 +636,8 @@
             }
           }
         }
-      }
+      },
+      "description": "Assisted against undetermined commits per day.\n\nThe undetermined series is **not** a 'no AI' series — it is commits carrying no evidence either way, which includes everything before instrumentation. A rising assisted line against a falling undetermined one usually means coverage improving, not adoption rising."
     },
     {
       "id": 16,
@@ -655,7 +664,8 @@
             "fillOpacity": 70
           }
         }
-      }
+      },
+      "description": "Recorded agent edits per day, and the lines those edits added.\n\nEdits count tool calls that touched a file; lines count what those calls wrote. The two diverge when the agent makes many small changes or a few large ones, which is the shape worth noticing.\n\nLines from rejected or failed calls are excluded — text that never reached a file is not authored code."
     },
     {
       "id": 17,
@@ -687,7 +697,8 @@
             "pointSize": 6
           }
         }
-      }
+      },
+      "description": "Daily acceptance rate over decided tool calls.\n\nSame denominator rule as the headline figure: only calls with a recorded outcome. A day with few decided calls swings violently, so read the shape over weeks rather than the value on any one day."
     },
     {
       "id": 18,
@@ -717,7 +728,8 @@
             }
           }
         }
-      }
+      },
+      "description": "Issues resolved per day, split by whether any linked commit was assisted.\n\nRequires a connected issue tracker. The split is per issue rather than per commit, so an issue with one assisted commit among ten counts as assisted."
     },
     {
       "id": 19,
@@ -769,7 +781,8 @@
           "fields": "",
           "values": true
         }
-      }
+      },
+      "description": "What kind of work the agent was used for, from Conventional Commit prefixes and path heuristics.\n\n**Purpose is a label, not an observation.** `feature` is reachable only through a literal `feat:` prefix, so a repository not using Conventional Commits will show almost none — which says nothing about the work itself."
     },
     {
       "id": 21,
@@ -798,7 +811,8 @@
       },
       "options": {
         "showHeader": true
-      }
+      },
+      "description": "Acceptance broken down by which tool the agent used, with the decided count beside each rate.\n\nThe counts matter more than the percentages here: a tool used three times shows 0% or 100% and neither means anything. Sorted by decided volume so the rates worth reading are at the top."
     },
     {
       "id": 22,
@@ -827,7 +841,8 @@
       },
       "options": {
         "showHeader": true
-      }
+      },
+      "description": "Individual sessions with their duration, prompt count and tool activity — the raw shape behind the aggregates above.\n\nPrompts count user messages only, excluding the harness replying to the agent with tool results. Minutes are first to last recorded event, so a session left open overnight reads as long without being busy; read it against tool calls."
     },
     {
       "type": "row",
