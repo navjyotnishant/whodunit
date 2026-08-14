@@ -21,12 +21,30 @@ func newConfigCmd() *cobra.Command {
 		Use:   "config",
 		Short: "Read and change global settings.",
 		Long: "Settings live in ~/.whodunit/config.json.\n\n" +
-			"The setting most worth knowing about is where each agent keeps its\n" +
-			"transcripts. whodunit knows the usual location for every agent it\n" +
-			"supports, but a machine that stores them elsewhere would otherwise\n" +
-			"produce no attribution at all, with nothing to indicate why:\n\n" +
+			"Run `dun config` with no arguments to see every setting, its value,\n" +
+			"and whether that value was chosen or defaulted.\n\n" +
+			"Two settings have their own commands because they are more than a\n" +
+			"value: `dun config datalake` walks through a sync target, and\n" +
+			"`dun config agents` reports where each agent's transcripts were\n" +
+			"found. A sync password is never set here — datalake prompts for it\n" +
+			"without echo and stores it encrypted, bound to this machine.",
+		Example: "  # see everything, and where each value came from\n" +
+			"  dun config\n\n" +
+			"  # what the agents cost per month, for cost-per-line\n" +
+			"  dun config set monthly_spend 350\n\n" +
+			"  # daily journal copies to keep; 0 turns backups off\n" +
+			"  dun config set backup_days 14\n\n" +
+			"  # how long line hashes stay local after publishing.\n" +
+			"  # refuses anything under 30 — the commit hook looks back that\n" +
+			"  # far, and pruning inside the window would delete evidence a\n" +
+			"  # commit was about to match\n" +
+			"  dun config set retention_days 90\n\n" +
+			"  # where an agent keeps its transcripts, when it is not the\n" +
+			"  # usual place. a wrong path produces no attribution at all,\n" +
+			"  # with nothing to indicate why\n" +
 			"  dun config set agent.claude-code.path /path/to/projects\n\n" +
-			"Run `dun config agents` to see what was found and where it looked.",
+			"  # read one value\n" +
+			"  dun config get retention_days",
 		// Bare `dun config` shows the settings rather than prose about
 		// them. Printing help there meant the one command named after the
 		// configuration could not tell you what your configuration was —
@@ -46,8 +64,18 @@ func newConfigCmd() *cobra.Command {
 func newConfigSetCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "set <key> <value>",
-		Short: "Set a setting, e.g. agent.claude-code.path",
-		Args:  cobra.ExactArgs(2),
+		Short: "Set a setting.",
+		// The keys are listed by settingKeys() rather than written here, so
+		// this cannot fall behind what set actually accepts — which it did:
+		// the report advised `dun config set monthly_spend` while the
+		// command rejected the key.
+		Long: "Set one setting. Known settings:\n\n  " + settingKeysList() +
+			"\n\nRun `dun config` to see the current values.",
+		Example: "  dun config set monthly_spend 350\n" +
+			"  dun config set backup_days 14\n" +
+			"  dun config set retention_days 90\n" +
+			"  dun config set agent.claude-code.path /path/to/projects",
+		Args: cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runConfigSet(cmd, args[0], args[1])
 		},
@@ -56,6 +84,8 @@ func newConfigSetCmd() *cobra.Command {
 
 func newConfigGetCmd() *cobra.Command {
 	return &cobra.Command{
+		Example: "  dun config get retention_days\n" +
+			"  dun config get agent.claude-code.path",
 		Use:   "get <key>",
 		Short: "Print one setting's value.",
 		Args:  cobra.ExactArgs(1),

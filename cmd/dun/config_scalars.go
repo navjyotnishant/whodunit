@@ -175,3 +175,15 @@ func runConfigList(w io.Writer) error {
 	fmt.Fprintf(w, "%s\n", c.S(termcolor.Muted, "  dun config set <setting> <value>"))
 	return nil
 }
+
+// settingKeysList renders the settings one per line with their help, for
+// `dun config set --help`.
+func settingKeysList() string {
+	var b strings.Builder
+	b.WriteString(fmt.Sprintf("%-20s %s", "agent.<name>.path",
+		"where that agent keeps its transcripts"))
+	for _, s := range scalarSettings() {
+		fmt.Fprintf(&b, "\n  %-20s %s", s.Key, s.Help)
+	}
+	return b.String()
+}
