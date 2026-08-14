@@ -2,7 +2,9 @@ package main
 
 import (
 	"fmt"
+	"github.com/navjyotnishant/whodunit/internal/hooklog"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/navjyotnishant/whodunit/internal/adapter"
@@ -44,21 +46,37 @@ func runIngest(cmd *cobra.Command, sinceFlag string) error {
 		since = t
 	}
 
+	// Skipped transcripts go to the log as well as the terminal. A skip
+	// printed and scrolled past is the same as one never reported: someone
+	// asking in a week why a commit came out undetermined has nothing to
+	// read, which is the gap `dun log` exists to close.
 	written, sessionCount, err := ingestSince(since, func(path string, err error) {
 		fmt.Fprintf(cmd.ErrOrStderr(), "skip %s: %v\n", path, err)
+		logHook("ingest", hooklog.LevelWarn, "ingest",
+			"skipped "+filepath.Base(path)+": "+err.Error())
 	})
 	if err != nil {
+		logHook("ingest", hooklog.LevelWarn, "ingest", err.Error())
 		return err
 	}
 
 	fmt.Fprintf(cmd.OutOrStdout(), "ingested %d event(s) from %d session file(s)\n", written, sessionCount)
+	logHook("ingest", hooklog.LevelInfo, "ingest",
+		fmt.Sprintf("read %d event(s) from %d session file(s)", written, sessionCount))
 	return nil
 }
 
 // runIngestCount runs a full ingest and returns just the written count, for
 // the daemon loop — same underlying logic as `dun ingest`, no --since bound.
 func runIngestCount() (int, error) {
-	written, _, err := ingestSince(time.Time{}, func(string, error) {})
+	// Errors were discarded here with an empty callback. A transcript that
+	// cannot be parsed is exactly the thing someone needs to see when
+	// attribution is missing, so it is recorded even though this path has
+	// no terminal to print to.
+	written, _, err := ingestSince(time.Time{}, func(path string, perr error) {
+		logHook("ingest", hooklog.LevelWarn, "ingest",
+			"skipped "+filepath.Base(path)+": "+perr.Error())
+	})
 	return written, err
 }
 

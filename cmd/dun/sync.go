@@ -3,9 +3,11 @@ package main
 import (
 	"fmt"
 	"io"
+	"net/url"
 	"time"
 
 	"github.com/navjyotnishant/whodunit/internal/config"
+	"github.com/navjyotnishant/whodunit/internal/hooklog"
 	"github.com/navjyotnishant/whodunit/internal/journal"
 	"github.com/navjyotnishant/whodunit/internal/report"
 	"github.com/navjyotnishant/whodunit/internal/sidecar"
@@ -104,12 +106,14 @@ func runSync(cmd *cobra.Command, dsn string, limit int, dryRun bool, repoFlag st
 	db, err := sidecar.Open(dsn)
 	if err != nil {
 		failed()
+		logHook("sync", hooklog.LevelWarn, "sync", "could not open the target: "+err.Error())
 		return err
 	}
 	defer db.Close()
 
 	if err := db.Ping(); err != nil {
 		failed()
+		logHook("sync", hooklog.LevelWarn, "sync", "target unreachable: "+err.Error())
 		return fmt.Errorf("cannot reach the database: %w", err)
 	}
 	ok()
@@ -117,6 +121,7 @@ func runSync(cmd *cobra.Command, dsn string, limit int, dryRun bool, repoFlag st
 	step("checking the schema")
 	if err := sidecar.EnsureSchema(db); err != nil {
 		failed()
+		logHook("sync", hooklog.LevelWarn, "sync", "schema check failed: "+err.Error())
 		return err
 	}
 	ok()
@@ -127,6 +132,7 @@ func runSync(cmd *cobra.Command, dsn string, limit int, dryRun bool, repoFlag st
 	if err != nil {
 		step("sending")
 		failed()
+		logHook("sync", hooklog.LevelWarn, "sync", "write failed: "+err.Error())
 		return err
 	}
 
@@ -138,6 +144,11 @@ func runSync(cmd *cobra.Command, dsn string, limit int, dryRun bool, repoFlag st
 	// under which removing it locally is safe. Running it here too means
 	// `dun sync` and a push behave identically rather than one of them
 	// quietly skipping the copy.
+	logHook("sync", hooklog.LevelInfo, "sync",
+		fmt.Sprintf("published %d commit(s), %d event(s), %d session(s), %d line hash(es) to %s",
+			counts.Commits, counts.Events, counts.Sessions, counts.Lines,
+			redactedTarget(dsn)))
+
 	afterSuccessfulSync("sync")
 	return nil
 }
@@ -226,4 +237,21 @@ func min(a, b int) int {
 		return a
 	}
 	return b
+}
+
+// redactedTarget renders a DSN safely for the log.
+//
+// The log is read by people and pasted into issues, and a resolved DSN
+// carries the sync password. config.SyncConfig.Redacted does this for a
+// configured target; --to supplies a raw string that has never been through
+// it.
+func redactedTarget(dsn string) string {
+	u, err := url.Parse(dsn)
+	if err != nil {
+		return "the configured target"
+	}
+	if u.User != nil {
+		u.User = url.User(u.User.Username())
+	}
+	return u.String()
 }
