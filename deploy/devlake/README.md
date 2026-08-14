@@ -70,6 +70,7 @@ Sync first if you want to see something.
 | `whodunit-dora.json` | does adoption move delivery — DORA against attribution |
 | `whodunit-hours.json` | when and how the agent is used — rhythm, tools, session shape |
 | `whodunit-funnel.json` | adoption vs value, in six independently measured stages |
+| `whodunit-cost.json` | what it cost in tokens, per model — with cache efficiency and the break-even marked |
 
 They are also attached to every GitHub release, so a team can pin a version
 rather than tracking `main`:
@@ -77,6 +78,33 @@ rather than tracking `main`:
 ```sh
 curl -fsSL …/import-dashboards.sh | sh -s -- --version v0.2.0
 ```
+
+### Cost is reported in tokens, never in currency
+
+`whodunit-cost.json` shows measured token counts and deliberately stops
+short of a price. Under a subscription the marginal cost of a token is
+zero — a user on a fixed monthly plan spends the same whether a session
+burns 10k tokens or 10M — so multiplying by an API rate would report money
+nobody spent. Nothing in a transcript says which billing model a user is
+on, so the tool would be guessing at the pricing model before reaching the
+price. Anyone who needs a figure has their own contract and can multiply.
+
+Two numbers on that dashboard are easy to get wrong in a flattering
+direction, and both are worth knowing before reading it:
+
+**Cache writes count as uncached** in the read-ratio panel. A write
+arrives uncached and is billed above base rate, so leaving it out of the
+denominator turns a real 48% into 99% — measured, on this project's own
+data. A panel showing 99% recommends nothing.
+
+**Break-even for write payback is 1.25x, not 1.0x.** A write costs about
+1.25x base and a read 0.1x, so a write needs roughly 1.25 reads to pay for
+itself. A model sitting at 1.10x lost money while looking healthy against
+a 1.0 line, which is why the threshold is drawn where it is.
+
+Panels are empty rather than zero where an agent cannot report: Antigravity
+records no tokens or timing at all, and Codex reports cache reads but never
+writes. A zero on a cost panel reads as "this agent is free".
 
 ### The DORA dashboard needs DevLake configured
 

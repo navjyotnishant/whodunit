@@ -1,0 +1,821 @@
+{
+  "uid": "whodunit-cost",
+  "title": "Whodunit — Cost & Efficiency",
+  "tags": [
+    "whodunit",
+    "cost"
+  ],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "",
+  "time": {
+    "from": "now-90d",
+    "to": "now"
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "datasource",
+        "type": "datasource",
+        "query": "mysql",
+        "current": {},
+        "hide": 0,
+        "label": "Data source"
+      },
+      {
+        "name": "contributor",
+        "type": "query",
+        "datasource": "${DS_WHODUNIT}",
+        "label": "Contributor",
+        "query": "SELECT DISTINCT contributor FROM whodunit_repos WHERE contributor <> ''",
+        "current": {},
+        "includeAll": true,
+        "allValue": "__all__",
+        "refresh": 1,
+        "hide": 0,
+        "options": []
+      }
+    ]
+  },
+  "panels": [
+    {
+      "type": "row",
+      "title": "What did it cost — in tokens",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 1
+      },
+      "panels": []
+    },
+    {
+      "id": 100,
+      "title": "Total tokens",
+      "type": "stat",
+      "datasource": "${DS_WHODUNIT}",
+      "gridPos": {
+        "x": 0,
+        "y": 1,
+        "w": 4,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT COALESCE(SUM(s.input_tokens + s.output_tokens\n       + COALESCE(s.cache_read_tokens,0) + COALESCE(s.cache_write_tokens,0)), 0) AS v\nFROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id\nWHERE s.input_tokens IS NOT NULL AND ('$contributor' = '__all__' OR r.contributor = '$contributor')"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 1,
+          "noValue": "no session reported tokens"
+        },
+        "overrides": []
+      },
+      "description": "Every token billed, cached or not.\n\nTokens, not currency: under a subscription the marginal cost of a token is zero, so a price table would report money nobody spent. Multiply by your own contract if you need a figure.",
+      "options": {
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 101,
+      "title": "Output tokens",
+      "type": "stat",
+      "datasource": "${DS_WHODUNIT}",
+      "gridPos": {
+        "x": 4,
+        "y": 1,
+        "w": 4,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT COALESCE(SUM(s.output_tokens), 0) AS v\nFROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id\nWHERE s.output_tokens IS NOT NULL AND ('$contributor' = '__all__' OR r.contributor = '$contributor')"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 1,
+          "noValue": "not reported"
+        },
+        "overrides": []
+      },
+      "description": "What the models produced. The half you are charged most for.",
+      "options": {
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 102,
+      "title": "Served from cache",
+      "type": "stat",
+      "datasource": "${DS_WHODUNIT}",
+      "gridPos": {
+        "x": 8,
+        "y": 1,
+        "w": 4,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT ROUND(100.0 * SUM(COALESCE(s.cache_read_tokens,0))\n  / NULLIF(SUM(s.input_tokens + COALESCE(s.cache_read_tokens,0)\n             + COALESCE(s.cache_write_tokens,0)), 0), 1) AS v\nFROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id\nWHERE s.input_tokens IS NOT NULL AND ('$contributor' = '__all__' OR r.contributor = '$contributor')"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 1,
+          "noValue": "no input tokens recorded",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "orange",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 50
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "description": "Share of input tokens served from cache.\n\n**Cache writes count as uncached here**, because a write arrives uncached and is billed above base rate. Omitting them turns a real 48% into a flattering 99% — measured on this project's own data.",
+      "options": {
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 103,
+      "title": "Cache write payback",
+      "type": "stat",
+      "datasource": "${DS_WHODUNIT}",
+      "gridPos": {
+        "x": 12,
+        "y": 1,
+        "w": 4,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT ROUND(SUM(COALESCE(s.cache_read_tokens,0))\n  / NULLIF(SUM(s.cache_write_tokens), 0), 2) AS v\nFROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id\nWHERE s.cache_write_tokens IS NOT NULL AND s.cache_write_tokens > 0 AND ('$contributor' = '__all__' OR r.contributor = '$contributor')"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 2,
+          "noValue": "no agent reported cache writes",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1.25
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "description": "Reads returned per token written to cache. Below 1.25x the writes cost more than they saved — a write is billed at about 1.25x base and a read at 0.1x.\n\n**The obvious break-even of 1.0 is wrong**: a series at 1.10x lost money while looking healthy.\n\nEmpty for Codex, which reports cache reads but never writes.",
+      "options": {
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 104,
+      "title": "Sessions with cost data",
+      "type": "stat",
+      "datasource": "${DS_WHODUNIT}",
+      "gridPos": {
+        "x": 16,
+        "y": 1,
+        "w": 4,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT CONCAT(\n  SUM(CASE WHEN s.input_tokens IS NOT NULL THEN 1 ELSE 0 END),\n  ' of ', COUNT(*)) AS v\nFROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id\nWHERE ('$contributor' = '__all__' OR r.contributor = '$contributor')"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "no sessions"
+        },
+        "overrides": []
+      },
+      "description": "The denominator, shown because a total is meaningless without it.\n\nAntigravity reports no tokens at all, so a repository using it will never reach 100% — that is a property of the agent, not a gap to be filled.",
+      "options": {
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 105,
+      "title": "Reasoning tokens",
+      "type": "stat",
+      "datasource": "${DS_WHODUNIT}",
+      "gridPos": {
+        "x": 20,
+        "y": 1,
+        "w": 4,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT COALESCE(SUM(s.reasoning_tokens), 0) AS v\nFROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id\nWHERE s.reasoning_tokens IS NOT NULL AND ('$contributor' = '__all__' OR r.contributor = '$contributor')"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 1,
+          "noValue": "only Codex separates these"
+        },
+        "overrides": []
+      },
+      "description": "Tokens spent thinking rather than answering.\n\nCodex alone reports this. Claude Code and Antigravity do not separate it, so an empty panel here means 'not reported', not zero.",
+      "options": {
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "type": "row",
+      "title": "Per model — where the aggregate hides a loss",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 5,
+        "w": 24,
+        "h": 1
+      },
+      "panels": []
+    },
+    {
+      "id": 110,
+      "title": "Token use and cache efficiency by model",
+      "type": "table",
+      "datasource": "${DS_WHODUNIT}",
+      "gridPos": {
+        "x": 0,
+        "y": 6,
+        "w": 24,
+        "h": 9
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT\n  COALESCE(NULLIF(s.model, ''), '(unattributed)') AS Model,\n  COUNT(*)                                        AS Sessions,\n  SUM(s.input_tokens)                             AS `Uncached in`,\n  SUM(s.output_tokens)                            AS `Out`,\n  SUM(COALESCE(s.cache_read_tokens,0))            AS `Cache read`,\n  SUM(COALESCE(s.cache_write_tokens,0))           AS `Cache write`,\n  ROUND(100.0 * SUM(COALESCE(s.cache_read_tokens,0))\n    / NULLIF(SUM(s.input_tokens + COALESCE(s.cache_read_tokens,0)\n               + COALESCE(s.cache_write_tokens,0)), 0), 1) AS `From cache %`,\n  ROUND(SUM(COALESCE(s.cache_read_tokens,0))\n    / NULLIF(SUM(s.cache_write_tokens), 0), 2)    AS `Write payback`\nFROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id\nWHERE s.input_tokens IS NOT NULL AND ('$contributor' = '__all__' OR r.contributor = '$contributor')\nGROUP BY COALESCE(NULLIF(s.model, ''), '(unattributed)')\nORDER BY SUM(s.input_tokens + s.output_tokens\n           + COALESCE(s.cache_read_tokens,0)\n           + COALESCE(s.cache_write_tokens,0)) DESC"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "no session reported tokens"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Write payback"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "red",
+                      "value": null
+                    },
+                    {
+                      "color": "green",
+                      "value": 1.25
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "noValue",
+                "value": "not reported"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "From cache %"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percent"
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*(in|Out|read|write)$"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "short"
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              }
+            ]
+          }
+        ]
+      },
+      "description": "**Per model, because the aggregate hides the finding.** An overall 48% read ratio measured on real data contained one model at 0.73x amortisation — a loss, invisible in the total.\n\n`Write payback` below 1.25x is red: those writes cost more than they saved. Empty means the agent does not report cache writes rather than that it wrote none.",
+      "options": {
+        "showHeader": true,
+        "sortBy": [
+          {
+            "displayName": "Uncached in",
+            "desc": true
+          }
+        ]
+      }
+    },
+    {
+      "id": 111,
+      "title": "Output tokens per model over time",
+      "type": "timeseries",
+      "datasource": "${DS_WHODUNIT}",
+      "gridPos": {
+        "x": 0,
+        "y": 15,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT\n  FROM_UNIXTIME(FLOOR(s.last_seen / 1000000000 / 86400) * 86400) AS time,\n  COALESCE(NULLIF(s.model, ''), '(unattributed)')                AS metric,\n  SUM(s.output_tokens)                                           AS value\nFROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id\nWHERE s.output_tokens IS NOT NULL AND ('$contributor' = '__all__' OR r.contributor = '$contributor')\n  AND s.last_seen >= $__unixEpochFrom() * 1000000000\n  AND s.last_seen <  $__unixEpochTo() * 1000000000\nGROUP BY 1, 2 ORDER BY 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "no tokens in this range"
+        },
+        "overrides": []
+      },
+      "description": "Which model is doing the work, and when that changed."
+    },
+    {
+      "id": 112,
+      "title": "Cache write payback by model",
+      "type": "timeseries",
+      "datasource": "${DS_WHODUNIT}",
+      "gridPos": {
+        "x": 12,
+        "y": 15,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT\n  FROM_UNIXTIME(FLOOR(s.last_seen / 1000000000 / 86400) * 86400) AS time,\n  COALESCE(NULLIF(s.model, ''), '(unattributed)')                AS metric,\n  SUM(COALESCE(s.cache_read_tokens,0)) / NULLIF(SUM(s.cache_write_tokens), 0) AS value\nFROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id\nWHERE s.cache_write_tokens IS NOT NULL AND s.cache_write_tokens > 0 AND ('$contributor' = '__all__' OR r.contributor = '$contributor')\n  AND s.last_seen >= $__unixEpochFrom() * 1000000000\n  AND s.last_seen <  $__unixEpochTo() * 1000000000\nGROUP BY 1, 2 ORDER BY 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 2,
+          "noValue": "no agent reported cache writes",
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1.25
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "description": "Break-even is 1.25x, drawn as a threshold. A line below it is a model whose caching is costing money.\n\nMeasured spreads run from 0.73x to 21x, so the axis is generous — a linear scale flattens the low end, which is the end that matters."
+    },
+    {
+      "type": "row",
+      "title": "Where it landed, and how much rope the agent had",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 23,
+        "w": 24,
+        "h": 1
+      },
+      "panels": []
+    },
+    {
+      "id": 120,
+      "title": "Agent-written lines by branch",
+      "type": "table",
+      "datasource": "${DS_WHODUNIT}",
+      "gridPos": {
+        "x": 0,
+        "y": 24,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT\n  e.branch                        AS Branch,\n  COUNT(*)                        AS Events,\n  SUM(e.lines_added)              AS `Lines added`,\n  COUNT(DISTINCT e.session)       AS Sessions\nFROM whodunit_events e JOIN whodunit_repos r ON r.repo_id = e.repo_id\nWHERE e.branch IS NOT NULL AND ('$contributor' = '__all__' OR r.contributor = '$contributor')\nGROUP BY e.branch ORDER BY SUM(e.lines_added) DESC LIMIT 25"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "no event recorded a branch"
+        },
+        "overrides": []
+      },
+      "description": "Antigravity records no branch at all — its branch-like strings are a tracker's *suggested* branch inside an MCP response, not the checked-out one. Its events are absent here rather than grouped under a wrong name.",
+      "options": {
+        "showHeader": true
+      }
+    },
+    {
+      "id": 121,
+      "title": "Autonomy granted",
+      "type": "table",
+      "datasource": "${DS_WHODUNIT}",
+      "gridPos": {
+        "x": 12,
+        "y": 24,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT\n  s.permission_mode         AS `Permission mode`,\n  s.agent                   AS Agent,\n  COUNT(*)                  AS Sessions,\n  SUM(s.tool_calls)         AS `Tool calls`\nFROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id\nWHERE s.permission_mode IS NOT NULL AND ('$contributor' = '__all__' OR r.contributor = '$contributor')\nGROUP BY s.permission_mode, s.agent ORDER BY COUNT(*) DESC"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "no session recorded a permission mode"
+        },
+        "overrides": []
+      },
+      "description": "How much the agent was allowed to do unattended.\n\nEach agent's own vocabulary is preserved rather than mapped onto a shared enum — Codex calls it an approval policy, Claude Code a permission mode, and guessing at equivalences would invent a comparison neither agent made.",
+      "options": {
+        "showHeader": true
+      }
+    },
+    {
+      "type": "row",
+      "title": "Session shape — the actionable half",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 32,
+        "w": 24,
+        "h": 1
+      },
+      "panels": []
+    },
+    {
+      "id": 130,
+      "title": "Human edited the agent's output",
+      "type": "stat",
+      "datasource": "${DS_WHODUNIT}",
+      "gridPos": {
+        "x": 0,
+        "y": 33,
+        "w": 6,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT ROUND(100.0 * SUM(CASE WHEN e.user_modified = 1 THEN 1 ELSE 0 END)\n  / NULLIF(COUNT(*), 0), 1) AS v\nFROM whodunit_events e JOIN whodunit_repos r ON r.repo_id = e.repo_id\nWHERE e.user_modified IS NOT NULL AND ('$contributor' = '__all__' OR r.contributor = '$contributor')"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 1,
+          "noValue": "only Claude Code reports this"
+        },
+        "overrides": []
+      },
+      "description": "Share of edits a human changed before committing — the difference between 'the agent wrote this' and 'the agent wrote this and it was kept'.\n\nClaude Code alone reports it. The denominator counts only calls that carried the signal, so agents without it do not dilute the rate.",
+      "options": {
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 131,
+      "title": "Longest sessions",
+      "type": "table",
+      "datasource": "${DS_WHODUNIT}",
+      "gridPos": {
+        "x": 6,
+        "y": 33,
+        "w": 9,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT\n  s.agent                                            AS Agent,\n  COALESCE(NULLIF(s.model, ''), '—')                 AS Model,\n  ROUND((s.last_seen - s.first_seen) / 1000000000 / 3600, 1) AS `Hours`,\n  s.tool_calls                                       AS `Tool calls`,\n  s.output_tokens                                    AS `Out tokens`\nFROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id\nWHERE ('$contributor' = '__all__' OR r.contributor = '$contributor')\n  AND s.last_seen > s.first_seen\n  -- A session whose first record predates the ingest window carries the\n  -- zero time, which reaches the database as -6795364578871345152 and\n  -- renders as a 272-year session. The adapter no longer writes those,\n  -- but a database synced before that fix still holds them, and one such\n  -- row at the top of a DESC sort makes the whole panel nonsense.\n  AND s.first_seen > 0\nORDER BY (s.last_seen - s.first_seen) DESC LIMIT 10"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "no sessions with a usable duration"
+        },
+        "overrides": []
+      },
+      "description": "A long session costs more even when cached, because the whole context is re-sent each turn. Shown as a list rather than an average — a mean hides the few sessions that are the problem.\n\nRows whose start time was never recorded are excluded rather than shown as impossibly long.",
+      "options": {
+        "showHeader": true
+      }
+    },
+    {
+      "id": 132,
+      "title": "Turn latency",
+      "type": "stat",
+      "datasource": "${DS_WHODUNIT}",
+      "gridPos": {
+        "x": 15,
+        "y": 33,
+        "w": 5,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT ROUND(AVG(s.duration_ms) / 1000, 1) AS v\nFROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id\nWHERE s.duration_ms IS NOT NULL AND ('$contributor' = '__all__' OR r.contributor = '$contributor')"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "decimals": 1,
+          "noValue": "only Codex records timing"
+        },
+        "overrides": []
+      },
+      "description": "Codex alone records per-turn timing. Claude Code and Antigravity report none, so this is empty for them rather than zero — a zero would make them the fastest agents on this panel.",
+      "options": {
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 133,
+      "title": "Reasoning effort",
+      "type": "piechart",
+      "datasource": "${DS_WHODUNIT}",
+      "gridPos": {
+        "x": 20,
+        "y": 33,
+        "w": 4,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT s.effort AS metric, COUNT(*) AS value\nFROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id\nWHERE s.effort IS NOT NULL AND ('$contributor' = '__all__' OR r.contributor = '$contributor')\nGROUP BY s.effort"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "no session recorded an effort tier"
+        },
+        "overrides": []
+      },
+      "description": "How hard the model was asked to think, where the agent says.",
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": true
+        }
+      }
+    },
+    {
+      "type": "row",
+      "title": "MCP",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 37,
+        "w": 24,
+        "h": 1
+      },
+      "panels": []
+    },
+    {
+      "id": 140,
+      "title": "Calls per MCP server",
+      "type": "barchart",
+      "datasource": "${DS_WHODUNIT}",
+      "gridPos": {
+        "x": 0,
+        "y": 38,
+        "w": 12,
+        "h": 7
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT e.mcp_server AS metric, COUNT(*) AS value\nFROM whodunit_events e JOIN whodunit_repos r ON r.repo_id = e.repo_id\nWHERE e.mcp_server IS NOT NULL AND ('$contributor' = '__all__' OR r.contributor = '$contributor')\nGROUP BY e.mcp_server ORDER BY COUNT(*) DESC LIMIT 15"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "no MCP calls recorded"
+        },
+        "overrides": []
+      },
+      "description": "Which servers the agents actually reach for.\n\nAntigravity is absent: what looked like MCP identity in its store turned out to be the command text being approved, which is content rather than an identifier.",
+      "options": {
+        "legend": {
+          "showLegend": false
+        },
+        "orientation": "horizontal"
+      }
+    },
+    {
+      "id": 141,
+      "title": "Tokens per session, by agent",
+      "type": "table",
+      "datasource": "${DS_WHODUNIT}",
+      "gridPos": {
+        "x": 12,
+        "y": 38,
+        "w": 12,
+        "h": 7
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT\n  s.agent                                         AS Agent,\n  COUNT(*)                                        AS Sessions,\n  ROUND(AVG(s.output_tokens))                     AS `Avg out`,\n  ROUND(AVG(s.input_tokens + COALESCE(s.cache_read_tokens,0)\n          + COALESCE(s.cache_write_tokens,0)))    AS `Avg in`\nFROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id\nWHERE s.input_tokens IS NOT NULL AND ('$contributor' = '__all__' OR r.contributor = '$contributor')\nGROUP BY s.agent ORDER BY AVG(s.output_tokens) DESC"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "no session reported tokens"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "Avg.*"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "short"
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              }
+            ]
+          }
+        ]
+      },
+      "description": "**Not a comparison of which agent is cheaper.** Sessions are not matched work: each agent draws different tasks, and a model reached for when the job is hard will always look more expensive. This says what each cost on the work it happened to do, nothing more.",
+      "options": {
+        "showHeader": true
+      }
+    }
+  ],
+  "__inputs": [
+    {
+      "name": "DS_WHODUNIT",
+      "label": "MySQL",
+      "description": "The database holding the whodunit_* tables",
+      "type": "datasource",
+      "pluginId": "mysql",
+      "pluginName": "MySQL"
+    }
+  ]
+}
