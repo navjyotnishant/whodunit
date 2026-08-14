@@ -54,9 +54,27 @@ CONTRIBUTOR = "('$contributor' = '__all__' OR r.contributor = '$contributor')"
 BREAK_EVEN = 1.25
 
 
+# Colour is set per panel rather than left to Grafana's default.
+#
+# The default is `palette-classic`, the saturated green/yellow/red set
+# Grafana has carried since v6. It looks dated, and worse, it assigns
+# meaning where there is none: a model rendered red is not a warning, but
+# it reads as one beside panels where red genuinely means "below
+# break-even".
+#
+# So: continuous single-hue ramps where the value IS the message (bar
+# gauges, bar charts — bigger is just bigger), a modern categorical
+# palette where series are distinct things (the per-model time series),
+# and explicit thresholds only where a colour is a judgement.
+CONTINUOUS_BLUES = {"mode": "continuous-BlPu"}
+CONTINUOUS_GREENS = {"mode": "continuous-GrYlRd"}
+CATEGORICAL = {"mode": "palette-classic-by-name"}
+NEUTRAL = {"mode": "fixed", "fixedColor": "text"}
+
+
 def panel(pid, title, ptype, x, y, w, h, sql, *, unit=None, decimals=None,
           novalue=None, description=None, options=None, overrides=None,
-          thresholds=None, minval=None, fmt="table"):
+          thresholds=None, minval=None, fmt="table", color=None):
     p = {
         "id": pid,
         "title": title,
@@ -77,8 +95,16 @@ def panel(pid, title, ptype, x, y, w, h, sql, *, unit=None, decimals=None,
         d["noValue"] = novalue
     if minval is not None:
         d["min"] = minval
+    if color:
+        d["color"] = color
     if thresholds:
         d["thresholds"] = {"mode": "absolute", "steps": thresholds}
+    elif color and color is not NEUTRAL:
+        # A palette only takes effect when nothing overrides it, and
+        # Grafana injects a default green/red threshold set on stats and
+        # gauges when none is given. Cleared explicitly.
+        d["thresholds"] = {"mode": "absolute",
+                           "steps": [{"color": "text", "value": None}]}
     if options:
         p["options"] = options
     return p
@@ -116,6 +142,7 @@ WHERE s.input_tokens IS NOT NULL AND {CONTRIBUTOR}""",
         "Tokens, not currency: under a subscription the marginal cost of a "
         "token is zero, so a price table would report money nobody spent. "
         "Multiply by your own contract if you need a figure."),
+    color=NEUTRAL,
     options=STAT))
 
 panels.append(panel(
@@ -133,6 +160,7 @@ WHERE s.output_tokens IS NOT NULL AND {CONTRIBUTOR}""",
         "render in different units (B against M) and comparing them by eye "
         "reads as a contradiction. They are not: 7.6 B is a thousand times "
         "7.6 M."),
+    color=NEUTRAL,
     options=STAT))
 
 panels.append(panel(
@@ -146,6 +174,7 @@ WHERE s.input_tokens IS NOT NULL AND {CONTRIBUTOR}""",
         "This is the figure a cache is meant to shrink. It was missing from "
         "this dashboard entirely, which left the headline total — almost all "
         "of it cache reads — looking like the whole story."),
+    color=NEUTRAL,
     options=STAT))
 
 panels.append(panel(
@@ -160,6 +189,7 @@ WHERE s.cache_read_tokens IS NOT NULL AND {CONTRIBUTOR}""",
         "Normally the largest number on this dashboard by three orders of "
         "magnitude — 99% of the total here — which is why the headline "
         "figure is not a measure of how much work was produced."),
+    color=NEUTRAL,
     options=STAT))
 
 panels.append(panel(
@@ -207,6 +237,7 @@ WHERE s.reasoning_tokens IS NOT NULL AND {CONTRIBUTOR}""",
         "Tokens spent thinking rather than answering.\n\n"
         "Codex alone reports this. Claude Code and Antigravity do not "
         "separate it, so an empty panel here means 'not reported', not zero."),
+    color=NEUTRAL,
     options=STAT))
 
 # The three signals below sit on the headline's second row rather than in
@@ -227,6 +258,7 @@ panels.append(panel(
 FROM whodunit_events e JOIN whodunit_repos r ON r.repo_id = e.repo_id
 WHERE e.user_modified IS NOT NULL AND {CONTRIBUTOR}""",
     unit="percent", decimals=1, novalue="only Claude Code reports this",
+    color=NEUTRAL,
     description=(
         "Share of edits a human changed before committing — the difference "
         "between 'the agent wrote this' and 'the agent wrote this and it was "
@@ -241,6 +273,7 @@ panels.append(panel(
 FROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id
 WHERE s.duration_ms IS NOT NULL AND {CONTRIBUTOR}""",
     unit="s", decimals=1, novalue="only Codex records timing",
+    color=NEUTRAL,
     description=(
         "Codex alone records per-turn timing. Claude Code and Antigravity "
         "report none, so this is empty for them rather than zero — a zero "
@@ -254,6 +287,7 @@ FROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id
 WHERE s.effort IS NOT NULL AND {CONTRIBUTOR}
 GROUP BY s.effort""",
     novalue="no session recorded an effort tier",
+    color=CATEGORICAL,
     description=(
         "How hard the model was asked to think, where the agent says.\n\n"
         "The lever behind the token counts above: a higher tier spends more "
@@ -273,6 +307,7 @@ FROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id
 WHERE s.output_tokens IS NOT NULL AND {CONTRIBUTOR}
 GROUP BY 1 ORDER BY 2 DESC""",
     unit=TOKEN_UNIT, decimals=1, novalue="no session reported tokens",
+    color=CONTINUOUS_BLUES,
     description=(
         "Which model produced the most, ranked.\n\n"
         "A bar gauge because this is one metric across categories, which is "
@@ -306,6 +341,7 @@ WHERE {CONTRIBUTOR}
   AND s.first_seen > 0
 ORDER BY (s.last_seen - s.first_seen) DESC LIMIT 8""",
     unit="h", decimals=1, novalue="no sessions with a usable duration",
+    color=CONTINUOUS_GREENS,
     description=(
         "The eight longest sessions, in hours. A long session costs more even "
         "when cached, because the whole context is re-sent every turn.\n\n"
@@ -395,7 +431,7 @@ WHERE s.output_tokens IS NOT NULL AND {CONTRIBUTOR}
   AND s.last_seen <  $__unixEpochTo() {NS}
 GROUP BY 1, 2 ORDER BY 1""",
     unit=TOKEN_UNIT, novalue="no tokens in this range",
-    fmt="time_series",
+    fmt="time_series", color=CATEGORICAL,
     description=(
         "Which model is doing the work, and when that changed.\n\n"
         "One line per model, named and coloured. That needs "
@@ -462,6 +498,7 @@ FROM (
 ) tail WHERE rn > 12
 HAVING COUNT(*) > 0""",
     unit=TOKEN_UNIT, novalue="no event recorded a branch",
+    color=CONTINUOUS_BLUES,
     description=(
         "Where the agent's output actually landed, top twelve branches by "
         "lines written, with everything below them summed into a final "
@@ -503,6 +540,7 @@ WHERE s.permission_mode IS NOT NULL AND {CONTRIBUTOR}
 GROUP BY s.permission_mode, s.agent
 ORDER BY 2 DESC""",
     decimals=0, novalue="no session recorded a permission mode",
+    color=CONTINUOUS_GREENS,
     description=(
         "How much work happens per session at each level of autonomy.\n\n"
         "**One metric rather than two bars.** Sessions and total tool calls "
@@ -532,6 +570,7 @@ FROM whodunit_events e JOIN whodunit_repos r ON r.repo_id = e.repo_id
 WHERE e.mcp_server IS NOT NULL AND {CONTRIBUTOR}
 GROUP BY e.mcp_server ORDER BY COUNT(*) DESC LIMIT 15""",
     novalue="no MCP calls recorded",
+    color=CONTINUOUS_BLUES,
     description=(
         "Which servers the agents actually reach for.\n\n"
         "Antigravity is absent: what looked like MCP identity in its store "

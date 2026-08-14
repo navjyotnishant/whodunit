@@ -73,7 +73,11 @@
         "defaults": {
           "unit": "sishort",
           "decimals": 1,
-          "noValue": "no session reported tokens"
+          "noValue": "no session reported tokens",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          }
         },
         "overrides": []
       },
@@ -112,7 +116,11 @@
         "defaults": {
           "unit": "sishort",
           "decimals": 1,
-          "noValue": "not reported"
+          "noValue": "not reported",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          }
         },
         "overrides": []
       },
@@ -151,7 +159,11 @@
         "defaults": {
           "unit": "sishort",
           "decimals": 1,
-          "noValue": "not reported"
+          "noValue": "not reported",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          }
         },
         "overrides": []
       },
@@ -190,7 +202,11 @@
         "defaults": {
           "unit": "sishort",
           "decimals": 1,
-          "noValue": "not reported"
+          "noValue": "not reported",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          }
         },
         "overrides": []
       },
@@ -332,7 +348,11 @@
         "defaults": {
           "unit": "sishort",
           "decimals": 1,
-          "noValue": "only Codex separates these"
+          "noValue": "only Codex separates these",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          }
         },
         "overrides": []
       },
@@ -371,7 +391,11 @@
         "defaults": {
           "unit": "percent",
           "decimals": 1,
-          "noValue": "only Claude Code reports this"
+          "noValue": "only Claude Code reports this",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          }
         },
         "overrides": []
       },
@@ -410,7 +434,11 @@
         "defaults": {
           "unit": "s",
           "decimals": 1,
-          "noValue": "only Codex records timing"
+          "noValue": "only Codex records timing",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          }
         },
         "overrides": []
       },
@@ -447,7 +475,19 @@
       ],
       "fieldConfig": {
         "defaults": {
-          "noValue": "no session recorded an effort tier"
+          "noValue": "no session recorded an effort tier",
+          "color": {
+            "mode": "palette-classic-by-name"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
         },
         "overrides": []
       },
@@ -499,7 +539,19 @@
         "defaults": {
           "unit": "sishort",
           "decimals": 1,
-          "noValue": "no session reported tokens"
+          "noValue": "no session reported tokens",
+          "color": {
+            "mode": "continuous-BlPu"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
         },
         "overrides": []
       },
@@ -539,7 +591,19 @@
         "defaults": {
           "unit": "h",
           "decimals": 1,
-          "noValue": "no sessions with a usable duration"
+          "noValue": "no sessions with a usable duration",
+          "color": {
+            "mode": "continuous-GrYlRd"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
         },
         "overrides": []
       },
@@ -704,7 +768,19 @@
       "fieldConfig": {
         "defaults": {
           "unit": "sishort",
-          "noValue": "no tokens in this range"
+          "noValue": "no tokens in this range",
+          "color": {
+            "mode": "palette-classic-by-name"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
         },
         "overrides": []
       },
@@ -757,7 +833,19 @@
       "fieldConfig": {
         "defaults": {
           "unit": "sishort",
-          "noValue": "no event recorded a branch"
+          "noValue": "no event recorded a branch",
+          "color": {
+            "mode": "continuous-BlPu"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
         },
         "overrides": []
       },
@@ -807,7 +895,19 @@
       "fieldConfig": {
         "defaults": {
           "decimals": 0,
-          "noValue": "no session recorded a permission mode"
+          "noValue": "no session recorded a permission mode",
+          "color": {
+            "mode": "continuous-GrYlRd"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
         },
         "overrides": []
       },
@@ -845,7 +945,19 @@
       ],
       "fieldConfig": {
         "defaults": {
-          "noValue": "no MCP calls recorded"
+          "noValue": "no MCP calls recorded",
+          "color": {
+            "mode": "continuous-BlPu"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
         },
         "overrides": []
       },
