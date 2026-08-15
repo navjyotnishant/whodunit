@@ -305,7 +305,13 @@ dashboard = {
          "label": "Contributor",
          "query": "SELECT DISTINCT COALESCE(NULLIF(contributor, ''), '(unattributed)') AS __text, COALESCE(NULLIF(contributor, ''), '') AS __value FROM whodunit_repos ORDER BY 1",
          "current": {"selected": True, "text": "All", "value": "__all__"},
-         "includeAll": True, "allValue": "__all__", "refresh": 1, "hide": 0},
+         # multi=false stated explicitly. With includeAll set and multi
+         # absent, Grafana treats the variable as multi-capable and
+         # substitutes a selected value as `{value}` — which matches
+         # nothing, so every panel empties the moment a contributor is
+         # picked while "All" keeps working, because '__all__' is
+         # compared literally.
+         "multi": False, "includeAll": True, "allValue": "__all__", "refresh": 1, "hide": 0},
     ]},
     "panels": panels,
 }

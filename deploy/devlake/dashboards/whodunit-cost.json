@@ -38,6 +38,7 @@
           "text": "All",
           "value": "__all__"
         },
+        "multi": false,
         "includeAll": true,
         "allValue": "__all__",
         "refresh": 1,

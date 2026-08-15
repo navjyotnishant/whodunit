@@ -45,6 +45,18 @@ def main():
                 problems.append(
                     f"{d['uid']}: contributor variable does not offer an "
                     f"option for repositories with no recorded identity")
+            elif v.get("includeAll") and v.get("multi") is not False:
+                # With includeAll set and multi absent, Grafana treats the
+                # variable as multi-capable and substitutes a chosen value
+                # as {value}. That matches nothing, so every panel empties
+                # the moment a contributor is selected — while "All" keeps
+                # working, because __all__ is compared literally and never
+                # braced. The filter looks functional and silently returns
+                # no rows.
+                problems.append(
+                    f"{d['uid']}: contributor variable has includeAll without "
+                    f"multi=false, so a selected value is substituted as "
+                    f"{{value}} and matches nothing")
             elif q.upper().count("ORDER BY") > 1:
                 # A malformed query fails silently: Grafana renders an
                 # empty dropdown rather than an error, so the filter looks
