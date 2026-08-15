@@ -47,7 +47,12 @@ import os
 TOKEN_UNIT = "sishort"
 
 NS = "* 1000000000"
-CONTRIBUTOR = "('$contributor' = '__all__' OR r.contributor = '$contributor')"
+# NOT quoted. Grafana's MySQL datasource quotes an interpolated
+# variable itself, so writing '$contributor' produces ''value'' — a
+# syntax error that fails the whole query with a 400. The "All" case
+# hid it: Grafana substitutes the all-value as a bare __all__ token
+# rather than a quoted string, so only real selections broke.
+CONTRIBUTOR = "($contributor = '__all__' OR r.contributor = $contributor)"
 
 # A write costs ~1.25x base, a read ~0.1x. Below this ratio the write cost
 # more than it saved. See the module docstring.

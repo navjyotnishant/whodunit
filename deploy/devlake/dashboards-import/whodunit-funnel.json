@@ -414,7 +414,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT ROUND(\n  (SELECT SUM(s.output_tokens)\n     FROM whodunit_sessions s JOIN whodunit_repos r2 ON r2.repo_id = s.repo_id\n    WHERE s.output_tokens IS NOT NULL AND ('$contributor' = '__all__' OR r2.contributor = '$contributor'))\n  / NULLIF((SELECT SUM(c.lines_added + c.lines_removed)\n     FROM whodunit_commits c JOIN whodunit_repos r3 ON r3.repo_id = c.repo_id\n    WHERE c.status = 'assisted' AND ('$contributor' = '__all__' OR r3.contributor = '$contributor')), 0)\n) AS v"
+          "rawSql": "SELECT ROUND(\n  (SELECT SUM(s.output_tokens)\n     FROM whodunit_sessions s JOIN whodunit_repos r2 ON r2.repo_id = s.repo_id\n    WHERE s.output_tokens IS NOT NULL AND ($contributor = '__all__' OR r2.contributor = $contributor))\n  / NULLIF((SELECT SUM(c.lines_added + c.lines_removed)\n     FROM whodunit_commits c JOIN whodunit_repos r3 ON r3.repo_id = c.repo_id\n    WHERE c.status = 'assisted' AND ($contributor = '__all__' OR r3.contributor = $contributor)), 0)\n) AS v"
         }
       ],
       "fieldConfig": {
@@ -465,7 +465,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT ROUND(100.0 * SUM(c.purpose = 'fix' AND c.status = 'assisted')\n  / NULLIF(SUM(c.status = 'assisted'), 0), 1) AS v\nFROM whodunit_commits c JOIN whodunit_repos r ON r.repo_id = c.repo_id\nWHERE ('$contributor' = '__all__' OR r.contributor = '$contributor')"
+          "rawSql": "SELECT ROUND(100.0 * SUM(c.purpose = 'fix' AND c.status = 'assisted')\n  / NULLIF(SUM(c.status = 'assisted'), 0), 1) AS v\nFROM whodunit_commits c JOIN whodunit_repos r ON r.repo_id = c.repo_id\nWHERE ($contributor = '__all__' OR r.contributor = $contributor)"
         }
       ],
       "fieldConfig": {
@@ -517,7 +517,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT CONCAT(b.commits, ' commits / ', b.window_days, 'd') AS v\nFROM whodunit_baselines b JOIN whodunit_repos r ON r.repo_id = b.repo_id\nWHERE ('$contributor' = '__all__' OR r.contributor = '$contributor')\nORDER BY b.captured_at DESC LIMIT 1"
+          "rawSql": "SELECT CONCAT(b.commits, ' commits / ', b.window_days, 'd') AS v\nFROM whodunit_baselines b JOIN whodunit_repos r ON r.repo_id = b.repo_id\nWHERE ($contributor = '__all__' OR r.contributor = $contributor)\nORDER BY b.captured_at DESC LIMIT 1"
         }
       ],
       "fieldConfig": {

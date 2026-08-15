@@ -37,7 +37,12 @@ now full-width bands.
 import json
 import os
 
-CONTRIBUTOR = "('$contributor' = '__all__' OR r.contributor = '$contributor')"
+# NOT quoted. Grafana's MySQL datasource quotes an interpolated
+# variable itself, so writing '$contributor' produces ''value'' — a
+# syntax error that fails the whole query with a 400. The "All" case
+# hid it: Grafana substitutes the all-value as a bare __all__ token
+# rather than a quoted string, so only real selections broke.
+CONTRIBUTOR = "($contributor = '__all__' OR r.contributor = $contributor)"
 
 # Same treatment as whodunit-cost, so the two read as one product.
 BARGAUGE = {"displayMode": "gradient", "orientation": "horizontal",

@@ -33,6 +33,23 @@ def main():
     problems = []
     for path in sorted(glob.glob(os.path.join(HERE, "dashboards", "*.json"))):
         d = json.load(open(path))
+
+        # Grafana's MySQL datasource quotes an interpolated variable
+        # itself, so '$contributor' in the SQL becomes ''value'' — a
+        # syntax error that fails the panel with a 400.
+        #
+        # This one hid behind the "All" case for a long time: Grafana
+        # substitutes the all-value as a bare __all__ token rather than a
+        # quoted string, so the dashboard worked perfectly until someone
+        # picked a real contributor, and then every filtered panel errored
+        # at once.
+        for p in d.get("panels", []):
+            for t in p.get("targets", []):
+                if "'$contributor'" in (t.get("rawSql") or ""):
+                    problems.append(
+                        f"{d['uid']}: {p.get('title') or '(untitled)'} wraps "
+                        f"$contributor in quotes; Grafana quotes it too, "
+                        f"producing ''value'' and a 400")
         for v in d.get("templating", {}).get("list", []):
             if v.get("name") != "contributor":
                 continue
