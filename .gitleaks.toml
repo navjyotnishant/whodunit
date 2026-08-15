@@ -1,0 +1,47 @@
+# Author: Navjyot Nishant
+# Created: 2026-08-15
+# Last updated: 2026-08-15
+# Description: gitleaks configuration — extends the default rules with
+# allowlists for this repository's documented placeholders.
+
+# Start from gitleaks' own rules rather than replacing them. A config that
+# defines its own rule set silently drops every detector it does not
+# re-declare, which turns a scanner into a formality.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Documentation placeholders and published local defaults"
+
+# `curl -u admin:YOUR_PASSWORD` in deploy/devlake/README.md.
+#
+# The rule that fires is curl-auth-user, which flags any `-u user:pass`.
+# The value here is the literal string YOUR_PASSWORD — an instruction to
+# the reader, not a credential. It survives in history at b8317d1c even
+# though the current README no longer uses that form, so a path-based
+# allowlist alone would not silence a full-history scan.
+#
+# Deliberately matched on the placeholder VALUES rather than on the file:
+# allowlisting deploy/devlake/README.md wholesale would hide a real
+# credential pasted into it later, which is exactly the file where someone
+# would paste one.
+regexes = [
+  '''YOUR_PASSWORD''',
+  '''YOUR_GRAFANA_PASSWORD''',
+  '''<password>''',
+  '''admin:admin''',
+
+  # DevLake's own published defaults for a local docker-compose stack.
+  # These are in DevLake's upstream documentation and compose file; they
+  # are the well-known local values, not this project's secrets. A
+  # deployment that keeps them on anything reachable has a problem, but
+  # that is a deployment decision rather than a leaked secret.
+  '''merico:merico''',
+]
+
+# Test fixtures carrying deliberately-shaped fake credentials. A fixture
+# that does not look like the real thing does not test the thing.
+paths = [
+  '''internal/secret/.*_test\.go''',
+  '''.*testdata/.*''',
+]

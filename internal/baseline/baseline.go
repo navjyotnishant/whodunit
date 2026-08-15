@@ -285,5 +285,14 @@ func Write(path string, snap Snapshot) error {
 	if err != nil {
 		return fmt.Errorf("encode snapshot: %w", err)
 	}
-	return os.WriteFile(path, append(data, '\n'), 0o644)
+	// Owner-only, like everything else under ~/.whodunit.
+	//
+	// This wrote 0644 while the directory around it is 0700 and the README
+	// promises "0700 directories, 0600 files". The directory made it
+	// unreadable to others in practice, so the loose mode never showed —
+	// but a snapshot names a repository and reports its commit cadence and
+	// revert rate, which is nobody else's business on a shared machine, and
+	// a file that is only protected by its parent stays protected only
+	// until it is copied somewhere else.
+	return os.WriteFile(path, append(data, '\n'), 0o600)
 }

@@ -56,6 +56,30 @@ jobs:
       - name: Dashboards are exportable and current
         run: make dashboards
 
+  # Secret scanning, as a job of its own rather than a step of lint.
+  #
+  # Separate so a leak is not reported as "lint failed" — and so it still
+  # runs when lint is broken for an unrelated reason. This is the check
+  # whose failure means stop, not fix-and-continue.
+  #
+  # fetch-depth: 0 because the interesting case is a credential committed
+  # and then removed: it is gone from the tree and permanent in history,
+  # which is exactly the one a shallow clone cannot see.
+  #
+  # Placeholders are allowlisted by VALUE in .gitleaks.toml, not by path,
+  # so a real credential pasted into a documented file is still caught.
+  secrets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Scan for secrets
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+
   # Tests run on all three platforms.
   #
   # Everything in this project resolves filesystem paths — where each agent
