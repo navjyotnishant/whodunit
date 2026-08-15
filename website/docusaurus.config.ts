@@ -123,7 +123,7 @@ const config: Config = {
           ],
         },
       ],
-      copyright: `Apache-2.0. Built ${new Date().getFullYear()}.`,
+      copyright: `Built by Navjyot's Lab · Apache-2.0 · ${new Date().getFullYear()}`,
     },
     prism: {
       theme: prismThemes.github,

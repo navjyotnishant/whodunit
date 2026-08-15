@@ -65,3 +65,8 @@ works with no network and no server.
 - [Install](getting-started/install) — Homebrew, Scoop, or a plain archive
 - [Your first commit](getting-started/first-commit) — instrument a repository and watch a trailer appear
 - [Reading the trailer](getting-started/the-trailer) — what each key means and how much to trust it
+
+---
+
+Built by **Navjyot's Lab**. Apache-2.0, and the source is on
+[GitHub](https://github.com/navjyotnishant/whodunit).
