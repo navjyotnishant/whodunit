@@ -25,7 +25,21 @@ func newCheckCmd() *cobra.Command {
 }
 
 func runCheck(cmd *cobra.Command, base string) error {
-	out, err := exec.Command("git", "log", base+"..HEAD", "--format=%H%x01%B%x00").Output()
+	// --no-merges, because a merge commit cannot carry an attribution
+	// trailer and failing it is a gate that can never pass.
+	//
+	// A merge introduces no changes of its own — its content is the two
+	// parents, each already checked on the branch it came from — so there
+	// is nothing for the hook to attribute even in principle. Worse, the
+	// merges that matter here are made server-side by GitHub's "Merge pull
+	// request" button, where no local hook runs at all.
+	//
+	// This failed on its own repository: three merge commits, one of them
+	// the release that had just shipped, reported as "missing
+	// AI-Attribution trailer" on every subsequent pull request. A required
+	// check that fails permanently is worse than no check, because the
+	// fix people reach for is to stop requiring it.
+	out, err := exec.Command("git", "log", "--no-merges", base+"..HEAD", "--format=%H%x01%B%x00").Output()
 	if err != nil {
 		return fmt.Errorf("read git log: %w", err)
 	}
