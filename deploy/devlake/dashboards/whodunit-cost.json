@@ -1,6 +1,6 @@
 {
   "uid": "whodunit-cost",
-  "title": "Whodunit \u2014 Cost & Efficiency",
+  "title": "Whodunit — Cost & Efficiency",
   "tags": [
     "whodunit",
     "cost"
@@ -49,7 +49,7 @@
   "panels": [
     {
       "type": "row",
-      "title": "What did it cost \u2014 in tokens",
+      "title": "What did it cost — in tokens",
       "collapsed": false,
       "gridPos": {
         "x": 0,
@@ -89,7 +89,7 @@
         },
         "overrides": []
       },
-      "description": "Every token billed: uncached input + cache reads + cache writes + output.\n\n**Almost all of it is cache reads.** Measured here: 7.53B cache reads, 54.6M cache writes, 13.2M uncached input, 7.9M output \u2014 so this number tracks how much context was re-sent, not how much the models produced. The four tiles to the right hold the same breakdown as live figures.\n\nTokens, not currency: under a subscription the marginal cost of a token is zero, so a price table would report money nobody spent. Multiply by your own contract if you need a figure.",
+      "description": "Every token billed: uncached input + cache reads + cache writes + output.\n\n**Almost all of it is cache reads.** Measured here: 7.53B cache reads, 54.6M cache writes, 13.2M uncached input, 7.9M output — so this number tracks how much context was re-sent, not how much the models produced. The four tiles to the right hold the same breakdown as live figures.\n\nTokens, not currency: under a subscription the marginal cost of a token is zero, so a price table would report money nobody spent. Multiply by your own contract if you need a figure.",
       "options": {
         "graphMode": "none",
         "textMode": "value",
@@ -132,7 +132,7 @@
         },
         "overrides": []
       },
-      "description": "What the models actually produced, as opposed to what was re-sent to them.\n\nTypically a fraction of a percent of the total \u2014 0.1% measured here.\n\n**Total and Output are three orders of magnitude apart**, so they render in different units (B against M) and comparing them by eye reads as a contradiction. They are not: 7.6 B is a thousand times 7.6 M.",
+      "description": "What the models actually produced, as opposed to what was re-sent to them.\n\nTypically a fraction of a percent of the total — 0.1% measured here.\n\n**Total and Output are three orders of magnitude apart**, so they render in different units (B against M) and comparing them by eye reads as a contradiction. They are not: 7.6 B is a thousand times 7.6 M.",
       "options": {
         "graphMode": "none",
         "textMode": "value",
@@ -175,7 +175,7 @@
         },
         "overrides": []
       },
-      "description": "Input the model had to read fresh, at full price.\n\nThis is the figure a cache is meant to shrink. It was missing from this dashboard entirely, which left the headline total \u2014 almost all of it cache reads \u2014 looking like the whole story.",
+      "description": "Input the model had to read fresh, at full price.\n\nThis is the figure a cache is meant to shrink. It was missing from this dashboard entirely, which left the headline total — almost all of it cache reads — looking like the whole story.",
       "options": {
         "graphMode": "none",
         "textMode": "value",
@@ -218,7 +218,7 @@
         },
         "overrides": []
       },
-      "description": "Context re-sent and served from cache at about a tenth of base rate.\n\nNormally the largest number on this dashboard by three orders of magnitude \u2014 99% of the total here \u2014 which is why the headline figure is not a measure of how much work was produced.",
+      "description": "Context re-sent and served from cache at about a tenth of base rate.\n\nNormally the largest number on this dashboard by three orders of magnitude — 99% of the total here — which is why the headline figure is not a measure of how much work was produced.",
       "options": {
         "graphMode": "none",
         "textMode": "value",
@@ -274,7 +274,7 @@
         },
         "overrides": []
       },
-      "description": "Share of input tokens served from cache.\n\n**Cache writes count as uncached here**, because a write arrives uncached and is billed above base rate. Omitting them turns a real 48% into a flattering 99% \u2014 measured on this project's own data.",
+      "description": "Share of input tokens served from cache.\n\n**Cache writes count as uncached here**, because a write arrives uncached and is billed above base rate. Omitting them turns a real 48% into a flattering 99% — measured on this project's own data.",
       "options": {
         "graphMode": "none",
         "textMode": "value",
@@ -307,7 +307,7 @@
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "suffix: \u00d7",
+          "unit": "suffix: ×",
           "decimals": 1,
           "noValue": "no agent reported cache writes",
           "thresholds": {
@@ -330,7 +330,7 @@
         },
         "overrides": []
       },
-      "description": "Reads returned per token written to cache \u2014 a **ratio, not a percentage**. 135 means each cached token was read back 135 times.\n\nBelow 1.25x the writes cost more than they saved \u2014 a write is billed at about 1.25x base and a read at 0.1x.\n\n**The obvious break-even of 1.0 is wrong**: a series at 1.10x lost money while looking healthy.\n\nEmpty for Codex, which reports cache reads but never writes.",
+      "description": "Reads returned per token written to cache — a **ratio, not a percentage**. 135 means each cached token was read back 135 times.\n\nBelow 1.25x the writes cost more than they saved — a write is billed at about 1.25x base and a read at 0.1x.\n\n**The obvious break-even of 1.0 is wrong**: a series at 1.10x lost money while looking healthy.\n\nEmpty for Codex, which reports cache reads but never writes.",
       "options": {
         "graphMode": "none",
         "textMode": "value",
@@ -345,7 +345,7 @@
     },
     {
       "type": "row",
-      "title": "Context pressure \u2014 the part you can act on",
+      "title": "Context pressure — the part you can act on",
       "collapsed": false,
       "gridPos": {
         "x": 0,
@@ -362,7 +362,7 @@
       "datasource": "${datasource}",
       "gridPos": {
         "x": 8,
-        "y": 14,
+        "y": 18,
         "w": 16,
         "h": 4
       },
@@ -441,7 +441,7 @@
         },
         "overrides": []
       },
-      "description": "Share of edits a human changed before committing \u2014 the difference between 'the agent wrote this' and 'the agent wrote this and it was kept'.\n\nClaude Code alone reports it. The denominator counts only calls that carried the signal, so agents without it do not dilute the rate.",
+      "description": "Share of edits a human changed before committing — the difference between 'the agent wrote this' and 'the agent wrote this and it was kept'.\n\nClaude Code alone reports it. The denominator counts only calls that carried the signal, so agents without it do not dilute the rate.",
       "options": {
         "graphMode": "none",
         "textMode": "value",
@@ -484,7 +484,7 @@
         },
         "overrides": []
       },
-      "description": "Codex alone records per-turn timing. Claude Code and Antigravity report none, so this is empty for them rather than zero \u2014 a zero would make them the fastest agents on this panel.",
+      "description": "Codex alone records per-turn timing. Claude Code and Antigravity report none, so this is empty for them rather than zero — a zero would make them the fastest agents on this panel.",
       "options": {
         "graphMode": "none",
         "textMode": "value",
@@ -527,7 +527,7 @@
         },
         "overrides": []
       },
-      "description": "Share of sessions whose context was compacted at least once (NAV-106).\n\n**Read this beside the context the sessions were running at.** A long session costs more even when cached, because the whole context is re-sent every turn \u2014 and compacting is the one thing a person can do about it. Measured on this machine, 92% of turns ran above 150k context while a small fraction of sessions ever compacted.\n\n**Deliberately not colour-coded.** A low rate is only a problem alongside high context, and this panel cannot see context \u2014 a short session has nothing to compact, and colouring 8% red would call that a failure. The number is the finding; the judgement needs the context distribution, which the journal cannot answer per turn yet.\n\nThe denominator counts only sessions from agents that report the signal at all. Antigravity has no equivalent and is excluded rather than counted as never compacting.",
+      "description": "Share of sessions whose context was compacted at least once (NAV-106).\n\n**Read this beside the context the sessions were running at.** A long session costs more even when cached, because the whole context is re-sent every turn — and compacting is the one thing a person can do about it. Measured on this machine, 92% of turns ran above 150k context while a small fraction of sessions ever compacted.\n\n**Deliberately not colour-coded.** A low rate is only a problem alongside high context, and this panel cannot see context — a short session has nothing to compact, and colouring 8% red would call that a failure. The number is the finding; the judgement needs the context distribution, which the journal cannot answer per turn yet.\n\nThe denominator counts only sessions from agents that report the signal at all. Antigravity has no equivalent and is excluded rather than counted as never compacting.",
       "options": {
         "graphMode": "none",
         "textMode": "value",
@@ -578,7 +578,7 @@
         },
         "overrides": []
       },
-      "description": "The same rate split by agent \u2014 the cut that says whether this is a habit or a tool difference.\n\nMeasured here: Claude Code 15% against Codex 4%, on the same repositories and the same person. A gap that size is more likely about how each agent surfaces the option than about who was using it.\n\nAntigravity is absent rather than shown at 0%: it records no context management, so it cannot report a rate at all (NAV-21).",
+      "description": "The same rate split by agent — the cut that says whether this is a habit or a tool difference.\n\nMeasured here: Claude Code 15% against Codex 4%, on the same repositories and the same person. A gap that size is more likely about how each agent surfaces the option than about who was using it.\n\nAntigravity is absent rather than shown at 0%: it records no context management, so it cannot report a rate at all (NAV-21).",
       "options": {
         "displayMode": "gradient",
         "orientation": "horizontal",
@@ -625,7 +625,7 @@
         },
         "overrides": []
       },
-      "description": "Average compactions, counting only sessions that compacted at all.\n\nThe zeroes are excluded deliberately. Averaged over every session this would be a fraction and would say nothing; the question is what a compacting session looks like \u2014 measured here, 4 on average, with one session reaching 9.\n\nA high number is not automatically bad: it means long work, which is sometimes exactly right.",
+      "description": "Average compactions, counting only sessions that compacted at all.\n\nThe zeroes are excluded deliberately. Averaged over every session this would be a fraction and would say nothing; the question is what a compacting session looks like — measured here, 4 on average, with one session reaching 9.\n\nA high number is not automatically bad: it means long work, which is sometimes exactly right.",
       "options": {
         "graphMode": "none",
         "textMode": "value",
@@ -747,11 +747,11 @@
     },
     {
       "type": "row",
-      "title": "Per model \u2014 where the aggregate hides a loss",
+      "title": "Per model — where the aggregate hides a loss",
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 18,
+        "y": 22,
         "w": 24,
         "h": 1
       },
@@ -764,7 +764,7 @@
       "datasource": "${datasource}",
       "gridPos": {
         "x": 0,
-        "y": 19,
+        "y": 23,
         "w": 12,
         "h": 6
       },
@@ -856,7 +856,7 @@
           }
         ]
       },
-      "description": "What each model's tokens are made of \u2014 one stacked bar per model.\n\n**Stacked as a percentage, not as absolute counts, and that is the only way this reads.** Cache reads are 88-99% of every model's total here, so an absolute stack would draw one long bar with three invisible slivers: opus-5's entire output is 0.1% of its own total. Normalising each bar to 100% makes the composition comparable, which is where the difference actually is \u2014 gpt-5.4 is 94% cache reads against gpt-5.5 at 88%.\n\nAbsolute totals are in the table below; this panel answers what the tokens were, not how many.\n\nOrdered by total tokens, so the largest consumer is at the top even though every bar is the same length.",
+      "description": "What each model's tokens are made of — one stacked bar per model.\n\n**Stacked as a percentage, not as absolute counts, and that is the only way this reads.** Cache reads are 88-99% of every model's total here, so an absolute stack would draw one long bar with three invisible slivers: opus-5's entire output is 0.1% of its own total. Normalising each bar to 100% makes the composition comparable, which is where the difference actually is — gpt-5.4 is 94% cache reads against gpt-5.5 at 88%.\n\nAbsolute totals are in the table below; this panel answers what the tokens were, not how many.\n\nOrdered by total tokens, so the largest consumer is at the top even though every bar is the same length.",
       "options": {
         "orientation": "horizontal",
         "stacking": "percent",
@@ -880,7 +880,7 @@
       "datasource": "${datasource}",
       "gridPos": {
         "x": 12,
-        "y": 19,
+        "y": 23,
         "w": 12,
         "h": 6
       },
@@ -888,7 +888,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT\n  CONCAT(\n    ROW_NUMBER() OVER (ORDER BY (s.last_seen - s.first_seen) DESC),\n    '. ', s.agent, ' \u00b7 ',\n    COALESCE(NULLIF(s.model, ''), 'model not reported')) AS metric,\n  ROUND((s.last_seen - s.first_seen) / 1000000000 / 3600, 1) AS value\nFROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id\nWHERE ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}')\n  AND s.last_seen > s.first_seen\n  -- A session whose first record predates the ingest window carries the\n  -- zero time, which reaches the database as -6795364578871345152 and\n  -- renders as a 272-year session. The adapter no longer writes those,\n  -- but a database synced before that fix still holds them, and one such\n  -- row at the top of a DESC sort makes the whole panel nonsense.\n  AND s.first_seen > 0\nORDER BY (s.last_seen - s.first_seen) DESC LIMIT 8"
+          "rawSql": "SELECT\n  CONCAT(\n    ROW_NUMBER() OVER (ORDER BY (s.last_seen - s.first_seen) DESC),\n    '. ', s.agent, ' · ',\n    COALESCE(NULLIF(s.model, ''), 'model not reported')) AS metric,\n  ROUND((s.last_seen - s.first_seen) / 1000000000 / 3600, 1) AS value\nFROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id\nWHERE ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}')\n  AND s.last_seen > s.first_seen\n  -- A session whose first record predates the ingest window carries the\n  -- zero time, which reaches the database as -6795364578871345152 and\n  -- renders as a 272-year session. The adapter no longer writes those,\n  -- but a database synced before that fix still holds them, and one such\n  -- row at the top of a DESC sort makes the whole panel nonsense.\n  AND s.first_seen > 0\nORDER BY (s.last_seen - s.first_seen) DESC LIMIT 8"
         }
       ],
       "fieldConfig": {
@@ -936,7 +936,7 @@
       "datasource": "${datasource}",
       "gridPos": {
         "x": 0,
-        "y": 25,
+        "y": 29,
         "w": 24,
         "h": 9
       },
@@ -944,7 +944,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT\n  COALESCE(NULLIF(s.model, ''), '(unattributed)') AS Model,\n  COUNT(*)                                        AS Sessions,\n  SUM(s.input_tokens)                             AS `Uncached in`,\n  SUM(s.output_tokens)                            AS `Out`,\n  SUM(COALESCE(s.cache_read_tokens,0))            AS `Cache read`,\n  SUM(COALESCE(s.cache_write_tokens,0))           AS `Cache write`,\n  ROUND(100.0 * SUM(COALESCE(s.cache_read_tokens,0))\n    / NULLIF(SUM(s.input_tokens + COALESCE(s.cache_read_tokens,0)\n               + COALESCE(s.cache_write_tokens,0)), 0), 1) AS `From cache %`,\n  ROUND(SUM(COALESCE(s.cache_read_tokens,0))\n    / NULLIF(SUM(s.cache_write_tokens), 0), 1)    AS `Write payback \u00d7`\nFROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id\nWHERE s.input_tokens IS NOT NULL AND ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}')\nGROUP BY COALESCE(NULLIF(s.model, ''), '(unattributed)')\nORDER BY SUM(s.input_tokens + s.output_tokens\n           + COALESCE(s.cache_read_tokens,0)\n           + COALESCE(s.cache_write_tokens,0)) DESC"
+          "rawSql": "SELECT\n  COALESCE(NULLIF(s.model, ''), '(unattributed)') AS Model,\n  COUNT(*)                                        AS Sessions,\n  SUM(s.input_tokens)                             AS `Uncached in`,\n  SUM(s.output_tokens)                            AS `Out`,\n  SUM(COALESCE(s.cache_read_tokens,0))            AS `Cache read`,\n  SUM(COALESCE(s.cache_write_tokens,0))           AS `Cache write`,\n  ROUND(100.0 * SUM(COALESCE(s.cache_read_tokens,0))\n    / NULLIF(SUM(s.input_tokens + COALESCE(s.cache_read_tokens,0)\n               + COALESCE(s.cache_write_tokens,0)), 0), 1) AS `From cache %`,\n  ROUND(SUM(COALESCE(s.cache_read_tokens,0))\n    / NULLIF(SUM(s.cache_write_tokens), 0), 1)    AS `Write payback ×`\nFROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id\nWHERE s.input_tokens IS NOT NULL AND ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}')\nGROUP BY COALESCE(NULLIF(s.model, ''), '(unattributed)')\nORDER BY SUM(s.input_tokens + s.output_tokens\n           + COALESCE(s.cache_read_tokens,0)\n           + COALESCE(s.cache_write_tokens,0)) DESC"
         }
       ],
       "fieldConfig": {
@@ -955,7 +955,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "Write payback \u00d7"
+              "options": "Write payback ×"
             },
             "properties": [
               {
@@ -1048,7 +1048,7 @@
           }
         ]
       },
-      "description": "**Per model, because the aggregate hides the finding.** An overall 48% read ratio measured on real data contained one model at 0.73x amortisation \u2014 a loss, invisible in the total.\n\n`Write payback` below 1.25x is red: those writes cost more than they saved. Empty means the agent does not report cache writes rather than that it wrote none.",
+      "description": "**Per model, because the aggregate hides the finding.** An overall 48% read ratio measured on real data contained one model at 0.73x amortisation — a loss, invisible in the total.\n\n`Write payback` below 1.25x is red: those writes cost more than they saved. Empty means the agent does not report cache writes rather than that it wrote none.",
       "options": {
         "showHeader": true,
         "sortBy": [
@@ -1066,7 +1066,7 @@
       "datasource": "${datasource}",
       "gridPos": {
         "x": 0,
-        "y": 34,
+        "y": 38,
         "w": 24,
         "h": 8
       },
@@ -1096,7 +1096,7 @@
         },
         "overrides": []
       },
-      "description": "Which model is doing the work, and when that changed.\n\nOne line per model, named and coloured. That needs `format: time_series`, which is what turns a `metric` column into separate series \u2014 with `format: table` Grafana returns one frame with a literal metric column and labels every line \"value\", so the models are indistinguishable.\n\nFull width because the cache-payback chart that used to sit beside it was removed: payback is a static per-model fact here, not a trend. Three of seven models never report cache writes at all and the rest sit at 47-153x, so plotting it over time drew four flat lines nowhere near the break-even the chart existed to mark. The number itself stays in the table below, where its session count is beside it \u2014 153x reads very differently on 34 sessions than on 1.",
+      "description": "Which model is doing the work, and when that changed.\n\nOne line per model, named and coloured. That needs `format: time_series`, which is what turns a `metric` column into separate series — with `format: table` Grafana returns one frame with a literal metric column and labels every line \"value\", so the models are indistinguishable.\n\nFull width because the cache-payback chart that used to sit beside it was removed: payback is a static per-model fact here, not a trend. Three of seven models never report cache writes at all and the rest sit at 47-153x, so plotting it over time drew four flat lines nowhere near the break-even the chart existed to mark. The number itself stays in the table below, where its session count is beside it — 153x reads very differently on 34 sessions than on 1.",
       "options": {
         "legend": {
           "displayMode": "table",
@@ -1118,7 +1118,7 @@
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 42,
+        "y": 46,
         "w": 24,
         "h": 1
       },
@@ -1131,7 +1131,7 @@
       "datasource": "${datasource}",
       "gridPos": {
         "x": 0,
-        "y": 43,
+        "y": 47,
         "w": 24,
         "h": 8
       },
@@ -1161,7 +1161,7 @@
         },
         "overrides": []
       },
-      "description": "Where the agent's output actually landed, top twelve branches by lines written, with everything below them summed into a final bar.\n\nThat last bar is there so the top twelve reads as a slice rather than as everything \u2014 the failure the old table's silent LIMIT 25 already caused once. Measured here the twelve are 90% of all lines written across 42 branches.\n\nBranches contributing zero lines are excluded \u2014 those are sessions that read and ran things without writing, which the events count already covers elsewhere.\n\nLong branch names are truncated for the axis; the tooltip carries the value and the panel beside this one says how much sits outside the top twelve.\n\nAntigravity records no branch at all \u2014 its branch-like strings are a tracker's *suggested* branch inside an MCP response, not the checked-out one. Its events are absent here rather than grouped under a wrong name.",
+      "description": "Where the agent's output actually landed, top twelve branches by lines written, with everything below them summed into a final bar.\n\nThat last bar is there so the top twelve reads as a slice rather than as everything — the failure the old table's silent LIMIT 25 already caused once. Measured here the twelve are 90% of all lines written across 42 branches.\n\nBranches contributing zero lines are excluded — those are sessions that read and ran things without writing, which the events count already covers elsewhere.\n\nLong branch names are truncated for the axis; the tooltip carries the value and the panel beside this one says how much sits outside the top twelve.\n\nAntigravity records no branch at all — its branch-like strings are a tracker's *suggested* branch inside an MCP response, not the checked-out one. Its events are absent here rather than grouped under a wrong name.",
       "options": {
         "orientation": "horizontal",
         "xTickLabelRotation": 0,
@@ -1180,7 +1180,7 @@
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 51,
+        "y": 55,
         "w": 24,
         "h": 1
       },
@@ -1188,12 +1188,12 @@
     },
     {
       "id": 121,
-      "title": "Autonomy granted \u2014 tool calls per session",
+      "title": "Autonomy granted — tool calls per session",
       "type": "bargauge",
       "datasource": "${datasource}",
       "gridPos": {
         "x": 12,
-        "y": 52,
+        "y": 56,
         "w": 12,
         "h": 7
       },
@@ -1223,7 +1223,7 @@
         },
         "overrides": []
       },
-      "description": "How much work happens per session at each level of autonomy.\n\n**One metric rather than two bars.** Sessions and total tool calls run in opposite directions here \u2014 64 sessions on Codex's `never` produced 506 calls, 2 Claude Code sessions on `auto` produced 6,766 \u2014 so charting both put a 13x range beside a 32x one and flattened whichever shared the axis. Dividing them gives the thing both were circling: 8 calls per session on `never`, 3,383 on `auto`.\n\nThe ladder is monotonic across every mode measured, which is the finding: autonomy is not how often it is granted, it is how much happens once it is.\n\nThe agent is in the label because each mode belongs to exactly one \u2014 Codex says `never` and `on-request`, Claude Code says `acceptEdits`, `auto` and `default`. Each agent's own vocabulary is kept rather than mapped onto a shared enum: asserting that `never` means the same as `default` would invent a comparison neither agent made.",
+      "description": "How much work happens per session at each level of autonomy.\n\n**One metric rather than two bars.** Sessions and total tool calls run in opposite directions here — 64 sessions on Codex's `never` produced 506 calls, 2 Claude Code sessions on `auto` produced 6,766 — so charting both put a 13x range beside a 32x one and flattened whichever shared the axis. Dividing them gives the thing both were circling: 8 calls per session on `never`, 3,383 on `auto`.\n\nThe ladder is monotonic across every mode measured, which is the finding: autonomy is not how often it is granted, it is how much happens once it is.\n\nThe agent is in the label because each mode belongs to exactly one — Codex says `never` and `on-request`, Claude Code says `acceptEdits`, `auto` and `default`. Each agent's own vocabulary is kept rather than mapped onto a shared enum: asserting that `never` means the same as `default` would invent a comparison neither agent made.",
       "options": {
         "displayMode": "gradient",
         "orientation": "horizontal",
@@ -1248,7 +1248,7 @@
       "datasource": "${datasource}",
       "gridPos": {
         "x": 0,
-        "y": 52,
+        "y": 56,
         "w": 12,
         "h": 7
       },

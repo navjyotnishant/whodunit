@@ -3,6 +3,9 @@
 A git trailer standard for AI-attribution provenance, with an optional local
 collector that fills it in automatically.
 
+**[Documentation](https://navjyotnishant.github.io/whodunit/)** · Built by
+**Navjyot's Lab**
+
 Yes, the name invites the surveillance joke. The suspect is the commit, not
 the developer — `whodunit` answers "which agent touched this code," not
 "who wrote this line." Nothing here reads prompts, keystrokes, or file

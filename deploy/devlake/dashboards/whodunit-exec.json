@@ -1,6 +1,6 @@
 {
   "uid": "whodunit-exec",
-  "title": "Whodunit \u2014 Executive Summary",
+  "title": "Whodunit — Executive Summary",
   "tags": [
     "whodunit"
   ],
@@ -101,11 +101,11 @@
         "x": 0,
         "y": 0,
         "w": 24,
-        "h": 3
+        "h": 2
       },
       "options": {
         "mode": "markdown",
-        "content": "## GenAI Adoption \u2014 Executive Summary\n*How much of this team's delivery is AI-assisted, and what it costs or saves.* Every number below is measured from git history and the agent's own session records \u2014 none of it is self-reported or estimated."
+        "content": "## GenAI Adoption — Executive Summary\n*How much of this team's delivery is AI-assisted, and what it costs or saves.* Every number below is measured from git history and the agent's own session records — none of it is self-reported or estimated."
       }
     },
     {
@@ -115,7 +115,7 @@
       "datasource": "${datasource}",
       "gridPos": {
         "x": 0,
-        "y": 3,
+        "y": 2,
         "w": 5,
         "h": 5
       },
@@ -142,7 +142,7 @@
       },
       "options": {
         "graphMode": "none",
-        "textMode": "value_and_name",
+        "textMode": "value",
         "reduceOptions": {
           "calcs": [
             "lastNotNull"
@@ -151,7 +151,7 @@
           "values": false
         }
       },
-      "description": "Commits carrying evidence of agent involvement in the selected range.\n\nCounts `status = 'assisted'` only. A commit with no trailer is `undetermined` \u2014 no evidence either way \u2014 not proof it was written without an agent (NAV-21). Read this against Attribution coverage beside it, which is the share of commits that carry any verdict at all."
+      "description": "Commits carrying evidence of agent involvement in the selected range.\n\nCounts `status = 'assisted'` only. A commit with no trailer is `undetermined` — no evidence either way — not proof it was written without an agent (NAV-21). Read this against Attribution coverage beside it, which is the share of commits that carry any verdict at all."
     },
     {
       "id": 3,
@@ -160,7 +160,7 @@
       "datasource": "${datasource}",
       "gridPos": {
         "x": 5,
-        "y": 3,
+        "y": 2,
         "w": 5,
         "h": 5
       },
@@ -187,7 +187,7 @@
       },
       "options": {
         "graphMode": "none",
-        "textMode": "value_and_name",
+        "textMode": "value",
         "reduceOptions": {
           "calcs": [
             "lastNotNull"
@@ -196,7 +196,7 @@
           "values": false
         }
       },
-      "description": "Share of commits carrying any attribution verdict \u2014 anything other than `undetermined`.\n\nThis is a measure of **instrumentation, not of AI use**. A repository instrumented last week has low coverage for its whole history, because commits made before the hooks existed cannot be attributed retroactively.\n\nLow coverage means the numbers on this page describe a small slice. Read every other panel against it."
+      "description": "Share of commits carrying any attribution verdict — anything other than `undetermined`.\n\nThis is a measure of **instrumentation, not of AI use**. A repository instrumented last week has low coverage for its whole history, because commits made before the hooks existed cannot be attributed retroactively.\n\nLow coverage means the numbers on this page describe a small slice. Read every other panel against it."
     },
     {
       "id": 4,
@@ -205,7 +205,7 @@
       "datasource": "${datasource}",
       "gridPos": {
         "x": 10,
-        "y": 3,
+        "y": 2,
         "w": 5,
         "h": 5
       },
@@ -232,7 +232,7 @@
       },
       "options": {
         "graphMode": "none",
-        "textMode": "value_and_name",
+        "textMode": "value",
         "reduceOptions": {
           "calcs": [
             "lastNotNull"
@@ -241,7 +241,7 @@
           "values": false
         }
       },
-      "description": "Share of decided tool calls that were accepted.\n\n**The denominator is decided calls only** \u2014 accepted, rejected or failed \u2014 not all calls. A call whose outcome was never recorded is excluded rather than counted as accepted, which would flatter the rate. See Decided tool calls beside this for the size of that denominator.\n\nA rejection is a human declining; a failure is the tool erroring. Both count as decided, and only acceptance is in the numerator."
+      "description": "Share of decided tool calls that were accepted.\n\n**The denominator is decided calls only** — accepted, rejected or failed — not all calls. A call whose outcome was never recorded is excluded rather than counted as accepted, which would flatter the rate. See Decided tool calls beside this for the size of that denominator.\n\nA rejection is a human declining; a failure is the tool erroring. Both count as decided, and only acceptance is in the numerator."
     },
     {
       "id": 5,
@@ -250,7 +250,7 @@
       "datasource": "${datasource}",
       "gridPos": {
         "x": 15,
-        "y": 3,
+        "y": 2,
         "w": 4,
         "h": 5
       },
@@ -277,7 +277,7 @@
       },
       "options": {
         "graphMode": "none",
-        "textMode": "value_and_name",
+        "textMode": "value",
         "reduceOptions": {
           "calcs": [
             "lastNotNull"
@@ -295,7 +295,7 @@
       "datasource": "${datasource}",
       "gridPos": {
         "x": 19,
-        "y": 3,
+        "y": 2,
         "w": 5,
         "h": 5
       },
@@ -322,7 +322,7 @@
       },
       "options": {
         "graphMode": "none",
-        "textMode": "value_and_name",
+        "textMode": "value",
         "reduceOptions": {
           "calcs": [
             "lastNotNull"
@@ -331,7 +331,7 @@
           "values": false
         }
       },
-      "description": "Distinct agent sessions that produced at least one recorded event in range.\n\nA session is one conversation with an agent. Sessions that only read or ran commands count here \u2014 this measures how often an agent was used, not how much code resulted."
+      "description": "Distinct agent sessions that produced at least one recorded event in range.\n\nA session is one conversation with an agent. Sessions that only read or ran commands count here — this measures how often an agent was used, not how much code resulted."
     },
     {
       "id": 7,
@@ -339,23 +339,23 @@
       "title": "",
       "gridPos": {
         "x": 0,
-        "y": 8,
+        "y": 7,
         "w": 24,
         "h": 2
       },
       "options": {
         "mode": "markdown",
-        "content": "### Does AI-assisted work ship faster?\nCycle time for issues whose commits carry an AI-attribution trailer, against those that don't. **A measured comparison, not an estimate** \u2014 if the *Not AI-assisted* count is zero there is no control group yet and the delta means nothing. That count is shown deliberately."
+        "content": "### Does AI-assisted work ship faster?\nCycle time for issues whose commits carry an AI-attribution trailer, against those that don't. **A measured comparison, not an estimate** — if the *Not AI-assisted* count is zero there is no control group yet and the delta means nothing. That count is shown deliberately."
       }
     },
     {
       "id": 8,
       "type": "stat",
-      "title": "Median cycle \u2014 AI-assisted",
+      "title": "Median cycle — AI-assisted",
       "datasource": "${datasource}",
       "gridPos": {
         "x": 0,
-        "y": 10,
+        "y": 9,
         "w": 6,
         "h": 5
       },
@@ -382,7 +382,7 @@
       },
       "options": {
         "graphMode": "none",
-        "textMode": "value_and_name",
+        "textMode": "value",
         "reduceOptions": {
           "calcs": [
             "lastNotNull"
@@ -396,11 +396,11 @@
     {
       "id": 9,
       "type": "stat",
-      "title": "Median cycle \u2014 not AI-assisted",
+      "title": "Median cycle — not AI-assisted",
       "datasource": "${datasource}",
       "gridPos": {
         "x": 6,
-        "y": 10,
+        "y": 9,
         "w": 6,
         "h": 5
       },
@@ -427,7 +427,7 @@
       },
       "options": {
         "graphMode": "none",
-        "textMode": "value_and_name",
+        "textMode": "value",
         "reduceOptions": {
           "calcs": [
             "lastNotNull"
@@ -445,7 +445,7 @@
       "datasource": "${datasource}",
       "gridPos": {
         "x": 12,
-        "y": 10,
+        "y": 9,
         "w": 3,
         "h": 5
       },
@@ -472,7 +472,7 @@
       },
       "options": {
         "graphMode": "none",
-        "textMode": "value_and_name",
+        "textMode": "value",
         "reduceOptions": {
           "calcs": [
             "lastNotNull"
@@ -490,7 +490,7 @@
       "datasource": "${datasource}",
       "gridPos": {
         "x": 15,
-        "y": 10,
+        "y": 9,
         "w": 3,
         "h": 5
       },
@@ -517,7 +517,7 @@
       },
       "options": {
         "graphMode": "none",
-        "textMode": "value_and_name",
+        "textMode": "value",
         "reduceOptions": {
           "calcs": [
             "lastNotNull"
@@ -526,7 +526,7 @@
           "values": false
         }
       },
-      "description": "Tracker issues resolved in range with no assisted commits linked.\n\nThe other half of the cycle-time comparison's denominator. Both counts are shown because a difference in medians means nothing without them \u2014 and these two groups are **not** matched work: an agent is reached for on some kinds of issue and not others."
+      "description": "Tracker issues resolved in range with no assisted commits linked.\n\nThe other half of the cycle-time comparison's denominator. Both counts are shown because a difference in medians means nothing without them — and these two groups are **not** matched work: an agent is reached for on some kinds of issue and not others."
     },
     {
       "id": 12,
@@ -535,7 +535,7 @@
       "datasource": "${datasource}",
       "gridPos": {
         "x": 18,
-        "y": 10,
+        "y": 9,
         "w": 6,
         "h": 5
       },
@@ -562,7 +562,7 @@
       },
       "options": {
         "graphMode": "none",
-        "textMode": "value_and_name",
+        "textMode": "value",
         "reduceOptions": {
           "calcs": [
             "lastNotNull"
@@ -580,7 +580,7 @@
       "datasource": "${datasource}",
       "gridPos": {
         "x": 0,
-        "y": 15,
+        "y": 14,
         "w": 24,
         "h": 8
       },
@@ -609,7 +609,7 @@
       "title": "",
       "gridPos": {
         "x": 0,
-        "y": 23,
+        "y": 22,
         "w": 24,
         "h": 2
       },
@@ -625,7 +625,7 @@
       "datasource": "${datasource}",
       "gridPos": {
         "x": 0,
-        "y": 25,
+        "y": 24,
         "w": 12,
         "h": 8
       },
@@ -647,7 +647,7 @@
           }
         }
       },
-      "description": "Assisted against undetermined commits per day.\n\nThe undetermined series is **not** a 'no AI' series \u2014 it is commits carrying no evidence either way, which includes everything before instrumentation. A rising assisted line against a falling undetermined one usually means coverage improving, not adoption rising."
+      "description": "Assisted against undetermined commits per day.\n\nThe undetermined series is **not** a 'no AI' series — it is commits carrying no evidence either way, which includes everything before instrumentation. A rising assisted line against a falling undetermined one usually means coverage improving, not adoption rising."
     },
     {
       "id": 16,
@@ -656,7 +656,7 @@
       "datasource": "${datasource}",
       "gridPos": {
         "x": 12,
-        "y": 25,
+        "y": 24,
         "w": 12,
         "h": 8
       },
@@ -675,7 +675,7 @@
           }
         }
       },
-      "description": "Recorded agent edits per day, and the lines those edits added.\n\nEdits count tool calls that touched a file; lines count what those calls wrote. The two diverge when the agent makes many small changes or a few large ones, which is the shape worth noticing.\n\nLines from rejected or failed calls are excluded \u2014 text that never reached a file is not authored code."
+      "description": "Recorded agent edits per day, and the lines those edits added.\n\nEdits count tool calls that touched a file; lines count what those calls wrote. The two diverge when the agent makes many small changes or a few large ones, which is the shape worth noticing.\n\nLines from rejected or failed calls are excluded — text that never reached a file is not authored code."
     },
     {
       "id": 17,
@@ -684,7 +684,7 @@
       "datasource": "${datasource}",
       "gridPos": {
         "x": 0,
-        "y": 33,
+        "y": 32,
         "w": 12,
         "h": 8
       },
@@ -717,7 +717,7 @@
       "datasource": "${datasource}",
       "gridPos": {
         "x": 12,
-        "y": 33,
+        "y": 32,
         "w": 12,
         "h": 8
       },
@@ -747,7 +747,7 @@
       "title": "",
       "gridPos": {
         "x": 0,
-        "y": 41,
+        "y": 40,
         "w": 24,
         "h": 2
       },
@@ -763,7 +763,7 @@
       "datasource": "${datasource}",
       "gridPos": {
         "x": 0,
-        "y": 43,
+        "y": 42,
         "w": 8,
         "h": 9
       },
@@ -792,7 +792,7 @@
           "values": true
         }
       },
-      "description": "What kind of work the agent was used for, from Conventional Commit prefixes and path heuristics.\n\n**Purpose is a label, not an observation.** `feature` is reachable only through a literal `feat:` prefix, so a repository not using Conventional Commits will show almost none \u2014 which says nothing about the work itself."
+      "description": "What kind of work the agent was used for, from Conventional Commit prefixes and path heuristics.\n\n**Purpose is a label, not an observation.** `feature` is reachable only through a literal `feat:` prefix, so a repository not using Conventional Commits will show almost none — which says nothing about the work itself."
     },
     {
       "id": 21,
@@ -801,7 +801,7 @@
       "datasource": "${datasource}",
       "gridPos": {
         "x": 8,
-        "y": 43,
+        "y": 42,
         "w": 8,
         "h": 9
       },
@@ -831,7 +831,7 @@
       "datasource": "${datasource}",
       "gridPos": {
         "x": 16,
-        "y": 43,
+        "y": 42,
         "w": 8,
         "h": 9
       },
@@ -852,7 +852,7 @@
       "options": {
         "showHeader": true
       },
-      "description": "Individual sessions with their duration, prompt count and tool activity \u2014 the raw shape behind the aggregates above.\n\nPrompts count user messages only, excluding the harness replying to the agent with tool results. Minutes are first to last recorded event, so a session left open overnight reads as long without being busy; read it against tool calls."
+      "description": "Individual sessions with their duration, prompt count and tool activity — the raw shape behind the aggregates above.\n\nPrompts count user messages only, excluding the harness replying to the agent with tool results. Minutes are first to last recorded event, so a session left open overnight reads as long without being busy; read it against tool calls."
     },
     {
       "type": "row",
@@ -860,7 +860,7 @@
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 52,
+        "y": 51,
         "w": 24,
         "h": 1
       },
@@ -868,11 +868,11 @@
     },
     {
       "type": "timeseries",
-      "title": "Commits \u2014 assisted vs the rest",
+      "title": "Commits — assisted vs the rest",
       "datasource": "${datasource}",
       "gridPos": {
         "x": 0,
-        "y": 53,
+        "y": 52,
         "w": 12,
         "h": 8
       },
@@ -927,7 +927,7 @@
           }
         ]
       },
-      "description": "Stacked, so the bar height is total commit volume and the blue share is adoption. A flat blue band before instrumentation is expected \u2014 those commits predate whodunit and are not evidence that no agent was used."
+      "description": "Stacked, so the bar height is total commit volume and the blue share is adoption. A flat blue band before instrumentation is expected — those commits predate whodunit and are not evidence that no agent was used."
     },
     {
       "type": "timeseries",
@@ -935,7 +935,7 @@
       "datasource": "${datasource}",
       "gridPos": {
         "x": 12,
-        "y": 53,
+        "y": 52,
         "w": 12,
         "h": 8
       },
@@ -990,7 +990,7 @@
           }
         ]
       },
-      "description": "Both series are keyed on the date an issue was opened, so 'completed' is how many of that week's issues are now done \u2014 not how many were closed that week. Recent weeks therefore look worse than they will."
+      "description": "Both series are keyed on the date an issue was opened, so 'completed' is how many of that week's issues are now done — not how many were closed that week. Recent weeks therefore look worse than they will."
     }
   ]
 }
