@@ -47,9 +47,18 @@ any one implementation of it.
 
 ## Install
 
+macOS and Linux:
+
 ```sh
 brew tap navjyotnishant/tap
 brew install navjyotnishant/tap/dun
+```
+
+Windows:
+
+```powershell
+scoop bucket add navjyotnishant https://github.com/navjyotnishant/scoop-bucket
+scoop install dun
 ```
 
 Or build from source:
@@ -60,7 +69,21 @@ go install github.com/navjyotnishant/whodunit/cmd/dun@latest
 
 Or grab a binary from the [releases page](https://github.com/navjyotnishant/whodunit/releases) —
 built with [`scripts/release.sh`](scripts/release.sh), not a third-party
-release tool.
+release tool. Verify it against the published `checksums.txt`, then put it
+somewhere on your `PATH` **under the name `dun`** (`dun.exe` on Windows).
+
+That last part matters more than it looks. The git hook resolves the binary
+by name at commit time:
+
+```sh
+DUN="$(command -v dun || echo "<the binary that ran init>")"
+```
+
+so a binary that is not on `PATH` as `dun` falls back to wherever it lived
+when you ran `dun init` — and once that file moves, every commit is stamped
+`undetermined`, silently. Downstream that reads as "no AI was used" rather
+than "the tool went missing". `dun init` warns when it detects this, and the
+package managers above avoid it entirely.
 
 ## Use
 

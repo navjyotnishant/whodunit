@@ -14,6 +14,23 @@
 # This exists so a release can be cut with only go, git, and (for --publish)
 # gh on PATH — no goreleaser, no network calls beyond git/gh, nothing
 # AI-assisted required to build or ship a binary.
+#
+# ## After publishing: update both package managers
+#
+# Neither is automatic. Publishing to a second repository from CI needs a
+# cross-repo token, which is a larger decision than this needs — so both are
+# a manual step, and both are listed here so neither is the one that gets
+# forgotten.
+#
+#   Homebrew (macOS, Linux) — in the navjyotnishant/homebrew-tap repository,
+#   point the formula's url/sha256 at the new release.
+#
+#   Scoop (Windows) — regenerate the manifest from the artifacts just built:
+#
+#       scripts/scoop-manifest.sh <version> > ../scoop-bucket/bucket/dun.json
+#
+#   It reads the checksums from dist/checksums.txt and the shim name from
+#   inside the archive, so it cannot disagree with what was published.
 set -eu
 
 VERSION="${1:?usage: $0 <version> [--publish]}"
