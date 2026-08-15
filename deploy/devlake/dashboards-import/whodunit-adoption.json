@@ -25,7 +25,7 @@
         "name": "contributor",
         "type": "query",
         "datasource": "${DS_WHODUNIT}",
-        "query": "SELECT DISTINCT COALESCE(NULLIF(contributor, ''), '(unattributed)') AS __text, COALESCE(NULLIF(contributor, ''), '') AS __value FROM whodunit_repos ORDER BY 1 ORDER BY contributor",
+        "query": "SELECT DISTINCT COALESCE(NULLIF(contributor, ''), '(unattributed)') AS __text, COALESCE(NULLIF(contributor, ''), '') AS __value FROM whodunit_repos ORDER BY 1",
         "includeAll": true,
         "multi": false,
         "current": {},

@@ -45,6 +45,16 @@ def main():
                 problems.append(
                     f"{d['uid']}: contributor variable does not offer an "
                     f"option for repositories with no recorded identity")
+            elif q.upper().count("ORDER BY") > 1:
+                # A malformed query fails silently: Grafana renders an
+                # empty dropdown rather than an error, so the filter looks
+                # present and offers nothing. This one was introduced by a
+                # search-and-replace that appended ORDER BY to a query
+                # that already had one.
+                problems.append(
+                    f"{d['uid']}: contributor variable has two ORDER BY "
+                    f"clauses and is not valid SQL — the dropdown will be "
+                    f"empty with no error shown")
 
     if problems:
         print("contributor filter would hide data:", file=sys.stderr)

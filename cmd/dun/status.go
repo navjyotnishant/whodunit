@@ -80,6 +80,15 @@ func statusFor(w io.Writer, dir, label string) error {
 		return err
 	}
 
+	// Repair stale or missing hooks before reporting, so the numbers below
+	// are not quietly wrong for the next commit too (NAV-76).
+	//
+	// `dun status` is where someone looks when they wonder why coverage is
+	// lower than expected, and a missing pre-push hook is one real answer
+	// to that. Fixing it here means the question and the fix happen in the
+	// same breath, rather than the answer being "run another command".
+	repairHooks(w, termcolor.New(w), dir)
+
 	if label != "" {
 		fmt.Fprintf(w, "%s\n", label)
 	}
@@ -338,6 +347,19 @@ func statusAcrossRepos(w io.Writer) error {
 		fmt.Sprintf("%-30s %9s  %-26s %-22s %s",
 			"repository", "coverage", "method mix", "to sync", "last synced")))
 
+	// Repositories whose hooks are stale or incomplete, collected while
+	// walking the list (NAV-76, criterion 3).
+	//
+	// This listing is the only view that reaches a repository nobody has
+	// visited in months, which is exactly where a hook added after
+	// instrumentation goes unnoticed — the repository keeps working, just
+	// with less attribution than it should have, and nothing says so.
+	//
+	// Reported rather than repaired: self-repair happens where a person is
+	// looking at one repository, and silently rewriting hooks in a dozen
+	// repositories from a listing command is more than someone asked for.
+	var needUpdate []string
+
 	// Asked once for every repository, before the loop rather than inside it.
 	// Nil when sync is off or the target is unreachable, which reads as
 	// "unknown" per row without each row paying to find that out again.
@@ -408,6 +430,12 @@ func statusAcrossRepos(w io.Writer) error {
 			}
 		}
 
+		if gitDir, err := gitDirFor(e.Path); err == nil {
+			if missing, stale := staleHooks(gitDir); len(missing) > 0 || len(stale) > 0 {
+				needUpdate = append(needUpdate, name)
+			}
+		}
+
 		if s.Total == 0 {
 			fmt.Fprintf(w, "  %-30s %9s  %-26s %-22s %s\n", name,
 				c.S(termcolor.Muted, "—"), c.S(termcolor.Muted, "no commits yet"),
@@ -428,6 +456,14 @@ func statusAcrossRepos(w io.Writer) error {
 		fmt.Fprintf(w, "  %-30s %8.0f%%  %s %-22s %s\n",
 			name, s.CoveragePct(), c.S(termcolor.Muted, mix),
 			pending, c.S(termcolor.Muted, synced))
+	}
+
+	if len(needUpdate) > 0 {
+		fmt.Fprintf(w, "\n  %s\n", c.S(termcolor.Warn, fmt.Sprintf(
+			"%d repositor%s missing a hook or running an older one: %s",
+			len(needUpdate), plural2(len(needUpdate)), strings.Join(needUpdate, ", "))))
+		fmt.Fprintf(w, "  %s\n", c.S(termcolor.Muted,
+			"they are attributing less than they could — fix all of them with:  dun repos update"))
 	}
 
 	// Where the numbers in the last column would go, stated once rather
