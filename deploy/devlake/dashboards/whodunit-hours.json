@@ -1,6 +1,6 @@
 {
   "uid": "whodunit-hours",
-  "title": "Whodunit \u2014 Agent Activity Hours",
+  "title": "Whodunit — Agent Activity Hours",
   "tags": [
     "whodunit",
     "adoption"
@@ -92,11 +92,11 @@
         "x": 0,
         "y": 0,
         "w": 24,
-        "h": 5
+        "h": 7
       },
       "options": {
         "mode": "markdown",
-        "content": "## When and how the agent is used\n*Working rhythm, tool mix and session shape \u2014 from the agent's own session records.*\n\nEvery figure is measured from what the agent did on this machine. Nothing is self-reported, and no vendor API is involved, so this works the same for Claude Code, Codex and `agy`.\n\n**No prompt or response text is recorded anywhere** \u2014 whodunit stores counts, file paths and line hashes, never message content. Message *volume* is as close as this gets to measuring conversation, and that is deliberate.\n\nSet **Timezone** below to read hours in your own working day rather than UTC, and **Agent** to narrow to one tool."
+        "content": "## When and how the agent is used\n*Working rhythm, tool mix and session shape — from the agent's own session records.*\n\nEvery figure is measured from what the agent did on this machine. Nothing is self-reported, and no vendor API is involved, so this works the same for Claude Code, Codex and `agy`.\n\n**No prompt or response text is recorded anywhere** — whodunit stores counts, file paths and line hashes, never message content. Message *volume* is as close as this gets to measuring conversation, and that is deliberate.\n\nSet **Timezone** below to read hours in your own working day rather than UTC, and **Agent** to narrow to one tool."
       }
     },
     {
@@ -106,7 +106,7 @@
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 5,
+        "y": 7,
         "w": 24,
         "h": 1
       },
@@ -119,7 +119,7 @@
       "datasource": "${datasource}",
       "gridPos": {
         "x": 0,
-        "y": 6,
+        "y": 8,
         "w": 12,
         "h": 8
       },
@@ -216,7 +216,7 @@
         "barWidth": 0.9,
         "orientation": "auto"
       },
-      "description": "Stacked by agent. Hours with no bar are hours nobody worked \u2014 not missing data."
+      "description": "Stacked by agent. Hours with no bar are hours nobody worked — not missing data."
     },
     {
       "id": 4,
@@ -225,7 +225,7 @@
       "datasource": "${datasource}",
       "gridPos": {
         "x": 12,
-        "y": 6,
+        "y": 8,
         "w": 12,
         "h": 8
       },
@@ -331,7 +331,7 @@
       "datasource": "${datasource}",
       "gridPos": {
         "x": 0,
-        "y": 14,
+        "y": 16,
         "w": 12,
         "h": 7
       },
@@ -404,7 +404,7 @@
       "datasource": "${datasource}",
       "gridPos": {
         "x": 12,
-        "y": 14,
+        "y": 16,
         "w": 12,
         "h": 7
       },
@@ -433,7 +433,7 @@
         "barWidth": 0.9,
         "orientation": "auto"
       },
-      "description": "Which agent reaches for which tool, from the tool calls recorded in each session \u2014 not a fixed list of features.",
+      "description": "Which agent reaches for which tool, from the tool calls recorded in each session — not a fixed list of features.",
       "fieldConfig": {
         "defaults": {
           "unit": "short",
@@ -510,7 +510,7 @@
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 29,
+        "y": 30,
         "w": 24,
         "h": 1
       },
@@ -523,7 +523,7 @@
       "datasource": "${datasource}",
       "gridPos": {
         "x": 0,
-        "y": 30,
+        "y": 31,
         "w": 4,
         "h": 5
       },
@@ -569,7 +569,7 @@
       "datasource": "${datasource}",
       "gridPos": {
         "x": 4,
-        "y": 30,
+        "y": 31,
         "w": 4,
         "h": 5
       },
@@ -607,7 +607,7 @@
           "values": false
         }
       },
-      "description": "Average tool calls per session \u2014 how much work happens in a typical session.\n\nAn average over a wide spread: a session ending after two calls and one running for hours both count once. Read it beside the session count rather than alone."
+      "description": "Average tool calls per session — how much work happens in a typical session.\n\nAn average over a wide spread: a session ending after two calls and one running for hours both count once. Read it beside the session count rather than alone."
     },
     {
       "id": 10,
@@ -616,7 +616,7 @@
       "datasource": "${datasource}",
       "gridPos": {
         "x": 8,
-        "y": 30,
+        "y": 31,
         "w": 4,
         "h": 5
       },
@@ -654,7 +654,7 @@
           "values": false
         }
       },
-      "description": "Message volume only \u2014 whodunit never records what was said. A high number means long autonomous stretches per instruction."
+      "description": "Message volume only — whodunit never records what was said. A high number means long autonomous stretches per instruction."
     },
     {
       "id": 11,
@@ -663,7 +663,7 @@
       "datasource": "${datasource}",
       "gridPos": {
         "x": 12,
-        "y": 30,
+        "y": 31,
         "w": 4,
         "h": 5
       },
@@ -700,7 +700,7 @@
           "values": false
         }
       },
-      "description": "Calls to connected MCP servers \u2014 external tools the agent reached for."
+      "description": "Calls to connected MCP servers — external tools the agent reached for."
     },
     {
       "id": 12,
@@ -709,7 +709,7 @@
       "datasource": "${datasource}",
       "gridPos": {
         "x": 16,
-        "y": 30,
+        "y": 31,
         "w": 4,
         "h": 5
       },
@@ -755,7 +755,7 @@
           "values": false
         }
       },
-      "description": "Share of edits the agent applied without erroring. Not a quality measure \u2014 a failed edit is a tool failure, not a bad suggestion."
+      "description": "Share of edits the agent applied without erroring. Not a quality measure — a failed edit is a tool failure, not a bad suggestion."
     },
     {
       "id": 13,
@@ -764,7 +764,7 @@
       "datasource": "${datasource}",
       "gridPos": {
         "x": 20,
-        "y": 30,
+        "y": 31,
         "w": 4,
         "h": 5
       },
@@ -810,7 +810,7 @@
       "datasource": "${datasource}",
       "gridPos": {
         "x": 0,
-        "y": 35,
+        "y": 36,
         "w": 12,
         "h": 7
       },
@@ -839,7 +839,7 @@
         },
         "xField": "length"
       },
-      "description": "Wall-clock first to last event. A session left open overnight inflates this \u2014 read it as span, not effort."
+      "description": "Wall-clock first to last event. A session left open overnight inflates this — read it as span, not effort."
     },
     {
       "id": 15,
@@ -848,7 +848,7 @@
       "datasource": "${datasource}",
       "gridPos": {
         "x": 12,
-        "y": 35,
+        "y": 36,
         "w": 12,
         "h": 7
       },
@@ -856,7 +856,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT CONCAT(s.agent, ' \u00b7 #', LPAD(ROW_NUMBER() OVER (ORDER BY s.tool_calls DESC), 2, '0')) AS `session`,\n       s.tool_calls AS `tool calls`\nFROM whodunit_sessions s\nWHERE s.tool_calls > 0\n  AND s.last_seen BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  AND s.agent IN ($agent)\nORDER BY s.tool_calls DESC LIMIT 10"
+          "rawSql": "SELECT CONCAT(s.agent, ' · #', LPAD(ROW_NUMBER() OVER (ORDER BY s.tool_calls DESC), 2, '0')) AS `session`,\n       s.tool_calls AS `tool calls`\nFROM whodunit_sessions s\nWHERE s.tool_calls > 0\n  AND s.last_seen BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  AND s.agent IN ($agent)\nORDER BY s.tool_calls DESC LIMIT 10"
         }
       ],
       "fieldConfig": {
@@ -877,7 +877,7 @@
         },
         "xField": "session"
       },
-      "description": "Ranked, not identified. The session column in the sidecar still holds the agent's own session id, which on Claude Code is the transcript filename \u2014 so it is deliberately not rendered here."
+      "description": "Ranked, not identified. The session column in the sidecar still holds the agent's own session id, which on Claude Code is the transcript filename — so it is deliberately not rendered here."
     },
     {
       "id": 16,
@@ -886,7 +886,7 @@
       "datasource": "${datasource}",
       "gridPos": {
         "x": 0,
-        "y": 21,
+        "y": 23,
         "w": 24,
         "h": 7
       },
@@ -922,7 +922,7 @@
       "options": {
         "showHeader": true
       },
-      "description": "Every agent this machine has seen, whether or not it produced anything. An agent with sessions but no edits is running and contributing nothing measurable \u2014 worth knowing, and invisible in a merged total."
+      "description": "Every agent this machine has seen, whether or not it produced anything. An agent with sessions but no edits is running and contributing nothing measurable — worth knowing, and invisible in a merged total."
     }
   ]
 }

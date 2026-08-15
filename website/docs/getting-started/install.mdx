@@ -39,23 +39,21 @@ somewhere on your `PATH` **under the name `dun`** — `dun.exe` on Windows.
 shasum -a 256 -c checksums.txt
 ```
 
-:::warning The name matters more than it looks
-
-The git hook resolves the binary by name at commit time:
-
-```sh
-DUN="$(command -v dun || echo "<the binary that ran init>")"
-```
-
-A binary that is not on `PATH` as `dun` falls back to wherever it lived
-when you ran `dun init`. That works — until the file moves or is deleted,
-after which **every commit is stamped `undetermined`, silently**.
-
-Downstream, `undetermined` reads as "no AI was used" rather than "the tool
-went missing", which is exactly the wrong conclusion. `dun init` warns when
-it detects this, and the package managers above avoid it entirely.
-
-:::
+> **⚠️ The name matters more than it looks**
+>
+> The git hook resolves the binary by name at commit time:
+>
+> ```sh
+> DUN="$(command -v dun || echo "<the binary that ran init>")"
+> ```
+>
+> A binary that is not on `PATH` as `dun` falls back to wherever it lived
+> when you ran `dun init`. That works — until the file moves or is deleted,
+> after which **every commit is stamped `undetermined`, silently**.
+>
+> Downstream, `undetermined` reads as "no AI was used" rather than "the tool
+> went missing", which is exactly the wrong conclusion. `dun init` warns when
+> it detects this, and the package managers above avoid it entirely.
 
 ## Verify the install
 

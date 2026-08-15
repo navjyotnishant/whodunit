@@ -1,6 +1,6 @@
 {
   "uid": "whodunit-funnel",
-  "title": "Whodunit \u2014 AI Productivity Funnel",
+  "title": "Whodunit — AI Productivity Funnel",
   "tags": [
     "whodunit",
     "adoption"
@@ -55,20 +55,20 @@
         "x": 0,
         "y": 0,
         "w": 24,
-        "h": 5
+        "h": 6
       },
       "options": {
         "mode": "markdown",
-        "content": "# AI Productivity Funnel\n\n*Six stages, each measured on its own. Adoption is not productivity, and this\nis laid out so the two cannot be mistaken for each other.*\n\n**The stages do not multiply.** 70% adoption \u00d7 80% engagement \u00d7 60% assisted\nwork is not a productivity figure \u2014 it is arithmetic on unrelated\ndenominators. Read each stage against its own question.\n"
+        "content": "# AI Productivity Funnel\n\n*Six stages, each measured on its own. Adoption is not productivity, and this\nis laid out so the two cannot be mistaken for each other.*\n\n**The stages do not multiply.** 70% adoption × 80% engagement × 60% assisted\nwork is not a productivity figure — it is arithmetic on unrelated\ndenominators. Read each stage against its own question.\n"
       }
     },
     {
       "type": "row",
-      "title": "Adoption funnel \u2014 are we adopting AI?",
+      "title": "Adoption funnel — are we adopting AI?",
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 5,
+        "y": 6,
         "w": 24,
         "h": 1
       },
@@ -76,12 +76,12 @@
     },
     {
       "id": 10,
-      "title": "Stage 1 \u00b7 Adoption",
+      "title": "Stage 1 · Adoption",
       "type": "bargauge",
       "datasource": "${datasource}",
       "gridPos": {
         "x": 0,
-        "y": 6,
+        "y": 7,
         "w": 12,
         "h": 5
       },
@@ -110,7 +110,7 @@
         },
         "overrides": []
       },
-      "description": "How many people used an agent at all, against how many are known to this tool.\n\nThe denominator is contributors with a recorded identity \u2014 a repository instrumented without one is invisible here, which is worth knowing before reading the ratio as coverage.",
+      "description": "How many people used an agent at all, against how many are known to this tool.\n\nThe denominator is contributors with a recorded identity — a repository instrumented without one is invisible here, which is worth knowing before reading the ratio as coverage.",
       "options": {
         "displayMode": "gradient",
         "orientation": "horizontal",
@@ -130,12 +130,12 @@
     },
     {
       "id": 11,
-      "title": "Stage 2 \u00b7 Engagement \u2014 how deep, not how many",
+      "title": "Stage 2 · Engagement — how deep, not how many",
       "type": "bargauge",
       "datasource": "${datasource}",
       "gridPos": {
         "x": 12,
-        "y": 6,
+        "y": 7,
         "w": 12,
         "h": 5
       },
@@ -143,7 +143,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT CASE\n         WHEN s.mcp_calls > 0 OR s.distinct_tools >= 5 THEN 'agentic \u2014 MCP or many tools'\n         WHEN s.tool_calls >= 50 THEN 'multi-file work'\n         WHEN s.tool_calls >= 10 THEN 'wrote code'\n         WHEN s.tool_calls > 0   THEN 'light edits'\n         ELSE 'conversation only \u2014 no edits'\n       END AS `intensity`,\n       COUNT(*) AS `sessions`\nFROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id\nWHERE s.last_seen BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000 AND ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}')\nGROUP BY `intensity` ORDER BY `sessions` DESC"
+          "rawSql": "SELECT CASE\n         WHEN s.mcp_calls > 0 OR s.distinct_tools >= 5 THEN 'agentic — MCP or many tools'\n         WHEN s.tool_calls >= 50 THEN 'multi-file work'\n         WHEN s.tool_calls >= 10 THEN 'wrote code'\n         WHEN s.tool_calls > 0   THEN 'light edits'\n         ELSE 'conversation only — no edits'\n       END AS `intensity`,\n       COUNT(*) AS `sessions`\nFROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id\nWHERE s.last_seen BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000 AND ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}')\nGROUP BY `intensity` ORDER BY `sessions` DESC"
         }
       ],
       "fieldConfig": {
@@ -189,7 +189,7 @@
       "datasource": "${datasource}",
       "gridPos": {
         "x": 0,
-        "y": 11,
+        "y": 12,
         "w": 12,
         "h": 4
       },
@@ -221,7 +221,7 @@
         },
         "overrides": []
       },
-      "description": "Weekly actives over monthly actives \u2014 whether use is habitual or occasional.\n\nA high ratio means the people who use it use it regularly. It says nothing about how many people that is, which is stage 1.",
+      "description": "Weekly actives over monthly actives — whether use is habitual or occasional.\n\nA high ratio means the people who use it use it regularly. It says nothing about how many people that is, which is stage 1.",
       "options": {
         "graphMode": "none",
         "textMode": "value",
@@ -241,7 +241,7 @@
       "datasource": "${datasource}",
       "gridPos": {
         "x": 12,
-        "y": 11,
+        "y": 12,
         "w": 12,
         "h": 4
       },
@@ -273,7 +273,7 @@
         },
         "overrides": []
       },
-      "description": "Share of sessions that edited a file, as opposed to conversation that produced no change.\n\nConversation is not waste \u2014 planning and reading are work. This measures how much of the tool's use reached the codebase, not how much of it was useful.",
+      "description": "Share of sessions that edited a file, as opposed to conversation that produced no change.\n\nConversation is not waste — planning and reading are work. This measures how much of the tool's use reached the codebase, not how much of it was useful.",
       "options": {
         "graphMode": "none",
         "textMode": "value",
@@ -288,11 +288,11 @@
     },
     {
       "type": "row",
-      "title": "Value funnel \u2014 is AI producing value?",
+      "title": "Value funnel — is AI producing value?",
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 15,
+        "y": 16,
         "w": 24,
         "h": 1
       },
@@ -300,12 +300,12 @@
     },
     {
       "id": 20,
-      "title": "Stage 3 \u00b7 AI-assisted work",
+      "title": "Stage 3 · AI-assisted work",
       "type": "bargauge",
       "datasource": "${datasource}",
       "gridPos": {
         "x": 0,
-        "y": 16,
+        "y": 17,
         "w": 12,
         "h": 5
       },
@@ -334,7 +334,7 @@
         },
         "overrides": []
       },
-      "description": "Share of commits carrying evidence of agent involvement.\n\nUndetermined is not 'no AI was used' \u2014 it is 'no evidence either way'. A commit made before the hooks were installed, or on a machine without them, lands there regardless of how it was written (NAV-21).",
+      "description": "Share of commits carrying evidence of agent involvement.\n\nUndetermined is not 'no AI was used' — it is 'no evidence either way'. A commit made before the hooks were installed, or on a machine without them, lands there regardless of how it was written (NAV-21).",
       "options": {
         "displayMode": "gradient",
         "orientation": "horizontal",
@@ -354,12 +354,12 @@
     },
     {
       "id": 21,
-      "title": "Stage 4 \u00b7 Cycle time \u2014 assisted vs not",
+      "title": "Stage 4 · Cycle time — assisted vs not",
       "type": "bargauge",
       "datasource": "${datasource}",
       "gridPos": {
         "x": 12,
-        "y": 16,
+        "y": 17,
         "w": 12,
         "h": 5
       },
@@ -408,12 +408,12 @@
     },
     {
       "id": 22,
-      "title": "Stage 5 \u00b7 Cost per delivered line",
+      "title": "Stage 5 · Cost per delivered line",
       "type": "stat",
       "datasource": "${datasource}",
       "gridPos": {
         "x": 0,
-        "y": 21,
+        "y": 22,
         "w": 6,
         "h": 5
       },
@@ -444,7 +444,7 @@
         },
         "overrides": []
       },
-      "description": "Output tokens spent per line of assisted work that reached a commit.\n\n**This is output per unit of effort \u2014 stage 5's actual question \u2014 and it is not a productivity gain.** It has no before to compare against; it says what the work cost, not whether that is better than the alternative.\n\nTokens, never currency: under a subscription the marginal cost of a token is zero, so a price table would report money nobody spent.",
+      "description": "Output tokens spent per line of assisted work that reached a commit.\n\n**This is output per unit of effort — stage 5's actual question — and it is not a productivity gain.** It has no before to compare against; it says what the work cost, not whether that is better than the alternative.\n\nTokens, never currency: under a subscription the marginal cost of a token is zero, so a price table would report money nobody spent.",
       "options": {
         "graphMode": "none",
         "textMode": "value",
@@ -459,12 +459,12 @@
     },
     {
       "id": 23,
-      "title": "Stage 5 \u00b7 Rework rate, assisted",
+      "title": "Stage 5 · Rework rate, assisted",
       "type": "stat",
       "datasource": "${datasource}",
       "gridPos": {
         "x": 6,
-        "y": 21,
+        "y": 22,
         "w": 6,
         "h": 5
       },
@@ -496,7 +496,7 @@
         },
         "overrides": []
       },
-      "description": "Share of assisted commits labelled as fixes \u2014 a rework proxy.\n\n**Not a defect rate.** `purpose` comes from Conventional Commit prefixes and path heuristics, so it measures what commits were labelled, not what broke.\n\n**Read the banded version on the delivery dashboard before concluding anything.** Unbanded, assisted work looks better than unassisted (28.4% against 33.3%); split by change size that reverses in the middle band. The single figure here is a size-mix artefact and is shown as an entry point, not an answer.",
+      "description": "Share of assisted commits labelled as fixes — a rework proxy.\n\n**Not a defect rate.** `purpose` comes from Conventional Commit prefixes and path heuristics, so it measures what commits were labelled, not what broke.\n\n**Read the banded version on the delivery dashboard before concluding anything.** Unbanded, assisted work looks better than unassisted (28.4% against 33.3%); split by change size that reverses in the middle band. The single figure here is a size-mix artefact and is shown as an entry point, not an answer.",
       "options": {
         "graphMode": "none",
         "textMode": "value",
@@ -511,12 +511,12 @@
     },
     {
       "id": 24,
-      "title": "Stage 5 \u00b7 Pre-adoption baseline",
+      "title": "Stage 5 · Pre-adoption baseline",
       "type": "stat",
       "datasource": "${datasource}",
       "gridPos": {
         "x": 12,
-        "y": 21,
+        "y": 22,
         "w": 6,
         "h": 5
       },
@@ -546,7 +546,7 @@
         },
         "overrides": []
       },
-      "description": "The pre-adoption window this repository can be compared against \u2014 captured by `dun baseline capture` and published by `dun sync` (NAV-107).\n\n**A pre-instrumentation baseline is not a no-AI baseline.** Commits in that window may have been AI-assisted and simply not recorded, so it is a comparison against 'before we measured', not against 'before we used it'.\n\nThe window is fixed at capture and immutable afterwards, because a window chosen after seeing the result can manufacture almost any figure.\n\nEmpty means no baseline was captured \u2014 not that the repository had no activity before instrumentation.",
+      "description": "The pre-adoption window this repository can be compared against — captured by `dun baseline capture` and published by `dun sync` (NAV-107).\n\n**A pre-instrumentation baseline is not a no-AI baseline.** Commits in that window may have been AI-assisted and simply not recorded, so it is a comparison against 'before we measured', not against 'before we used it'.\n\nThe window is fixed at capture and immutable afterwards, because a window chosen after seeing the result can manufacture almost any figure.\n\nEmpty means no baseline was captured — not that the repository had no activity before instrumentation.",
       "options": {
         "graphMode": "none",
         "textMode": "value",
@@ -565,13 +565,13 @@
       "type": "text",
       "gridPos": {
         "x": 18,
-        "y": 21,
+        "y": 22,
         "w": 6,
-        "h": 5
+        "h": 15
       },
       "options": {
         "mode": "markdown",
-        "content": "### Stage 6 \u00b7 Business value\n\n**Not measurable here, and that is not a gap to be closed.**\n\nRevenue, customer outcomes and time-to-market are the things a business\nactually cares about. Nothing in a git history or an agent transcript\nreaches them, and any number this tool produced for them would be\ninvented.\n\nThe stage stays on the funnel because deleting it would imply the funnel\nends at stage 5 \u2014 and that stage 5 is the answer to \"was it worth it\".\nIt is not.\n"
+        "content": "### Stage 6 · Business value\n\n**Not measurable here, and that is not a gap to be closed.**\n\nRevenue, customer outcomes and time-to-market are the things a business\nactually cares about. Nothing in a git history or an agent transcript\nreaches them, and any number this tool produced for them would be\ninvented.\n\nThe stage stays on the funnel because deleting it would imply the funnel\nends at stage 5 — and that stage 5 is the answer to \"was it worth it\".\nIt is not.\n"
       }
     },
     {
@@ -580,9 +580,9 @@
       "type": "text",
       "gridPos": {
         "x": 0,
-        "y": 26,
+        "y": 37,
         "w": 24,
-        "h": 4
+        "h": 10
       },
       "options": {
         "mode": "markdown",

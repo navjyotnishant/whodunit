@@ -81,9 +81,9 @@
       "title": "",
       "gridPos": {
         "x": 0,
-        "y": 0,
+        "y": 6,
         "w": 24,
-        "h": 4
+        "h": 5
       },
       "options": {
         "mode": "markdown",
@@ -97,7 +97,7 @@
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 4,
+        "y": 11,
         "w": 24,
         "h": 1
       },
@@ -110,7 +110,7 @@
       "datasource": "${datasource}",
       "gridPos": {
         "x": 0,
-        "y": 5,
+        "y": 12,
         "w": 4,
         "h": 5
       },
@@ -156,7 +156,7 @@
       "datasource": "${datasource}",
       "gridPos": {
         "x": 4,
-        "y": 5,
+        "y": 12,
         "w": 4,
         "h": 5
       },
@@ -211,7 +211,7 @@
       "datasource": "${datasource}",
       "gridPos": {
         "x": 8,
-        "y": 5,
+        "y": 12,
         "w": 4,
         "h": 5
       },
@@ -257,7 +257,7 @@
       "datasource": "${datasource}",
       "gridPos": {
         "x": 12,
-        "y": 5,
+        "y": 12,
         "w": 4,
         "h": 5
       },
@@ -304,7 +304,7 @@
       "datasource": "${datasource}",
       "gridPos": {
         "x": 16,
-        "y": 5,
+        "y": 12,
         "w": 4,
         "h": 5
       },
@@ -350,7 +350,7 @@
       "datasource": "${datasource}",
       "gridPos": {
         "x": 20,
-        "y": 5,
+        "y": 12,
         "w": 4,
         "h": 5
       },
@@ -397,7 +397,7 @@
       "datasource": "${datasource}",
       "gridPos": {
         "x": 0,
-        "y": 10,
+        "y": 17,
         "w": 12,
         "h": 7
       },
@@ -426,7 +426,7 @@
       "datasource": "${datasource}",
       "gridPos": {
         "x": 12,
-        "y": 10,
+        "y": 17,
         "w": 12,
         "h": 7
       },
@@ -489,7 +489,7 @@
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 17,
+        "y": 24,
         "w": 24,
         "h": 1
       },
@@ -502,7 +502,7 @@
       "datasource": "${datasource}",
       "gridPos": {
         "x": 0,
-        "y": 18,
+        "y": 25,
         "w": 14,
         "h": 7
       },
@@ -561,7 +561,7 @@
       "datasource": "${datasource}",
       "gridPos": {
         "x": 14,
-        "y": 18,
+        "y": 25,
         "w": 5,
         "h": 7
       },
@@ -612,7 +612,7 @@
       "datasource": "${datasource}",
       "gridPos": {
         "x": 19,
-        "y": 18,
+        "y": 25,
         "w": 5,
         "h": 7
       },
@@ -654,7 +654,7 @@
       "datasource": "${datasource}",
       "gridPos": {
         "x": 0,
-        "y": 25,
+        "y": 32,
         "w": 5,
         "h": 5
       },
@@ -706,7 +706,7 @@
       "datasource": "${datasource}",
       "gridPos": {
         "x": 5,
-        "y": 25,
+        "y": 32,
         "w": 4,
         "h": 5
       },
@@ -755,9 +755,9 @@
       "type": "text",
       "gridPos": {
         "x": 9,
-        "y": 25,
+        "y": 32,
         "w": 15,
-        "h": 5
+        "h": 13
       },
       "options": {
         "mode": "markdown",
@@ -771,7 +771,7 @@
       "datasource": "${datasource}",
       "gridPos": {
         "x": 0,
-        "y": 30,
+        "y": 45,
         "w": 8,
         "h": 6
       },
@@ -807,7 +807,7 @@
       "datasource": "${datasource}",
       "gridPos": {
         "x": 8,
-        "y": 30,
+        "y": 45,
         "w": 10,
         "h": 6
       },
@@ -838,7 +838,7 @@
       "datasource": "${datasource}",
       "gridPos": {
         "x": 18,
-        "y": 30,
+        "y": 45,
         "w": 6,
         "h": 6
       },
@@ -877,7 +877,7 @@
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 36,
+        "y": 51,
         "w": 24,
         "h": 1
       },
@@ -889,7 +889,7 @@
       "title": "",
       "gridPos": {
         "x": 0,
-        "y": 37,
+        "y": 52,
         "w": 24,
         "h": 4
       },
@@ -905,7 +905,7 @@
       "datasource": "${datasource}",
       "gridPos": {
         "x": 0,
-        "y": 41,
+        "y": 56,
         "w": 8,
         "h": 9
       },
@@ -998,7 +998,7 @@
       "datasource": "${datasource}",
       "gridPos": {
         "x": 8,
-        "y": 41,
+        "y": 56,
         "w": 8,
         "h": 9
       },
@@ -1091,7 +1091,7 @@
       "datasource": "${datasource}",
       "gridPos": {
         "x": 16,
-        "y": 41,
+        "y": 56,
         "w": 8,
         "h": 9
       },
@@ -1184,7 +1184,7 @@
       "datasource": "${datasource}",
       "gridPos": {
         "x": 0,
-        "y": 50,
+        "y": 65,
         "w": 4,
         "h": 4
       },
@@ -1230,7 +1230,7 @@
       "datasource": "${datasource}",
       "gridPos": {
         "x": 4,
-        "y": 50,
+        "y": 65,
         "w": 4,
         "h": 4
       },
@@ -1280,7 +1280,7 @@
       "datasource": "${datasource}",
       "gridPos": {
         "x": 8,
-        "y": 50,
+        "y": 65,
         "w": 4,
         "h": 4
       },
@@ -1326,7 +1326,7 @@
       "datasource": "${datasource}",
       "gridPos": {
         "x": 12,
-        "y": 50,
+        "y": 65,
         "w": 4,
         "h": 4
       },
@@ -1376,7 +1376,7 @@
       "datasource": "${datasource}",
       "gridPos": {
         "x": 16,
-        "y": 50,
+        "y": 65,
         "w": 4,
         "h": 4
       },
@@ -1422,7 +1422,7 @@
       "datasource": "${datasource}",
       "gridPos": {
         "x": 20,
-        "y": 50,
+        "y": 65,
         "w": 4,
         "h": 4
       },
@@ -1472,7 +1472,7 @@
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 54,
+        "y": 0,
         "w": 24,
         "h": 1
       },
@@ -1485,7 +1485,7 @@
       "datasource": "${datasource}",
       "gridPos": {
         "x": 0,
-        "y": 55,
+        "y": 1,
         "w": 4,
         "h": 5
       },
@@ -1535,7 +1535,7 @@
       "datasource": "${datasource}",
       "gridPos": {
         "x": 4,
-        "y": 55,
+        "y": 1,
         "w": 12,
         "h": 5
       },
@@ -1570,7 +1570,7 @@
       "datasource": "${datasource}",
       "gridPos": {
         "x": 16,
-        "y": 55,
+        "y": 1,
         "w": 8,
         "h": 5
       },

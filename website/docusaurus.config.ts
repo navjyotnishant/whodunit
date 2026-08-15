@@ -29,6 +29,14 @@ const config: Config = {
   onBrokenLinks: 'throw',
 
   markdown: {
+    // Parse .md as MDX rather than CommonMark.
+    //
+    // future.v4 flips this default, and CommonMark has no admonition
+    // syntax — so every ::: block renders as literal colons instead of a
+    // callout, silently. The install page's warning about the binary
+    // needing to be named `dun` on PATH shipped that way, which is the
+    // one callout on the site that most needs to stand out.
+    format: 'mdx',
     hooks: {
       onBrokenMarkdownLinks: 'throw',
     },

@@ -1,5 +1,5 @@
 {
-  "title": "Whodunit \u2014 Adoption",
+  "title": "Whodunit — Adoption",
   "uid": "whodunit-adoption",
   "tags": [
     "whodunit"
@@ -57,13 +57,13 @@
       },
       "options": {
         "mode": "markdown",
-        "content": "**What this measures, and what it does not.** These figures come from agent sessions observed on developers' own machines, so they cover only repositories where `dun init` has been run and `dun sync` has been executed.\n\nThere is no accept/reject rate here. A suggestion a developer declined never reaches the journal, so we have no denominator for it \u2014 unlike a vendor's admin API, which sees both sides. What we have instead is the link to shipped code: which commits and which lines."
+        "content": "**What this measures, and what it does not.** These figures come from agent sessions observed on developers' own machines, so they cover only repositories where `dun init` has been run and `dun sync` has been executed.\n\nThere is no accept/reject rate here. A suggestion a developer declined never reaches the journal, so we have no denominator for it — unlike a vendor's admin API, which sees both sides. What we have instead is the link to shipped code: which commits and which lines."
       }
     },
     {
       "type": "stat",
       "title": "Active days",
-      "description": "Days on which any agent activity was observed. Not the same as a vendor's 'daily active users' \u2014 this counts days with recorded work, not seats logged in.",
+      "description": "Days on which any agent activity was observed. Not the same as a vendor's 'daily active users' — this counts days with recorded work, not seats logged in.",
       "datasource": {
         "type": "mysql",
         "uid": "${datasource}"
@@ -109,7 +109,7 @@
     {
       "type": "stat",
       "title": "Sessions",
-      "description": "Agent sessions recorded in the selected range.\n\nA session is one conversation, counted regardless of whether it produced an edit \u2014 so this measures how often an agent was opened, not how much it did. The engagement panels below separate those.",
+      "description": "Agent sessions recorded in the selected range.\n\nA session is one conversation, counted regardless of whether it produced an edit — so this measures how often an agent was opened, not how much it did. The engagement panels below separate those.",
       "datasource": {
         "type": "mysql",
         "uid": "${datasource}"
@@ -247,7 +247,7 @@
     {
       "type": "stat",
       "title": "Lines written by agents",
-      "description": "Lines an agent produced across all observed edits, including work that was later rewritten or never committed. This is effort, not output \u2014 compare it with the committed figures on the attribution dashboard.",
+      "description": "Lines an agent produced across all observed edits, including work that was later rewritten or never committed. This is effort, not output — compare it with the committed figures on the attribution dashboard.",
       "datasource": {
         "type": "mysql",
         "uid": "${datasource}"
@@ -293,7 +293,7 @@
     {
       "type": "stat",
       "title": "Data freshness",
-      "description": "Time since the last recorded agent event. The hooks write on every commit, so this tracks whether anyone has been working \u2014 green under 8 hours, amber past a working day, red past three. A long gap is a question, not a fault: a quiet weekend and a broken collector look identical here, which is why `dun verify` exists.",
+      "description": "Time since the last recorded agent event. The hooks write on every commit, so this tracks whether anyone has been working — green under 8 hours, amber past a working day, red past three. A long gap is a question, not a fault: a quiet weekend and a broken collector look identical here, which is why `dun verify` exists.",
       "datasource": {
         "type": "mysql",
         "uid": "${datasource}"
@@ -359,13 +359,13 @@
       },
       "options": {
         "mode": "markdown",
-        "content": "## Did the developer keep it?\n\nAn edit an agent proposed is not an edit that shipped. These panels count what the developer **accepted**, and every rate is shown next to the count it came from \u2014 a 100% acceptance rate over 3 calls is not the same result as one over 300. `unknown` means the transcript never recorded a result (in-flight or truncated); it is never silently counted as an acceptance."
+        "content": "## Did the developer keep it?\n\nAn edit an agent proposed is not an edit that shipped. These panels count what the developer **accepted**, and every rate is shown next to the count it came from — a 100% acceptance rate over 3 calls is not the same result as one over 300. `unknown` means the transcript never recorded a result (in-flight or truncated); it is never silently counted as an acceptance."
       }
     },
     {
       "type": "stat",
       "title": "Accepted edits",
-      "description": "Edit/Write calls the developer kept. This is the numerator \u2014 read it with the denominator beside it.",
+      "description": "Edit/Write calls the developer kept. This is the numerator — read it with the denominator beside it.",
       "datasource": {
         "type": "mysql",
         "uid": "${datasource}"
@@ -457,7 +457,7 @@
     {
       "type": "stat",
       "title": "Acceptance rate",
-      "description": "Accepted / decided. Meaningless without the denominator to its left \u2014 check that first.",
+      "description": "Accepted / decided. Meaningless without the denominator to its left — check that first.",
       "datasource": {
         "type": "mysql",
         "uid": "${datasource}"
@@ -578,7 +578,7 @@
     {
       "type": "table",
       "title": "Session engagement",
-      "description": "How a session was actually worked, from counts only \u2014 no message text is ever recorded. 'Turns per prompt' is agent messages per human message: a high number means long autonomous runs, a low one means tight back-and-forth (NAV-55).",
+      "description": "How a session was actually worked, from counts only — no message text is ever recorded. 'Turns per prompt' is agent messages per human message: a high number means long autonomous runs, a low one means tight back-and-forth (NAV-55).",
       "datasource": {
         "type": "mysql",
         "uid": "${datasource}"
@@ -607,7 +607,7 @@
     {
       "type": "timeseries",
       "title": "Agent activity over time",
-      "description": "Observed agent edits per day. Compare shape with the committed-work panels \u2014 a rise here without a matching rise there means iteration, not delivery.",
+      "description": "Observed agent edits per day. Compare shape with the committed-work panels — a rise here without a matching rise there means iteration, not delivery.",
       "datasource": {
         "type": "mysql",
         "uid": "${datasource}"
@@ -616,7 +616,7 @@
         "h": 9,
         "w": 12,
         "x": 0,
-        "y": 28
+        "y": 26
       },
       "fieldConfig": {
         "defaults": {
@@ -654,7 +654,7 @@
         "h": 9,
         "w": 12,
         "x": 12,
-        "y": 28
+        "y": 26
       },
       "fieldConfig": {
         "defaults": {
@@ -692,7 +692,7 @@
         "h": 9,
         "w": 8,
         "x": 0,
-        "y": 37
+        "y": 35
       },
       "options": {
         "showHeader": true
@@ -717,7 +717,7 @@
         "h": 9,
         "w": 8,
         "x": 8,
-        "y": 37
+        "y": 35
       },
       "options": {
         "showHeader": true
@@ -733,7 +733,7 @@
     {
       "type": "table",
       "title": "By contributor",
-      "description": "Per-person activity. Identity comes from the git committer email already present in every commit \u2014 this makes existing information easier to query, it does not observe anything new.",
+      "description": "Per-person activity. Identity comes from the git committer email already present in every commit — this makes existing information easier to query, it does not observe anything new.",
       "datasource": {
         "type": "mysql",
         "uid": "${datasource}"
@@ -742,7 +742,7 @@
         "h": 9,
         "w": 8,
         "x": 16,
-        "y": 37
+        "y": 35
       },
       "options": {
         "showHeader": true
@@ -758,7 +758,7 @@
     {
       "type": "table",
       "title": "Committed work by contributor",
-      "description": "What reached a commit, per person \u2014 the question a vendor's usage API cannot answer. Coverage is shown alongside, because a penetration figure without it says how much of what we could see was assisted, not how much of the work was.",
+      "description": "What reached a commit, per person — the question a vendor's usage API cannot answer. Coverage is shown alongside, because a penetration figure without it says how much of what we could see was assisted, not how much of the work was.",
       "datasource": {
         "type": "mysql",
         "uid": "${datasource}"
@@ -767,7 +767,7 @@
         "h": 9,
         "w": 24,
         "x": 0,
-        "y": 46
+        "y": 44
       },
       "options": {
         "showHeader": true
@@ -786,7 +786,7 @@
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 48,
+        "y": 53,
         "w": 24,
         "h": 1
       },
@@ -798,7 +798,7 @@
       "datasource": "${datasource}",
       "gridPos": {
         "x": 0,
-        "y": 49,
+        "y": 54,
         "w": 4,
         "h": 5
       },
@@ -843,7 +843,7 @@
       "datasource": "${datasource}",
       "gridPos": {
         "x": 4,
-        "y": 49,
+        "y": 54,
         "w": 4,
         "h": 5
       },
@@ -888,7 +888,7 @@
       "datasource": "${datasource}",
       "gridPos": {
         "x": 8,
-        "y": 49,
+        "y": 54,
         "w": 4,
         "h": 5
       },
@@ -933,7 +933,7 @@
       "datasource": "${datasource}",
       "gridPos": {
         "x": 12,
-        "y": 49,
+        "y": 54,
         "w": 4,
         "h": 5
       },
@@ -979,7 +979,7 @@
       "datasource": "${datasource}",
       "gridPos": {
         "x": 16,
-        "y": 49,
+        "y": 54,
         "w": 4,
         "h": 5
       },
@@ -1024,7 +1024,7 @@
       "datasource": "${datasource}",
       "gridPos": {
         "x": 20,
-        "y": 49,
+        "y": 54,
         "w": 4,
         "h": 5
       },
@@ -1069,7 +1069,7 @@
       "datasource": "${datasource}",
       "gridPos": {
         "x": 0,
-        "y": 54,
+        "y": 59,
         "w": 10,
         "h": 7
       },
@@ -1077,7 +1077,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT CASE c.method\n         WHEN 'intersected' THEN 'intersected \u2014 the agent''s lines survived'\n         WHEN 'observed'    THEN 'observed \u2014 edited before committing'\n         WHEN 'declared'    THEN 'declared \u2014 stated, not measured'\n         WHEN 'inferred'    THEN 'inferred \u2014 from surrounding evidence'\n         ELSE 'undetermined \u2014 no evidence either way'\n       END AS `method`, COUNT(*) AS `commits`\nFROM whodunit_commits c JOIN whodunit_repos r ON r.repo_id=c.repo_id\nWHERE 1=1 AND ('${contributor:raw}'='__all__' OR r.contributor='${contributor:raw}') AND c.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nGROUP BY c.method ORDER BY `commits` DESC"
+          "rawSql": "SELECT CASE c.method\n         WHEN 'intersected' THEN 'intersected — the agent''s lines survived'\n         WHEN 'observed'    THEN 'observed — edited before committing'\n         WHEN 'declared'    THEN 'declared — stated, not measured'\n         WHEN 'inferred'    THEN 'inferred — from surrounding evidence'\n         ELSE 'undetermined — no evidence either way'\n       END AS `method`, COUNT(*) AS `commits`\nFROM whodunit_commits c JOIN whodunit_repos r ON r.repo_id=c.repo_id\nWHERE 1=1 AND ('${contributor:raw}'='__all__' OR r.contributor='${contributor:raw}') AND c.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nGROUP BY c.method ORDER BY `commits` DESC"
         }
       ],
       "options": {
@@ -1096,20 +1096,20 @@
           "values": true
         }
       },
-      "description": "'undetermined' means whodunit could not tell \u2014 never that no AI was used."
+      "description": "'undetermined' means whodunit could not tell — never that no AI was used."
     },
     {
       "type": "text",
       "title": "",
       "gridPos": {
         "x": 10,
-        "y": 54,
+        "y": 59,
         "w": 14,
-        "h": 7
+        "h": 11
       },
       "options": {
         "mode": "markdown",
-        "content": "### What this dashboard cannot show *yet*\n\n**Seats and pending invites.** Vendor billing knows who holds a licence; whodunit only knows machines it is installed on. It cannot report a seat nobody used, so adoption here is measured against people who committed \u2014 a different, smaller denominator. This one is structural.\n\n**Which MCP server, and which skill.** The counts below are totals. The agent transcripts do name them \u2014 a call arrives as `mcp__<server>__<method>` \u2014 but the collector keeps only file-editing tools today, so the names never reach the journal. Collecting them is a change to the adapters, not to this dashboard.\n\n**Acceptance is two different measures.** The rate above is whether an edit applied without erroring. Whether a human *kept* the work is the evidence split to the left: `intersected` means the agent's exact lines survived into the commit; `observed` means the file was edited but the text had changed before committing."
+        "content": "### What this dashboard cannot show *yet*\n\n**Seats and pending invites.** Vendor billing knows who holds a licence; whodunit only knows machines it is installed on. It cannot report a seat nobody used, so adoption here is measured against people who committed — a different, smaller denominator. This one is structural.\n\n**Which MCP server, and which skill.** The counts below are totals. The agent transcripts do name them — a call arrives as `mcp__<server>__<method>` — but the collector keeps only file-editing tools today, so the names never reach the journal. Collecting them is a change to the adapters, not to this dashboard.\n\n**Acceptance is two different measures.** The rate above is whether an edit applied without erroring. Whether a human *kept* the work is the evidence split to the left: `intersected` means the agent's exact lines survived into the commit; `observed` means the file was edited but the text had changed before committing."
       }
     }
   ]
