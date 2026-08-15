@@ -53,6 +53,28 @@ type Entry struct {
 	// the tool erroring, which is a different thing entirely.
 	Outcome string `json:"outcome,omitempty"`
 
+	// Model, Branch and MCPServer are observations about the edit rather
+	// than part of its identity — they are deliberately outside the UNIQUE
+	// constraint, so re-ingesting an edit after a branch rename updates the
+	// row instead of inserting a second one (NAV-88).
+	//
+	// Empty means the agent does not report it, and that is agent-specific
+	// rather than incidental: agy records no branch at all, verified absent
+	// rather than merely unread.
+	Model     string `json:"model,omitempty"`
+	Branch    string `json:"branch,omitempty"`
+	MCPServer string `json:"mcp_server,omitempty"`
+
+	// UserModified is whether a human edited the agent's output before it
+	// was committed — the one signal that separates "the agent wrote this"
+	// from "the agent wrote this and it was kept".
+	//
+	// A pointer because three states matter and a bool carries two: true,
+	// false, and "this agent cannot tell us". Only Claude Code reports it;
+	// Codex and agy have no equivalent, so nil there is permanent rather
+	// than pending (NAV-21).
+	UserModified *bool `json:"user_modified,omitempty"`
+
 	// LineHashes are the hashes of individual lines this event produced
 	// (NAV-52). Not serialized in `dun journal show`: there can be hundreds
 	// per event, and they are lookup keys rather than something a human
@@ -78,6 +100,19 @@ CREATE TABLE IF NOT EXISTS entries (
 	hunk_hash     TEXT NOT NULL DEFAULT '',
 	spec_version  TEXT NOT NULL,
 	outcome       TEXT NOT NULL DEFAULT '',
+
+	-- NULLable, unlike everything above (NAV-88).
+	--
+	-- Those default to '' or 0 because every agent supplies them. These
+	-- cannot be: agy records no branch at all, and only Claude Code
+	-- reports whether a human edited the agent's output. A default asserts
+	-- "measured, and it was empty" about something never measurable, and
+	-- nothing downstream can tell the two apart afterwards (NAV-21).
+	model         TEXT,
+	branch        TEXT,
+	mcp_server    TEXT,
+	user_modified INTEGER,
+
 	UNIQUE(repo_id, session, ts, tool, file, hunk_hash)
 );
 CREATE INDEX IF NOT EXISTS idx_entries_repo_ts ON entries(repo_id, ts);
@@ -123,6 +158,23 @@ CREATE TABLE IF NOT EXISTS sessions (
 	tool_calls     INTEGER NOT NULL DEFAULT 0,
 	distinct_tools INTEGER NOT NULL DEFAULT 0,
 	mcp_calls      INTEGER NOT NULL DEFAULT 0,
+
+	-- Measured cost, timing and autonomy (NAV-88), all NULLable. agy
+	-- supplies none of them, and only Codex separates reasoning tokens or
+	-- records timing — so two agents out of three leave those NULL
+	-- permanently. Zero would read as "this agent is free".
+	input_tokens           INTEGER,
+	output_tokens          INTEGER,
+	cache_read_tokens      INTEGER,
+	cache_write_tokens     INTEGER,
+	reasoning_tokens       INTEGER,
+	duration_ms            INTEGER,
+	time_to_first_token_ms INTEGER,
+	effort                 TEXT,
+	permission_mode        TEXT,
+	model                  TEXT,
+	compactions            INTEGER,
+
 	PRIMARY KEY (repo_id, session)
 );
 
@@ -142,6 +194,59 @@ CREATE TABLE IF NOT EXISTS repo_metadata (
 // surface as a failing read immediately afterwards.
 var migrations = []string{
 	`ALTER TABLE entries ADD COLUMN outcome TEXT NOT NULL DEFAULT ''`,
+
+	// NAV-88. Deliberately NULLable, unlike every column above.
+	//
+	// The existing columns default to '' or 0 because every agent can
+	// supply them. These cannot: agy records no branch at all, and neither
+	// Codex nor agy reports whether a human edited the agent's output. A
+	// NOT NULL DEFAULT '' would write "measured, and it was empty" for a
+	// field that was never measurable — which is precisely the confusion
+	// NAV-21 exists to prevent, and it is unrecoverable once written,
+	// because nothing downstream can tell the two apart afterwards.
+	//
+	// So: NULL means "this agent cannot tell us". A value means we looked.
+	`ALTER TABLE entries ADD COLUMN model TEXT`,
+	`ALTER TABLE entries ADD COLUMN branch TEXT`,
+	`ALTER TABLE entries ADD COLUMN mcp_server TEXT`,
+
+	// Whether a human edited the agent's output before it was committed.
+	// Claude Code alone reports it (toolUseResult.userModified), so for the
+	// other two this stays NULL rather than false — "nobody edited it" and
+	// "we cannot see edits" are different claims, and the second must not
+	// be reported as the first.
+	`ALTER TABLE entries ADD COLUMN user_modified INTEGER`,
+
+	// Per-session measurements (NAV-88), NULLable for the same reason.
+	//
+	// Token counts: Claude Code carries usage on 100% of assistant turns,
+	// Codex carries it in event_msg/token_count. agy has none — verified
+	// absent rather than merely unread, so every one of these stays NULL
+	// there. A 0 would report an agent that costs nothing.
+	`ALTER TABLE sessions ADD COLUMN input_tokens INTEGER`,
+	`ALTER TABLE sessions ADD COLUMN output_tokens INTEGER`,
+	`ALTER TABLE sessions ADD COLUMN cache_read_tokens INTEGER`,
+	`ALTER TABLE sessions ADD COLUMN cache_write_tokens INTEGER`,
+
+	// Codex alone separates reasoning tokens, and Codex alone records
+	// timing. Two agents out of three will always leave these NULL, which
+	// is a fact about the agents rather than a gap to be filled in later.
+	`ALTER TABLE sessions ADD COLUMN reasoning_tokens INTEGER`,
+	`ALTER TABLE sessions ADD COLUMN duration_ms INTEGER`,
+	`ALTER TABLE sessions ADD COLUMN time_to_first_token_ms INTEGER`,
+
+	// How much autonomy the agent was given, and how hard it was asked to
+	// think. Enums rather than counts, so they stay text.
+	`ALTER TABLE sessions ADD COLUMN effort TEXT`,
+	`ALTER TABLE sessions ADD COLUMN permission_mode TEXT`,
+
+	// The model that produced the session. On entries as well because a
+	// session can change model mid-way, and cost is attributed per turn.
+	`ALTER TABLE sessions ADD COLUMN model TEXT`,
+
+	// NAV-106. How often the session's context was compacted — nil where
+	// the agent does not report it, which is agy.
+	`ALTER TABLE sessions ADD COLUMN compactions INTEGER`,
 }
 
 // DBPath returns the journal database location inside the given data
@@ -214,14 +319,22 @@ func (w *Writer) Append(e Entry) error {
 		// and a call whose result arrives in a later ingest must be able to
 		// change from unknown to accepted. Everything else about the row is
 		// immutable, so re-ingest stays idempotent.
-		`INSERT INTO entries (repo_id, ts, agent, agent_version, session, event, tool, file, lines_added, lines_removed, hunk_hash, spec_version, outcome)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		// The measured columns are COALESCEd for the same reason the
+		// session ones are: a re-ingest over a window that cannot see them
+		// must not erase what an earlier pass established.
+		`INSERT INTO entries (repo_id, ts, agent, agent_version, session, event, tool, file, lines_added, lines_removed, hunk_hash, spec_version, outcome, model, branch, mcp_server, user_modified)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		 ON CONFLICT(repo_id, session, ts, tool, file, hunk_hash) DO UPDATE SET
 		   outcome=excluded.outcome,
 		   lines_added=excluded.lines_added,
-		   lines_removed=excluded.lines_removed`,
+		   lines_removed=excluded.lines_removed,
+		   model=COALESCE(excluded.model, entries.model),
+		   branch=COALESCE(excluded.branch, entries.branch),
+		   mcp_server=COALESCE(excluded.mcp_server, entries.mcp_server),
+		   user_modified=COALESCE(excluded.user_modified, entries.user_modified)`,
 		w.repoID, e.Timestamp.UnixNano(), e.Agent, e.AgentVersion, e.Session, e.Event,
 		e.Tool, e.File, e.LinesAdded, e.LinesRemoved, e.HunkHash, e.SpecVersion, e.Outcome,
+		nullString(e.Model), nullString(e.Branch), nullString(e.MCPServer), e.UserModified,
 	)
 	if err != nil {
 		return fmt.Errorf("journal: insert entry: %w", err)
@@ -241,6 +354,49 @@ type Session struct {
 	ToolCalls     int
 	DistinctTools int
 	MCPCalls      int
+
+	// Measured cost, timing and autonomy (NAV-88). Pointers, not values,
+	// and that is the point: a nil is "this agent does not report it",
+	// which is a different claim from zero.
+	//
+	// An int would make them indistinguishable. agy reports none of these
+	// — verified genuinely absent, not merely unread — and only Codex
+	// separates reasoning tokens or records timing at all, so a plain int
+	// would write 0 for two agents out of three and a cost panel would
+	// report that they are free (NAV-21).
+	//
+	// The schema columns are NULLable for the same reason; these are the
+	// in-memory half of that guarantee.
+	InputTokens        *int64
+	OutputTokens       *int64
+	CacheReadTokens    *int64
+	CacheWriteTokens   *int64
+	ReasoningTokens    *int64
+	DurationMS         *int64
+	TimeToFirstTokenMS *int64
+
+	// Enums rather than counts: how hard the model was asked to think, and
+	// how much autonomy it was given. Empty means not reported.
+	Effort         string
+	PermissionMode string
+
+	// Compactions is how many times the session's context was compacted
+	// (NAV-106).
+	//
+	// The signal an efficiency panel needs most: a long session costs more
+	// even when cached, because the whole context is re-sent every turn,
+	// and compacting is the thing a team can actually do about it.
+	// Measured on this machine, 92% of turns ran above 150k context while
+	// only 4 of 60 sessions ever compacted.
+	//
+	// nil for agy, which has no equivalent — and zero compactions is a
+	// different claim from "this agent cannot tell us" (NAV-21).
+	Compactions *int64
+
+	// The model that produced the session. A session can change model
+	// part-way through; this records the last one seen, which is what the
+	// turn that finished the work used.
+	Model string
 }
 
 // UpsertSession records or updates one session's activity. A session grows
@@ -251,21 +407,72 @@ func (w *Writer) UpsertSession(s Session) error {
 		return nil
 	}
 	_, err := w.db.Exec(
+		// COALESCE on every measured column, so a re-ingest cannot erase
+		// what an earlier one established.
+		//
+		// The failure without it: `dun ingest --since` reads a narrow
+		// window, and a session whose token-bearing turns fall outside it
+		// parses with nil tokens. A plain excluded.* would overwrite real
+		// measurements with NULL, and the loss is silent and permanent —
+		// the transcript may have been rotated away by the time anyone
+		// notices the cost column emptied out.
+		//
+		// COALESCE(excluded.x, sessions.x) takes the new value when there
+		// is one and keeps the old when there is not. It cannot un-set a
+		// column, which is the right trade: these are measurements of
+		// something that happened, and a later narrower read is a smaller
+		// view of the same past, not a correction of it.
+		//
+		// The engagement counts above are NOT coalesced. They are computed
+		// for whatever window was read and are meant to be replaced.
 		`INSERT INTO sessions (repo_id, session, agent, agent_version, first_seen, last_seen,
-		   user_messages, agent_messages, tool_calls, distinct_tools, mcp_calls)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		   user_messages, agent_messages, tool_calls, distinct_tools, mcp_calls,
+		   input_tokens, output_tokens, cache_read_tokens, cache_write_tokens,
+		   reasoning_tokens, duration_ms, time_to_first_token_ms,
+		   effort, permission_mode, model, compactions)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		 ON CONFLICT(repo_id, session) DO UPDATE SET
 		   agent_version=excluded.agent_version, last_seen=excluded.last_seen,
 		   user_messages=excluded.user_messages, agent_messages=excluded.agent_messages,
 		   tool_calls=excluded.tool_calls, distinct_tools=excluded.distinct_tools,
-		   mcp_calls=excluded.mcp_calls`,
+		   mcp_calls=excluded.mcp_calls,
+		   input_tokens=COALESCE(excluded.input_tokens, sessions.input_tokens),
+		   output_tokens=COALESCE(excluded.output_tokens, sessions.output_tokens),
+		   cache_read_tokens=COALESCE(excluded.cache_read_tokens, sessions.cache_read_tokens),
+		   cache_write_tokens=COALESCE(excluded.cache_write_tokens, sessions.cache_write_tokens),
+		   reasoning_tokens=COALESCE(excluded.reasoning_tokens, sessions.reasoning_tokens),
+		   duration_ms=COALESCE(excluded.duration_ms, sessions.duration_ms),
+		   time_to_first_token_ms=COALESCE(excluded.time_to_first_token_ms, sessions.time_to_first_token_ms),
+		   effort=COALESCE(excluded.effort, sessions.effort),
+		   permission_mode=COALESCE(excluded.permission_mode, sessions.permission_mode),
+		   model=COALESCE(excluded.model, sessions.model),
+		   compactions=COALESCE(excluded.compactions, sessions.compactions)`,
 		w.repoID, s.Session, s.Agent, s.AgentVersion,
 		s.FirstSeen.UnixNano(), s.LastSeen.UnixNano(),
-		s.UserMessages, s.AgentMessages, s.ToolCalls, s.DistinctTools, s.MCPCalls)
+		s.UserMessages, s.AgentMessages, s.ToolCalls, s.DistinctTools, s.MCPCalls,
+		s.InputTokens, s.OutputTokens, s.CacheReadTokens, s.CacheWriteTokens,
+		s.ReasoningTokens, s.DurationMS, s.TimeToFirstTokenMS,
+		nullString(s.Effort), nullString(s.PermissionMode), nullString(s.Model),
+		s.Compactions)
 	if err != nil {
 		return fmt.Errorf("journal: upsert session: %w", err)
 	}
 	return nil
+}
+
+// nullString writes an empty string as SQL NULL.
+//
+// The pointer fields carry their own nil, but Effort, PermissionMode and
+// Model are plain strings — an agent that does not report them leaves ""
+// rather than nil. Written as-is, "" would land in the column as a value,
+// and COALESCE would then treat it as a real measurement and refuse to let
+// a later ingest fill it in. It also reads downstream as "measured, and it
+// was empty" (NAV-21).
+func nullString(s string) any {
+	if s == "" {
+		return nil
+	}
+	return s
 }
 
 // ReadSessions returns a repository's session activity.
@@ -281,7 +488,10 @@ func ReadSessions(dataDir, repoID string) ([]Session, error) {
 
 	rows, err := db.Query(
 		`SELECT session, agent, agent_version, first_seen, last_seen,
-		        user_messages, agent_messages, tool_calls, distinct_tools, mcp_calls
+		        user_messages, agent_messages, tool_calls, distinct_tools, mcp_calls,
+		        input_tokens, output_tokens, cache_read_tokens, cache_write_tokens,
+		        reasoning_tokens, duration_ms, time_to_first_token_ms,
+		        effort, permission_mode, model, compactions
 		 FROM sessions WHERE repo_id = ? ORDER BY first_seen`, repoID)
 	if err != nil {
 		return nil, fmt.Errorf("journal: query sessions: %w", err)
@@ -292,15 +502,49 @@ func ReadSessions(dataDir, repoID string) ([]Session, error) {
 	for rows.Next() {
 		var s Session
 		var first, last int64
+
+		// Scanned through Null* types and only then converted, so a NULL
+		// column stays nil on the way out. Scanning straight into *int64
+		// would give a non-nil pointer to zero, and the distinction
+		// between "reported nothing" and "reported zero" would be lost at
+		// the last step after being preserved everywhere else (NAV-21).
+		var in, outTok, cacheR, cacheW, reasoning, dur, ttft, compactions sql.NullInt64
+		var effort, permission, model sql.NullString
+
 		if err := rows.Scan(&s.Session, &s.Agent, &s.AgentVersion, &first, &last,
-			&s.UserMessages, &s.AgentMessages, &s.ToolCalls, &s.DistinctTools, &s.MCPCalls); err != nil {
+			&s.UserMessages, &s.AgentMessages, &s.ToolCalls, &s.DistinctTools, &s.MCPCalls,
+			&in, &outTok, &cacheR, &cacheW, &reasoning, &dur, &ttft,
+			&effort, &permission, &model, &compactions); err != nil {
 			return nil, fmt.Errorf("journal: scan session: %w", err)
 		}
 		s.FirstSeen = time.Unix(0, first).UTC()
 		s.LastSeen = time.Unix(0, last).UTC()
+
+		s.InputTokens = nullInt(in)
+		s.OutputTokens = nullInt(outTok)
+		s.CacheReadTokens = nullInt(cacheR)
+		s.CacheWriteTokens = nullInt(cacheW)
+		s.ReasoningTokens = nullInt(reasoning)
+		s.DurationMS = nullInt(dur)
+		s.TimeToFirstTokenMS = nullInt(ttft)
+		s.Compactions = nullInt(compactions)
+		s.Effort = effort.String
+		s.PermissionMode = permission.String
+		s.Model = model.String
+
 		out = append(out, s)
 	}
 	return out, rows.Err()
+}
+
+// nullInt converts a scanned NULL into a nil pointer rather than a pointer
+// to zero.
+func nullInt(v sql.NullInt64) *int64 {
+	if !v.Valid {
+		return nil
+	}
+	n := v.Int64
+	return &n
 }
 
 // Metadata describes a repository's journal rather than any event within
@@ -466,7 +710,7 @@ func ReadRange(dataDir, repoID string, since, until time.Time) ([]Entry, error) 
 	}
 	defer db.Close()
 
-	query := `SELECT ts, agent, agent_version, session, event, tool, file, lines_added, lines_removed, hunk_hash, spec_version, outcome
+	query := `SELECT ts, agent, agent_version, session, event, tool, file, lines_added, lines_removed, hunk_hash, spec_version, outcome, model, branch, mcp_server, user_modified
 	          FROM entries WHERE repo_id = ? AND ts >= ?`
 	args := []any{repoID, since.UnixNano()}
 	if !until.IsZero() {
@@ -485,12 +729,23 @@ func ReadRange(dataDir, repoID string, since, until time.Time) ([]Entry, error) 
 	for rows.Next() {
 		var e Entry
 		var ts int64
+
+		// Through Null* types so a NULL column comes back empty/nil rather
+		// than as a zero value indistinguishable from a measurement.
+		var model, branch, mcpServer sql.NullString
+		var userModified sql.NullBool
+
 		if err := rows.Scan(&ts, &e.Agent, &e.AgentVersion, &e.Session, &e.Event,
 			&e.Tool, &e.File, &e.LinesAdded, &e.LinesRemoved, &e.HunkHash, &e.SpecVersion,
-			&e.Outcome); err != nil {
+			&e.Outcome, &model, &branch, &mcpServer, &userModified); err != nil {
 			return nil, fmt.Errorf("journal: scan row: %w", err)
 		}
 		e.Timestamp = time.Unix(0, ts).UTC()
+		e.Model, e.Branch, e.MCPServer = model.String, branch.String, mcpServer.String
+		if userModified.Valid {
+			v := userModified.Bool
+			e.UserModified = &v
+		}
 		entries = append(entries, e)
 	}
 	if err := rows.Err(); err != nil {

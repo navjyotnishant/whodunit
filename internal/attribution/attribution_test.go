@@ -1,6 +1,7 @@
 package attribution
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -235,5 +236,67 @@ func TestDetermineMatchesAcrossSeparatorSpellings(t *testing.T) {
 	}
 	if got.Agent != "claude-code" {
 		t.Errorf("agent = %q, want claude-code", got.Agent)
+	}
+}
+
+// The model comes from the LAST relevant entry, not the first (NAV-117).
+//
+// A commit can contain edits from more than one model — a session that
+// escalated part-way through, or two sessions touching the same files.
+// First-seen would describe work that may since have been rewritten; the
+// turn that finished the work is the one worth attributing, which is also
+// how journal.Session resolves it.
+func TestModelComesFromTheLastEntry(t *testing.T) {
+	base := time.Now().UTC().Add(-time.Hour)
+	entries := []journal.Entry{
+		{Event: "tool_use", Timestamp: base, File: "/repo/a.go",
+			Agent: "claude-code", Model: "claude-haiku-4-5"},
+		{Event: "tool_use", Timestamp: base.Add(time.Minute), File: "/repo/a.go",
+			Agent: "claude-code", Model: "claude-opus-5"},
+	}
+
+	tr := Determine(entries, []string{"/repo/a.go"}, nil, StagedEvidence{}, time.Now())
+
+	if tr.Model != "claude-opus-5" {
+		t.Errorf("Model = %q, want claude-opus-5 — the escalated-to model is "+
+			"what finished the work", tr.Model)
+	}
+}
+
+// An entry with no model does not blank one an earlier entry recorded.
+// The scan walks backwards to the most recent entry that actually has
+// one, rather than taking the last entry unconditionally.
+func TestALaterEntryWithoutAModelDoesNotEraseIt(t *testing.T) {
+	base := time.Now().UTC().Add(-time.Hour)
+	entries := []journal.Entry{
+		{Event: "tool_use", Timestamp: base, File: "/repo/a.go",
+			Agent: "claude-code", Model: "claude-opus-5"},
+		{Event: "tool_use", Timestamp: base.Add(time.Minute), File: "/repo/a.go",
+			Agent: "claude-code"}, // agy-shaped: no model on this entry
+	}
+
+	tr := Determine(entries, []string{"/repo/a.go"}, nil, StagedEvidence{}, time.Now())
+
+	if tr.Model != "claude-opus-5" {
+		t.Errorf("Model = %q; a later entry with no model erased one that was "+
+			"recorded", tr.Model)
+	}
+}
+
+// No model anywhere leaves the field empty, so the key is omitted from
+// the trailer rather than written as unknown (NAV-21).
+func TestNoModelLeavesTheFieldEmpty(t *testing.T) {
+	entries := []journal.Entry{
+		{Event: "tool_use", Timestamp: time.Now().UTC().Add(-time.Hour),
+			File: "/repo/a.go", Agent: "agy"},
+	}
+
+	tr := Determine(entries, []string{"/repo/a.go"}, nil, StagedEvidence{}, time.Now())
+
+	if tr.Model != "" {
+		t.Errorf("Model = %q for entries that recorded none", tr.Model)
+	}
+	if strings.Contains(tr.Format(), "model") {
+		t.Errorf("trailer mentions a model it does not have: %s", tr.Format())
 	}
 }

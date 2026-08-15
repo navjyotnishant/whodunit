@@ -559,7 +559,8 @@
           "fields": "",
           "values": false
         }
-      }
+      },
+      "description": "Agent sessions active in the selected range, for the selected agents.\n\nCounted by last activity, so a session that started earlier and continued into the range is included. This is the denominator for the rhythm panels below."
     },
     {
       "id": 9,
@@ -606,7 +607,7 @@
           "values": false
         }
       },
-      "description": "How much work happens per session, on average."
+      "description": "Average tool calls per session \u2014 how much work happens in a typical session.\n\nAn average over a wide spread: a session ending after two calls and one running for hours both count once. Read it beside the session count rather than alone."
     },
     {
       "id": 10,
@@ -799,7 +800,8 @@
           "fields": "",
           "values": false
         }
-      }
+      },
+      "description": "How many different tools the agents reached for.\n\nA breadth signal rather than a volume one: an agent using twenty tools is working differently from one hammering a single edit tool, and the tool-call count alone cannot tell those apart."
     },
     {
       "id": 14,

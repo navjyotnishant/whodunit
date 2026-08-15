@@ -25,7 +25,7 @@
         "name": "contributor",
         "type": "query",
         "datasource": "${DS_WHODUNIT}",
-        "query": "SELECT DISTINCT contributor FROM whodunit_repos WHERE contributor <> '' ORDER BY contributor",
+        "query": "SELECT DISTINCT COALESCE(NULLIF(contributor, ''), '(unattributed)') AS __text, COALESCE(NULLIF(contributor, ''), '') AS __value FROM whodunit_repos ORDER BY 1",
         "includeAll": true,
         "multi": false,
         "current": {},
@@ -89,14 +89,14 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT COUNT(DISTINCT DATE(FROM_UNIXTIME(e.observed_at / 1000000000))) AS active_days FROM whodunit_events e JOIN whodunit_repos r ON r.repo_id = e.repo_id WHERE ('$contributor' = '__all__' OR r.contributor = '$contributor') AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000"
+          "rawSql": "SELECT COUNT(DISTINCT DATE(FROM_UNIXTIME(e.observed_at / 1000000000))) AS active_days FROM whodunit_events e JOIN whodunit_repos r ON r.repo_id = e.repo_id WHERE ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}') AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000"
         }
       ]
     },
     {
       "type": "stat",
       "title": "Sessions",
-      "description": "Distinct agent sessions observed.",
+      "description": "Agent sessions recorded in the selected range.\n\nA session is one conversation, counted regardless of whether it produced an edit — so this measures how often an agent was opened, not how much it did. The engagement panels below separate those.",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
         "h": 5,
@@ -132,7 +132,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT COUNT(DISTINCT e.session) AS sessions FROM whodunit_events e JOIN whodunit_repos r ON r.repo_id = e.repo_id WHERE e.session <> '' AND ('$contributor' = '__all__' OR r.contributor = '$contributor') AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000"
+          "rawSql": "SELECT COUNT(DISTINCT e.session) AS sessions FROM whodunit_events e JOIN whodunit_repos r ON r.repo_id = e.repo_id WHERE e.session <> '' AND ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}') AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000"
         }
       ]
     },
@@ -175,14 +175,14 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT COUNT(DISTINCT contributor) AS contributors FROM whodunit_repos WHERE contributor <> '' AND ('$contributor' = '__all__' OR contributor = '$contributor')"
+          "rawSql": "SELECT COUNT(DISTINCT contributor) AS contributors FROM whodunit_repos WHERE contributor <> '' AND ('${contributor:raw}' = '__all__' OR contributor = '${contributor:raw}')"
         }
       ]
     },
     {
       "type": "stat",
       "title": "Repositories",
-      "description": "Repositories instrumented and synced.",
+      "description": "Instrumented repositories that recorded activity in range.\n\nOnly repositories where `dun init` has run appear at all: enrolment is opt-in, so this is a count of what was instrumented, not of what exists.",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
         "h": 5,
@@ -218,7 +218,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT COUNT(*) AS repos FROM whodunit_repos WHERE ('$contributor' = '__all__' OR contributor = '$contributor')"
+          "rawSql": "SELECT COUNT(*) AS repos FROM whodunit_repos WHERE ('${contributor:raw}' = '__all__' OR contributor = '${contributor:raw}')"
         }
       ]
     },
@@ -261,7 +261,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT SUM(e.lines_added) AS lines_written FROM whodunit_events e JOIN whodunit_repos r ON r.repo_id = e.repo_id WHERE ('$contributor' = '__all__' OR r.contributor = '$contributor') AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000"
+          "rawSql": "SELECT SUM(e.lines_added) AS lines_written FROM whodunit_events e JOIN whodunit_repos r ON r.repo_id = e.repo_id WHERE ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}') AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000"
         }
       ]
     },
@@ -373,7 +373,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT COUNT(*) v FROM whodunit_events e JOIN whodunit_repos r ON r.repo_id=e.repo_id WHERE e.outcome='accepted' AND ('$contributor' = '__all__' OR r.contributor = '$contributor') AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000"
+          "rawSql": "SELECT COUNT(*) v FROM whodunit_events e JOIN whodunit_repos r ON r.repo_id=e.repo_id WHERE e.outcome='accepted' AND ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}') AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000"
         }
       ]
     },
@@ -416,7 +416,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT COUNT(*) v FROM whodunit_events e JOIN whodunit_repos r ON r.repo_id=e.repo_id WHERE e.outcome IN ('accepted','rejected','failed') AND ('$contributor' = '__all__' OR r.contributor = '$contributor') AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000"
+          "rawSql": "SELECT COUNT(*) v FROM whodunit_events e JOIN whodunit_repos r ON r.repo_id=e.repo_id WHERE e.outcome IN ('accepted','rejected','failed') AND ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}') AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000"
         }
       ]
     },
@@ -459,7 +459,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT ROUND(100.0*SUM(e.outcome='accepted')/NULLIF(SUM(e.outcome IN ('accepted','rejected','failed')),0),1) v FROM whodunit_events e JOIN whodunit_repos r ON r.repo_id=e.repo_id WHERE ('$contributor' = '__all__' OR r.contributor = '$contributor') AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000"
+          "rawSql": "SELECT ROUND(100.0*SUM(e.outcome='accepted')/NULLIF(SUM(e.outcome IN ('accepted','rejected','failed')),0),1) v FROM whodunit_events e JOIN whodunit_repos r ON r.repo_id=e.repo_id WHERE ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}') AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000"
         }
       ]
     },
@@ -502,7 +502,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT COUNT(*) v FROM whodunit_events e JOIN whodunit_repos r ON r.repo_id=e.repo_id WHERE e.outcome NOT IN ('accepted','rejected','failed') AND ('$contributor' = '__all__' OR r.contributor = '$contributor') AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000"
+          "rawSql": "SELECT COUNT(*) v FROM whodunit_events e JOIN whodunit_repos r ON r.repo_id=e.repo_id WHERE e.outcome NOT IN ('accepted','rejected','failed') AND ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}') AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000"
         }
       ]
     },
@@ -528,7 +528,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT e.tool AS `Tool`, SUM(e.outcome='accepted') AS `Accepted`, SUM(e.outcome='rejected') AS `Rejected`, SUM(e.outcome='failed') AS `Failed`, SUM(e.outcome NOT IN ('accepted','rejected','failed')) AS `Unknown`, SUM(e.outcome IN ('accepted','rejected','failed')) AS `Decided`, ROUND(100.0*SUM(e.outcome='accepted')/NULLIF(SUM(e.outcome IN ('accepted','rejected','failed')),0),1) AS `Accept %` FROM whodunit_events e JOIN whodunit_repos r ON r.repo_id=e.repo_id WHERE ('$contributor' = '__all__' OR r.contributor = '$contributor') AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000 GROUP BY e.tool ORDER BY `Decided` DESC"
+          "rawSql": "SELECT e.tool AS `Tool`, SUM(e.outcome='accepted') AS `Accepted`, SUM(e.outcome='rejected') AS `Rejected`, SUM(e.outcome='failed') AS `Failed`, SUM(e.outcome NOT IN ('accepted','rejected','failed')) AS `Unknown`, SUM(e.outcome IN ('accepted','rejected','failed')) AS `Decided`, ROUND(100.0*SUM(e.outcome='accepted')/NULLIF(SUM(e.outcome IN ('accepted','rejected','failed')),0),1) AS `Accept %` FROM whodunit_events e JOIN whodunit_repos r ON r.repo_id=e.repo_id WHERE ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}') AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000 GROUP BY e.tool ORDER BY `Decided` DESC"
         }
       ]
     },
@@ -554,7 +554,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT LEFT(s.session,8) AS `Session`, FROM_UNIXTIME(s.first_seen/1000000000) AS `Started`, ROUND((s.last_seen-s.first_seen)/60000000000) AS `Minutes`, s.user_messages AS `Prompts`, s.agent_messages AS `Agent msgs`, ROUND(s.agent_messages/NULLIF(s.user_messages,0),1) AS `Turns per prompt`, s.tool_calls AS `Tool calls`, s.distinct_tools AS `Distinct tools`, s.mcp_calls AS `MCP calls` FROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id=s.repo_id WHERE ('$contributor' = '__all__' OR r.contributor = '$contributor') AND s.first_seen BETWEEN $__unixEpochFrom()*1000000000 AND $__unixEpochTo()*1000000000 ORDER BY s.first_seen DESC"
+          "rawSql": "SELECT LEFT(s.session,8) AS `Session`, FROM_UNIXTIME(s.first_seen/1000000000) AS `Started`, ROUND((s.last_seen-s.first_seen)/60000000000) AS `Minutes`, s.user_messages AS `Prompts`, s.agent_messages AS `Agent msgs`, ROUND(s.agent_messages/NULLIF(s.user_messages,0),1) AS `Turns per prompt`, s.tool_calls AS `Tool calls`, s.distinct_tools AS `Distinct tools`, s.mcp_calls AS `MCP calls` FROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id=s.repo_id WHERE ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}') AND s.first_seen BETWEEN $__unixEpochFrom()*1000000000 AND $__unixEpochTo()*1000000000 ORDER BY s.first_seen DESC"
         }
       ]
     },
@@ -589,7 +589,7 @@
         {
           "refId": "A",
           "format": "time_series",
-          "rawSql": "SELECT FROM_UNIXTIME(FLOOR(e.observed_at / 1000000000 / 86400) * 86400) AS time, 'agent edits' AS metric, COUNT(*) AS value FROM whodunit_events e JOIN whodunit_repos r ON r.repo_id = e.repo_id WHERE ('$contributor' = '__all__' OR r.contributor = '$contributor') AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000 GROUP BY time, metric ORDER BY time"
+          "rawSql": "SELECT FROM_UNIXTIME(FLOOR(e.observed_at / 1000000000 / 86400) * 86400) AS time, 'agent edits' AS metric, COUNT(*) AS value FROM whodunit_events e JOIN whodunit_repos r ON r.repo_id = e.repo_id WHERE ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}') AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000 GROUP BY time, metric ORDER BY time"
         }
       ]
     },
@@ -624,7 +624,7 @@
         {
           "refId": "A",
           "format": "time_series",
-          "rawSql": "SELECT FROM_UNIXTIME(FLOOR(e.observed_at / 1000000000 / 86400) * 86400) AS time, 'lines added' AS metric, SUM(e.lines_added) AS value FROM whodunit_events e JOIN whodunit_repos r ON r.repo_id = e.repo_id WHERE ('$contributor' = '__all__' OR r.contributor = '$contributor') AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000 GROUP BY time, metric UNION ALL SELECT FROM_UNIXTIME(FLOOR(e.observed_at / 1000000000 / 86400) * 86400) AS time, 'lines removed' AS metric, SUM(e.lines_removed) AS value FROM whodunit_events e JOIN whodunit_repos r ON r.repo_id = e.repo_id WHERE ('$contributor' = '__all__' OR r.contributor = '$contributor') AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000 GROUP BY time, metric ORDER BY time"
+          "rawSql": "SELECT FROM_UNIXTIME(FLOOR(e.observed_at / 1000000000 / 86400) * 86400) AS time, 'lines added' AS metric, SUM(e.lines_added) AS value FROM whodunit_events e JOIN whodunit_repos r ON r.repo_id = e.repo_id WHERE ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}') AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000 GROUP BY time, metric UNION ALL SELECT FROM_UNIXTIME(FLOOR(e.observed_at / 1000000000 / 86400) * 86400) AS time, 'lines removed' AS metric, SUM(e.lines_removed) AS value FROM whodunit_events e JOIN whodunit_repos r ON r.repo_id = e.repo_id WHERE ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}') AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000 GROUP BY time, metric ORDER BY time"
         }
       ]
     },
@@ -646,7 +646,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT e.tool, COUNT(*) AS events, SUM(e.lines_added) AS lines_added, SUM(e.lines_removed) AS lines_removed FROM whodunit_events e JOIN whodunit_repos r ON r.repo_id = e.repo_id WHERE e.tool <> '' AND ('$contributor' = '__all__' OR r.contributor = '$contributor') AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000 GROUP BY e.tool ORDER BY events DESC"
+          "rawSql": "SELECT e.tool, COUNT(*) AS events, SUM(e.lines_added) AS lines_added, SUM(e.lines_removed) AS lines_removed FROM whodunit_events e JOIN whodunit_repos r ON r.repo_id = e.repo_id WHERE e.tool <> '' AND ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}') AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000 GROUP BY e.tool ORDER BY events DESC"
         }
       ]
     },
@@ -668,7 +668,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT e.agent, e.agent_version, COUNT(*) AS events, COUNT(DISTINCT e.session) AS sessions FROM whodunit_events e JOIN whodunit_repos r ON r.repo_id = e.repo_id WHERE ('$contributor' = '__all__' OR r.contributor = '$contributor') AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000 GROUP BY e.agent, e.agent_version ORDER BY events DESC"
+          "rawSql": "SELECT e.agent, e.agent_version, COUNT(*) AS events, COUNT(DISTINCT e.session) AS sessions FROM whodunit_events e JOIN whodunit_repos r ON r.repo_id = e.repo_id WHERE ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}') AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000 GROUP BY e.agent, e.agent_version ORDER BY events DESC"
         }
       ]
     },
@@ -742,7 +742,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT COUNT(DISTINCT r.contributor) v\nFROM whodunit_events e JOIN whodunit_repos r ON r.repo_id = e.repo_id\nWHERE e.observed_at >= (UNIX_TIMESTAMP() - 1*86400) * 1000000000 AND ('$contributor' = '__all__' OR r.contributor = '$contributor')"
+          "rawSql": "SELECT COUNT(DISTINCT r.contributor) v\nFROM whodunit_events e JOIN whodunit_repos r ON r.repo_id = e.repo_id\nWHERE e.observed_at >= (UNIX_TIMESTAMP() - 1*86400) * 1000000000 AND ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}')"
         }
       ],
       "fieldConfig": {
@@ -787,7 +787,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT COUNT(DISTINCT r.contributor) v\nFROM whodunit_events e JOIN whodunit_repos r ON r.repo_id = e.repo_id\nWHERE e.observed_at >= (UNIX_TIMESTAMP() - 7*86400) * 1000000000 AND ('$contributor' = '__all__' OR r.contributor = '$contributor')"
+          "rawSql": "SELECT COUNT(DISTINCT r.contributor) v\nFROM whodunit_events e JOIN whodunit_repos r ON r.repo_id = e.repo_id\nWHERE e.observed_at >= (UNIX_TIMESTAMP() - 7*86400) * 1000000000 AND ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}')"
         }
       ],
       "fieldConfig": {
@@ -832,7 +832,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT COUNT(DISTINCT r.contributor) v\nFROM whodunit_events e JOIN whodunit_repos r ON r.repo_id = e.repo_id\nWHERE e.observed_at >= (UNIX_TIMESTAMP() - 30*86400) * 1000000000 AND ('$contributor' = '__all__' OR r.contributor = '$contributor')"
+          "rawSql": "SELECT COUNT(DISTINCT r.contributor) v\nFROM whodunit_events e JOIN whodunit_repos r ON r.repo_id = e.repo_id\nWHERE e.observed_at >= (UNIX_TIMESTAMP() - 30*86400) * 1000000000 AND ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}')"
         }
       ],
       "fieldConfig": {
@@ -877,7 +877,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT ROUND(\n  (SELECT COUNT(DISTINCT r.contributor) FROM whodunit_events e\n     JOIN whodunit_repos r ON r.repo_id=e.repo_id\n   WHERE e.observed_at >= (UNIX_TIMESTAMP() - 86400) * 1000000000 AND ('$contributor' = '__all__' OR r.contributor = '$contributor')) * 100.0\n  / NULLIF((SELECT COUNT(DISTINCT r.contributor) FROM whodunit_events e\n     JOIN whodunit_repos r ON r.repo_id=e.repo_id\n   WHERE e.observed_at >= (UNIX_TIMESTAMP() - 30*86400) * 1000000000 AND ('$contributor' = '__all__' OR r.contributor = '$contributor')), 0), 1) v"
+          "rawSql": "SELECT ROUND(\n  (SELECT COUNT(DISTINCT r.contributor) FROM whodunit_events e\n     JOIN whodunit_repos r ON r.repo_id=e.repo_id\n   WHERE e.observed_at >= (UNIX_TIMESTAMP() - 86400) * 1000000000 AND ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}')) * 100.0\n  / NULLIF((SELECT COUNT(DISTINCT r.contributor) FROM whodunit_events e\n     JOIN whodunit_repos r ON r.repo_id=e.repo_id\n   WHERE e.observed_at >= (UNIX_TIMESTAMP() - 30*86400) * 1000000000 AND ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}')), 0), 1) v"
         }
       ],
       "fieldConfig": {
@@ -923,7 +923,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT SUM(s.mcp_calls) v\nFROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id\nWHERE s.last_seen BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000 AND ('$contributor' = '__all__' OR r.contributor = '$contributor')"
+          "rawSql": "SELECT SUM(s.mcp_calls) v\nFROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id\nWHERE s.last_seen BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000 AND ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}')"
         }
       ],
       "fieldConfig": {
@@ -968,7 +968,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT COUNT(DISTINCT e.tool) v\nFROM whodunit_events e JOIN whodunit_repos r ON r.repo_id = e.repo_id\nWHERE e.tool <> '' AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000 AND ('$contributor' = '__all__' OR r.contributor = '$contributor')"
+          "rawSql": "SELECT COUNT(DISTINCT e.tool) v\nFROM whodunit_events e JOIN whodunit_repos r ON r.repo_id = e.repo_id\nWHERE e.tool <> '' AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000 AND ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}')"
         }
       ],
       "fieldConfig": {
@@ -1013,7 +1013,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT CASE c.method\n         WHEN 'intersected' THEN 'intersected — the agent''s lines survived'\n         WHEN 'observed'    THEN 'observed — edited before committing'\n         WHEN 'declared'    THEN 'declared — stated, not measured'\n         WHEN 'inferred'    THEN 'inferred — from surrounding evidence'\n         ELSE 'undetermined — no evidence either way'\n       END AS `method`, COUNT(*) AS `commits`\nFROM whodunit_commits c JOIN whodunit_repos r ON r.repo_id=c.repo_id\nWHERE 1=1 AND ('$contributor'='__all__' OR r.contributor='$contributor') AND c.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nGROUP BY c.method ORDER BY `commits` DESC"
+          "rawSql": "SELECT CASE c.method\n         WHEN 'intersected' THEN 'intersected — the agent''s lines survived'\n         WHEN 'observed'    THEN 'observed — edited before committing'\n         WHEN 'declared'    THEN 'declared — stated, not measured'\n         WHEN 'inferred'    THEN 'inferred — from surrounding evidence'\n         ELSE 'undetermined — no evidence either way'\n       END AS `method`, COUNT(*) AS `commits`\nFROM whodunit_commits c JOIN whodunit_repos r ON r.repo_id=c.repo_id\nWHERE 1=1 AND ('${contributor:raw}'='__all__' OR r.contributor='${contributor:raw}') AND c.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nGROUP BY c.method ORDER BY `commits` DESC"
         }
       ],
       "options": {

@@ -3,6 +3,12 @@ name: AI-Attribution trailer check
 on:
   pull_request:
 
+# Newest push to a pull request wins. This check is quick, but a superseded
+# run still occupies a slot and reports on code that has been replaced.
+concurrency:
+  group: trailer-${{ github.event.pull_request.head.sha || github.sha }}
+  cancel-in-progress: true
+
 jobs:
   check:
     runs-on: ubuntu-latest

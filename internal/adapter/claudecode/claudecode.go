@@ -110,9 +110,108 @@ type record struct {
 	Timestamp time.Time `json:"timestamp"`
 	SessionID string    `json:"sessionId"`
 	Version   string    `json:"version"`
-	Message   struct {
+
+	// Both sit at the top level of the record rather than on the message,
+	// and permissionMode is written on USER records rather than assistant
+	// ones — measured, not assumed. Reading them off the assistant turn
+	// finds nothing.
+	Effort         string `json:"effort"`
+	PermissionMode string `json:"permissionMode"`
+
+	// Subtype distinguishes the system records. compact_boundary is the
+	// one this reads (NAV-106).
+	Subtype string `json:"subtype"`
+
+	// CompactMetadata rides on a compact_boundary record and carries far
+	// more than is taken from it: preCompactDiscoveredTools lists every
+	// tool name in the session, and slug is a human-readable label derived
+	// from the conversation. Only the trigger and the two token counts are
+	// declared here, so the rest is never unmarshalled at all (NAV-25).
+	CompactMetadata *struct {
+		// "auto" when the agent compacted because it had to, "manual"
+		// when a human ran /compact. The distinction is the whole point:
+		// an auto compaction is the tool coping, a manual one is someone
+		// managing their context deliberately.
+		Trigger    string `json:"trigger"`
+		PreTokens  int64  `json:"preTokens"`
+		PostTokens int64  `json:"postTokens"`
+	} `json:"compactMetadata"`
+
+	// The branch the work landed on. 112 distinct values across the
+	// corpus on this machine, of which "HEAD" is 8% — a detached head,
+	// which is a real state rather than a missing value, so it is stored
+	// as written rather than blanked.
+	GitBranch string `json:"gitBranch"`
+
+	// Which MCP server and method a call went through. Claude Code
+	// resolves these itself, so no parsing of the mcp__server__method
+	// name is needed — 6 servers and 64 methods observed.
+	MCPServer string `json:"attributionMcpServer"`
+	MCPTool   string `json:"attributionMcpTool"`
+
+	// ToolUseResult is a sibling of message, not part of it, and carries
+	// stdout, stderr, file bodies and diffs — all forbidden (NAV-25).
+	// Only the one scalar is lifted out; the rest is never unmarshalled,
+	// which is what keeps the constraint structural rather than a rule
+	// someone has to remember.
+	ToolUseResult struct {
+		UserModified *bool `json:"userModified"`
+	} `json:"toolUseResult"`
+	Message struct {
 		Content []toolUseBlock `json:"content"`
+
+		// ID identifies the assistant message, which is NOT one-to-one
+		// with a record: one message is written as several lines, one per
+		// content block, each repeating the same usage. Deduplicating on
+		// it is what stops token counts being multiplied — see
+		// readUsage.
+		ID    string `json:"id"`
+		Model string `json:"model"`
+		Usage *usage `json:"usage"`
 	} `json:"message"`
+}
+
+// modelOf returns the record's model, excluding the synthetic sender.
+func modelOf(r record) string {
+	if r.Message.Model == syntheticModel {
+		return ""
+	}
+	return r.Message.Model
+}
+
+// userModifiedOf returns a pointer only when the transcript actually said
+// something. A missing entry is "this call has no edit signal", which must
+// stay nil rather than becoming false — false is a claim that nobody
+// edited it (NAV-21).
+func userModifiedOf(edited map[string]bool, id string) *bool {
+	v, ok := edited[id]
+	if !ok {
+		return nil
+	}
+	return &v
+}
+
+// syntheticModel is the sender on records Claude Code generates itself
+// rather than receiving from a model — 5 of 161 assistant records in a
+// recent sample, all carrying zero output tokens.
+//
+// Excluded from model attribution because it is not a model: left in, it
+// becomes a row on every per-model panel with no tokens against it, and
+// in any ratio-against-baseline it is the cheapest series, making every
+// comparison against it infinite.
+const syntheticModel = "<synthetic>"
+
+// usage is Claude Code's per-turn token report. Present on 100% of
+// assistant turns — not sampled, not optional.
+//
+// Per turn, unlike Codex's cumulative totals, so these are summed rather
+// than overwritten. Getting that backwards in either direction is the
+// expensive mistake in this area.
+type usage struct {
+	InputTokens              int64 `json:"input_tokens"`
+	OutputTokens             int64 `json:"output_tokens"`
+	CacheReadInputTokens     int64 `json:"cache_read_input_tokens"`
+	CacheCreationInputTokens int64 `json:"cache_creation_input_tokens"`
 }
 
 type toolUseBlock struct {
@@ -185,7 +284,7 @@ func ParseSince(path string, since time.Time) ([]journal.Entry, error) {
 		}
 	}
 
-	outcomes, err := collectOutcomes(path)
+	outcomes, edited, err := collectOutcomesAndEdits(path)
 	if err != nil {
 		return nil, err
 	}
@@ -231,6 +330,9 @@ func ParseSince(path string, since time.Time) ([]journal.Entry, error) {
 					Session:      r.SessionID,
 					Event:        "tool_call",
 					Tool:         block.Name,
+					Model:        modelOf(r),
+					Branch:       r.GitBranch,
+					MCPServer:    r.MCPServer,
 				})
 				continue
 			}
@@ -276,6 +378,10 @@ func ParseSince(path string, since time.Time) ([]journal.Entry, error) {
 				HunkHash:     hunkHash(block.Input.FilePath, block.Name, block.Input.Content, block.Input.NewString),
 				LineHashes:   lineHashes,
 				Outcome:      string(outcome),
+				Model:        modelOf(r),
+				Branch:       r.GitBranch,
+				MCPServer:    r.MCPServer,
+				UserModified: userModifiedOf(edited, block.ID),
 			})
 		}
 	}
@@ -307,6 +413,26 @@ func ParseSessionActivity(path string, since time.Time) ([]journal.Session, erro
 	type acc struct {
 		s     journal.Session
 		tools map[string]bool
+
+		// Compactions counted for this session, and how many were manual
+		// rather than forced.
+		compactions int64
+		manual      int64
+
+		// Assistant message ids already counted. One message is written as
+		// several records — one per content block — each repeating the
+		// same id, model and usage. Measured on the largest transcript on
+		// this machine: 12,029 usage-bearing records for 6,687 distinct
+		// messages, so summing per record inflates every token count by
+		// 1.93x.
+		seenMessages map[string]bool
+
+		// Token totals, accumulated separately because journal.Session
+		// carries them as pointers — nil there means "this agent does not
+		// report it", and Claude Code always does, so the distinction is
+		// made once at the end rather than on every addition.
+		tokens    usage
+		anyTokens bool
 	}
 	sessions := map[string]*acc{}
 
@@ -324,7 +450,7 @@ func ParseSessionActivity(path string, since time.Time) ([]journal.Session, erro
 
 		a, ok := sessions[r.SessionID]
 		if !ok {
-			a = &acc{tools: map[string]bool{}}
+			a = &acc{tools: map[string]bool{}, seenMessages: map[string]bool{}}
 			a.s.Session = r.SessionID
 			a.s.Agent = AgentName
 			a.s.FirstSeen = r.Timestamp
@@ -337,6 +463,16 @@ func ParseSessionActivity(path string, since time.Time) ([]journal.Session, erro
 			a.s.LastSeen = r.Timestamp
 		}
 
+		// A compact boundary is a system record, not a message, so it is
+		// handled before the message switch rather than inside it.
+		if r.Type == "system" && r.Subtype == "compact_boundary" {
+			a.compactions++
+			if m := r.CompactMetadata; m != nil && m.Trigger == "manual" {
+				a.manual++
+			}
+			continue
+		}
+
 		switch r.Type {
 		case "user":
 			// A user record carrying only tool results is the harness
@@ -345,7 +481,53 @@ func ParseSessionActivity(path string, since time.Time) ([]journal.Session, erro
 				a.s.UserMessages++
 			}
 		case "assistant":
+			// Counted once per MESSAGE, not once per record.
+			//
+			// One assistant message is written as several records — one
+			// per content block — each repeating the same id, model and
+			// usage. On the largest transcript on this machine that is
+			// 12,029 records for 6,687 messages.
+			//
+			// This corrects AgentMessages as well as the token counts.
+			// Both were inflated by 1.93x here, and Codex was already
+			// counting messages rather than records, so the same column
+			// meant different things depending on which agent filled it —
+			// which makes any cross-agent comparison of engagement wrong
+			// in a way nothing on the dashboard reveals.
+			//
+			// A record with no message id is counted: it cannot be
+			// deduplicated, and dropping it would undercount instead.
+			if id := r.Message.ID; id != "" {
+				if a.seenMessages[id] {
+					break
+				}
+				a.seenMessages[id] = true
+			}
 			a.s.AgentMessages++
+			if u := r.Message.Usage; u != nil {
+				a.tokens.InputTokens += u.InputTokens
+				a.tokens.OutputTokens += u.OutputTokens
+				a.tokens.CacheReadInputTokens += u.CacheReadInputTokens
+				a.tokens.CacheCreationInputTokens += u.CacheCreationInputTokens
+				a.anyTokens = true
+			}
+			// The last model seen wins. A session can change model
+			// part-way through, and the turn that finished the work is the
+			// one worth attributing.
+			if r.Message.Model != "" && r.Message.Model != syntheticModel {
+				a.s.Model = r.Message.Model
+			}
+		}
+
+		// Outside the switch: permissionMode is recorded on user records,
+		// and effort can appear on either. Reading them per record rather
+		// than per message is right — they describe the turn's settings,
+		// not the message, and the last one seen is the one in force.
+		if r.Effort != "" {
+			a.s.Effort = r.Effort
+		}
+		if r.PermissionMode != "" {
+			a.s.PermissionMode = r.PermissionMode
 		}
 
 		for _, block := range r.Message.Content {
@@ -366,10 +548,46 @@ func ParseSessionActivity(path string, since time.Time) ([]journal.Session, erro
 	out := make([]journal.Session, 0, len(sessions))
 	for _, a := range sessions {
 		a.s.DistinctTools = len(a.tools)
+
+		// Assigned only when at least one turn reported usage, so a
+		// transcript that carries none leaves nil rather than a row of
+		// zeroes. Claude Code reports usage on every assistant turn, so in
+		// practice this is always taken — but a session with no assistant
+		// turns at all (a transcript that opens and is abandoned) must not
+		// claim it cost nothing (NAV-21).
+		// Always assigned, including zero — and that is the right call
+		// here, unlike every other nullable field on this struct.
+		//
+		// The distinction NAV-21 protects is "measured as nothing" versus
+		// "could not measure". For tokens the second is real: an agent
+		// that does not report usage leaves nothing to read. For
+		// compactions it is not: the transcript parsed, every record was
+		// examined, and no boundary was present. That IS zero.
+		//
+		// Reporting nil instead would make the compact rate uncomputable,
+		// because the denominator — sessions that could have compacted —
+		// would be empty. Measured on 400 transcripts here, 2 compacted;
+		// the other 398 are zeroes, not unknowns.
+		a.s.Compactions = int64p(a.compactions)
+
+		if a.anyTokens {
+			a.s.InputTokens = int64p(a.tokens.InputTokens)
+			a.s.OutputTokens = int64p(a.tokens.OutputTokens)
+			a.s.CacheReadTokens = int64p(a.tokens.CacheReadInputTokens)
+			a.s.CacheWriteTokens = int64p(a.tokens.CacheCreationInputTokens)
+		}
+
+		// Deliberately not set: Claude Code records no per-turn timing and
+		// does not separate reasoning tokens. Left nil rather than zero —
+		// "not reported" is not "instantaneous", and a latency panel
+		// averaging in zeroes would report this agent as the fastest.
+
 		out = append(out, a.s)
 	}
 	return out, nil
 }
+
+func int64p(v int64) *int64 { return &v }
 
 func hasToolResult(r record) bool {
 	for _, b := range r.Message.Content {
@@ -382,14 +600,26 @@ func hasToolResult(r record) bool {
 
 // collectOutcomes maps each tool call's id to what happened to it, from the
 // tool_result blocks scattered through the transcript.
-func collectOutcomes(path string) (map[string]Outcome, error) {
+// collectOutcomes maps each tool call's id to what happened to it, and to
+// whether a human edited the result.
+//
+// userModified rides along here rather than in a third pass because it is
+// recorded in the same place: on the USER record that carries the
+// tool_result, keyed by the same tool_use_id. It is the one signal that
+// separates "the agent wrote this" from "the agent wrote this and it was
+// kept" — and only Claude Code has it.
+//
+// CAVEAT: observed 7,201 times on this machine and false every single
+// time. The field is read correctly and the true case is unverified.
+func collectOutcomesAndEdits(path string) (map[string]Outcome, map[string]bool, error) {
 	f, err := os.Open(path)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	defer f.Close()
 
 	outcomes := map[string]Outcome{}
+	edited := map[string]bool{}
 	scanner := bufio.NewScanner(f)
 	scanner.Buffer(make([]byte, 0, 64*1024), 8*1024*1024)
 
@@ -403,12 +633,15 @@ func collectOutcomes(path string) (map[string]Outcome, error) {
 				continue
 			}
 			outcomes[block.UseID] = classifyResult(block.Error, block.Result.Text)
+			if v := r.ToolUseResult.UserModified; v != nil {
+				edited[block.UseID] = *v
+			}
 		}
 	}
 	if err := scanner.Err(); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	return outcomes, nil
+	return outcomes, edited, nil
 }
 
 func diffStat(tool, content, oldString, newString string) (added, removed int) {

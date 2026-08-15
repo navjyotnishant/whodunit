@@ -14,9 +14,17 @@ configure `dun sync` and run it yourself (see [Privacy](#privacy)).
 Every commit gets a plain git trailer:
 
 ```
-AI-Attribution: status=assisted; method=observed; agent=claude-code; agent_version=2.1.227; ratio=0.62; session=a3f9e21c
+AI-Attribution: v=1; status=assisted; method=intersected; agent=claude-code; agent_version=2.1.228; ratio=0.62; model=claude-opus-5; session=a3f9e21c
 ```
 
+- **v** — the trailer format version, first so it is read before the
+  values it qualifies. It exists because `ratio=0.62` is well-formed under
+  any definition of ratio: change the rule and every trailer already
+  written silently means something else, with no error to notice. Trailers
+  live in commit messages, so that ambiguity would be permanent — a
+  migration can rewrite a column, nothing can rewrite pushed history. A
+  trailer with no `v` is version 1, permanently, since that is every
+  trailer written before the key existed.
 - **status** — `assisted` or `undetermined`. Absence of AI involvement is
   never asserted as fact; a commit with no evidence either way is
   `undetermined`, never silently treated as "no AI."
@@ -26,16 +34,34 @@ AI-Attribution: status=assisted; method=observed; agent=claude-code; agent_versi
   staged — the strongest evidence available.
 - **agent / agent_version** — which tool, which version.
 - **ratio** — fraction of the change attributable to the agent.
+- **model** — which model produced the work, where the agent reports it.
+  Omitted rather than guessed when it does not: a commit attributed by
+  `declared` or `inferred` has no session to read one from.
 - **session** — an opaque token, not an identity.
+
+The version is bumped only when the *meaning* of a value changes, not when
+a key is added. A parser that does not recognise a new key keeps it and
+re-emits it unchanged, so additions are backward compatible on their own —
+and bumping for them would make the version uninformative about the thing
+it exists to signal.
 
 Unknown keys are preserved, not dropped — the grammar is meant to outlive
 any one implementation of it.
 
 ## Install
 
+macOS and Linux:
+
 ```sh
 brew tap navjyotnishant/tap
 brew install navjyotnishant/tap/dun
+```
+
+Windows:
+
+```powershell
+scoop bucket add navjyotnishant https://github.com/navjyotnishant/scoop-bucket
+scoop install dun
 ```
 
 Or build from source:
@@ -46,20 +72,36 @@ go install github.com/navjyotnishant/whodunit/cmd/dun@latest
 
 Or grab a binary from the [releases page](https://github.com/navjyotnishant/whodunit/releases) —
 built with [`scripts/release.sh`](scripts/release.sh), not a third-party
-release tool.
+release tool. Verify it against the published `checksums.txt`, then put it
+somewhere on your `PATH` **under the name `dun`** (`dun.exe` on Windows).
+
+That last part matters more than it looks. The git hook resolves the binary
+by name at commit time:
+
+```sh
+DUN="$(command -v dun || echo "<the binary that ran init>")"
+```
+
+so a binary that is not on `PATH` as `dun` falls back to wherever it lived
+when you ran `dun init` — and once that file moves, every commit is stamped
+`undetermined`, silently. Downstream that reads as "no AI was used" rather
+than "the tool went missing". `dun init` warns when it detects this, and the
+package managers above avoid it entirely.
 
 ## Use
 
 ```sh
 cd your-repo
-dun init          # installs prepare-commit-msg + commit-msg hooks
+dun init          # installs prepare-commit-msg, commit-msg, pre-push hooks
 git commit ...     # trailer gets stamped automatically
 dun status         # coverage + method mix for recent commits
 dun report         # self-contained HTML report, opens in any browser
 ```
 
 `dun init` chains to any hook you already have installed — it never
-clobbers existing `prepare-commit-msg`/`commit-msg` scripts.
+clobbers existing `prepare-commit-msg`, `commit-msg` or `pre-push`
+scripts. The `pre-push` hook is what publishes to a configured sync
+target; without a target it does nothing.
 
 ### Commands
 
@@ -75,6 +117,11 @@ clobbers existing `prepare-commit-msg`/`commit-msg` scripts.
 | `dun ingest [--since <time>]` | Read local agent session transcripts into the journal |
 | `dun daemon run` | Foreground watcher: re-ingests continuously as sessions change |
 | `dun journal show` / `dun journal purge` | Inspect or wipe the local journal |
+| `dun sync [--dry-run]` | Publish to the configured database — `--dry-run` prints the exact payload first |
+| `dun config` / `config set` / `config datalake` | Show or change settings; configure the sync target |
+| `dun verify` | Check the install end to end and name what to fix |
+| `dun log` | What the hooks did, and every error they swallowed |
+| `dun update` | Upgrade through Homebrew, then refresh every repository's hooks |
 
 ### Which repositories are instrumented
 
@@ -156,12 +203,24 @@ for the full example.
 
 ## How attribution is determined
 
-Right now the only adapter is **Claude Code**, read from its own local
-session transcripts (`~/.claude/projects/**/*.jsonl` — a file Claude Code
-already writes for its own session-resume purposes; whodunit only reads
-it). At commit time, `dun` checks which staged files were touched by a
-recent session and, if the exact text matches, upgrades confidence to
+Three adapters ship today, each reading transcripts the agent already
+writes for its own purposes — whodunit only reads them:
+
+| Agent | Source | Reaches |
+|---|---|---|
+| **Claude Code** | `~/.claude/projects/**/*.jsonl` | `intersected` |
+| **Codex** | `~/.codex/sessions/**/*.jsonl` | `intersected` |
+| **Antigravity** (`agy`) | its local SQLite store | `observed` |
+
+At commit time, `dun` checks which staged files were touched by a recent
+session and, if the exact text matches, upgrades confidence to
 `intersected`.
+
+What each agent records differs, and whodunit does not paper over it. Only
+Codex reports per-turn timing; only Claude Code reports whether a human
+edited the agent's output; Antigravity reports no token usage at all. A
+field an agent does not report is stored as absent rather than zero,
+because a zero on a cost panel reads as "this agent is free."
 
 Attribution is matched by content hash, never by commit sha — a commit
 doesn't exist yet when the observation is recorded, and may later be
@@ -195,8 +254,9 @@ It reads local files and git.
   `dun ingest` read git and local transcripts and write a local SQLite
   journal. Nothing contacts the network.
 - **One command sends data, and only when you configure it.** `dun sync`
-  pushes to a database you specify with `--to`. It is never run for you,
-  never scheduled, and does nothing until a target is set. `dun sync
+  pushes to a database you configure with `dun config datalake`, or pass
+  with `--to`. It is never run for you and does nothing until a target
+  is set. `dun sync
   --dry-run` prints exactly what would be sent, and every run prints a
   summary before sending. See [What `dun sync` sends](#what-dun-sync-sends).
 - No prompt text, file *contents*, hostnames, or remote URLs are ever
@@ -214,16 +274,17 @@ It reads local files and git.
 ### What `dun sync` sends
 
 Collection is local. `dun sync --to <database-url>` is the one command that
-transmits anything, and it sends only what is listed here — five tables,
+transmits anything, and it sends only what is listed here — six tables,
 enumerated in full so there is no need to take this on trust:
 
 | Table | Contents |
 |---|---|
 | `whodunit_repos` | Repository id, **contributor email**, spec version |
 | `whodunit_commits` | Commit SHA, timestamp, status, method, agent, version, purpose, ratio, line and file counts |
-| `whodunit_events` | Per-edit: timestamp, agent, session, tool, **file path**, lines added/removed, hunk hash, outcome |
-| `whodunit_sessions` | Per-session counts: messages, tool calls, distinct tools, MCP calls, start and end |
-| `whodunit_lines` | Line hashes and first-seen timestamps |
+| `whodunit_events` | Per-edit: timestamp, agent, session, tool, **file path**, lines added/removed, hunk hash, outcome, model, branch, MCP server, whether a human edited the output |
+| `whodunit_sessions` | Per-session counts: messages, tool calls, distinct tools, MCP calls, start and end — plus token use, model, reasoning effort, permission mode and compactions where the agent reports them |
+| `whodunit_event_lines` | Line hashes and first-seen timestamps |
+| `whodunit_baselines` | The pre-adoption snapshot: commit counts, median diff size, revert rate, cadence |
 
 The repository id is the root commit SHA — stable across clones, and it
 identifies the repository without revealing its name or remote.
@@ -245,7 +306,7 @@ contacted.
 
 | Path | What |
 |---|---|
-| `~/.whodunit/config.json` | Global settings (subscription spend, retention) |
+| `~/.whodunit/config.json` | Global settings (retention, backups, sync target, version check) |
 | `~/.whodunit/repos.json` | Which repositories you instrumented with `dun init` |
 | `~/.whodunit/data/journal.db` | Observations, one row per agent edit, scoped by repository |
 | `~/.whodunit/baselines/<repo>.json` | Pre-adoption snapshots (`dun baseline capture`) |
@@ -270,10 +331,39 @@ Scoping by column rather than by file also means the eventual move to a
 shared Postgres or Mongo backend is a driver change, not a redesign: a
 server has one table for everything either way.
 
+## Dashboards
+
+`dun sync` publishes into [Apache DevLake](https://devlake.apache.org)'s
+database as six `whodunit_`-prefixed tables — never into DevLake's own
+domain tables — and seven Grafana dashboards read them: adoption, cost and
+efficiency, the productivity funnel, delivery impact, and an executive
+summary.
+
+```sh
+deploy/devlake/setup-datalake.sh    # DevLake + Grafana, via docker compose
+deploy/devlake/import-dashboards.sh # the dashboards
+dun config datalake                 # point dun at it
+dun sync                            # publish
+```
+
+Every panel carries a description saying what it measures and how to read
+it, and a panel an agent cannot fill says so rather than rendering zero.
+See [`deploy/devlake/README.md`](deploy/devlake/README.md).
+
 ## Status
 
-Early. The trailer spec and local loop (hooks, journal, CI check, report)
-work end to end and are dogfooded on this repo's own history. Not built
-yet: an OS-level background service (today's `dun daemon run` is
-foreground-only), additional agent adapters, and any hosted/aggregated
-reporting.
+Early, and honest about which parts are load-bearing. The trailer spec and
+the local loop — hooks, journal, CI check, report — work end to end and are
+dogfooded on this repository's own history, which is where most of the bugs
+in it were found.
+
+Not built yet: an OS-level background service (today's `dun daemon run` is
+foreground-only), adapters beyond the three above, and any hosted or
+aggregated reporting.
+
+**What this tool does not claim.** It measures cost and attribution, not
+productivity. Assisted and unassisted commits are self-selected — people
+reach for an agent on some kinds of work and not others — so a throughput
+difference between them may be measuring which work was chosen. `dun delta`
+reports both cuts and names that limit rather than resolving it into a
+percentage.

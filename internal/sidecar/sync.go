@@ -164,7 +164,9 @@ func WriteProgress(db *Store, p Payload, onRow func(done, total int)) (Counts, e
 		if _, err := tx.Exec(upsertEvent(mysql),
 			e.EventID, e.RepoID, e.ObservedAt.UnixNano(), e.Agent, e.AgentVersion,
 			e.Session, e.Event, e.Tool, e.File, e.LinesAdded, e.LinesRemoved,
-			e.HunkHash, e.SpecVersion, e.Outcome, e.SyncedAt.UnixNano()); err != nil {
+			e.HunkHash, e.SpecVersion, e.Outcome, e.SyncedAt.UnixNano(),
+			nullString(e.Model), nullString(e.Branch), nullString(e.MCPServer),
+			e.UserModified); err != nil {
 			return counts, fmt.Errorf("write event: %w", err)
 		}
 		counts.Events++
@@ -176,11 +178,26 @@ func WriteProgress(db *Store, p Payload, onRow func(done, total int)) (Counts, e
 			s.RepoID, s.Session, s.Agent, s.AgentVersion,
 			s.FirstSeen.UnixNano(), s.LastSeen.UnixNano(),
 			s.UserMessages, s.AgentMessages, s.ToolCalls, s.DistinctTools,
-			s.MCPCalls, s.SyncedAt.UnixNano()); err != nil {
+			s.MCPCalls, s.SyncedAt.UnixNano(),
+			s.InputTokens, s.OutputTokens, s.CacheReadTokens, s.CacheWriteTokens,
+			s.ReasoningTokens, s.DurationMS, s.TimeToFirstTokenMS,
+			nullString(s.Effort), nullString(s.PermissionMode), nullString(s.Model),
+			s.Compactions); err != nil {
 			return counts, fmt.Errorf("write session: %w", err)
 		}
 		counts.Sessions++
 		tick()
+	}
+
+	if b := p.Baseline; b != nil {
+		if _, err := tx.Exec(upsertBaseline(mysql),
+			b.RepoID, b.CapturedAt.UnixNano(), b.WindowDays, b.HeadSHA,
+			b.SchemaVersion, b.Commits, b.CommitsPerWeek, b.MedianDiffLines,
+			b.MeanHoursBetween, b.Reverts, b.RevertRate,
+			b.SyncedAt.UnixNano()); err != nil {
+			return counts, fmt.Errorf("write baseline: %w", err)
+		}
+		counts.Baselines = 1
 	}
 
 	for _, l := range p.Lines {
@@ -200,11 +217,12 @@ func WriteProgress(db *Store, p Payload, onRow func(done, total int)) (Counts, e
 
 // Counts is what a sync moved.
 type Counts struct {
-	Repos    int
-	Commits  int
-	Events   int
-	Lines    int
-	Sessions int
+	Repos     int
+	Commits   int
+	Events    int
+	Lines     int
+	Sessions  int
+	Baselines int
 }
 
 // The two engines spell "insert or replace" differently and neither
@@ -246,39 +264,125 @@ func upsertCommit(mysql bool) string {
 func upsertEvent(mysql bool) string {
 	cols := `INSERT INTO whodunit_events
 		(event_id, repo_id, observed_at, agent, agent_version, session, event,
-		 tool, file, lines_added, lines_removed, hunk_hash, spec_version, outcome, synced_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+		 tool, file, lines_added, lines_removed, hunk_hash, spec_version, outcome, synced_at,
+		 model, branch, mcp_server, user_modified)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 	// outcome is refreshed on conflict, unlike the rest of the row: an
 	// event's identity is fixed but its outcome can be backfilled by a
 	// later ingest that finally saw the tool result.
+	//
+	// The observation columns are COALESCEd rather than replaced, for the
+	// reason the session ones are: a re-sync over a window that cannot see
+	// them must not erase what an earlier pass established, and centrally
+	// there is no transcript left to re-read.
 	if mysql {
 		return cols + ` ON DUPLICATE KEY UPDATE outcome=VALUES(outcome),
 			lines_added=VALUES(lines_added), lines_removed=VALUES(lines_removed),
-			synced_at=VALUES(synced_at)`
+			synced_at=VALUES(synced_at),
+			model=COALESCE(VALUES(model), model),
+			branch=COALESCE(VALUES(branch), branch),
+			mcp_server=COALESCE(VALUES(mcp_server), mcp_server),
+			user_modified=COALESCE(VALUES(user_modified), user_modified)`
 	}
 	return cols + ` ON CONFLICT(event_id) DO UPDATE SET outcome=excluded.outcome,
 		lines_added=excluded.lines_added, lines_removed=excluded.lines_removed,
-		synced_at=excluded.synced_at`
+		synced_at=excluded.synced_at,
+		model=COALESCE(excluded.model, whodunit_events.model),
+		branch=COALESCE(excluded.branch, whodunit_events.branch),
+		mcp_server=COALESCE(excluded.mcp_server, whodunit_events.mcp_server),
+		user_modified=COALESCE(excluded.user_modified, whodunit_events.user_modified)`
+}
+
+// upsertSession refreshes a session's counters and fills in its
+// measurements without ever erasing one.
+//
+// The counters are replaced outright: a session grows while it is open, so
+// the newest read is the right one.
+//
+// The measured columns are COALESCEd instead. A developer machine that
+// re-syncs after an ingest over a narrow window sends nil for tokens that
+// were measured on an earlier pass, and a plain overwrite would replace a
+// real figure with NULL — silently, permanently, and centrally, where the
+// original transcript is not available to re-read. COALESCE takes a new
+// value when there is one and keeps the old when there is not.
+//
+// Each engine spells the incoming row differently: MySQL as VALUES(col),
+// SQLite as excluded.col. Same shape, two dialects, which is why this
+// function exists rather than one shared string.
+// nullString writes an empty string as SQL NULL, so COALESCE does not
+// mistake "not reported" for a measured empty value (NAV-21).
+func nullString(s string) any {
+	if s == "" {
+		return nil
+	}
+	return s
 }
 
 func upsertSession(mysql bool) string {
 	cols := `INSERT INTO whodunit_sessions
 		(repo_id, session, agent, agent_version, first_seen, last_seen,
-		 user_messages, agent_messages, tool_calls, distinct_tools, mcp_calls, synced_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-	// A session grows while it is open, so every counter is refreshed.
+		 user_messages, agent_messages, tool_calls, distinct_tools, mcp_calls, synced_at,
+		 input_tokens, output_tokens, cache_read_tokens, cache_write_tokens,
+		 reasoning_tokens, duration_ms, time_to_first_token_ms,
+		 effort, permission_mode, model, compactions)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 	if mysql {
 		return cols + ` ON DUPLICATE KEY UPDATE
 			last_seen=VALUES(last_seen), user_messages=VALUES(user_messages),
 			agent_messages=VALUES(agent_messages), tool_calls=VALUES(tool_calls),
 			distinct_tools=VALUES(distinct_tools), mcp_calls=VALUES(mcp_calls),
-			synced_at=VALUES(synced_at)`
+			synced_at=VALUES(synced_at),
+			input_tokens=COALESCE(VALUES(input_tokens), input_tokens),
+			output_tokens=COALESCE(VALUES(output_tokens), output_tokens),
+			cache_read_tokens=COALESCE(VALUES(cache_read_tokens), cache_read_tokens),
+			cache_write_tokens=COALESCE(VALUES(cache_write_tokens), cache_write_tokens),
+			reasoning_tokens=COALESCE(VALUES(reasoning_tokens), reasoning_tokens),
+			duration_ms=COALESCE(VALUES(duration_ms), duration_ms),
+			time_to_first_token_ms=COALESCE(VALUES(time_to_first_token_ms), time_to_first_token_ms),
+			effort=COALESCE(VALUES(effort), effort),
+			permission_mode=COALESCE(VALUES(permission_mode), permission_mode),
+			model=COALESCE(VALUES(model), model),
+			compactions=COALESCE(VALUES(compactions), compactions)`
 	}
 	return cols + ` ON CONFLICT(repo_id, session) DO UPDATE SET
 		last_seen=excluded.last_seen, user_messages=excluded.user_messages,
 		agent_messages=excluded.agent_messages, tool_calls=excluded.tool_calls,
 		distinct_tools=excluded.distinct_tools, mcp_calls=excluded.mcp_calls,
-		synced_at=excluded.synced_at`
+		synced_at=excluded.synced_at,
+		input_tokens=COALESCE(excluded.input_tokens, whodunit_sessions.input_tokens),
+		output_tokens=COALESCE(excluded.output_tokens, whodunit_sessions.output_tokens),
+		cache_read_tokens=COALESCE(excluded.cache_read_tokens, whodunit_sessions.cache_read_tokens),
+		cache_write_tokens=COALESCE(excluded.cache_write_tokens, whodunit_sessions.cache_write_tokens),
+		reasoning_tokens=COALESCE(excluded.reasoning_tokens, whodunit_sessions.reasoning_tokens),
+		duration_ms=COALESCE(excluded.duration_ms, whodunit_sessions.duration_ms),
+		time_to_first_token_ms=COALESCE(excluded.time_to_first_token_ms, whodunit_sessions.time_to_first_token_ms),
+		effort=COALESCE(excluded.effort, whodunit_sessions.effort),
+		permission_mode=COALESCE(excluded.permission_mode, whodunit_sessions.permission_mode),
+		model=COALESCE(excluded.model, whodunit_sessions.model),
+		compactions=COALESCE(excluded.compactions, whodunit_sessions.compactions)`
+}
+
+// upsertBaseline records a captured snapshot.
+//
+// Only synced_at is refreshed on conflict — every measured column is left
+// alone. A baseline is immutable by design: `baseline.Write` refuses to
+// overwrite one locally, and the whole reason the window is fixed before
+// any comparison exists is that a window chosen afterwards can manufacture
+// almost any figure.
+//
+// So re-syncing the same capture is a no-op on the numbers, and a capture
+// with a different timestamp inserts a new row rather than replacing the
+// old one — the key includes captured_at precisely so that both are kept.
+func upsertBaseline(mysql bool) string {
+	cols := `INSERT INTO whodunit_baselines
+		(repo_id, captured_at, window_days, head_sha, schema_version,
+		 commits, commits_per_week, median_diff_lines, mean_hours_between,
+		 reverts, revert_rate, synced_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+	if mysql {
+		return cols + ` ON DUPLICATE KEY UPDATE synced_at=VALUES(synced_at)`
+	}
+	return cols + ` ON CONFLICT(repo_id, captured_at) DO UPDATE SET synced_at=excluded.synced_at`
 }
 
 func upsertLine(mysql bool) string {

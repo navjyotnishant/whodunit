@@ -28,9 +28,18 @@ import (
 
 // Config is the global settings file at ~/.whodunit/config.json.
 type Config struct {
-	// MonthlySpend is the AI agent subscription cost per month, in the
-	// smallest currency unit the user reports in (e.g. dollars). Used to
-	// compute cost-per-attributed-line; zero means "not configured".
+	// MonthlySpend is DEPRECATED and no longer read (NAV-96).
+	//
+	// It was a hand-typed subscription cost divided evenly over every
+	// agent-written line, which made the resulting figure an allocation
+	// dressed as a measurement: the same unit cost whether the agent ran
+	// once or a thousand times, and no way to answer per-model or
+	// per-branch. Measured token counts replace it.
+	//
+	// Kept on the struct so an existing config.json still parses. A file
+	// carrying it is not an error and the value is ignored; removing the
+	// field would make every such file fail to load, which is a worse
+	// outcome than a dead key.
 	MonthlySpend float64 `json:"monthly_spend,omitempty"`
 
 	// RetentionDays is how long agent line hashes are kept locally after
@@ -77,6 +86,32 @@ type Config struct {
 	// automatically. Absent means local-only: the journal, the reports and
 	// the CLI all work, and nothing leaves the machine.
 	Sync *SyncConfig `json:"sync,omitempty"`
+
+	// VersionCheck is whether dun may ask GitHub, at most once a day,
+	// whether a newer release exists (NAV-76, criteria 10-12).
+	//
+	// A pointer so three states stay distinguishable: absent (never
+	// configured — the default applies), true, and false. A plain bool
+	// would make "deliberately disabled" indistinguishable from "not set",
+	// and the default here is on, so that difference decides whether an
+	// explicit opt-out survives being written back.
+	//
+	// This is the only outbound request dun makes that is not a sync the
+	// user configured, which is why it is opt-OUT rather than assumed. A
+	// tool whose pitch is that nothing leaves the machine has to let
+	// someone mean that literally — `dun config set version_check off`, or
+	// DUN_NO_VERSION_CHECK in the environment for a machine where editing
+	// config is not the right lever.
+	VersionCheck *bool `json:"version_check,omitempty"`
+}
+
+// VersionCheckEnabled reports whether the release check may run.
+//
+// Defaults to true when unset: the check exists because a stale binary is
+// the thing this whole issue is about, and defaulting it off would make it
+// dead code for everyone who never finds the setting.
+func (c Config) VersionCheckEnabled() bool {
+	return c.VersionCheck == nil || *c.VersionCheck
 }
 
 // SyncConfig points at a shared database — typically a DevLake instance.

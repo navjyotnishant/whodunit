@@ -38,6 +38,18 @@ main() {
 	# means "find the mysql datasource yourself"; --datasource pins one.
 	DATASOURCE_UID="${DATASOURCE_UID:-}"
 
+	# The folder these land in.
+	#
+	# Not "General", which is where an unfoldered import goes and where
+	# DevLake's own dashboards already live. The whole reason every table
+	# is prefixed whodunit_ is that this tool coexists with a stack someone
+	# else runs; the dashboard list deserves the same courtesy.
+	#
+	# A folder is also a permissions boundary in Grafana, so this makes it
+	# possible to grant someone the whodunit dashboards without the rest of
+	# the instance.
+	FOLDER="${WHODUNIT_FOLDER:-Whodunit}"
+
 	# Raw from main by default. A tagged release also ships the dashboards
 	# as an asset; set WHODUNIT_VERSION to pin to it.
 	VERSION="${WHODUNIT_VERSION:-}"
@@ -49,6 +61,7 @@ main() {
 		--user) GRAFANA_USER="$2"; shift 2 ;;
 		--password) PASSWORD="$2"; shift 2 ;;
 		--datasource) DATASOURCE_UID="$2"; shift 2 ;;
+		--folder) FOLDER="$2"; shift 2 ;;
 		--version) VERSION="$2"; shift 2 ;;
 		-h | --help) usage; return 0 ;;
 		*) echo "unknown option: $1" >&2; usage >&2; return 2 ;;
@@ -84,10 +97,21 @@ main() {
 
 	check_grafana
 	check_datasource
+	ensure_folder
 
 	imported=0
 	failed=0
-	for name in whodunit whodunit-adoption whodunit-dora \
+	# The list is here rather than discovered because this script is
+	# curl-piped: there is no checkout to glob, only whatever the fetch
+	# step pulls down.
+	#
+	# It is therefore the one place a new dashboard has to be registered by
+	# hand, and forgetting is silent — the file is generated, exported and
+	# committed, CI passes because the two copies agree, and the dashboard
+	# simply never appears in Grafana. That happened to whodunit-cost.
+	# check-dashboard-list.py fails the build when this list and
+	# dashboards/ disagree.
+	for name in whodunit whodunit-adoption whodunit-cost whodunit-dora \
 		whodunit-exec whodunit-hours whodunit-funnel; do
 		if import_one "$name"; then
 			imported=$((imported + 1))
@@ -114,6 +138,7 @@ usage() {
 Import the whodunit dashboards into a Grafana instance.
 
   --grafana URL     Grafana base url (default http://localhost:3002)
+  --folder NAME     folder to import into (default Whodunit)
   --user NAME       Grafana user (default admin)
   --password PASS   prompted for when not given; GRAFANA_PASSWORD also works
   --datasource UID  datasource to bind (default: find the mysql one)
@@ -290,6 +315,57 @@ fetch_dashboard() {
 	curl -fsSL -o "$_dest" "$_url"
 }
 
+# ensure_folder creates the destination folder and leaves FOLDER_UID set.
+#
+# Idempotent by design, because this script re-runs on every release: a
+# 409 means the folder already exists, which is the desired end state
+# rather than a failure. The same shape as the schema migrations, where
+# "already exists" is what success looks like on run two.
+#
+# A failure here is not fatal. The dashboards are more useful in the wrong
+# folder than not imported at all, so FOLDER_UID stays empty and the
+# import falls back to General with a warning.
+ensure_folder() {
+	FOLDER_UID=""
+	[ -n "$FOLDER" ] || return 0
+
+	printf 'folder %s ... ' "$FOLDER"
+
+	# The uid is derived from the name rather than random, so a re-run
+	# finds the same folder instead of creating a second one with the same
+	# title — Grafana allows duplicate titles.
+	#
+	# Suffixed, because folders and dashboards share one uid namespace and
+	# the bare slug of the default name collides with the dashboard whose
+	# uid is already "whodunit". Grafana answers that collision with
+	# "Dashboard cannot be changed to a folder", which is a 400 rather than
+	# the 409 an existing folder returns.
+	_uid=$(printf '%s' "$FOLDER" | tr '[:upper:] ' '[:lower:]-' |
+		tr -cd 'a-z0-9-' | cut -c1-32)
+	_uid="${_uid}-folder"
+
+	_body="$WORK/folder.json"
+	# Assembled by hand for the same reason the import envelope is: this
+	# script's only hard dependency is curl. No jq, no python, so it runs
+	# on a bare server.
+	printf '{"uid":"%s","title":"%s"}' "$_uid" "$FOLDER" >"$_body"
+
+	api POST /api/folders "$_body" >/dev/null 2>&1
+	case "$HTTP_STATUS" in
+	# 200 created it. 409 and 412 both mean it is already there — Grafana
+	# answers a duplicate uid with 412 Precondition Failed and a duplicate
+	# title with 409, and this script re-runs on every release, so both are
+	# the desired end state rather than a failure.
+	200 | 409 | 412)
+		FOLDER_UID="$_uid"
+		echo "ok"
+		;;
+	*)
+		echo "could not create (HTTP $HTTP_STATUS) — importing into General"
+		;;
+	esac
+}
+
 import_one() {
 	_name="$1"
 	_file="$WORK/$_name.json"
@@ -308,14 +384,31 @@ import_one() {
 	{
 		printf '{"dashboard":'
 		cat "$_file"
-		printf ',"overwrite":true,"inputs":[{"name":"DS_WHODUNIT",'
+		printf ',"overwrite":true'
+		# folderUid is omitted entirely rather than sent empty: an empty
+		# string is a valid uid to Grafana and would fail the lookup,
+		# where an absent field means General.
+		[ -n "$FOLDER_UID" ] && printf ',"folderUid":"%s"' "$FOLDER_UID"
+		printf ',"inputs":[{"name":"DS_WHODUNIT",'
 		printf '"type":"datasource","pluginId":"mysql","value":"%s"}]}' \
 			"$DATASOURCE_UID"
 	} >"$_payload"
 
 	_response=$(api POST /api/dashboards/import "$_payload")
+
+	# 412 alongside "imported":true is Grafana moving an existing dashboard
+	# into a different folder. It reports a precondition failure on the
+	# version check and performs the move anyway, so treating it as an
+	# error would make every run after the first look like seven failures
+	# while the dashboards were in fact updated.
+	#
+	# The response body is the authority, not the status.
 	if [ "$HTTP_STATUS" = "200" ]; then
 		echo "ok"
+		return 0
+	fi
+	if [ "$HTTP_STATUS" = "412" ] && echo "$_response" | grep -q '"imported":true'; then
+		echo "ok (moved)"
 		return 0
 	fi
 	echo "failed (http $HTTP_STATUS)"

@@ -14,6 +14,23 @@
 # This exists so a release can be cut with only go, git, and (for --publish)
 # gh on PATH — no goreleaser, no network calls beyond git/gh, nothing
 # AI-assisted required to build or ship a binary.
+#
+# ## After publishing: update both package managers
+#
+# Neither is automatic. Publishing to a second repository from CI needs a
+# cross-repo token, which is a larger decision than this needs — so both are
+# a manual step, and both are listed here so neither is the one that gets
+# forgotten.
+#
+#   Homebrew (macOS, Linux) — in the navjyotnishant/homebrew-tap repository,
+#   point the formula's url/sha256 at the new release.
+#
+#   Scoop (Windows) — regenerate the manifest from the artifacts just built:
+#
+#       scripts/scoop-manifest.sh <version> > ../scoop-bucket/bucket/dun.json
+#
+#   It reads the checksums from dist/checksums.txt and the shim name from
+#   inside the archive, so it cannot disagree with what was published.
 set -eu
 
 VERSION="${1:?usage: $0 <version> [--publish]}"
@@ -39,7 +56,21 @@ for target in $TARGETS; do
   ext=""
   [ "$os" = "windows" ] && ext=".exe"
 
-  out="$DIST/dun_${VERSION}_${os}_${arch}${ext}"
+  # The archive keeps the version and platform in its name — that is how
+  # release assets are told apart. The binary inside is plain `dun`.
+  #
+  # Those used to be the same string, so unzipping on Windows produced
+  # dun_v0.2.0_windows_amd64.exe, which does nothing until the user renames
+  # it: the git hook resolves `dun` from PATH by name, so a differently-named
+  # binary means every commit is silently stamped undetermined.
+  #
+  # Homebrew hid this on macOS and Linux by renaming during install
+  # (`bin.install "dun_v0.2.0_darwin_arm64" => "dun"`). An archive has no
+  # install step, so the archive has to be right on its own — and the plain
+  # archive is a supported route for anyone whose policy forbids package
+  # managers.
+  binary="dun${ext}"
+  out="$DIST/$binary"
   echo "  $os/$arch"
   ( cd "$ROOT" && \
     CGO_ENABLED=0 GOOS="$os" GOARCH="$arch" \
@@ -47,13 +78,21 @@ for target in $TARGETS; do
 
   archive_base="dun_${VERSION}_${os}_${arch}"
   if [ "$os" = "windows" ]; then
-    ( cd "$DIST" && zip -q "${archive_base}.zip" "$(basename "$out")" && rm "$(basename "$out")" )
+    # -X drops the extra-attribute records macOS zip adds. Without it the
+    # archive carries a second entry (__MACOSX/._dun.exe) that means nothing
+    # on the machine unpacking it.
+    ( cd "$DIST" && zip -qX "${archive_base}.zip" "$binary" && rm "$binary" )
   else
-    ( cd "$DIST" && tar czf "${archive_base}.tar.gz" "$(basename "$out")" && rm "$(basename "$out")" )
+    # COPYFILE_DISABLE stops bsdtar on macOS writing an AppleDouble "._dun"
+    # beside the binary. Harmless on Linux, where the variable is ignored.
+    ( cd "$DIST" && COPYFILE_DISABLE=1 tar czf "${archive_base}.tar.gz" "$binary" && rm "$binary" )
   fi
 done
 
-( cd "$DIST" && shasum -a 256 * > checksums.txt )
+# Globbing whatever is in dist/ would checksum any stray file that happened
+# to be there. dist/ is wiped on entry so it should hold only what was just
+# built, but a checksum manifest is the wrong place to find out otherwise.
+( cd "$DIST" && shasum -a 256 dun_* > checksums.txt )
 
 echo "built:"
 ls -1 "$DIST"

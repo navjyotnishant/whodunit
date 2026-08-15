@@ -66,15 +66,81 @@ type sessionMeta struct {
 	ID         string `json:"id"`
 	CWD        string `json:"cwd"`
 	CLIVersion string `json:"cli_version"`
+
+	// The branch the session ran on. Session-scoped rather than per
+	// record, so it applies to every entry in the rollout — 115 of 125
+	// rollouts carry it, 14 distinct branches.
+	Git struct {
+		Branch string `json:"branch"`
+	} `json:"git"`
 }
 
 // toolCall is an apply_patch invocation. Codex records edits as a
 // custom_tool_call whose Input is the patch text itself, not JSON.
+// mcpTool resolves a tool call's display name and whether it went through
+// MCP, from the two ways Codex tags one.
+//
+// The first way is a prefixed name: name="mcp__linear__save_comment", no
+// namespace. The second is a bare name with the server in a separate
+// field: namespace="mcp__linear", name="save_comment". Measured on this
+// machine, 311 calls used the first form and 243 used the second — and
+// only the first was ever counted, so mcp_calls read 44% low for every
+// Codex user.
+//
+// The namespace is not by itself an MCP marker. Codex also uses it for
+// built-ins ("multi_agent_v1", 9 calls), so the mcp__ prefix is what
+// decides, on whichever field carries it.
+//
+// The returned name is qualified as server__tool for the namespace form.
+// Left bare, a `save_comment` from an MCP server and a local tool of the
+// same name would merge into one entry in the tool set.
+func mcpTool(namespace, name string) (string, bool) {
+	const prefix = "mcp__"
+	switch {
+	case strings.HasPrefix(name, prefix):
+		return name, true
+	case strings.HasPrefix(namespace, prefix):
+		if name == "" {
+			return namespace, true
+		}
+		return namespace + "__" + name, true
+	default:
+		return name, false
+	}
+}
+
 type toolCall struct {
-	Type   string `json:"type"`
-	Name   string `json:"name"`
-	CallID string `json:"call_id"`
-	Input  string `json:"input"`
+	Type      string `json:"type"`
+	Name      string `json:"name"`
+	CallID    string `json:"call_id"`
+	Input     string `json:"input"`
+	Namespace string `json:"namespace"`
+}
+
+// mcpServerOf returns the MCP server a call went through, or "" when it
+// did not go through one.
+//
+// Reuses mcpTool's judgement rather than re-deciding: the prefix can be on
+// either field, and a namespace alone does not mean MCP — Codex uses it
+// for built-ins too.
+//
+// The server is the qualified name minus its trailing method, which is
+// what the sibling adapters store: Claude Code's attributionMcpServer is
+// "linear-server", not "linear-server__save_comment".
+func mcpServerOf(namespace, name string) string {
+	qualified, isMCP := mcpTool(namespace, name)
+	if !isMCP {
+		return ""
+	}
+	// The namespace form already IS the server.
+	if strings.HasPrefix(namespace, "mcp__") {
+		return namespace
+	}
+	// The prefixed form is mcp__<server>__<method>; drop the method.
+	if i := strings.LastIndex(qualified, "__"); i > len("mcp__") {
+		return qualified[:i]
+	}
+	return qualified
 }
 
 // toolOutput is what happened to a call. The output field is either a plain
@@ -267,12 +333,31 @@ func ParseSince(path string, since time.Time) ([]journal.Entry, error) {
 	defer f.Close()
 
 	var entries []journal.Entry
+	var model string
 	scanner := bufio.NewScanner(f)
 	scanner.Buffer(make([]byte, 0, 64*1024), 8*1024*1024)
 
 	for scanner.Scan() {
 		var r record
 		if err := json.Unmarshal(scanner.Bytes(), &r); err != nil {
+			continue
+		}
+		// The model lives on turn_context, which is not a response_item,
+		// so it has to be tracked as the file is read rather than looked
+		// up once. A session can change model part-way through and every
+		// entry after that point belongs to the new one.
+		//
+		// Deliberately NOT filtered by `since`: a turn_context before the
+		// cutoff still establishes which model the visible entries after
+		// it were produced by. Skipping it would leave those entries with
+		// no model at all.
+		if r.Type == "turn_context" {
+			var tc struct {
+				Model string `json:"model"`
+			}
+			if err := json.Unmarshal(r.Payload, &tc); err == nil && tc.Model != "" {
+				model = tc.Model
+			}
 			continue
 		}
 		if r.Type != "response_item" || r.Timestamp.Before(since) {
@@ -299,6 +384,9 @@ func ParseSince(path string, since time.Time) ([]journal.Entry, error) {
 					Session:      meta.ID,
 					Event:        "tool_call",
 					Tool:         name,
+					Model:        model,
+					Branch:       meta.Git.Branch,
+					MCPServer:    mcpServerOf(c.Namespace, name),
 				})
 			}
 			continue
@@ -336,6 +424,8 @@ func ParseSince(path string, since time.Time) ([]journal.Entry, error) {
 			}
 
 			entries = append(entries, journal.Entry{
+				Model:        model,
+				Branch:       meta.Git.Branch,
 				Timestamp:    r.Timestamp,
 				Agent:        AgentName,
 				AgentVersion: meta.CLIVersion,
@@ -394,7 +484,24 @@ func ParseSessionActivity(path string, since time.Time) ([]journal.Session, erro
 		if r.Timestamp.After(s.LastSeen) {
 			s.LastSeen = r.Timestamp
 		}
-		if r.Type != "response_item" {
+		// Codex writes three record types worth reading, and this used to
+		// read one (NAV-87).
+		//
+		// `type != "response_item" { continue }` discarded 18,142
+		// event_msg and 4,089 turn_context records across 125 rollouts —
+		// about 40% of every transcript, and specifically the 40% holding
+		// tokens, timing, model, effort and approval policy. Not a missing
+		// field: a missing record type.
+		switch r.Type {
+		case "event_msg":
+			readEventMsg(&s, r.Payload)
+			continue
+		case "turn_context":
+			readTurnContext(&s, r.Payload)
+			continue
+		case "response_item":
+			// handled below
+		default:
 			continue
 		}
 
@@ -402,6 +509,9 @@ func ParseSessionActivity(path string, since time.Time) ([]journal.Session, erro
 			Type string `json:"type"`
 			Name string `json:"name"`
 			Role string `json:"role"`
+			// Codex tags an MCP call in one of two ways, never both, and
+			// the second one used to be invisible here — see mcpTool.
+			Namespace string `json:"namespace"`
 		}
 		if err := json.Unmarshal(r.Payload, &item); err != nil {
 			continue
@@ -415,10 +525,11 @@ func ParseSessionActivity(path string, since time.Time) ([]journal.Session, erro
 			}
 		case "function_call", "custom_tool_call":
 			s.ToolCalls++
-			if item.Name != "" {
-				tools[item.Name] = true
+			name, isMCP := mcpTool(item.Namespace, item.Name)
+			if name != "" {
+				tools[name] = true
 			}
-			if strings.HasPrefix(item.Name, "mcp__") {
+			if isMCP {
 				s.MCPCalls++
 			}
 		}
@@ -429,7 +540,35 @@ func ParseSessionActivity(path string, since time.Time) ([]journal.Session, erro
 	if s.Session == "" {
 		return nil, nil
 	}
+
+	// A session whose every record predates the cutoff is not a session
+	// with nothing in it — it is a session this window cannot see.
+	//
+	// s.Session comes from the rollout's session_meta, which is read
+	// before the cutoff is applied, so without this a `dun ingest --since`
+	// over a recent window wrote a row per historical rollout: all
+	// counters zero, and FirstSeen the zero time, which reaches SQLite as
+	// -6795364578871345152. Measured on a real repository: 74 Codex
+	// sessions written, every one of them empty.
+	//
+	// Worse than useless, because those rows then take part in averages —
+	// a per-session token average is divided by a denominator mostly made
+	// of sessions that were never read (NAV-21).
+	if s.FirstSeen.IsZero() {
+		return nil, nil
+	}
+
 	s.DistinctTools = len(tools)
+
+	// Zero when the rollout parsed and carried no compaction, rather than
+	// nil. The rollout was read end to end, so the absence is a
+	// measurement — the same reasoning as the Claude Code adapter, and
+	// unlike the token fields, where an agent that does not report usage
+	// leaves genuinely nothing to read.
+	if s.Compactions == nil {
+		s.Compactions = int64p(0)
+	}
+
 	return []journal.Session{s}, nil
 }
 

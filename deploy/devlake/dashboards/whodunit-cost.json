@@ -1,0 +1,1289 @@
+{
+  "uid": "whodunit-cost",
+  "title": "Whodunit \u2014 Cost & Efficiency",
+  "tags": [
+    "whodunit",
+    "cost"
+  ],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "",
+  "time": {
+    "from": "now-90d",
+    "to": "now"
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "datasource",
+        "type": "datasource",
+        "query": "mysql",
+        "current": {
+          "selected": true,
+          "text": "mysql",
+          "value": "mysql"
+        },
+        "hide": 0,
+        "label": "Data source"
+      },
+      {
+        "name": "contributor",
+        "type": "query",
+        "datasource": "${datasource}",
+        "label": "Contributor",
+        "query": "SELECT DISTINCT COALESCE(NULLIF(contributor, ''), '(unattributed)') AS __text, COALESCE(NULLIF(contributor, ''), '') AS __value FROM whodunit_repos ORDER BY 1",
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "__all__"
+        },
+        "multi": false,
+        "includeAll": true,
+        "allValue": "__all__",
+        "refresh": 1,
+        "hide": 0
+      }
+    ]
+  },
+  "panels": [
+    {
+      "type": "row",
+      "title": "What did it cost \u2014 in tokens",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 1
+      },
+      "panels": []
+    },
+    {
+      "id": 100,
+      "title": "Total tokens",
+      "type": "stat",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "x": 0,
+        "y": 1,
+        "w": 4,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT COALESCE(SUM(s.input_tokens + s.output_tokens\n       + COALESCE(s.cache_read_tokens,0) + COALESCE(s.cache_write_tokens,0)), 0) AS v\nFROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id\nWHERE s.input_tokens IS NOT NULL AND ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}')"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "sishort",
+          "decimals": 1,
+          "noValue": "no session reported tokens",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          }
+        },
+        "overrides": []
+      },
+      "description": "Every token billed: uncached input + cache reads + cache writes + output.\n\n**Almost all of it is cache reads.** Measured here: 7.53B cache reads, 54.6M cache writes, 13.2M uncached input, 7.9M output \u2014 so this number tracks how much context was re-sent, not how much the models produced. The four tiles to the right hold the same breakdown as live figures.\n\nTokens, not currency: under a subscription the marginal cost of a token is zero, so a price table would report money nobody spent. Multiply by your own contract if you need a figure.",
+      "options": {
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 101,
+      "title": "Output tokens",
+      "type": "stat",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "x": 4,
+        "y": 1,
+        "w": 4,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT COALESCE(SUM(s.output_tokens), 0) AS v\nFROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id\nWHERE s.output_tokens IS NOT NULL AND ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}')"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "sishort",
+          "decimals": 1,
+          "noValue": "not reported",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          }
+        },
+        "overrides": []
+      },
+      "description": "What the models actually produced, as opposed to what was re-sent to them.\n\nTypically a fraction of a percent of the total \u2014 0.1% measured here.\n\n**Total and Output are three orders of magnitude apart**, so they render in different units (B against M) and comparing them by eye reads as a contradiction. They are not: 7.6 B is a thousand times 7.6 M.",
+      "options": {
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 106,
+      "title": "Uncached input",
+      "type": "stat",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "x": 8,
+        "y": 1,
+        "w": 4,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT COALESCE(SUM(s.input_tokens), 0) AS v\nFROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id\nWHERE s.input_tokens IS NOT NULL AND ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}')"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "sishort",
+          "decimals": 1,
+          "noValue": "not reported",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          }
+        },
+        "overrides": []
+      },
+      "description": "Input the model had to read fresh, at full price.\n\nThis is the figure a cache is meant to shrink. It was missing from this dashboard entirely, which left the headline total \u2014 almost all of it cache reads \u2014 looking like the whole story.",
+      "options": {
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 107,
+      "title": "Cache reads",
+      "type": "stat",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "x": 12,
+        "y": 1,
+        "w": 4,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT COALESCE(SUM(s.cache_read_tokens), 0) AS v\nFROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id\nWHERE s.cache_read_tokens IS NOT NULL AND ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}')"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "sishort",
+          "decimals": 1,
+          "noValue": "not reported",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          }
+        },
+        "overrides": []
+      },
+      "description": "Context re-sent and served from cache at about a tenth of base rate.\n\nNormally the largest number on this dashboard by three orders of magnitude \u2014 99% of the total here \u2014 which is why the headline figure is not a measure of how much work was produced.",
+      "options": {
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 102,
+      "title": "Served from cache",
+      "type": "stat",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "x": 16,
+        "y": 1,
+        "w": 4,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT ROUND(100.0 * SUM(COALESCE(s.cache_read_tokens,0))\n  / NULLIF(SUM(s.input_tokens + COALESCE(s.cache_read_tokens,0)\n             + COALESCE(s.cache_write_tokens,0)), 0), 1) AS v\nFROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id\nWHERE s.input_tokens IS NOT NULL AND ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}')"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 1,
+          "noValue": "no input tokens recorded",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 50
+              },
+              {
+                "color": "green",
+                "value": 75
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "description": "Share of input tokens served from cache.\n\n**Cache writes count as uncached here**, because a write arrives uncached and is billed above base rate. Omitting them turns a real 48% into a flattering 99% \u2014 measured on this project's own data.",
+      "options": {
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 103,
+      "title": "Cache write payback",
+      "type": "stat",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "x": 20,
+        "y": 1,
+        "w": 4,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT ROUND(SUM(COALESCE(s.cache_read_tokens,0))\n  / NULLIF(SUM(s.cache_write_tokens), 0), 2) AS v\nFROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id\nWHERE s.cache_write_tokens IS NOT NULL AND s.cache_write_tokens > 0 AND ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}')"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "suffix: \u00d7",
+          "decimals": 1,
+          "noValue": "no agent reported cache writes",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1.25
+              },
+              {
+                "color": "green",
+                "value": 3
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "description": "Reads returned per token written to cache \u2014 a **ratio, not a percentage**. 135 means each cached token was read back 135 times.\n\nBelow 1.25x the writes cost more than they saved \u2014 a write is billed at about 1.25x base and a read at 0.1x.\n\n**The obvious break-even of 1.0 is wrong**: a series at 1.10x lost money while looking healthy.\n\nEmpty for Codex, which reports cache reads but never writes.",
+      "options": {
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "type": "row",
+      "title": "Context pressure \u2014 the part you can act on",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 5,
+        "w": 24,
+        "h": 1
+      },
+      "panels": []
+    },
+    {
+      "id": 105,
+      "title": "Reasoning tokens",
+      "type": "stat",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "x": 8,
+        "y": 14,
+        "w": 16,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT COALESCE(SUM(s.reasoning_tokens), 0) AS v\nFROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id\nWHERE s.reasoning_tokens IS NOT NULL AND ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}')"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "sishort",
+          "decimals": 1,
+          "noValue": "only Codex separates these",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          }
+        },
+        "overrides": []
+      },
+      "description": "Tokens spent thinking rather than answering.\n\nCodex alone reports this. Claude Code and Antigravity do not separate it, so an empty panel here means 'not reported', not zero.",
+      "options": {
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 130,
+      "title": "Human edited the agent's output",
+      "type": "stat",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "x": 16,
+        "y": 10,
+        "w": 8,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT ROUND(100.0 * SUM(CASE WHEN e.user_modified = 1 THEN 1 ELSE 0 END)\n  / NULLIF(COUNT(*), 0), 1) AS v\nFROM whodunit_events e JOIN whodunit_repos r ON r.repo_id = e.repo_id\nWHERE e.user_modified IS NOT NULL AND ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}')"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 1,
+          "noValue": "only Claude Code reports this",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 20
+              },
+              {
+                "color": "red",
+                "value": 40
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "description": "Share of edits a human changed before committing \u2014 the difference between 'the agent wrote this' and 'the agent wrote this and it was kept'.\n\nClaude Code alone reports it. The denominator counts only calls that carried the signal, so agents without it do not dilute the rate.",
+      "options": {
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 132,
+      "title": "Turn latency",
+      "type": "stat",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "x": 8,
+        "y": 10,
+        "w": 8,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT ROUND(AVG(s.duration_ms) / 1000, 1) AS v\nFROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id\nWHERE s.duration_ms IS NOT NULL AND ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}')"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "decimals": 1,
+          "noValue": "only Codex records timing",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          }
+        },
+        "overrides": []
+      },
+      "description": "Codex alone records per-turn timing. Claude Code and Antigravity report none, so this is empty for them rather than zero \u2014 a zero would make them the fastest agents on this panel.",
+      "options": {
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 134,
+      "title": "Sessions that compacted",
+      "type": "stat",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "x": 0,
+        "y": 6,
+        "w": 6,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT ROUND(100.0 * SUM(CASE WHEN s.compactions > 0 THEN 1 ELSE 0 END)\n  / NULLIF(COUNT(*), 0), 0) AS v\nFROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id\nWHERE s.compactions IS NOT NULL AND ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}')"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 0,
+          "noValue": "no agent reported compaction",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          }
+        },
+        "overrides": []
+      },
+      "description": "Share of sessions whose context was compacted at least once (NAV-106).\n\n**Read this beside the context the sessions were running at.** A long session costs more even when cached, because the whole context is re-sent every turn \u2014 and compacting is the one thing a person can do about it. Measured on this machine, 92% of turns ran above 150k context while a small fraction of sessions ever compacted.\n\n**Deliberately not colour-coded.** A low rate is only a problem alongside high context, and this panel cannot see context \u2014 a short session has nothing to compact, and colouring 8% red would call that a failure. The number is the finding; the judgement needs the context distribution, which the journal cannot answer per turn yet.\n\nThe denominator counts only sessions from agents that report the signal at all. Antigravity has no equivalent and is excluded rather than counted as never compacting.",
+      "options": {
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 135,
+      "title": "Compact rate by agent",
+      "type": "bargauge",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "x": 6,
+        "y": 6,
+        "w": 12,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT\n  s.agent AS metric,\n  ROUND(100.0 * SUM(CASE WHEN s.compactions > 0 THEN 1 ELSE 0 END)\n    / NULLIF(COUNT(*), 0)) AS value\nFROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id\nWHERE s.compactions IS NOT NULL AND ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}')\nGROUP BY s.agent ORDER BY 2 DESC"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 0,
+          "noValue": "no agent reported compaction",
+          "color": {
+            "mode": "continuous-GrYlRd"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "description": "The same rate split by agent \u2014 the cut that says whether this is a habit or a tool difference.\n\nMeasured here: Claude Code 15% against Codex 4%, on the same repositories and the same person. A gap that size is more likely about how each agent surfaces the option than about who was using it.\n\nAntigravity is absent rather than shown at 0%: it records no context management, so it cannot report a rate at all (NAV-21).",
+      "options": {
+        "displayMode": "gradient",
+        "orientation": "horizontal",
+        "showUnfilled": true,
+        "valueMode": "text",
+        "text": {
+          "valueSize": 18,
+          "titleSize": 12
+        },
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": true
+        }
+      }
+    },
+    {
+      "id": 136,
+      "title": "Compactions per compacting session",
+      "type": "stat",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "x": 18,
+        "y": 6,
+        "w": 6,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT ROUND(AVG(s.compactions), 1) AS v\nFROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id\nWHERE s.compactions > 0 AND ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}')"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 1,
+          "noValue": "no session has compacted",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          }
+        },
+        "overrides": []
+      },
+      "description": "Average compactions, counting only sessions that compacted at all.\n\nThe zeroes are excluded deliberately. Averaged over every session this would be a fraction and would say nothing; the question is what a compacting session looks like \u2014 measured here, 4 on average, with one session reaching 9.\n\nA high number is not automatically bad: it means long work, which is sometimes exactly right.",
+      "options": {
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 133,
+      "title": "Reasoning effort",
+      "type": "piechart",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "x": 0,
+        "y": 10,
+        "w": 8,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT s.effort AS metric, COUNT(*) AS value\nFROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id\nWHERE s.effort IS NOT NULL AND ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}')\nGROUP BY s.effort"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "no session recorded an effort tier",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "low"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#5794F2"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "medium"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#73BF69"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "high"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#FF9830"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "xhigh"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#F2495C"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "description": "How hard the model was asked to think, where the agent says.\n\nThe lever behind the token counts above: a higher tier spends more on the same task.",
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "right",
+          "showLegend": true,
+          "values": [
+            "percent"
+          ]
+        },
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": true
+        }
+      }
+    },
+    {
+      "type": "row",
+      "title": "Per model \u2014 where the aggregate hides a loss",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 18,
+        "w": 24,
+        "h": 1
+      },
+      "panels": []
+    },
+    {
+      "id": 109,
+      "title": "Token mix by model",
+      "type": "barchart",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "x": 0,
+        "y": 19,
+        "w": 12,
+        "h": 6
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT\n  COALESCE(NULLIF(s.model, ''), '(unattributed)') AS model,\n  SUM(s.input_tokens)                             AS `Uncached in`,\n  SUM(s.output_tokens)                            AS `Output`,\n  SUM(COALESCE(s.cache_write_tokens,0))           AS `Cache write`,\n  SUM(COALESCE(s.cache_read_tokens,0))            AS `Cache read`\nFROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id\nWHERE s.input_tokens IS NOT NULL AND ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}')\nGROUP BY 1\nORDER BY SUM(s.input_tokens + s.output_tokens\n           + COALESCE(s.cache_read_tokens,0)\n           + COALESCE(s.cache_write_tokens,0)) DESC"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "decimals": 0,
+          "noValue": "no session reported tokens",
+          "color": {
+            "mode": "palette-classic-by-name"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Cache read"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#5794F2"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Cache write"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#B877D9"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Uncached in"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#FF9830"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Output"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#73BF69"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "description": "What each model's tokens are made of \u2014 one stacked bar per model.\n\n**Stacked as a percentage, not as absolute counts, and that is the only way this reads.** Cache reads are 88-99% of every model's total here, so an absolute stack would draw one long bar with three invisible slivers: opus-5's entire output is 0.1% of its own total. Normalising each bar to 100% makes the composition comparable, which is where the difference actually is \u2014 gpt-5.4 is 94% cache reads against gpt-5.5 at 88%.\n\nAbsolute totals are in the table below; this panel answers what the tokens were, not how many.\n\nOrdered by total tokens, so the largest consumer is at the top even though every bar is the same length.",
+      "options": {
+        "orientation": "horizontal",
+        "stacking": "percent",
+        "xTickLabelRotation": 0,
+        "showValue": "never",
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 131,
+      "title": "Longest sessions",
+      "type": "bargauge",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "x": 12,
+        "y": 19,
+        "w": 12,
+        "h": 6
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT\n  CONCAT(\n    ROW_NUMBER() OVER (ORDER BY (s.last_seen - s.first_seen) DESC),\n    '. ', s.agent, ' \u00b7 ',\n    COALESCE(NULLIF(s.model, ''), 'model not reported')) AS metric,\n  ROUND((s.last_seen - s.first_seen) / 1000000000 / 3600, 1) AS value\nFROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id\nWHERE ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}')\n  AND s.last_seen > s.first_seen\n  -- A session whose first record predates the ingest window carries the\n  -- zero time, which reaches the database as -6795364578871345152 and\n  -- renders as a 272-year session. The adapter no longer writes those,\n  -- but a database synced before that fix still holds them, and one such\n  -- row at the top of a DESC sort makes the whole panel nonsense.\n  AND s.first_seen > 0\nORDER BY (s.last_seen - s.first_seen) DESC LIMIT 8"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "h",
+          "decimals": 1,
+          "noValue": "no sessions with a usable duration",
+          "color": {
+            "mode": "continuous-GrYlRd"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "description": "The eight longest sessions, in hours. A long session costs more even when cached, because the whole context is re-sent every turn.\n\nIndividual sessions rather than an average, deliberately: the mean here is a few hours and the top session is 339, so an average would hide exactly the ones worth looking at.\n\n**Rows are numbered because the labels repeat.** Several of the longest sessions are the same agent with no model recorded, and a bar gauge needs distinct labels or it silently collapses them into one bar.\n\nSessions whose start time was never recorded are excluded rather than rendered as impossibly long.",
+      "options": {
+        "displayMode": "gradient",
+        "orientation": "horizontal",
+        "showUnfilled": true,
+        "valueMode": "text",
+        "text": {
+          "valueSize": 18,
+          "titleSize": 12
+        },
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": true
+        }
+      }
+    },
+    {
+      "id": 110,
+      "title": "Token use and cache efficiency by model",
+      "type": "table",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "x": 0,
+        "y": 25,
+        "w": 24,
+        "h": 9
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT\n  COALESCE(NULLIF(s.model, ''), '(unattributed)') AS Model,\n  COUNT(*)                                        AS Sessions,\n  SUM(s.input_tokens)                             AS `Uncached in`,\n  SUM(s.output_tokens)                            AS `Out`,\n  SUM(COALESCE(s.cache_read_tokens,0))            AS `Cache read`,\n  SUM(COALESCE(s.cache_write_tokens,0))           AS `Cache write`,\n  ROUND(100.0 * SUM(COALESCE(s.cache_read_tokens,0))\n    / NULLIF(SUM(s.input_tokens + COALESCE(s.cache_read_tokens,0)\n               + COALESCE(s.cache_write_tokens,0)), 0), 1) AS `From cache %`,\n  ROUND(SUM(COALESCE(s.cache_read_tokens,0))\n    / NULLIF(SUM(s.cache_write_tokens), 0), 1)    AS `Write payback \u00d7`\nFROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id\nWHERE s.input_tokens IS NOT NULL AND ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}')\nGROUP BY COALESCE(NULLIF(s.model, ''), '(unattributed)')\nORDER BY SUM(s.input_tokens + s.output_tokens\n           + COALESCE(s.cache_read_tokens,0)\n           + COALESCE(s.cache_write_tokens,0)) DESC"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "no session reported tokens"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Write payback \u00d7"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "red",
+                      "value": null
+                    },
+                    {
+                      "color": "orange",
+                      "value": 1.25
+                    },
+                    {
+                      "color": "green",
+                      "value": 3
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "noValue",
+                "value": "not reported"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "From cache %"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percent"
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*(in|Out|read|write)$"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "sishort"
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "gauge",
+                  "mode": "gradient",
+                  "valueDisplayMode": "text"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Sessions"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "gauge",
+                  "mode": "lcd",
+                  "valueDisplayMode": "text"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "description": "**Per model, because the aggregate hides the finding.** An overall 48% read ratio measured on real data contained one model at 0.73x amortisation \u2014 a loss, invisible in the total.\n\n`Write payback` below 1.25x is red: those writes cost more than they saved. Empty means the agent does not report cache writes rather than that it wrote none.",
+      "options": {
+        "showHeader": true,
+        "sortBy": [
+          {
+            "displayName": "Uncached in",
+            "desc": true
+          }
+        ]
+      }
+    },
+    {
+      "id": 111,
+      "title": "Output tokens per model over time",
+      "type": "timeseries",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "x": 0,
+        "y": 34,
+        "w": 24,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawSql": "SELECT\n  FROM_UNIXTIME(FLOOR(s.last_seen / 1000000000 / 86400) * 86400) AS time,\n  COALESCE(NULLIF(s.model, ''), '(unattributed)')                AS metric,\n  SUM(s.output_tokens)                                           AS value\nFROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id\nWHERE s.output_tokens IS NOT NULL AND ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}')\n  AND s.last_seen >= $__unixEpochFrom() * 1000000000\n  AND s.last_seen <  $__unixEpochTo() * 1000000000\nGROUP BY 1, 2 ORDER BY 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "sishort",
+          "noValue": "no tokens in this range",
+          "color": {
+            "mode": "palette-classic-by-name"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "description": "Which model is doing the work, and when that changed.\n\nOne line per model, named and coloured. That needs `format: time_series`, which is what turns a `metric` column into separate series \u2014 with `format: table` Grafana returns one frame with a literal metric column and labels every line \"value\", so the models are indistinguishable.\n\nFull width because the cache-payback chart that used to sit beside it was removed: payback is a static per-model fact here, not a trend. Three of seven models never report cache writes at all and the rest sit at 47-153x, so plotting it over time drew four flat lines nowhere near the break-even the chart existed to mark. The number itself stays in the table below, where its session count is beside it \u2014 153x reads very differently on 34 sessions than on 1.",
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true,
+          "calcs": [
+            "sum"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "type": "row",
+      "title": "Where it landed",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 42,
+        "w": 24,
+        "h": 1
+      },
+      "panels": []
+    },
+    {
+      "id": 120,
+      "title": "Top agent-written lines by branch",
+      "type": "barchart",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "x": 0,
+        "y": 43,
+        "w": 24,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT branch, `Lines added` FROM (\n  SELECT\n    CASE WHEN CHAR_LENGTH(e.branch) > 34\n         THEN CONCAT(LEFT(e.branch, 31), '...')\n         ELSE e.branch END      AS branch,\n    SUM(e.lines_added)          AS `Lines added`,\n    1                           AS grp,\n    ROW_NUMBER() OVER (ORDER BY SUM(e.lines_added) DESC) AS rn\n  FROM whodunit_events e JOIN whodunit_repos r ON r.repo_id = e.repo_id\n  WHERE e.branch IS NOT NULL AND ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}')\n  GROUP BY e.branch\n  HAVING SUM(e.lines_added) > 0\n) ranked WHERE rn <= 12\nUNION ALL\nSELECT\n  CONCAT('+ ', COUNT(*), ' more branches'),\n  SUM(lines_added)\nFROM (\n  SELECT\n    SUM(e.lines_added) AS lines_added,\n    ROW_NUMBER() OVER (ORDER BY SUM(e.lines_added) DESC) AS rn\n  FROM whodunit_events e JOIN whodunit_repos r ON r.repo_id = e.repo_id\n  WHERE e.branch IS NOT NULL AND ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}')\n  GROUP BY e.branch\n  HAVING SUM(e.lines_added) > 0\n) tail WHERE rn > 12\nHAVING COUNT(*) > 0"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "sishort",
+          "noValue": "no event recorded a branch",
+          "color": {
+            "mode": "continuous-BlPu"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "description": "Where the agent's output actually landed, top twelve branches by lines written, with everything below them summed into a final bar.\n\nThat last bar is there so the top twelve reads as a slice rather than as everything \u2014 the failure the old table's silent LIMIT 25 already caused once. Measured here the twelve are 90% of all lines written across 42 branches.\n\nBranches contributing zero lines are excluded \u2014 those are sessions that read and ran things without writing, which the events count already covers elsewhere.\n\nLong branch names are truncated for the axis; the tooltip carries the value and the panel beside this one says how much sits outside the top twelve.\n\nAntigravity records no branch at all \u2014 its branch-like strings are a tracker's *suggested* branch inside an MCP response, not the checked-out one. Its events are absent here rather than grouped under a wrong name.",
+      "options": {
+        "orientation": "horizontal",
+        "xTickLabelRotation": 0,
+        "showValue": "always",
+        "legend": {
+          "showLegend": false
+        },
+        "tooltip": {
+          "mode": "single"
+        }
+      }
+    },
+    {
+      "type": "row",
+      "title": "MCP servers, and how much rope the agent had",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 51,
+        "w": 24,
+        "h": 1
+      },
+      "panels": []
+    },
+    {
+      "id": 121,
+      "title": "Autonomy granted \u2014 tool calls per session",
+      "type": "bargauge",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "x": 12,
+        "y": 52,
+        "w": 12,
+        "h": 7
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT\n  CONCAT(s.permission_mode, '  (', s.agent, ')')  AS metric,\n  ROUND(SUM(s.tool_calls) / COUNT(*))              AS value\nFROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id\nWHERE s.permission_mode IS NOT NULL AND ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}')\nGROUP BY s.permission_mode, s.agent\nORDER BY 2 DESC"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 0,
+          "noValue": "no session recorded a permission mode",
+          "color": {
+            "mode": "continuous-GrYlRd"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "description": "How much work happens per session at each level of autonomy.\n\n**One metric rather than two bars.** Sessions and total tool calls run in opposite directions here \u2014 64 sessions on Codex's `never` produced 506 calls, 2 Claude Code sessions on `auto` produced 6,766 \u2014 so charting both put a 13x range beside a 32x one and flattened whichever shared the axis. Dividing them gives the thing both were circling: 8 calls per session on `never`, 3,383 on `auto`.\n\nThe ladder is monotonic across every mode measured, which is the finding: autonomy is not how often it is granted, it is how much happens once it is.\n\nThe agent is in the label because each mode belongs to exactly one \u2014 Codex says `never` and `on-request`, Claude Code says `acceptEdits`, `auto` and `default`. Each agent's own vocabulary is kept rather than mapped onto a shared enum: asserting that `never` means the same as `default` would invent a comparison neither agent made.",
+      "options": {
+        "displayMode": "gradient",
+        "orientation": "horizontal",
+        "showUnfilled": true,
+        "valueMode": "text",
+        "text": {
+          "valueSize": 18,
+          "titleSize": 12
+        },
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": true
+        }
+      }
+    },
+    {
+      "id": 140,
+      "title": "Calls per MCP server",
+      "type": "barchart",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "x": 0,
+        "y": 52,
+        "w": 12,
+        "h": 7
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT e.mcp_server AS metric, COUNT(*) AS value\nFROM whodunit_events e JOIN whodunit_repos r ON r.repo_id = e.repo_id\nWHERE e.mcp_server IS NOT NULL AND ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}')\nGROUP BY e.mcp_server ORDER BY COUNT(*) DESC LIMIT 15"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "no MCP calls recorded",
+          "color": {
+            "mode": "continuous-BlPu"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "description": "Which servers the agents actually reach for.\n\nAntigravity is absent: what looked like MCP identity in its store turned out to be the command text being approved, which is content rather than an identifier.",
+      "options": {
+        "legend": {
+          "showLegend": false
+        },
+        "orientation": "horizontal"
+      }
+    }
+  ]
+}

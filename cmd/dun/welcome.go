@@ -75,6 +75,29 @@ func runWelcome(out io.Writer, root *cobra.Command) error {
 			w.S(termcolor.Muted, "dun status   what that costs, and what would fix it"))
 	}
 
+	// Only on bare `dun`, and only from here (NAV-76, criterion 10).
+	//
+	// Not on every command, and never from a hook: this is the one screen
+	// someone reaches by typing the tool's name with no task in mind, which
+	// makes it the one place a notice about the tool itself belongs. The
+	// commit path must stay free of network calls entirely — a version
+	// check that can hang a commit is worse than a stale binary.
+	//
+	// Silent when there is nothing to say, when the check is disabled, and
+	// on any failure, so a machine with no outbound access sees no
+	// difference (criteria 7, 11, 12).
+	// Buffered rather than written straight through, so "nothing to say"
+	// costs no blank line either — a stray gap is the same kind of noise as
+	// a stray message, just quieter.
+	if cfg, err := config.Load(); err == nil {
+		var notice strings.Builder
+		reportNewerVersion(&notice, w, cfg, version)
+		if notice.Len() > 0 {
+			fmt.Fprintln(out)
+			fmt.Fprint(out, notice.String())
+		}
+	}
+
 	fmt.Fprintln(out)
 	fmt.Fprintln(out, w.S(termcolor.Muted, "  dun --help for the full surface, dun <command> --help for one"))
 	return nil

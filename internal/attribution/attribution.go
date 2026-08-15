@@ -96,6 +96,33 @@ func Determine(entries []journal.Entry, stagedFiles []string, agentLineHashes ma
 
 	agent, version, session := relevant[0].Agent, relevant[0].AgentVersion, relevant[0].Session
 
+	// The model is taken from the LAST relevant entry, not the first
+	// (NAV-117).
+	//
+	// A commit can contain edits from more than one model — a session that
+	// escalated part-way, or two sessions touching the same files — and
+	// the three obvious answers fail differently. First-seen describes
+	// work that may since have been rewritten. Most-frequent is a mode
+	// over a handful of events, which flips on one edit. Last-seen matches
+	// how journal.Session already resolves it, and the turn that finished
+	// the work is the one worth attributing.
+	//
+	// Entries arrive in timestamp order (the journal query is ORDER BY ts
+	// ASC), so the last relevant entry is the most recent.
+	//
+	// Left empty when no entry recorded one, so the key is omitted
+	// entirely rather than emitted as unknown — an absent measurement must
+	// not look like a measured one (NAV-21). agy, Codex and Claude Code
+	// all report a model, but a commit attributed by declared or inferred
+	// has no entries to read one from.
+	var model string
+	for i := len(relevant) - 1; i >= 0; i-- {
+		if relevant[i].Model != "" {
+			model = relevant[i].Model
+			break
+		}
+	}
+
 	// Count staged lines that match a line the agent produced. Distinct
 	// hashes only: a file that legitimately repeats a line should not let
 	// one agent-written line claim several.
@@ -126,6 +153,7 @@ func Determine(entries []journal.Entry, stagedFiles []string, agentLineHashes ma
 		Method:  method,
 		Agent:   agent,
 		Version: version,
+		Model:   model,
 		Session: session,
 		Extra:   map[string]string{},
 	}

@@ -28,21 +28,11 @@
         "type": "query",
         "datasource": "${DS_WHODUNIT}",
         "label": "Contributor",
-        "query": "SELECT DISTINCT contributor FROM whodunit_repos WHERE contributor <> ''",
+        "query": "SELECT DISTINCT COALESCE(NULLIF(contributor, ''), '(unattributed)') AS __text, COALESCE(NULLIF(contributor, ''), '') AS __value FROM whodunit_repos ORDER BY 1",
         "current": {},
+        "multi": false,
         "includeAll": true,
         "allValue": "__all__",
-        "refresh": 1,
-        "hide": 0,
-        "options": []
-      },
-      {
-        "name": "board",
-        "type": "query",
-        "datasource": "${DS_WHODUNIT}",
-        "label": "Board (stage 4)",
-        "query": "SELECT name AS __text, id AS __value FROM boards WHERE id LIKE 'linear:%' ORDER BY name",
-        "current": {},
         "refresh": 1,
         "hide": 0,
         "options": []
@@ -51,17 +41,18 @@
   },
   "panels": [
     {
-      "type": "text",
+      "id": 1,
       "title": "",
+      "type": "text",
       "gridPos": {
         "x": 0,
         "y": 0,
         "w": 24,
-        "h": 6
+        "h": 5
       },
       "options": {
         "mode": "markdown",
-        "content": "# AI Productivity Funnel\n*Six stages, each measured on its own. Adoption is not productivity, and this is laid out so the two cannot be mistaken for each other.*\n\n**The stages do not multiply.** 70% adoption × 80% engagement × 60% assisted work is not a productivity figure — it is arithmetic on unrelated denominators. Each stage validates that the next one is worth asking about; none of them derives the next.\n\n**The units change between stages,** so this is drawn as descending bars rather than a tapering funnel: stages 1–2 count people and sessions, stage 3 counts commits, stage 4 counts issues. A continuous taper would assert that each stage is a subset of the one above it, which is not true here. Every stage shows its own denominator."
+        "content": "# AI Productivity Funnel\n\n*Six stages, each measured on its own. Adoption is not productivity, and this\nis laid out so the two cannot be mistaken for each other.*\n\n**The stages do not multiply.** 70% adoption × 80% engagement × 60% assisted\nwork is not a productivity figure — it is arithmetic on unrelated\ndenominators. Read each stage against its own question.\n"
       }
     },
     {
@@ -70,119 +61,136 @@
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 6,
+        "y": 5,
         "w": 24,
         "h": 1
       },
       "panels": []
     },
     {
-      "type": "bargauge",
+      "id": 10,
       "title": "Stage 1 · Adoption",
-      "datasource": "${DS_WHODUNIT}",
-      "gridPos": {
-        "x": 0,
-        "y": 7,
-        "w": 12,
-        "h": 5
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "format": "table",
-          "rawSql": "SELECT 'contributors using an agent' AS `stage`,\n       COUNT(DISTINCT CASE WHEN e.repo_id IS NOT NULL THEN r.contributor END) AS `value`\nFROM whodunit_repos r\nLEFT JOIN whodunit_events e ON e.repo_id = r.repo_id AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nWHERE r.contributor <> '' AND ('$contributor' = '__all__' OR r.contributor = '$contributor')\nUNION ALL\nSELECT 'contributors seen at all',\n       COUNT(DISTINCT r.contributor)\nFROM whodunit_repos r WHERE r.contributor <> '' AND ('$contributor' = '__all__' OR r.contributor = '$contributor')"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "short",
-          "min": 0,
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "blue",
-                "value": null
-              }
-            ]
-          }
-        }
-      },
-      "options": {
-        "displayMode": "lcd",
-        "orientation": "horizontal",
-        "showUnfilled": true,
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": true
-        }
-      },
-      "description": "Anyone with recorded agent activity, over everyone whodunit has seen commit. Both counts are shown because a percentage from one contributor is noise — the denominator is what makes that obvious."
-    },
-    {
       "type": "bargauge",
-      "title": "Stage 2 · Engagement — how deep, not how many",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
         "x": 0,
-        "y": 12,
+        "y": 6,
         "w": 12,
-        "h": 7
+        "h": 5
       },
       "targets": [
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT CASE\n         WHEN s.mcp_calls > 0 OR s.distinct_tools >= 5 THEN 'agentic — MCP or many tools'\n         WHEN s.tool_calls >= 50 THEN 'multi-file work'\n         WHEN s.tool_calls >= 10 THEN 'wrote code'\n         WHEN s.tool_calls > 0   THEN 'light edits'\n         ELSE 'conversation only — no edits'\n       END AS `intensity`,\n       COUNT(*) AS `sessions`\nFROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id\nWHERE s.last_seen BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000 AND ('$contributor' = '__all__' OR r.contributor = '$contributor')\nGROUP BY `intensity` ORDER BY `sessions` DESC"
+          "rawSql": "SELECT 'contributors using an agent' AS `stage`,\n       COUNT(DISTINCT CASE WHEN e.repo_id IS NOT NULL THEN r.contributor END) AS `value`\nFROM whodunit_repos r\nLEFT JOIN whodunit_events e ON e.repo_id = r.repo_id AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nWHERE r.contributor <> '' AND ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}')\nUNION ALL\nSELECT 'contributors seen at all',\n       COUNT(DISTINCT r.contributor)\nFROM whodunit_repos r WHERE r.contributor <> '' AND ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}')"
         }
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "short",
-          "min": 0,
+          "noValue": "no contributors recorded",
+          "color": {
+            "mode": "continuous-BlPu"
+          },
           "thresholds": {
             "mode": "absolute",
             "steps": [
               {
-                "color": "blue",
+                "color": "text",
                 "value": null
               }
             ]
           }
-        }
+        },
+        "overrides": []
       },
+      "description": "How many people used an agent at all, against how many are known to this tool.\n\nThe denominator is contributors with a recorded identity — a repository instrumented without one is invisible here, which is worth knowing before reading the ratio as coverage.",
       "options": {
-        "displayMode": "lcd",
+        "displayMode": "gradient",
         "orientation": "horizontal",
         "showUnfilled": true,
+        "valueMode": "text",
+        "text": {
+          "valueSize": 18,
+          "titleSize": 12
+        },
         "reduceOptions": {
           "calcs": [
             "lastNotNull"
           ],
-          "fields": "",
           "values": true
         }
-      },
-      "description": "The panel that adoption hides. A session where the agent only answered questions and a session where it wrote across a dozen files both count as 'used AI'. Weighting by what the agent actually did separates 'people have it open' from 'it is doing engineering work'."
+      }
     },
     {
-      "type": "stat",
+      "id": 11,
+      "title": "Stage 2 · Engagement — how deep, not how many",
+      "type": "bargauge",
+      "datasource": "${DS_WHODUNIT}",
+      "gridPos": {
+        "x": 12,
+        "y": 6,
+        "w": 12,
+        "h": 5
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT CASE\n         WHEN s.mcp_calls > 0 OR s.distinct_tools >= 5 THEN 'agentic — MCP or many tools'\n         WHEN s.tool_calls >= 50 THEN 'multi-file work'\n         WHEN s.tool_calls >= 10 THEN 'wrote code'\n         WHEN s.tool_calls > 0   THEN 'light edits'\n         ELSE 'conversation only — no edits'\n       END AS `intensity`,\n       COUNT(*) AS `sessions`\nFROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id\nWHERE s.last_seen BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000 AND ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}')\nGROUP BY `intensity` ORDER BY `sessions` DESC"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "no sessions in range",
+          "color": {
+            "mode": "continuous-BlPu"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "description": "Sessions bucketed by what actually happened in them, from conversation-only up to agentic work using MCP or many tools.\n\nDepth rather than count, deliberately: ten sessions that produced nothing and one that rewrote a subsystem are not the same adoption, and a session count treats them identically.",
+      "options": {
+        "displayMode": "gradient",
+        "orientation": "horizontal",
+        "showUnfilled": true,
+        "valueMode": "text",
+        "text": {
+          "valueSize": 18,
+          "titleSize": 12
+        },
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": true
+        }
+      }
+    },
+    {
+      "id": 12,
       "title": "Habitual use (WAU / MAU)",
+      "type": "stat",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
         "x": 0,
-        "y": 19,
-        "w": 6,
-        "h": 5
+        "y": 11,
+        "w": 12,
+        "h": 4
       },
       "targets": [
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT ROUND(\n  (SELECT COUNT(*) FROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id=s.repo_id\n   WHERE s.last_seen >= (UNIX_TIMESTAMP() - 7*86400) * 1000000000 AND ('$contributor' = '__all__' OR r.contributor = '$contributor')) * 100.0\n  / NULLIF((SELECT COUNT(*) FROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id=s.repo_id\n   WHERE s.last_seen >= (UNIX_TIMESTAMP() - 30*86400) * 1000000000 AND ('$contributor' = '__all__' OR r.contributor = '$contributor')), 0), 0) AS v"
+          "rawSql": "SELECT ROUND(\n  (SELECT COUNT(*) FROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id=s.repo_id\n   WHERE s.last_seen >= (UNIX_TIMESTAMP() - 7*86400) * 1000000000 AND ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}')) * 100.0\n  / NULLIF((SELECT COUNT(*) FROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id=s.repo_id\n   WHERE s.last_seen >= (UNIX_TIMESTAMP() - 30*86400) * 1000000000 AND ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}')), 0), 0) AS v"
         }
       ],
       "fieldConfig": {
@@ -190,21 +198,23 @@
           "unit": "percent",
           "decimals": 0,
           "noValue": "no sessions in range",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          },
           "thresholds": {
             "mode": "absolute",
             "steps": [
               {
-                "color": "orange",
+                "color": "text",
                 "value": null
-              },
-              {
-                "color": "green",
-                "value": 50
               }
             ]
           }
-        }
+        },
+        "overrides": []
       },
+      "description": "Weekly actives over monthly actives — whether use is habitual or occasional.\n\nA high ratio means the people who use it use it regularly. It says nothing about how many people that is, which is stage 1.",
       "options": {
         "graphMode": "none",
         "textMode": "value",
@@ -215,24 +225,24 @@
           "fields": "",
           "values": false
         }
-      },
-      "description": "Weekly sessions as a share of monthly. High means the agent is part of the routine rather than something tried once."
+      }
     },
     {
-      "type": "stat",
+      "id": 13,
       "title": "Sessions doing real work",
+      "type": "stat",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
-        "x": 6,
-        "y": 19,
-        "w": 6,
-        "h": 5
+        "x": 12,
+        "y": 11,
+        "w": 12,
+        "h": 4
       },
       "targets": [
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT ROUND(SUM(s.tool_calls > 0) * 100.0 / NULLIF(COUNT(*), 0), 0) AS v\nFROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id\nWHERE s.last_seen BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000 AND ('$contributor' = '__all__' OR r.contributor = '$contributor')"
+          "rawSql": "SELECT ROUND(SUM(s.tool_calls > 0) * 100.0 / NULLIF(COUNT(*), 0), 0) AS v\nFROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id\nWHERE s.last_seen BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000 AND ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}')"
         }
       ],
       "fieldConfig": {
@@ -240,25 +250,23 @@
           "unit": "percent",
           "decimals": 0,
           "noValue": "no sessions in range",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          },
           "thresholds": {
             "mode": "absolute",
             "steps": [
               {
-                "color": "red",
+                "color": "text",
                 "value": null
-              },
-              {
-                "color": "orange",
-                "value": 20
-              },
-              {
-                "color": "green",
-                "value": 50
               }
             ]
           }
-        }
+        },
+        "overrides": []
       },
+      "description": "Share of sessions that edited a file, as opposed to conversation that produced no change.\n\nConversation is not waste — planning and reading are work. This measures how much of the tool's use reached the codebase, not how much of it was useful.",
       "options": {
         "graphMode": "none",
         "textMode": "value",
@@ -269,8 +277,7 @@
           "fields": "",
           "values": false
         }
-      },
-      "description": "Share of sessions where the agent edited at least one file. The rest were conversation."
+      }
     },
     {
       "type": "row",
@@ -278,19 +285,20 @@
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 24,
+        "y": 15,
         "w": 24,
         "h": 1
       },
       "panels": []
     },
     {
-      "type": "bargauge",
+      "id": 20,
       "title": "Stage 3 · AI-assisted work",
+      "type": "bargauge",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
-        "x": 12,
-        "y": 7,
+        "x": 0,
+        "y": 16,
         "w": 12,
         "h": 5
       },
@@ -298,47 +306,55 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT 'agent lines survived to the commit' AS `stage`,\n       SUM(c.method = 'intersected') AS `commits`\nFROM whodunit_commits c JOIN whodunit_repos r ON r.repo_id = c.repo_id\nWHERE 1=1 AND ('$contributor' = '__all__' OR r.contributor = '$contributor') AND c.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nUNION ALL\nSELECT 'carries an attribution trailer',\n       SUM(c.status = 'assisted')\nFROM whodunit_commits c JOIN whodunit_repos r ON r.repo_id = c.repo_id\nWHERE 1=1 AND ('$contributor' = '__all__' OR r.contributor = '$contributor') AND c.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nUNION ALL\nSELECT 'commits in range',\n       COUNT(*)\nFROM whodunit_commits c JOIN whodunit_repos r ON r.repo_id = c.repo_id\nWHERE 1=1 AND ('$contributor' = '__all__' OR r.contributor = '$contributor') AND c.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000"
+          "rawSql": "SELECT 'agent lines survived to the commit' AS `stage`,\n       SUM(c.method = 'intersected') AS `commits`\nFROM whodunit_commits c JOIN whodunit_repos r ON r.repo_id = c.repo_id\nWHERE 1=1 AND ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}') AND c.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nUNION ALL\nSELECT 'carries an attribution trailer',\n       SUM(c.status = 'assisted')\nFROM whodunit_commits c JOIN whodunit_repos r ON r.repo_id = c.repo_id\nWHERE 1=1 AND ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}') AND c.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nUNION ALL\nSELECT 'commits in range',\n       COUNT(*)\nFROM whodunit_commits c JOIN whodunit_repos r ON r.repo_id = c.repo_id\nWHERE 1=1 AND ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}') AND c.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000"
         }
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "short",
-          "min": 0,
+          "noValue": "no commits in range",
+          "color": {
+            "mode": "continuous-BlPu"
+          },
           "thresholds": {
             "mode": "absolute",
             "steps": [
               {
-                "color": "blue",
+                "color": "text",
                 "value": null
               }
             ]
           }
-        }
+        },
+        "overrides": []
       },
+      "description": "Share of commits carrying evidence of agent involvement.\n\nUndetermined is not 'no AI was used' — it is 'no evidence either way'. A commit made before the hooks were installed, or on a machine without them, lands there regardless of how it was written (NAV-21).",
       "options": {
-        "displayMode": "lcd",
+        "displayMode": "gradient",
         "orientation": "horizontal",
         "showUnfilled": true,
+        "valueMode": "text",
+        "text": {
+          "valueSize": 18,
+          "titleSize": 12
+        },
         "reduceOptions": {
           "calcs": [
             "lastNotNull"
           ],
-          "fields": "",
           "values": true
         }
-      },
-      "description": "The one stage of the value funnel with data. Note the split between the middle and top bars: a trailer says the agent worked on the commit, `intersected` says its exact lines were still there when the commit was made."
+      }
     },
     {
-      "type": "bargauge",
+      "id": 21,
       "title": "Stage 4 · Cycle time — assisted vs not",
+      "type": "bargauge",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
         "x": 12,
-        "y": 12,
+        "y": 16,
         "w": 12,
-        "h": 7
+        "h": 5
       },
       "targets": [
         {
@@ -349,47 +365,221 @@
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "h",
-          "decimals": 1,
-          "min": 0,
-          "noValue": "no issues with a lead time on this board",
+          "noValue": "no PRs with both states in range",
+          "color": {
+            "mode": "continuous-GrYlRd"
+          },
           "thresholds": {
             "mode": "absolute",
             "steps": [
               {
-                "color": "blue",
+                "color": "text",
                 "value": null
               }
             ]
           }
-        }
+        },
+        "overrides": []
       },
+      "description": "Median PR cycle time, split by whether the work was assisted.\n\n**Not a controlled comparison.** An agent is reached for on some kinds of work and not others, so part of any gap measures which work was assigned rather than what the agent did to it. Read it as a difference between two populations, not as an effect.",
       "options": {
-        "displayMode": "lcd",
+        "displayMode": "gradient",
         "orientation": "horizontal",
         "showUnfilled": true,
+        "valueMode": "text",
+        "text": {
+          "valueSize": 18,
+          "titleSize": 12
+        },
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": true
+        }
+      }
+    },
+    {
+      "id": 22,
+      "title": "Stage 5 · Cost per delivered line",
+      "type": "stat",
+      "datasource": "${DS_WHODUNIT}",
+      "gridPos": {
+        "x": 0,
+        "y": 21,
+        "w": 6,
+        "h": 5
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT ROUND(\n  (SELECT SUM(s.output_tokens)\n     FROM whodunit_sessions s JOIN whodunit_repos r2 ON r2.repo_id = s.repo_id\n    WHERE s.output_tokens IS NOT NULL AND ('${contributor:raw}' = '__all__' OR r2.contributor = '${contributor:raw}'))\n  / NULLIF((SELECT SUM(c.lines_added + c.lines_removed)\n     FROM whodunit_commits c JOIN whodunit_repos r3 ON r3.repo_id = c.repo_id\n    WHERE c.status = 'assisted' AND ('${contributor:raw}' = '__all__' OR r3.contributor = '${contributor:raw}')), 0)\n) AS v"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 0,
+          "noValue": "no tokens or no assisted lines recorded",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "description": "Output tokens spent per line of assisted work that reached a commit.\n\n**This is output per unit of effort — stage 5's actual question — and it is not a productivity gain.** It has no before to compare against; it says what the work cost, not whether that is better than the alternative.\n\nTokens, never currency: under a subscription the marginal cost of a token is zero, so a price table would report money nobody spent.",
+      "options": {
+        "graphMode": "none",
+        "textMode": "value",
         "reduceOptions": {
           "calcs": [
             "lastNotNull"
           ],
           "fields": "",
-          "values": true
+          "values": false
         }
-      },
-      "description": "Scoped to one board on purpose. Pooled across boards this comparison inverts — one board contributes 148 fast unassisted issues that drag the average down, so assisted looks 2.5x slower while being faster within every board taken separately. That is a mix artifact, not an AI effect.\n\nRead it as a description of which work was chosen at least as much as what the agent did: harder issues get handed to an agent.\n\nIssues are matched to commits by finding the key in the commit message, which is a text match rather than a recorded link."
+      }
     },
     {
-      "type": "text",
-      "title": "",
+      "id": 23,
+      "title": "Stage 5 · Rework rate, assisted",
+      "type": "stat",
+      "datasource": "${DS_WHODUNIT}",
+      "gridPos": {
+        "x": 6,
+        "y": 21,
+        "w": 6,
+        "h": 5
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT ROUND(100.0 * SUM(c.purpose = 'fix' AND c.status = 'assisted')\n  / NULLIF(SUM(c.status = 'assisted'), 0), 1) AS v\nFROM whodunit_commits c JOIN whodunit_repos r ON r.repo_id = c.repo_id\nWHERE ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}')"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 1,
+          "noValue": "no assisted commits in range",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "description": "Share of assisted commits labelled as fixes — a rework proxy.\n\n**Not a defect rate.** `purpose` comes from Conventional Commit prefixes and path heuristics, so it measures what commits were labelled, not what broke.\n\n**Read the banded version on the delivery dashboard before concluding anything.** Unbanded, assisted work looks better than unassisted (28.4% against 33.3%); split by change size that reverses in the middle band. The single figure here is a size-mix artefact and is shown as an entry point, not an answer.",
+      "options": {
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 24,
+      "title": "Stage 5 · Pre-adoption baseline",
+      "type": "stat",
+      "datasource": "${DS_WHODUNIT}",
       "gridPos": {
         "x": 12,
-        "y": 19,
-        "w": 12,
+        "y": 21,
+        "w": 6,
+        "h": 5
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT CONCAT(b.commits, ' commits / ', b.window_days, 'd') AS v\nFROM whodunit_baselines b JOIN whodunit_repos r ON r.repo_id = b.repo_id\nWHERE ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}')\nORDER BY b.captured_at DESC LIMIT 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "no baseline captured for this repository",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "description": "The pre-adoption window this repository can be compared against — captured by `dun baseline capture` and published by `dun sync` (NAV-107).\n\n**A pre-instrumentation baseline is not a no-AI baseline.** Commits in that window may have been AI-assisted and simply not recorded, so it is a comparison against 'before we measured', not against 'before we used it'.\n\nThe window is fixed at capture and immutable afterwards, because a window chosen after seeing the result can manufacture almost any figure.\n\nEmpty means no baseline was captured — not that the repository had no activity before instrumentation.",
+      "options": {
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 25,
+      "title": "",
+      "type": "text",
+      "gridPos": {
+        "x": 18,
+        "y": 21,
+        "w": 6,
         "h": 5
       },
       "options": {
         "mode": "markdown",
-        "content": "### Stages 5 and 6 cannot be measured here\n\n**5 · Productivity — output per unit of effort.** Needs a pre-adoption baseline to compare against. None was captured on this machine, and that window closed when the hooks were installed. `dun baseline capture` records one for *future* comparisons; it cannot recover the past.\n\n**6 · Business value — capacity unlocked in currency.** Depends on stage 5, plus a loaded engineering cost that whodunit does not hold and should not guess.\n\nThese stages are left empty rather than estimated. A productivity percentage computed without a baseline would be arithmetic on an assumption, and it would be the number people quoted.\n\n`dun delta` reports the within-period comparison that *is* available, and prints its own warnings about thin data and the missing baseline."
+        "content": "### Stage 6 · Business value\n\n**Not measurable here, and that is not a gap to be closed.**\n\nRevenue, customer outcomes and time-to-market are the things a business\nactually cares about. Nothing in a git history or an agent transcript\nreaches them, and any number this tool produced for them would be\ninvented.\n\nThe stage stays on the funnel because deleting it would imply the funnel\nends at stage 5 — and that stage 5 is the answer to \"was it worth it\".\nIt is not.\n"
+      }
+    },
+    {
+      "id": 26,
+      "title": "",
+      "type": "text",
+      "gridPos": {
+        "x": 0,
+        "y": 26,
+        "w": 24,
+        "h": 4
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "### What stage 5 still cannot say\n\nThe three panels above measure **cost and rework**, not gain. A productivity\ngain needs the same work done both ways, and this data does not contain that:\n\n- **Selection is not random.** An agent is reached for on some kinds of work\n  and not others, so assisted and unassisted commits are different populations.\n- **The baseline is pre-instrumentation, not pre-AI.** Commits before the hooks\n  went in may well have been assisted and simply unrecorded.\n- **Change size is not output.** A larger commit may be more work done, or more\n  code written for the same outcome.\n\nCost per delivered unit and rework rate are the honest answers available. A\npercentage would not be.\n"
       }
     }
   ],

@@ -82,14 +82,26 @@ func renderExec(w *strings.Builder, stats Stats, act Activity) {
 				act.Outcomes["accepted"], decided))
 	}
 
-	// Per thousand lines rather than per commit. Cost per commit varies
-	// with how people split their commits, which is not a property of the
-	// agent; per single line it is fractions of a cent, where two decimals
-	// round distinct months together.
-	if cost, lines, ok := costPerThousandLines(stats, act); ok {
-		renderStatTile(w, "Cost per 1,000 lines", fmt.Sprintf("$%.2f", cost),
-			fmt.Sprintf("monthly spend over %d agent-written lines — a unit cost, "+
-				"not a saving", lines))
+	// Tokens, not currency (NAV-96). This replaced a dollar figure derived
+	// from a hand-typed monthly_spend divided evenly over every line — an
+	// allocation dressed as a measurement, which reported the same unit
+	// cost whether the agent ran once or a thousand times.
+	//
+	// Measured tokens have no such problem, and deliberately stop short of
+	// a price: under a subscription the marginal token cost is zero, so
+	// multiplying by an API rate reports money nobody spent.
+	if rows := TokensByModel(act.Sessions); len(rows) > 0 {
+		all := TokenTotals(rows)
+		renderStatTile(w, "Tokens", compactInt(all.Total()),
+			fmt.Sprintf("%s in, %s out across %d session(s)",
+				compactInt(all.Input+all.CacheRead+all.CacheWrite),
+				compactInt(all.Output), all.Sessions))
+
+		if ratio, ok := all.CacheReadRatio(); ok {
+			renderStatTile(w, "Served from cache", pct(ratio),
+				"of input tokens — cache writes count as uncached, because a "+
+					"write is billed above base rate")
+		}
 	}
 
 	renderActivityTrend(w, act)
@@ -99,8 +111,94 @@ func renderExec(w *strings.Builder, stats Stats, act Activity) {
 	renderMethodMixChart(w, stats)
 	renderPurposeBreakdown(w, stats)
 	renderAgentMix(w, act)
+	renderTokensByModel(w, act)
 	renderTopFiles(w, act, 10)
 	renderUnavailable(w, unavailableFor(stats, act, stats.HasBaseline))
+}
+
+// renderTokensByModel breaks token use out per model, with the cache
+// ratios beside it.
+//
+// Per model rather than as one figure, because the aggregate hides the
+// finding: a model whose cache writes never paid for themselves is
+// invisible in a healthy-looking total. Measured on real data, an overall
+// 48% read ratio contained one model at 0.73x amortisation — a loss.
+func renderTokensByModel(w *strings.Builder, act Activity) {
+	rows := TokensByModel(act.Sessions)
+	if len(rows) == 0 {
+		return
+	}
+
+	w.WriteString(`<section class="panel"><h2>Token use by model</h2>`)
+	w.WriteString(`<table class="data"><thead><tr>` +
+		`<th>Model</th><th class="num">Sessions</th><th class="num">In</th>` +
+		`<th class="num">Out</th><th class="num">Cached</th>` +
+		`<th class="num">From cache</th><th class="num">Write payback</th>` +
+		`</tr></thead><tbody>`)
+
+	for _, r := range rows {
+		model := r.Model
+		if model == "" {
+			// Tokens were really spent; dropping them would understate the
+			// total, so they are shown as unattributed instead.
+			model = `<span class="muted">unattributed</span>`
+		} else {
+			model = html.EscapeString(model)
+		}
+
+		readRatio := `<span class="muted">—</span>`
+		if v, ok := r.CacheReadRatio(); ok {
+			readRatio = pct(v)
+		}
+
+		// The break-even marker is the point of this column. A bare ratio
+		// looks fine at 1.10x, which is a loss.
+		payback := `<span class="muted">not reported</span>`
+		if v, ok := r.WriteAmortisation(); ok {
+			cls := ""
+			if v < CacheBreakEven {
+				cls = ` class="warn"`
+			}
+			payback = fmt.Sprintf(`<span%s>%.2f×</span>`, cls, v)
+		}
+
+		fmt.Fprintf(w, `<tr><td>%s</td><td class="num">%d</td><td class="num">%s</td>`+
+			`<td class="num">%s</td><td class="num">%s</td><td class="num">%s</td>`+
+			`<td class="num">%s</td></tr>`,
+			model, r.Sessions, compactInt(r.Input), compactInt(r.Output),
+			compactInt(r.CacheRead), readRatio, payback)
+	}
+	w.WriteString(`</tbody></table>`)
+
+	if below := BelowBreakEven(rows); len(below) > 0 {
+		var names []string
+		for _, r := range below {
+			names = append(names, html.EscapeString(r.Model))
+		}
+		fmt.Fprintf(w, `<p class="note">A cache write costs about %.2f× a read, `+
+			`so anything below %.2f× cost more than it saved: <strong>%s</strong>.</p>`,
+			CacheBreakEven, CacheBreakEven, strings.Join(names, ", "))
+	}
+
+	w.WriteString(`<p class="note">Tokens, not currency. Under a subscription the ` +
+		`marginal cost of a token is zero, so a price table would report money ` +
+		`nobody spent — multiply by your own contract if you need a figure.</p>`)
+	w.WriteString(`</section>`)
+}
+
+// compactInt renders a token count readably. Raw counts run to ten digits
+// and a table of them is unreadable.
+func compactInt(v int64) string {
+	switch {
+	case v >= 1_000_000_000:
+		return fmt.Sprintf("%.1fB", float64(v)/1e9)
+	case v >= 1_000_000:
+		return fmt.Sprintf("%.1fM", float64(v)/1e6)
+	case v >= 1_000:
+		return fmt.Sprintf("%.1fk", float64(v)/1e3)
+	default:
+		return fmt.Sprintf("%d", v)
+	}
 }
 
 // renderAdoption answers who and what: agents, tools, sessions.

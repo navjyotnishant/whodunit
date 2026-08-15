@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -235,5 +236,36 @@ func TestCaptureOnEmptyRepoErrors(t *testing.T) {
 	// snapshot that measures nothing.
 	if _, err := Capture(90, nil, time.Now()); err == nil {
 		t.Error("Capture() on an empty repo = nil error, want an error")
+	}
+}
+
+// A snapshot is owner-only, like everything else under ~/.whodunit.
+//
+// It named a repository and reported its commit cadence and revert rate at
+// mode 0644 for a long time without anyone noticing, because the enclosing
+// directory is 0700 and hid it. That makes this exactly the kind of thing
+// worth asserting rather than reading: the loose mode is invisible until
+// the file is copied somewhere the directory no longer protects it.
+//
+// Unix-only. Windows has no mode bits — os.Chmod there toggles the
+// read-only attribute and os.Stat synthesises a mode from it, so this
+// would assert an invented number. internal/secret handles the Windows
+// equivalent with a real ACL; baselines have not needed that yet.
+func TestSnapshotIsOwnerOnly(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("no Unix mode bits on Windows")
+	}
+	path := filepath.Join(t.TempDir(), "repo.json")
+	if err := Write(path, Snapshot{SchemaVersion: "1"}); err != nil {
+		t.Fatal(err)
+	}
+	fi, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if perm := fi.Mode().Perm(); perm != 0o600 {
+		t.Errorf("snapshot mode is %04o, want 0600 — it records a repository's "+
+			"commit cadence and revert rate, which is nobody else's business "+
+			"on a shared machine", perm)
 	}
 }

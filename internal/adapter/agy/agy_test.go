@@ -90,17 +90,64 @@ func TestLineCounts(t *testing.T) {
 	}
 }
 
-// agy records no rejection signal — a declined call simply does not appear.
-// Recording "accepted" would assert something the store does not say.
-func TestOutcomeIsUnknownNotAccepted(t *testing.T) {
+// agy DOES carry an accept/reject signal, in steps.status.
+//
+// This test replaces one that asserted the opposite. That test passed
+// because the fixture carried status 0 on every row — a value that does
+// not occur in real databases — so it proved only that an unrecognised
+// status maps to "unknown". The fixture now carries the statuses actually
+// observed in the wild, and each maps to a distinct outcome.
+func TestOutcomeComesFromStepStatus(t *testing.T) {
 	entries, err := ParseSince(fixture, time.Time{})
 	if err != nil {
 		t.Fatal(err)
 	}
+
+	got := map[string]string{}
 	for _, e := range entries {
-		if e.Outcome != "unknown" {
-			t.Fatalf("%s outcome = %q; agy carries no accept/reject signal", e.File, e.Outcome)
+		got[e.File] = e.Outcome
+	}
+
+	want := map[string]string{
+		"/repo/calc.py":       "accepted", // status 3
+		"/repo/util.py":       "rejected", // status 7, "Permission denied"
+		"/elsewhere/other.py": "failed",   // status 2
+	}
+	for file, wantOutcome := range want {
+		if got[file] != wantOutcome {
+			t.Errorf("%s outcome = %q, want %q", file, got[file], wantOutcome)
 		}
+	}
+}
+
+// The status vocabulary, asserted directly. Each value is grounded in what
+// the rows carrying it contained — see outcomeFor.
+func TestOutcomeForMapsObservedStatuses(t *testing.T) {
+	tests := []struct {
+		status int
+		want   string
+		note   string
+	}{
+		{3, "accepted", "215 rows measured"},
+		{7, "rejected", `6 rows, error_details "Permission denied" — a human declining`},
+		{6, "failed", `1 row, error_details "context cancelled"`},
+		{2, "failed", "1 row, no error_details"},
+		{0, "unknown", "never observed; must not be guessed at"},
+		{99, "unknown", "an unrecognised status is a gap in what we know, not an error (NAV-21)"},
+	}
+	for _, tc := range tests {
+		if got := outcomeFor(tc.status); got != tc.want {
+			t.Errorf("outcomeFor(%d) = %q, want %q (%s)", tc.status, got, tc.want, tc.note)
+		}
+	}
+}
+
+// A rejection is what an acceptance rate is measured against, so it must
+// not be collapsed into the same bucket as a tool error. This is the whole
+// reason the funnel's acceptance stage was blank for agy.
+func TestRejectedIsDistinctFromFailed(t *testing.T) {
+	if outcomeFor(statusRejected) == outcomeFor(statusFailed) {
+		t.Fatal("rejected and failed map to the same outcome — an acceptance rate cannot be computed")
 	}
 }
 

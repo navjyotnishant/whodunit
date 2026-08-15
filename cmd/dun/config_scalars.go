@@ -39,22 +39,6 @@ type scalarSetting struct {
 func scalarSettings() []scalarSetting {
 	return []scalarSetting{
 		{
-			Key:  "monthly_spend",
-			Help: "what the agent subscriptions cost per month, for cost-per-line",
-			Get:  func(c config.Config) string { return strconv.FormatFloat(c.MonthlySpend, 'f', -1, 64) },
-			Set: func(c *config.Config, v string) error {
-				f, err := strconv.ParseFloat(strings.TrimPrefix(v, "$"), 64)
-				if err != nil {
-					return fmt.Errorf("monthly_spend must be a number, got %q", v)
-				}
-				if f < 0 {
-					return fmt.Errorf("monthly_spend cannot be negative")
-				}
-				c.MonthlySpend = f
-				return nil
-			},
-		},
-		{
 			Key:  "backup_days",
 			Help: "how many daily copies of the journal to keep (0 disables)",
 			Get:  func(c config.Config) string { return strconv.Itoa(c.BackupDays) },
@@ -91,6 +75,34 @@ func scalarSettings() []scalarSetting {
 						config.MinRetentionDays, config.MinRetentionDays)
 				}
 				c.RetentionDays = n
+				return nil
+			},
+		},
+		{
+			Key: "version_check",
+			Help: "whether dun may ask GitHub once a day if a newer release " +
+				"exists (on/off)",
+			Get: func(c config.Config) string {
+				if c.VersionCheckEnabled() {
+					return "on"
+				}
+				return "off"
+			},
+			Set: func(c *config.Config, v string) error {
+				var on bool
+				switch strings.ToLower(v) {
+				case "on", "true", "yes", "1":
+					on = true
+				case "off", "false", "no", "0":
+					on = false
+				default:
+					return fmt.Errorf("version_check must be on or off, got %q", v)
+				}
+				// Written even when it matches the default, so an explicit
+				// choice survives in the file rather than reading back as
+				// "never configured" — which is the difference between
+				// someone deciding and someone not having looked.
+				c.VersionCheck = &on
 				return nil
 			},
 		},

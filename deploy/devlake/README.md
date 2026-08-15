@@ -36,7 +36,9 @@ curl -fsSL https://raw.githubusercontent.com/navjyotnishant/whodunit/main/deploy
 Step 1 offers to run this at the end, so a first install is one sitting.
 Against a Grafana you already run, start here and pass `--grafana URL`.
 Re-running replaces the dashboards in place — same uids, same URLs, no
-duplicates.
+duplicates. They land in a **Whodunit** folder rather than General, so they
+do not mix with DevLake own dashboards; `--folder NAME` puts them somewhere
+else.
 
 | | |
 |---|---|
@@ -70,6 +72,7 @@ Sync first if you want to see something.
 | `whodunit-dora.json` | does adoption move delivery — DORA against attribution |
 | `whodunit-hours.json` | when and how the agent is used — rhythm, tools, session shape |
 | `whodunit-funnel.json` | adoption vs value, in six independently measured stages |
+| `whodunit-cost.json` | what it cost in tokens, per model — with cache efficiency and the break-even marked |
 
 They are also attached to every GitHub release, so a team can pin a version
 rather than tracking `main`:
@@ -77,6 +80,33 @@ rather than tracking `main`:
 ```sh
 curl -fsSL …/import-dashboards.sh | sh -s -- --version v0.2.0
 ```
+
+### Cost is reported in tokens, never in currency
+
+`whodunit-cost.json` shows measured token counts and deliberately stops
+short of a price. Under a subscription the marginal cost of a token is
+zero — a user on a fixed monthly plan spends the same whether a session
+burns 10k tokens or 10M — so multiplying by an API rate would report money
+nobody spent. Nothing in a transcript says which billing model a user is
+on, so the tool would be guessing at the pricing model before reaching the
+price. Anyone who needs a figure has their own contract and can multiply.
+
+Two numbers on that dashboard are easy to get wrong in a flattering
+direction, and both are worth knowing before reading it:
+
+**Cache writes count as uncached** in the read-ratio panel. A write
+arrives uncached and is billed above base rate, so leaving it out of the
+denominator turns a real 48% into 99% — measured, on this project's own
+data. A panel showing 99% recommends nothing.
+
+**Break-even for write payback is 1.25x, not 1.0x.** A write costs about
+1.25x base and a read 0.1x, so a write needs roughly 1.25 reads to pay for
+itself. A model sitting at 1.10x lost money while looking healthy against
+a 1.0 line, which is why the threshold is drawn where it is.
+
+Panels are empty rather than zero where an agent cannot report: Antigravity
+records no tokens or timing at all, and Codex reports cache reads but never
+writes. A zero on a cost panel reads as "this agent is free".
 
 ### The DORA dashboard needs DevLake configured
 
@@ -176,7 +206,9 @@ from them, with the datasource replaced by a placeholder the import dialog
 fills in. Never hand-edit the generated ones.
 
 ```sh
-./export-dashboards.py           # regenerate after changing a dashboard
+./build-cost-dashboard.py        # regenerate the cost dashboard
+./build-funnel-dashboard.py      # regenerate the funnel
+./export-dashboards.py           # regenerate the importable copies
 ./export-dashboards.py --check   # what CI runs
 ```
 
@@ -208,6 +240,40 @@ Name it `mysql` if you can. Every stock DevLake dashboard references its
 datasource by that literal name, so anything else leaves *their* panels
 reporting *"datasource mysql wasn't found"* — ours bind by uid at import and
 do not care.
+
+
+### If the devlake container restarts in a loop
+
+Symptom: `docker compose ps` shows `devlake: Restarting`, while mysql,
+grafana and config-ui stay up — so the dashboards still render and only
+collection is dead. The logs repeat:
+
+```
+Scan error on column index 0, name "created_at": unsupported Scan,
+storing driver.Value type []uint8 into type *time.Time
+```
+
+That is the Go MySQL driver refusing to read a `datetime` into a
+`time.Time`, which it can only do when the DSN carries `parseTime=True`.
+`.env` ships with it, so the usual cause is a container created before the
+current `.env` and never recreated — `docker compose restart` reuses the
+old environment, so it restarts forever with the same stale value.
+
+Check what the container actually has, rather than what `.env` says:
+
+```sh
+docker inspect devlake-devlake-1 \
+  --format '{{range .Config.Env}}{{println .}}{{end}}' | grep DB_URL
+```
+
+If the query string is missing, recreate it:
+
+```sh
+docker compose up -d --force-recreate devlake
+```
+
+`--force-recreate` is the point: without it Compose sees a container that
+already exists and leaves its environment alone.
 
 ## What this is not
 

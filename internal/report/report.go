@@ -11,7 +11,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/navjyotnishant/whodunit/internal/config"
 	"github.com/navjyotnishant/whodunit/internal/purpose"
 	"github.com/navjyotnishant/whodunit/internal/spec"
 )
@@ -41,7 +40,6 @@ type Stats struct {
 	Assisted     int // commits with status=assisted (used in the trailer, not the commit)
 	MethodCount  map[spec.Method]int
 	PurposeCount map[purpose.Purpose]int
-	MonthlySpend float64
 
 	// HasBaseline says whether a pre-adoption snapshot exists for this
 	// repository. Set by the caller: this package reads git and the
@@ -90,7 +88,7 @@ func Collect(limit int) (Stats, error) {
 		// An empty/unborn repo (no commits yet) is a valid, empty report,
 		// not a failure — anything else genuinely is.
 		if exitErr, ok := err.(*exec.ExitError); ok && strings.Contains(string(exitErr.Stderr), "does not have any commits") {
-			return withSpend(stats), nil
+			return stats, nil
 		}
 		return Stats{}, fmt.Errorf("read git log: %w", err)
 	}
@@ -143,7 +141,7 @@ func Collect(limit int) (Stats, error) {
 		stats.Commits = append(stats.Commits, c)
 	}
 
-	return withSpend(stats), nil
+	return stats, nil
 }
 
 type commitSize struct{ added, removed int }
@@ -231,12 +229,4 @@ func findTrailer(commitMsg, prefix string) (spec.Trailer, bool) {
 		return t, true
 	}
 	return spec.Trailer{}, false
-}
-
-func withSpend(stats Stats) Stats {
-	cfg, err := config.Load()
-	if err == nil {
-		stats.MonthlySpend = cfg.MonthlySpend
-	}
-	return stats
 }

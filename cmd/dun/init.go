@@ -94,6 +94,10 @@ func runInit(cmd *cobra.Command, repoPath string) error {
 		fmt.Fprintf(cmd.OutOrStdout(), "installed %s\n", hook)
 	}
 
+	// Say whether the hooks will still find dun tomorrow, while the user is
+	// still watching.
+	reportReachability(cmd.OutOrStdout(), self)
+
 	// Report which agents were found, while the user is still watching.
 	//
 	// Installing hooks is only half of working: if no agent's transcripts

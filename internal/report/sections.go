@@ -170,14 +170,13 @@ func unavailableFor(stats Stats, act Activity, hasBaseline bool) []Unavailable {
 		})
 	}
 
-	if stats.MonthlySpend <= 0 {
+	if act.Present && len(TokensByModel(act.Sessions)) == 0 {
 		out = append(out, Unavailable{
-			What: "Cost per thousand lines",
-			Why:  "no monthly spend is configured, so there is no numerator",
-			// Names the file rather than a command: `dun config set` only
-			// handles agent paths today, so advising it here would send
-			// the reader to an error.
-			Fix: "add a `monthly_spend` value to ~/.whodunit/config.json",
+			What: "Token use",
+			Why: "no session recorded token counts — Antigravity does not report " +
+				"them at all, and an older journal predates their collection",
+			Fix: "`dun ingest` re-reads the transcripts; Claude Code and Codex " +
+				"both report usage on every turn",
 		})
 	}
 
@@ -193,26 +192,6 @@ func unavailableFor(stats Stats, act Activity, hasBaseline bool) []Unavailable {
 	}
 
 	return out
-}
-
-// costPerThousandLines is the unit the dashboards settled on.
-//
-// Per single line the figure is fractions of a cent, where two decimals
-// round distinct months to the same value. Per assisted commit — what this
-// report showed before — varies with how people split their commits, which
-// is not a property of the agent.
-func costPerThousandLines(stats Stats, act Activity) (float64, int, bool) {
-	if stats.MonthlySpend <= 0 || !act.Present {
-		return 0, 0, false
-	}
-	var lines int
-	for _, n := range act.LinesByTool {
-		lines += n
-	}
-	if lines == 0 {
-		return 0, 0, false
-	}
-	return stats.MonthlySpend / float64(lines) * 1000, lines, true
 }
 
 // topFiles returns the most-edited files, for the detail template.

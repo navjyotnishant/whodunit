@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/navjyotnishant/whodunit/internal/baseline"
 	"github.com/navjyotnishant/whodunit/internal/config"
 	"github.com/navjyotnishant/whodunit/internal/hooklog"
 	"github.com/navjyotnishant/whodunit/internal/journal"
@@ -189,12 +190,39 @@ func buildPayload(limit int) (sidecar.Payload, error) {
 	}
 
 	// Metadata may be absent for a repository initialised before it
-	// existed. That is a state to carry honestly — an empty contributor —
-	// rather than a reason to refuse to sync.
+	// existed, or captured before git had an identity configured.
 	repo := sidecar.RepoRow{RepoID: repoID, SyncedAt: now}
 	if md, err := journal.GetMetadata(dataDir, repoID); err == nil && md != nil {
 		repo.Contributor = md.Contributor
 		repo.SpecVersion = md.SpecVersion
+	}
+
+	// Recover the contributor from git when the journal has none, and
+	// record it so the next sync does not have to (NAV-110).
+	//
+	// Previously an absent contributor was carried through as an empty
+	// string on the grounds that it was the honest state. It is honest and
+	// it is also unusable: every dashboard filters sessions by joining
+	// this column, an empty value matches no filter, and the variable's
+	// own query excludes empty strings so it is not even selectable.
+	// Measured before this fix, 115 of 131 sessions belonged to a
+	// repository in that state — synced, and invisible.
+	//
+	// The identity is sitting in git config the whole time. Reading it
+	// here costs one subprocess per sync and closes the gap for every
+	// repository instrumented before SetMetadata existed.
+	if repo.Contributor == "" {
+		if c := contributorFor(""); c != "" {
+			repo.Contributor = c
+			// Best-effort: a sync that cannot write metadata should still
+			// publish, and the value above is already correct for this run.
+			_ = journal.SetMetadata(dataDir, journal.Metadata{
+				RepoID:      repoID,
+				Contributor: c,
+				SpecVersion: repo.SpecVersion,
+				UpdatedAt:   now,
+			})
+		}
 	}
 
 	p.Repo = repo
@@ -202,6 +230,26 @@ func buildPayload(limit int) (sidecar.Payload, error) {
 	p.Events = sidecar.EventRowsFrom(entries, repoID, now)
 	p.Lines = sidecar.LineRowsFrom(lines, repoID, now)
 	p.Sessions = sidecar.SessionRowsFrom(sessions, repoID, now)
+
+	// The pre-adoption baseline, when one was captured (NAV-107).
+	//
+	// This is the comparison the delivery dashboards actually want: the
+	// same repository before and after, rather than assisted against
+	// unassisted commits in the same period — which is a weaker question,
+	// because an agent is reached for on some kinds of work and not
+	// others.
+	//
+	// A repository without one contributes nothing rather than an empty
+	// row: "no baseline was captured" and "a baseline showing no activity"
+	// are different, and only the second should ever render as zeroes.
+	if path, err := baselinePathFor(""); err == nil {
+		if snap, err := baseline.Load(path); err == nil {
+			if row, ok := sidecar.BaselineRowFrom(snap, repoID, now); ok {
+				p.Baseline = &row
+			}
+		}
+	}
+
 	return p, nil
 }
 
@@ -220,6 +268,16 @@ func describePayload(w io.Writer, p sidecar.Payload) {
 	fmt.Fprintf(w, "  %-14s %d\n", "agent events", len(p.Events))
 	fmt.Fprintf(w, "  %-14s %d\n", "sessions", len(p.Sessions))
 	fmt.Fprintf(w, "  %-14s %d\n", "line hashes", len(p.Lines))
+
+	// Named explicitly rather than folded into a count. A baseline is a
+	// summary of the repository BEFORE instrumentation, which is a
+	// different kind of thing from the observations above it, and someone
+	// deciding whether to publish should see it listed.
+	if b := p.Baseline; b != nil {
+		fmt.Fprintf(w, "  %-14s %d commits over %d days, captured %s\n",
+			"baseline", b.Commits, b.WindowDays,
+			b.CapturedAt.Format("2006-01-02"))
+	}
 
 	files := map[string]bool{}
 	for _, e := range p.Events {
