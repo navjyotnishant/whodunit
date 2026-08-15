@@ -260,19 +260,6 @@ WHERE s.cache_write_tokens IS NOT NULL AND s.cache_write_tokens > 0 AND {CONTRIB
     thresholds=traffic(bad_below=BREAK_EVEN, ok_above=3),
     options=STAT))
 
-panels.append(panel(
-    105, "Reasoning tokens", "stat", 18, y + 9, 6, 4,
-    f"""SELECT COALESCE(SUM(s.reasoning_tokens), 0) AS v
-FROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id
-WHERE s.reasoning_tokens IS NOT NULL AND {CONTRIBUTOR}""",
-    unit=TOKEN_UNIT, decimals=1, novalue="only Codex separates these",
-    description=(
-        "Tokens spent thinking rather than answering.\n\n"
-        "Codex alone reports this. Claude Code and Antigravity do not "
-        "separate it, so an empty panel here means 'not reported', not zero."),
-    color=NEUTRAL,
-    options=STAT))
-
 # The three signals below sit on the headline's second row rather than in
 # a section of their own further down.
 #
@@ -287,11 +274,25 @@ WHERE s.reasoning_tokens IS NOT NULL AND {CONTRIBUTOR}""",
 # token row, with the compact rate the narrowest of them.
 panels.append(row("Context pressure — the part you can act on", y + 4))
 SHAPE_Y = y + 5
-# 4 for the token tiles, 1 for the row header, 8 for two panel rows.
-y += 13
+# 4 for the token tiles, 1 for the row header, 12 for the three panel
+# rows the taller pie now spans.
+y += 17
 
 panels.append(panel(
-    130, "Human edited the agent's output", "stat", 6, SHAPE_Y + 4, 6, 4,
+    105, "Reasoning tokens", "stat", 8, SHAPE_Y + 8, 16, 4,
+    f"""SELECT COALESCE(SUM(s.reasoning_tokens), 0) AS v
+FROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id
+WHERE s.reasoning_tokens IS NOT NULL AND {CONTRIBUTOR}""",
+    unit=TOKEN_UNIT, decimals=1, novalue="only Codex separates these",
+    description=(
+        "Tokens spent thinking rather than answering.\n\n"
+        "Codex alone reports this. Claude Code and Antigravity do not "
+        "separate it, so an empty panel here means 'not reported', not zero."),
+    color=NEUTRAL,
+    options=STAT))
+
+panels.append(panel(
+    130, "Human edited the agent's output", "stat", 16, SHAPE_Y + 4, 8, 4,
     f"""SELECT ROUND(100.0 * SUM(CASE WHEN e.user_modified = 1 THEN 1 ELSE 0 END)
   / NULLIF(COUNT(*), 0), 1) AS v
 FROM whodunit_events e JOIN whodunit_repos r ON r.repo_id = e.repo_id
@@ -307,7 +308,7 @@ WHERE e.user_modified IS NOT NULL AND {CONTRIBUTOR}""",
     options=STAT))
 
 panels.append(panel(
-    132, "Turn latency", "stat", 0, SHAPE_Y + 4, 6, 4,
+    132, "Turn latency", "stat", 8, SHAPE_Y + 4, 8, 4,
     f"""SELECT ROUND(AVG(s.duration_ms) / 1000, 1) AS v
 FROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id
 WHERE s.duration_ms IS NOT NULL AND {CONTRIBUTOR}""",
@@ -387,7 +388,10 @@ WHERE s.compactions > 0 AND {CONTRIBUTOR}""",
     options=STAT))
 
 panels.append(panel(
-    133, "Reasoning effort", "piechart", 12, SHAPE_Y + 4, 6, 4,
+    # Taller and wider than the stats beside it. A pie needs vertical room
+    # for the circle AND its legend, and at the h:4 that suits a single
+    # number the circle was rendering barely larger than its own labels.
+    133, "Reasoning effort", "piechart", 0, SHAPE_Y + 4, 8, 8,
     f"""SELECT s.effort AS metric, COUNT(*) AS value
 FROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id
 WHERE s.effort IS NOT NULL AND {CONTRIBUTOR}
@@ -412,7 +416,10 @@ GROUP BY s.effort""",
         "How hard the model was asked to think, where the agent says.\n\n"
         "The lever behind the token counts above: a higher tier spends more "
         "on the same task."),
-    options={"legend": {"displayMode": "list", "placement": "bottom"},
+    # Legend to the right, not below: the panel has width to spare and the
+    # height is what the circle needs.
+    options={"legend": {"displayMode": "list", "placement": "right",
+                        "showLegend": True, "values": ["percent"]},
              "reduceOptions": {"calcs": ["lastNotNull"], "values": True}}))
 
 # ------------------------------------------------------------- per model

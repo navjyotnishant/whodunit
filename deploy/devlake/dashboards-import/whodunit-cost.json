@@ -337,14 +337,26 @@
       }
     },
     {
+      "type": "row",
+      "title": "Context pressure — the part you can act on",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 5,
+        "w": 24,
+        "h": 1
+      },
+      "panels": []
+    },
+    {
       "id": 105,
       "title": "Reasoning tokens",
       "type": "stat",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
-        "x": 18,
-        "y": 10,
-        "w": 6,
+        "x": 8,
+        "y": 14,
+        "w": 16,
         "h": 4
       },
       "targets": [
@@ -380,26 +392,14 @@
       }
     },
     {
-      "type": "row",
-      "title": "Context pressure — the part you can act on",
-      "collapsed": false,
-      "gridPos": {
-        "x": 0,
-        "y": 5,
-        "w": 24,
-        "h": 1
-      },
-      "panels": []
-    },
-    {
       "id": 130,
       "title": "Human edited the agent's output",
       "type": "stat",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
-        "x": 6,
+        "x": 16,
         "y": 10,
-        "w": 6,
+        "w": 8,
         "h": 4
       },
       "targets": [
@@ -453,9 +453,9 @@
       "type": "stat",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
-        "x": 0,
+        "x": 8,
         "y": 10,
-        "w": 6,
+        "w": 8,
         "h": 4
       },
       "targets": [
@@ -637,10 +637,10 @@
       "type": "piechart",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
-        "x": 12,
+        "x": 0,
         "y": 10,
-        "w": 6,
-        "h": 4
+        "w": 8,
+        "h": 8
       },
       "targets": [
         {
@@ -724,7 +724,11 @@
       "options": {
         "legend": {
           "displayMode": "list",
-          "placement": "bottom"
+          "placement": "right",
+          "showLegend": true,
+          "values": [
+            "percent"
+          ]
         },
         "reduceOptions": {
           "calcs": [
@@ -740,7 +744,7 @@
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 14,
+        "y": 18,
         "w": 24,
         "h": 1
       },
@@ -753,7 +757,7 @@
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
         "x": 0,
-        "y": 15,
+        "y": 19,
         "w": 12,
         "h": 6
       },
@@ -869,7 +873,7 @@
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
         "x": 12,
-        "y": 15,
+        "y": 19,
         "w": 12,
         "h": 6
       },
@@ -925,7 +929,7 @@
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
         "x": 0,
-        "y": 21,
+        "y": 25,
         "w": 24,
         "h": 9
       },
@@ -1055,7 +1059,7 @@
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
         "x": 0,
-        "y": 30,
+        "y": 34,
         "w": 24,
         "h": 8
       },
@@ -1107,7 +1111,7 @@
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 38,
+        "y": 42,
         "w": 24,
         "h": 1
       },
@@ -1120,7 +1124,7 @@
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
         "x": 0,
-        "y": 39,
+        "y": 43,
         "w": 24,
         "h": 8
       },
@@ -1169,7 +1173,7 @@
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 47,
+        "y": 51,
         "w": 24,
         "h": 1
       },
@@ -1182,7 +1186,7 @@
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
         "x": 12,
-        "y": 48,
+        "y": 52,
         "w": 12,
         "h": 7
       },
@@ -1237,7 +1241,7 @@
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
         "x": 0,
-        "y": 48,
+        "y": 52,
         "w": 12,
         "h": 7
       },
