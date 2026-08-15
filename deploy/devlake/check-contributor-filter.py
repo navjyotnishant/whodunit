@@ -34,22 +34,39 @@ def main():
     for path in sorted(glob.glob(os.path.join(HERE, "dashboards", "*.json"))):
         d = json.load(open(path))
 
-        # Grafana's MySQL datasource quotes an interpolated variable
-        # itself, so '$contributor' in the SQL becomes ''value'' — a
-        # syntax error that fails the panel with a 400.
+        # Every SQL reference must be '${contributor:raw}', quoted here
+        # and with :raw suppressing Grafana's own quoting.
         #
-        # This one hid behind the "All" case for a long time: Grafana
-        # substitutes the all-value as a bare __all__ token rather than a
-        # quoted string, so the dashboard worked perfectly until someone
-        # picked a real contributor, and then every filtered panel errored
-        # at once.
+        # Grafana treats a selected value and the all-value differently,
+        # which is what makes this worth a check rather than a comment:
+        #
+        #   a real contributor  is quoted by Grafana
+        #   allValue            is substituted verbatim
+        #
+        # So no single spelling of a bare $contributor can serve both.
+        # Written '$contributor', a real selection becomes ''email'' and
+        # every filtered panel 400s. Written $contributor with quotes
+        # moved into allValue, All works and real selections break — the
+        # same failure with the cases swapped, which is exactly how this
+        # was mis-diagnosed twice.
+        #
+        # ':raw' takes Grafana's quoting out of the picture entirely, so
+        # the SQL means what it says for both cases. Verified against the
+        # datasource rather than inferred: with :raw the executed query
+        # reads = 'email' for a selection and = '__all__' for All.
+        #
+        # Checked statically because a dashboard that works on All is no
+        # evidence — All was green through both broken states.
         for p in d.get("panels", []):
             for t in p.get("targets", []):
-                if "'$contributor'" in (t.get("rawSql") or ""):
+                sql = t.get("rawSql") or ""
+                if "$contributor" in sql.replace("${contributor:raw}", ""):
                     problems.append(
-                        f"{d['uid']}: {p.get('title') or '(untitled)'} wraps "
-                        f"$contributor in quotes; Grafana quotes it too, "
-                        f"producing ''value'' and a 400")
+                        f"{d['uid']}: {p.get('title') or '(untitled)'} uses a bare "
+                        f"$contributor; it must be '${{contributor:raw}}' or "
+                        f"Grafana's quoting breaks either All or every real "
+                        f"selection")
+
         for v in d.get("templating", {}).get("list", []):
             if v.get("name") != "contributor":
                 continue

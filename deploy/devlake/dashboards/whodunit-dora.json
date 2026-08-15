@@ -511,7 +511,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT\n  CASE WHEN c.lines_added+c.lines_removed < 50 THEN 'small (<50)'\n     WHEN c.lines_added+c.lines_removed < 300 THEN 'medium (50-300)'\n     ELSE 'large (300+)' END                                                          AS `Change size`,\n  SUM(c.status='assisted')                                        AS `Assisted n`,\n  ROUND(100.0*SUM(c.status='assisted' AND c.purpose='fix')\n    / NULLIF(SUM(c.status='assisted'),0),1)                       AS `Assisted fix %`,\n  SUM(c.status='undetermined')                                    AS `Unassisted n`,\n  ROUND(100.0*SUM(c.status='undetermined' AND c.purpose='fix')\n    / NULLIF(SUM(c.status='undetermined'),0),1)                   AS `Unassisted fix %`\nFROM whodunit_commits c JOIN whodunit_repos r ON r.repo_id = c.repo_id\nWHERE c.status IN ('assisted','undetermined') AND ($contributor = '__all__' OR r.contributor = $contributor)\nGROUP BY 1 ORDER BY 1"
+          "rawSql": "SELECT\n  CASE WHEN c.lines_added+c.lines_removed < 50 THEN 'small (<50)'\n     WHEN c.lines_added+c.lines_removed < 300 THEN 'medium (50-300)'\n     ELSE 'large (300+)' END                                                          AS `Change size`,\n  SUM(c.status='assisted')                                        AS `Assisted n`,\n  ROUND(100.0*SUM(c.status='assisted' AND c.purpose='fix')\n    / NULLIF(SUM(c.status='assisted'),0),1)                       AS `Assisted fix %`,\n  SUM(c.status='undetermined')                                    AS `Unassisted n`,\n  ROUND(100.0*SUM(c.status='undetermined' AND c.purpose='fix')\n    / NULLIF(SUM(c.status='undetermined'),0),1)                   AS `Unassisted fix %`\nFROM whodunit_commits c JOIN whodunit_repos r ON r.repo_id = c.repo_id\nWHERE c.status IN ('assisted','undetermined') AND ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}')\nGROUP BY 1 ORDER BY 1"
         }
       ],
       "fieldConfig": {
@@ -570,7 +570,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT ROUND(\n  (SELECT SUM(s.output_tokens)\n     FROM whodunit_sessions s JOIN whodunit_repos r2 ON r2.repo_id = s.repo_id\n    WHERE s.output_tokens IS NOT NULL AND ($contributor = '__all__' OR r2.contributor = $contributor))\n  / NULLIF((SELECT SUM(c.lines_added + c.lines_removed)\n     FROM whodunit_commits c JOIN whodunit_repos r3 ON r3.repo_id = c.repo_id\n    WHERE c.status = 'assisted' AND ($contributor = '__all__' OR r3.contributor = $contributor)), 0)\n) AS v"
+          "rawSql": "SELECT ROUND(\n  (SELECT SUM(s.output_tokens)\n     FROM whodunit_sessions s JOIN whodunit_repos r2 ON r2.repo_id = s.repo_id\n    WHERE s.output_tokens IS NOT NULL AND ('${contributor:raw}' = '__all__' OR r2.contributor = '${contributor:raw}'))\n  / NULLIF((SELECT SUM(c.lines_added + c.lines_removed)\n     FROM whodunit_commits c JOIN whodunit_repos r3 ON r3.repo_id = c.repo_id\n    WHERE c.status = 'assisted' AND ('${contributor:raw}' = '__all__' OR r3.contributor = '${contributor:raw}')), 0)\n) AS v"
         }
       ],
       "fieldConfig": {
@@ -621,7 +621,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT\n  s.permission_mode          AS Mode,\n  COUNT(*)                   AS Sessions,\n  SUM(s.tool_calls)          AS `Tool calls`\nFROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id\nWHERE s.permission_mode IS NOT NULL AND ($contributor = '__all__' OR r.contributor = $contributor)\nGROUP BY s.permission_mode ORDER BY SUM(s.tool_calls) DESC"
+          "rawSql": "SELECT\n  s.permission_mode          AS Mode,\n  COUNT(*)                   AS Sessions,\n  SUM(s.tool_calls)          AS `Tool calls`\nFROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id\nWHERE s.permission_mode IS NOT NULL AND ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}')\nGROUP BY s.permission_mode ORDER BY SUM(s.tool_calls) DESC"
         }
       ],
       "fieldConfig": {
@@ -663,7 +663,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT ROUND(\n  100.0 * (\n    AVG(CASE WHEN c.status='assisted' THEN c.lines_added + c.lines_removed END)\n    - AVG(CASE WHEN c.status='undetermined' THEN c.lines_added + c.lines_removed END)\n  ) / NULLIF(AVG(CASE WHEN c.status='undetermined'\n                      THEN c.lines_added + c.lines_removed END), 0)\n, 0) AS v\nFROM whodunit_commits c JOIN whodunit_repos r ON r.repo_id = c.repo_id\nWHERE ($contributor = '__all__' OR r.contributor = $contributor) AND c.purpose IN (\n  SELECT purpose FROM (\n    SELECT c2.purpose\n    FROM whodunit_commits c2 JOIN whodunit_repos r2 ON r2.repo_id = c2.repo_id\n    WHERE ($contributor = '__all__' OR r2.contributor = $contributor)\n    GROUP BY c2.purpose\n    HAVING SUM(c2.status='assisted') >= 20\n       AND SUM(c2.status='undetermined') >= 20\n  ) eligible\n)"
+          "rawSql": "SELECT ROUND(\n  100.0 * (\n    AVG(CASE WHEN c.status='assisted' THEN c.lines_added + c.lines_removed END)\n    - AVG(CASE WHEN c.status='undetermined' THEN c.lines_added + c.lines_removed END)\n  ) / NULLIF(AVG(CASE WHEN c.status='undetermined'\n                      THEN c.lines_added + c.lines_removed END), 0)\n, 0) AS v\nFROM whodunit_commits c JOIN whodunit_repos r ON r.repo_id = c.repo_id\nWHERE ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}') AND c.purpose IN (\n  SELECT purpose FROM (\n    SELECT c2.purpose\n    FROM whodunit_commits c2 JOIN whodunit_repos r2 ON r2.repo_id = c2.repo_id\n    WHERE ('${contributor:raw}' = '__all__' OR r2.contributor = '${contributor:raw}')\n    GROUP BY c2.purpose\n    HAVING SUM(c2.status='assisted') >= 20\n       AND SUM(c2.status='undetermined') >= 20\n  ) eligible\n)"
         }
       ],
       "fieldConfig": {
@@ -715,7 +715,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT CONCAT(\n  SUM(c.status='assisted'), ' vs ', SUM(c.status='undetermined')) AS v\nFROM whodunit_commits c JOIN whodunit_repos r ON r.repo_id = c.repo_id\nWHERE ($contributor = '__all__' OR r.contributor = $contributor) AND c.purpose IN (\n  SELECT purpose FROM (\n    SELECT c2.purpose FROM whodunit_commits c2 JOIN whodunit_repos r2 ON r2.repo_id = c2.repo_id\n    WHERE ($contributor = '__all__' OR r2.contributor = $contributor)\n    GROUP BY c2.purpose\n    HAVING SUM(c2.status='assisted') >= 20 AND SUM(c2.status='undetermined') >= 20\n  ) eligible)"
+          "rawSql": "SELECT CONCAT(\n  SUM(c.status='assisted'), ' vs ', SUM(c.status='undetermined')) AS v\nFROM whodunit_commits c JOIN whodunit_repos r ON r.repo_id = c.repo_id\nWHERE ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}') AND c.purpose IN (\n  SELECT purpose FROM (\n    SELECT c2.purpose FROM whodunit_commits c2 JOIN whodunit_repos r2 ON r2.repo_id = c2.repo_id\n    WHERE ('${contributor:raw}' = '__all__' OR r2.contributor = '${contributor:raw}')\n    GROUP BY c2.purpose\n    HAVING SUM(c2.status='assisted') >= 20 AND SUM(c2.status='undetermined') >= 20\n  ) eligible)"
         }
       ],
       "fieldConfig": {
@@ -779,7 +779,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT c.agent AS `agent`, COUNT(*) AS `commits`\nFROM whodunit_commits c JOIN whodunit_repos r ON r.repo_id=c.repo_id\nWHERE c.status='assisted' AND c.agent<>''\n  AND ($contributor = '__all__' OR r.contributor = $contributor) AND c.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nGROUP BY c.agent ORDER BY commits DESC"
+          "rawSql": "SELECT c.agent AS `agent`, COUNT(*) AS `commits`\nFROM whodunit_commits c JOIN whodunit_repos r ON r.repo_id=c.repo_id\nWHERE c.status='assisted' AND c.agent<>''\n  AND ('${contributor:raw}'='__all__' OR r.contributor='${contributor:raw}') AND c.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nGROUP BY c.agent ORDER BY commits DESC"
         }
       ],
       "options": {
@@ -815,7 +815,7 @@
         {
           "refId": "A",
           "format": "time_series",
-          "rawSql": "SELECT DATE(FROM_UNIXTIME(c.committed_at/1000000000)) AS `time`,\n       ROUND(AVG(CASE WHEN c.status='assisted' THEN c.lines_added+c.lines_removed END),0) AS `assisted`,\n       ROUND(AVG(CASE WHEN c.status<>'assisted' THEN c.lines_added+c.lines_removed END),0) AS `undetermined`\nFROM whodunit_commits c JOIN whodunit_repos r ON r.repo_id=c.repo_id\nWHERE ($contributor = '__all__' OR r.contributor = $contributor) AND c.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nGROUP BY `time` ORDER BY `time`"
+          "rawSql": "SELECT DATE(FROM_UNIXTIME(c.committed_at/1000000000)) AS `time`,\n       ROUND(AVG(CASE WHEN c.status='assisted' THEN c.lines_added+c.lines_removed END),0) AS `assisted`,\n       ROUND(AVG(CASE WHEN c.status<>'assisted' THEN c.lines_added+c.lines_removed END),0) AS `undetermined`\nFROM whodunit_commits c JOIN whodunit_repos r ON r.repo_id=c.repo_id\nWHERE ('${contributor:raw}'='__all__' OR r.contributor='${contributor:raw}') AND c.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nGROUP BY `time` ORDER BY `time`"
         }
       ],
       "fieldConfig": {
@@ -847,7 +847,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT ROUND(\n  (SELECT SUM(s.output_tokens)\n     FROM whodunit_sessions s JOIN whodunit_repos r2 ON r2.repo_id = s.repo_id\n    WHERE s.output_tokens IS NOT NULL\n      AND ($contributor = '__all__' OR r2.contributor = $contributor)\n      AND s.last_seen >= $__unixEpochFrom() * 1000000000\n      AND s.last_seen <  $__unixEpochTo() * 1000000000)\n  * 1000.0\n  / NULLIF(SUM(e.lines_added + e.lines_removed), 0)\n) AS v\nFROM whodunit_events e JOIN whodunit_repos r ON r.repo_id = e.repo_id\nWHERE ($contributor = '__all__' OR r.contributor = $contributor)\n  AND e.observed_at >= $__unixEpochFrom() * 1000000000\n  AND e.observed_at <  $__unixEpochTo() * 1000000000"
+          "rawSql": "SELECT ROUND(\n  (SELECT SUM(s.output_tokens)\n     FROM whodunit_sessions s JOIN whodunit_repos r2 ON r2.repo_id = s.repo_id\n    WHERE s.output_tokens IS NOT NULL\n      AND ('${contributor:raw}' = '__all__' OR r2.contributor = '${contributor:raw}')\n      AND s.last_seen >= $__unixEpochFrom() * 1000000000\n      AND s.last_seen <  $__unixEpochTo() * 1000000000)\n  * 1000.0\n  / NULLIF(SUM(e.lines_added + e.lines_removed), 0)\n) AS v\nFROM whodunit_events e JOIN whodunit_repos r ON r.repo_id = e.repo_id\nWHERE ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}')\n  AND e.observed_at >= $__unixEpochFrom() * 1000000000\n  AND e.observed_at <  $__unixEpochTo() * 1000000000"
         }
       ],
       "fieldConfig": {
@@ -1493,7 +1493,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT ROUND(SUM(c.status='assisted')*100.0/NULLIF(COUNT(*),0),1) v\nFROM whodunit_commits c JOIN whodunit_repos r ON r.repo_id=c.repo_id\nWHERE ($contributor = '__all__' OR r.contributor = $contributor)\n  AND c.committed_at >= (UNIX_TIMESTAMP() - 7*86400) * 1000000000"
+          "rawSql": "SELECT ROUND(SUM(c.status='assisted')*100.0/NULLIF(COUNT(*),0),1) v\nFROM whodunit_commits c JOIN whodunit_repos r ON r.repo_id=c.repo_id\nWHERE ('${contributor:raw}'='__all__' OR r.contributor='${contributor:raw}')\n  AND c.committed_at >= (UNIX_TIMESTAMP() - 7*86400) * 1000000000"
         }
       ],
       "fieldConfig": {
@@ -1543,7 +1543,7 @@
         {
           "refId": "A",
           "format": "time_series",
-          "rawSql": "SELECT DATE(FROM_UNIXTIME(c.committed_at/1000000000)) AS `time`,\n       ROUND(SUM(c.status='assisted')*100.0/NULLIF(COUNT(*),0),1) AS `assisted %`\nFROM whodunit_commits c JOIN whodunit_repos r ON r.repo_id=c.repo_id\nWHERE ($contributor = '__all__' OR r.contributor = $contributor) AND c.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nGROUP BY `time` ORDER BY `time`"
+          "rawSql": "SELECT DATE(FROM_UNIXTIME(c.committed_at/1000000000)) AS `time`,\n       ROUND(SUM(c.status='assisted')*100.0/NULLIF(COUNT(*),0),1) AS `assisted %`\nFROM whodunit_commits c JOIN whodunit_repos r ON r.repo_id=c.repo_id\nWHERE ('${contributor:raw}'='__all__' OR r.contributor='${contributor:raw}') AND c.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nGROUP BY `time` ORDER BY `time`"
         }
       ],
       "fieldConfig": {
@@ -1577,7 +1577,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT CASE c.method\n         WHEN 'intersected' THEN 'intersected'\n         WHEN 'observed'    THEN 'observed'\n         WHEN 'declared'    THEN 'declared'\n         WHEN 'inferred'    THEN 'inferred'\n         ELSE 'undetermined'\n       END AS `method`,\n       COUNT(*) AS `commits`\nFROM whodunit_commits c JOIN whodunit_repos r ON r.repo_id=c.repo_id\nWHERE ($contributor = '__all__' OR r.contributor = $contributor) AND c.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nGROUP BY c.method ORDER BY commits DESC"
+          "rawSql": "SELECT CASE c.method\n         WHEN 'intersected' THEN 'intersected'\n         WHEN 'observed'    THEN 'observed'\n         WHEN 'declared'    THEN 'declared'\n         WHEN 'inferred'    THEN 'inferred'\n         ELSE 'undetermined'\n       END AS `method`,\n       COUNT(*) AS `commits`\nFROM whodunit_commits c JOIN whodunit_repos r ON r.repo_id=c.repo_id\nWHERE ('${contributor:raw}'='__all__' OR r.contributor='${contributor:raw}') AND c.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nGROUP BY c.method ORDER BY commits DESC"
         }
       ],
       "options": {
