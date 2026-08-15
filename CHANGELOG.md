@@ -7,10 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-08-15
+
 ### Added
 
+- The trailer now carries a format version, `v=1`, written first so it is read before the values it qualifies. It exists because `ratio=0.62` is well-formed under any definition of ratio: change the rule and every trailer already written silently means something else, with no error to notice. Trailers live in commit messages, so that ambiguity would be permanent — a migration can rewrite a column, nothing can rewrite pushed history. A trailer with no `v` is version 1 permanently, since that is every trailer written before the key existed. The version is bumped only when the *meaning* of a value changes, never when a key is added.
+- The trailer records which model produced the work, where the agent reports one. Taken from the most recent relevant session entry rather than the first — a commit can contain edits from more than one model, and the turn that finished the work is the one worth attributing. Omitted rather than guessed when no entry recorded one.
+- `dun sync` publishes the pre-adoption baseline, so the dashboards have a genuine before to compare against rather than inferring one from early history.
 - `dun` now says when a newer release exists, once a day, on bare `dun` only — not on every command, and never from a git hook. The commit path makes no network request at all: a version check that can hang a commit is worse than an out-of-date binary. It stays silent when there is nothing to report, when the request fails or times out, and when you are running a build from source. Turn it off with `dun config set version_check off`, or `DUN_NO_VERSION_CHECK` / `DO_NOT_TRACK` in the environment.
 - `scoop install dun` on Windows, from a bucket at [navjyotnishant/scoop-bucket](https://github.com/navjyotnishant/scoop-bucket) — the counterpart to the Homebrew tap. This closes a gap that was worse than an inconvenience: the archive had to be renamed and put on `PATH` by hand, neither step was documented, and the git hook resolves `dun` by name — so a Windows user who unzipped and ran `dun init` got every commit stamped `undetermined`, silently, which reads downstream as "no AI was used". The plain archive remains supported for anyone whose policy forbids package managers, and the README now documents all three routes.
+- The dashboards import into a **Whodunit** folder rather than scattering across Grafana's root, and the import script fails when a dashboard in the repository is missing from its list — that list was hand-maintained, and the cost dashboard had been absent from it since the day it was written.
 - A seventh Grafana dashboard, **Cost & Efficiency** (`whodunit-cost.json`): token use per model, cache read ratio and write payback with the 1.25x break-even drawn, agent-written lines per branch, autonomy granted, session duration, MCP calls per server, and the share of edits a human changed before committing. Every panel that an agent cannot fill says so rather than rendering zero.
 - Compaction counts per session, and a dashboard panel for the compact rate. A long session costs more even when cached, because the whole context is re-sent every turn, and compacting is the one thing a person can do about it — measured here, 92% of turns ran above 150k context while 8% of sessions ever compacted. Read from Claude Code's `compact_boundary` records and Codex's `context_compacted`; Antigravity has no equivalent and is excluded from the denominator rather than counted as never compacting.
 - Token counts, model, reasoning effort and permission mode are now read from both Claude Code and Codex sessions. Claude Code reports usage on every assistant turn and the totals are summed; Codex reports a running total per session, so the last one wins — summing those instead would overcount by 3,090x on a real transcript. Fields an agent does not report stay absent rather than becoming zero: Claude Code records no timing and does not separate reasoning tokens, Codex never reports cache writes, and agy reports none of it. A zero on a cost panel reads as "this agent is free".
@@ -19,10 +25,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Selecting a contributor emptied most panels on five dashboards. Grafana's MySQL datasource quotes a *selected* value but passes the all-value through verbatim, so no single spelling of a bare `$contributor` satisfies both cases: quoted, a real selection renders as `''email''` and the query fails; unquoted, `__all__` parses as a column name. Every panel now uses `${contributor:raw}`, which takes Grafana's quoting out of the picture entirely. A regression check rejects any bare `$contributor`, because a dashboard that renders on "All" is no evidence — "All" stayed green through both broken states.
+- Repositories instrumented before a hook existed never got it. `pre-push` was added after some repositories were already set up, so those simply never synced, silently, with nothing to indicate anything was missing. Hooks now record the version that wrote them, are repaired automatically on the next `dun` command in that repository, and appear as stale in `dun status`'s cross-repo listing — the one view that reaches a repository nobody has visited in months. An existing non-whodunit hook is still chained rather than replaced.
 - Codex sessions entirely outside an `--since` window were written as empty rows. The session id is read from the rollout's header before the cutoff is applied, so `dun ingest --since` over a recent window wrote one row per historical rollout — every counter zero, and a zero timestamp. Measured on a real repository: 74 sessions written, all empty, and each one then counted in the denominator of any per-session average.
 - Claude Code assistant messages were overcounted by roughly 1.93x. One assistant message is written as several transcript records — one per content block — and each was counted separately, while Codex counted messages. The same `agent_messages` column therefore meant different things depending on which agent filled it, so any cross-agent comparison of engagement was wrong with nothing on the dashboard revealing it. Measured on the largest transcript on this machine: 12,029 records for 6,687 distinct messages.
 - Codex MCP calls were undercounted by 44%. Codex tags an MCP call one of two ways — a prefixed name (`mcp__linear__save_comment`) or a bare name with the server in a separate `namespace` field — and only the first was counted; the `namespace` field was not read at all. Measured on one machine, 311 calls used the counted form and 243 used the ignored one. MCP tool names are now qualified as `server__tool`, so a server's `save_comment` no longer merges with a local tool of the same name. A namespace alone does not imply MCP: Codex also uses it for built-ins such as `multi_agent_v1`, which are correctly not counted.
 - Antigravity (`agy`) acceptance rate was structurally unmeasurable. Every entry was written with outcome `unknown`, and the adapter's own comment stated that agy records no rejection signal — it does. `steps.status` is `NOT NULL`, indexed, and populated on every row. The eight non-success rows on this machine resolve into three distinct meanings rather than one: six carry `error_details` beginning "Permission denied" (a human declining, which is exactly what an acceptance rate is measured against), one "context cancelled", one nothing at all. An unrecognised status still maps to `unknown` rather than being folded into `failed`, because a status this code has not seen is a gap in what we know, not evidence of an error.
+
+### Security
+
+- Updated to Go 1.26.6, which fixes four vulnerabilities reachable from this code: GO-2026-6218 (`net/url`), GO-2026-6090 (`crypto/tls`), GO-2026-5972 (`encoding/asn1`) and GO-2026-5026 (`net/http`).
+- Secret scanning runs in CI rather than only when someone remembers, over full history — the case that matters is a credential committed and later removed, which is gone from the tree and permanent in history.
+- Baseline snapshots are written owner-only. They were `0644` while the directory around them was `0700`, so they were never actually exposed, but a file protected only by its parent stays protected only until it is copied elsewhere.
 
 ### Changed
 
@@ -106,6 +120,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Initial release.
 
-[Unreleased]: https://github.com/navjyotnishant/whodunit/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/navjyotnishant/whodunit/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/navjyotnishant/whodunit/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/navjyotnishant/whodunit/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/navjyotnishant/whodunit/releases/tag/v0.1.0
