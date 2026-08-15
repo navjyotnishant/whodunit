@@ -1,6 +1,6 @@
 {
   "uid": "whodunit-dora",
-  "title": "Whodunit \u2014 AI Impact on Delivery",
+  "title": "Whodunit — AI Impact on Delivery",
   "tags": [
     "whodunit",
     "dora"
@@ -87,13 +87,13 @@
       },
       "options": {
         "mode": "markdown",
-        "content": "## Whodunit \u2014 AI Impact on Delivery\n*Does AI assistance move delivery outcomes?* Adoption is measured from git history and the agent's own session records; delivery outcomes come from DevLake's DORA pipeline. Nothing here is self-reported.\n\n**Read the scope before the numbers.** Adoption covers every instrumented repository. Delivery outcomes currently come from **EngageHub only** \u2014 it is the one project with deployments. Correlation panels state their sample size and withhold a coefficient until there are enough overlapping weeks to support one."
+        "content": "## Whodunit — AI Impact on Delivery\n*Does AI assistance move delivery outcomes?* Adoption is measured from git history and the agent's own session records; delivery outcomes come from DevLake's DORA pipeline. Nothing here is self-reported.\n\n**Read the scope before the numbers.** Adoption covers every instrumented repository. Delivery outcomes currently come from **EngageHub only** — it is the one project with deployments. Correlation panels state their sample size and withhold a coefficient until there are enough overlapping weeks to support one."
       }
     },
     {
       "id": 9,
       "type": "row",
-      "title": "Delivery outcomes \u2014 projects with deployments",
+      "title": "Delivery outcomes — projects with deployments",
       "collapsed": false,
       "gridPos": {
         "x": 0,
@@ -202,7 +202,7 @@
           "values": false
         }
       },
-      "description": "Share of deployments that required a fix afterwards, from DevLake's own incident linkage.\n\n**Needs a deployment pattern configured**, or every CI run is unclassified and this reads empty rather than zero. Also needs incidents, which most trackers do not provide for free.\n\nThis is a delivery metric, not an AI metric \u2014 it is here so adoption can be read against it, not because whodunit measures it."
+      "description": "Share of deployments that required a fix afterwards, from DevLake's own incident linkage.\n\n**Needs a deployment pattern configured**, or every CI run is unclassified and this reads empty rather than zero. Also needs incidents, which most trackers do not provide for free.\n\nThis is a delivery metric, not an AI metric — it is here so adoption can be read against it, not because whodunit measures it."
     },
     {
       "id": 12,
@@ -417,7 +417,7 @@
           }
         }
       },
-      "description": "Deployments per day, from DevLake's CI collection.\n\nRequires a deployment pattern on the scope config \u2014 without one, `cicd_deployment_commits` stays empty and every DORA panel on this page reads blank while collection reports success."
+      "description": "Deployments per day, from DevLake's CI collection.\n\nRequires a deployment pattern on the scope config — without one, `cicd_deployment_commits` stays empty and every DORA panel on this page reads blank while collection reports success."
     },
     {
       "id": 17,
@@ -485,7 +485,7 @@
     },
     {
       "type": "row",
-      "title": "Assisted vs unassisted \u2014 rework, size and cost",
+      "title": "Assisted vs unassisted — rework, size and cost",
       "collapsed": false,
       "gridPos": {
         "x": 0,
@@ -506,7 +506,7 @@
         "w": 14,
         "h": 7
       },
-      "description": "**A rework proxy, not a defect rate.** `purpose` is derived from Conventional Commits prefixes and path heuristics, so this measures what commits were *labelled* \u2014 not what actually broke.\n\n**Banded by change size, and that changes the answer.** The unbanded figure is 28.4% assisted against 33.3% unassisted, which looks favourable. Split by size it reverses in the middle band: assisted work is 42.1% fixes against 24.7% at 50-300 lines, while at under 50 lines it is 38.5% against 46.6%. The aggregate was a size-mix artefact \u2014 assisted commits skew larger, and large commits are rarely labelled fixes.\n\nBoth denominators are shown because several bands are thin. Selection bias is uncontrolled either way: an agent is reached for on some kinds of work and not others, so part of this measures which work was assigned rather than what the agent did to it.",
+      "description": "**A rework proxy, not a defect rate.** `purpose` is derived from Conventional Commits prefixes and path heuristics, so this measures what commits were *labelled* — not what actually broke.\n\n**Banded by change size, and that changes the answer.** The unbanded figure is 28.4% assisted against 33.3% unassisted, which looks favourable. Split by size it reverses in the middle band: assisted work is 42.1% fixes against 24.7% at 50-300 lines, while at under 50 lines it is 38.5% against 46.6%. The aggregate was a size-mix artefact — assisted commits skew larger, and large commits are rarely labelled fixes.\n\nBoth denominators are shown because several bands are thin. Selection bias is uncontrolled either way: an agent is reached for on some kinds of work and not others, so part of this measures which work was assigned rather than what the agent did to it.",
       "targets": [
         {
           "refId": "A",
@@ -565,7 +565,7 @@
         "w": 5,
         "h": 7
       },
-      "description": "Output tokens spent per line of assisted work that **reached a commit**.\n\nThe denominator is what distinguishes this from the token-per-attributed-line panel above: that one divides by agent activity, this one by work that shipped. Tokens spent on edits that were abandoned or rewritten count in the numerator and not the denominator, which is the point \u2014 that gap is the cost of work that did not land.\n\nTokens, never currency: under a subscription the marginal cost of a token is zero, so a price table would report money nobody spent.\n\nSessions and commits are counted over the same window but are not joined row-to-row \u2014 a session can span commits and a commit can span sessions. Read it as a rate for the period, not as an attribution per commit.",
+      "description": "Output tokens spent per line of assisted work that **reached a commit**.\n\nThe denominator is what distinguishes this from the token-per-attributed-line panel above: that one divides by agent activity, this one by work that shipped. Tokens spent on edits that were abandoned or rewritten count in the numerator and not the denominator, which is the point — that gap is the cost of work that did not land.\n\nTokens, never currency: under a subscription the marginal cost of a token is zero, so a price table would report money nobody spent.\n\nSessions and commits are counted over the same window but are not joined row-to-row — a session can span commits and a commit can span sessions. Read it as a rate for the period, not as an attribution per commit.",
       "targets": [
         {
           "refId": "A",
@@ -616,7 +616,7 @@
         "w": 5,
         "h": 7
       },
-      "description": "How much work happened at each level of autonomy.\n\n**The session counts are thin and shown for that reason** \u2014 measured here, `default` is 3 sessions and `auto` is 1, against 64 for `never`. A mode with one session tells you about that session.\n\nTool calls are not shipped work. A mode that permits more actions produces more actions by construction; whether that becomes delivered code is the question this panel raises and cannot answer.\n\nEach agent's own vocabulary is kept rather than mapped onto a shared enum \u2014 Codex says `never` and `on-request`, Claude Code says `acceptEdits`, `auto` and `default`.",
+      "description": "How much work happened at each level of autonomy.\n\n**The session counts are thin and shown for that reason** — measured here, `default` is 3 sessions and `auto` is 1, against 64 for `never`. A mode with one session tells you about that session.\n\nTool calls are not shipped work. A mode that permits more actions produces more actions by construction; whether that becomes delivered code is the question this panel raises and cannot answer.\n\nEach agent's own vocabulary is kept rather than mapped onto a shared enum — Codex says `never` and `on-request`, Claude Code says `acceptEdits`, `auto` and `default`.",
       "targets": [
         {
           "refId": "A",
@@ -658,7 +658,7 @@
         "w": 5,
         "h": 5
       },
-      "description": "**This is a size difference, not a productivity gain.**\n\nMean lines changed per assisted commit against unassisted ones, within purposes where both sides have at least 20 commits \u2014 so `feature` is not being compared against `docs`.\n\nA positive number means assisted commits are larger. Larger is not faster and not better: it may mean the agent takes on bigger work, or that it writes more code for the same outcome. Both are consistent with this figure.\n\nEmpty when no purpose has 20 commits on both sides, rather than showing a ratio computed from a handful.\n\n**Deliberately not colour-coded.** Green for positive would assert that larger commits are better, which is the claim the panel beside this one exists to refuse.",
+      "description": "**This is a size difference, not a productivity gain.**\n\nMean lines changed per assisted commit against unassisted ones, within purposes where both sides have at least 20 commits — so `feature` is not being compared against `docs`.\n\nA positive number means assisted commits are larger. Larger is not faster and not better: it may mean the agent takes on bigger work, or that it writes more code for the same outcome. Both are consistent with this figure.\n\nEmpty when no purpose has 20 commits on both sides, rather than showing a ratio computed from a handful.\n\n**Deliberately not colour-coded.** Green for positive would assert that larger commits are better, which is the claim the panel beside this one exists to refuse.",
       "targets": [
         {
           "refId": "A",
@@ -710,7 +710,7 @@
         "w": 4,
         "h": 5
       },
-      "description": "The denominator behind the figure beside this \u2014 assisted against unassisted commits in the matched purposes.\n\nShown because a percentage without its sample size is not a measurement. Both sides must reach 20 before a purpose is included.",
+      "description": "The denominator behind the figure beside this — assisted against unassisted commits in the matched purposes.\n\nShown because a percentage without its sample size is not a measurement. Both sides must reach 20 before a purpose is included.",
       "targets": [
         {
           "refId": "A",
@@ -761,7 +761,7 @@
       },
       "options": {
         "mode": "markdown",
-        "content": "### The comparison this dashboard cannot make\n\nA productivity gain needs a **before** and an **after** of the same work. What exists here is assisted against unassisted commits *in the same period*, and the two are not the same population:\n\n- **Selection is not random.** An agent is reached for on some kinds of work and not others. Measured on this data, 48% of assisted commits are features against 38% of unassisted ones \u2014 so an unmatched comparison partly measures which work got assigned to the agent.\n- **Larger is not faster.** The only outcome here is change size. A bigger commit may be more work done or more code written for the same outcome.\n- **No pre-adoption baseline is synced.** `dun baseline capture` records one locally \u2014 commits, cadence, median diff size, revert rate over a fixed window \u2014 but nothing publishes it, so the before-and-after comparison has no *before* to read. That is the comparison worth having: same repository, before and after, with the selection problem above absent by construction. Tracked as NAV-107.\n\nThe panels to the left control for purpose and show both sample sizes. That is as far as this data honestly goes."
+        "content": "### The comparison this dashboard cannot make\n\nA productivity gain needs a **before** and an **after** of the same work. What exists here is assisted against unassisted commits *in the same period*, and the two are not the same population:\n\n- **Selection is not random.** An agent is reached for on some kinds of work and not others. Measured on this data, 48% of assisted commits are features against 38% of unassisted ones — so an unmatched comparison partly measures which work got assigned to the agent.\n- **Larger is not faster.** The only outcome here is change size. A bigger commit may be more work done or more code written for the same outcome.\n- **No pre-adoption baseline is synced.** `dun baseline capture` records one locally — commits, cadence, median diff size, revert rate over a fixed window — but nothing publishes it, so the before-and-after comparison has no *before* to read. That is the comparison worth having: same repository, before and after, with the selection problem above absent by construction. Tracked as NAV-107.\n\nThe panels to the left control for purpose and show both sample sizes. That is as far as this data honestly goes."
       }
     },
     {
@@ -803,7 +803,7 @@
     {
       "id": 7,
       "type": "timeseries",
-      "title": "Change size \u2014 assisted vs undetermined",
+      "title": "Change size — assisted vs undetermined",
       "datasource": "${datasource}",
       "gridPos": {
         "x": 8,
@@ -842,7 +842,7 @@
         "w": 6,
         "h": 6
       },
-      "description": "What the agent spent, in tokens, per thousand lines it wrote.\n\n**This replaced a dollar figure** derived from a hand-typed monthly spend divided evenly over every line \u2014 an allocation dressed as a measurement, which reported the same unit cost whether the agent ran once or a thousand times, and defaulted to a $200 placeholder that was nobody's actual bill.\n\nTokens rather than currency, deliberately: under a subscription the marginal cost of a token is zero, so multiplying by an API rate would report money nobody spent \u2014 and nothing in a transcript says which billing model a user is on. Multiply by your own contract if you need a figure.\n\nEmpty where no session reported tokens: Antigravity reports none at all, and that is a property of the agent rather than a gap.",
+      "description": "What the agent spent, in tokens, per thousand lines it wrote.\n\n**This replaced a dollar figure** derived from a hand-typed monthly spend divided evenly over every line — an allocation dressed as a measurement, which reported the same unit cost whether the agent ran once or a thousand times, and defaulted to a $200 placeholder that was nobody's actual bill.\n\nTokens rather than currency, deliberately: under a subscription the marginal cost of a token is zero, so multiplying by an API rate would report money nobody spent — and nothing in a transcript says which billing model a user is on. Multiply by your own contract if you need a figure.\n\nEmpty where no session reported tokens: Antigravity reports none at all, and that is a property of the agent rather than a gap.",
       "targets": [
         {
           "refId": "A",
@@ -895,7 +895,7 @@
       },
       "options": {
         "mode": "markdown",
-        "content": "**How to read this section.** Each chart plots AI adoption against a delivery outcome over the same weeks. The `r` beside it is a correlation coefficient: `+1` means they rise together, `-1` means one rises as the other falls, `0` means no linear relationship.\n\n**`r` is withheld until there are 10 overlapping weeks.** Below that it is arithmetic, not evidence \u2014 three points can produce `r = 0.99` from coincidence. The paired series still plots, so you can watch the relationship form. **Correlation is not causation** even at high `n`: a release freeze, a hiring round or a quarter boundary moves these numbers too."
+        "content": "**How to read this section.** Each chart plots AI adoption against a delivery outcome over the same weeks. The `r` beside it is a correlation coefficient: `+1` means they rise together, `-1` means one rises as the other falls, `0` means no linear relationship.\n\n**`r` is withheld until there are 10 overlapping weeks.** Below that it is arithmetic, not evidence — three points can produce `r = 0.99` from coincidence. The paired series still plots, so you can watch the relationship form. **Correlation is not causation** even at high `n`: a release freeze, a hiring round or a quarter boundary moves these numbers too."
       }
     },
     {
@@ -1180,7 +1180,7 @@
     {
       "id": 21,
       "type": "stat",
-      "title": "r \u2014 adoption vs deployment frequency",
+      "title": "r — adoption vs deployment frequency",
       "datasource": "${datasource}",
       "gridPos": {
         "x": 0,
@@ -1221,7 +1221,7 @@
           "values": false
         }
       },
-      "description": "Pearson correlation between weekly adoption and weekly deployment frequency.\n\n**Correlation, not causation, and on very few weeks.** The overlapping-weeks count beside it is the number that decides whether this means anything \u2014 below about ten weeks it is noise wearing a decimal point."
+      "description": "Pearson correlation between weekly adoption and weekly deployment frequency.\n\n**Correlation, not causation, and on very few weeks.** The overlapping-weeks count beside it is the number that decides whether this means anything — below about ten weeks it is noise wearing a decimal point."
     },
     {
       "id": 22,
@@ -1276,7 +1276,7 @@
     {
       "id": 24,
       "type": "stat",
-      "title": "r \u2014 adoption vs change failure rate",
+      "title": "r — adoption vs change failure rate",
       "datasource": "${datasource}",
       "gridPos": {
         "x": 8,
@@ -1317,7 +1317,7 @@
           "values": false
         }
       },
-      "description": "Pearson correlation between weekly adoption and weekly change failure rate.\n\nA negative r would mean failures fall as adoption rises. It would not mean adoption caused that \u2014 teams adopting AI are also doing other things \u2014 and the overlapping-weeks count beside it usually rules out reading it at all."
+      "description": "Pearson correlation between weekly adoption and weekly change failure rate.\n\nA negative r would mean failures fall as adoption rises. It would not mean adoption caused that — teams adopting AI are also doing other things — and the overlapping-weeks count beside it usually rules out reading it at all."
     },
     {
       "id": 25,
@@ -1372,7 +1372,7 @@
     {
       "id": 27,
       "type": "stat",
-      "title": "r \u2014 adoption vs pr cycle time",
+      "title": "r — adoption vs pr cycle time",
       "datasource": "${datasource}",
       "gridPos": {
         "x": 16,
@@ -1468,7 +1468,7 @@
     {
       "id": 2,
       "type": "row",
-      "title": "Adoption \u2014 every instrumented repository",
+      "title": "Adoption — every instrumented repository",
       "collapsed": false,
       "gridPos": {
         "x": 0,
@@ -1543,7 +1543,7 @@
         {
           "refId": "A",
           "format": "time_series",
-          "rawSql": "SELECT DATE(FROM_UNIXTIME(c.committed_at/1000000000)) AS `time`,\n       ROUND(SUM(c.status='assisted')*100.0/NULLIF(COUNT(*),0),1) AS `assisted %`\nFROM whodunit_commits c JOIN whodunit_repos r ON r.repo_id=c.repo_id\nWHERE ('${contributor:raw}'='__all__' OR r.contributor='${contributor:raw}') AND c.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nGROUP BY `time` ORDER BY `time`"
+          "rawSql": "SELECT DATE(FROM_UNIXTIME(c.committed_at/1000000000)) AS `time`,\n       e.agent AS `metric`,\n       ROUND(COUNT(DISTINCT CASE WHEN c.status='assisted' THEN c.commit_sha END)*100.0\n             /NULLIF(COUNT(DISTINCT c.commit_sha),0),1) AS `value`\nFROM whodunit_commits c\nJOIN whodunit_repos r ON r.repo_id=c.repo_id\nJOIN whodunit_events e ON e.repo_id=c.repo_id\n AND e.observed_at BETWEEN c.committed_at - 86400000000000 AND c.committed_at\nWHERE ('${contributor:raw}'='__all__' OR r.contributor='${contributor:raw}')\n  AND c.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nGROUP BY `time`, `metric` ORDER BY `time`"
         }
       ],
       "fieldConfig": {
@@ -1555,12 +1555,13 @@
             "drawStyle": "line",
             "lineWidth": 2,
             "fillOpacity": 15,
-            "spanNulls": true,
-            "pointSize": 6
+            "spanNulls": false,
+            "pointSize": 5,
+            "showPoints": "always"
           }
         }
       },
-      "description": "The adoption curve. A flat line at zero before instrumentation is expected, not a gap in the data."
+      "description": "Share of commits carrying agent attribution, split by which agent was active.\n\nAn agent is credited for a commit when it recorded activity in that repository within 24 hours before the commit. That window is a heuristic, not a claim: a commit worked on by two agents appears in both series, so the lines do not sum to the overall rate.\n\nAn agent with no line recorded no activity in the range — not zero adoption, no data (NAV-21)."
     },
     {
       "id": 5,
@@ -1596,7 +1597,7 @@
           "values": true
         }
       },
-      "description": "How each commit's attribution was established, from strongest evidence to none.\n\n- **intersected** \u2014 agent-written lines survived into the commit. The strongest claim: the text the agent produced is in the diff.\n- **observed** \u2014 the agent touched the file, but the text changed afterwards. It worked here; what shipped may not be its work.\n- **inferred** \u2014 established from surrounding evidence rather than line-level matching.\n- **declared** \u2014 stated in the trailer, not measured.\n- **undetermined** \u2014 no evidence either way. **Not a claim that no agent was used** \u2014 a commit made before the hooks were installed, or on a machine without them, lands here regardless of how it was written (NAV-21).\n\nColours run cool to warm by strength of evidence, with undetermined grey because it is an absence rather than a tier. Warm is not 'good': strong evidence that an agent wrote the code is a confident measurement, not a desirable outcome.",
+      "description": "How each commit's attribution was established, from strongest evidence to none.\n\n- **intersected** — agent-written lines survived into the commit. The strongest claim: the text the agent produced is in the diff.\n- **observed** — the agent touched the file, but the text changed afterwards. It worked here; what shipped may not be its work.\n- **inferred** — established from surrounding evidence rather than line-level matching.\n- **declared** — stated in the trailer, not measured.\n- **undetermined** — no evidence either way. **Not a claim that no agent was used** — a commit made before the hooks were installed, or on a machine without them, lands here regardless of how it was written (NAV-21).\n\nColours run cool to warm by strength of evidence, with undetermined grey because it is an absence rather than a tier. Warm is not 'good': strong evidence that an agent wrote the code is a confident measurement, not a desirable outcome.",
       "fieldConfig": {
         "defaults": {
           "color": {
