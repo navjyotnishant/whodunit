@@ -78,6 +78,34 @@ func scalarSettings() []scalarSetting {
 				return nil
 			},
 		},
+		{
+			Key: "version_check",
+			Help: "whether dun may ask GitHub once a day if a newer release " +
+				"exists (on/off)",
+			Get: func(c config.Config) string {
+				if c.VersionCheckEnabled() {
+					return "on"
+				}
+				return "off"
+			},
+			Set: func(c *config.Config, v string) error {
+				var on bool
+				switch strings.ToLower(v) {
+				case "on", "true", "yes", "1":
+					on = true
+				case "off", "false", "no", "0":
+					on = false
+				default:
+					return fmt.Errorf("version_check must be on or off, got %q", v)
+				}
+				// Written even when it matches the default, so an explicit
+				// choice survives in the file rather than reading back as
+				// "never configured" — which is the difference between
+				// someone deciding and someone not having looked.
+				c.VersionCheck = &on
+				return nil
+			},
+		},
 	}
 }
 
