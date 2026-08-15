@@ -1,0 +1,96 @@
+---
+id: install
+title: Install
+sidebar_label: Install
+---
+
+# Install
+
+`dun` is a single static binary with no runtime dependencies. It needs git
+on `PATH` and nothing else.
+
+## macOS and Linux
+
+```sh
+brew tap navjyotnishant/tap
+brew install navjyotnishant/tap/dun
+```
+
+## Windows
+
+```powershell
+scoop bucket add navjyotnishant https://github.com/navjyotnishant/scoop-bucket
+scoop install dun
+```
+
+## From source
+
+```sh
+go install github.com/navjyotnishant/whodunit/cmd/dun@latest
+```
+
+## From a release archive
+
+Download from the [releases page](https://github.com/navjyotnishant/whodunit/releases),
+verify it against the published `checksums.txt`, and put the binary
+somewhere on your `PATH` **under the name `dun`** — `dun.exe` on Windows.
+
+```sh
+shasum -a 256 -c checksums.txt
+```
+
+:::warning The name matters more than it looks
+
+The git hook resolves the binary by name at commit time:
+
+```sh
+DUN="$(command -v dun || echo "<the binary that ran init>")"
+```
+
+A binary that is not on `PATH` as `dun` falls back to wherever it lived
+when you ran `dun init`. That works — until the file moves or is deleted,
+after which **every commit is stamped `undetermined`, silently**.
+
+Downstream, `undetermined` reads as "no AI was used" rather than "the tool
+went missing", which is exactly the wrong conclusion. `dun init` warns when
+it detects this, and the package managers above avoid it entirely.
+
+:::
+
+## Verify the install
+
+```sh
+dun version
+dun verify
+```
+
+`dun verify` checks the install end to end and names what to fix rather
+than reporting a bare pass or fail.
+
+## Staying current
+
+Upgrading the binary reaches every instrumented repository automatically —
+the hooks resolve `dun` from `PATH` at run time, so a fix lands everywhere
+at once with no re-init.
+
+Two things do not propagate that way: a hook that did not exist when a
+repository was instrumented, and a change to the hook script itself. Both
+are handled without you doing anything — a repository with stale hooks is
+repaired on the next `dun` command there, and `dun status` flags stale
+repositories in its cross-repo listing.
+
+To fix everything at once:
+
+```sh
+dun repos update
+```
+
+`dun` also tells you once a day when a newer release exists, on bare `dun`
+only — never from a git hook, because a version check that can hang a
+commit is worse than an out-of-date binary. Turn it off with:
+
+```sh
+dun config set version_check off
+```
+
+or set `DUN_NO_VERSION_CHECK` / `DO_NOT_TRACK` in the environment.

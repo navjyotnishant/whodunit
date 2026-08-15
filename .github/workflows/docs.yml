@@ -1,0 +1,76 @@
+name: Docs
+
+# Publishes the Docusaurus site to GitHub Pages.
+#
+# Two jobs rather than one: a pull request builds but does not deploy, so a
+# broken docs build is caught in review rather than after it has replaced
+# the live site. Only a push to the default branch publishes.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'website/**'
+      - '.github/workflows/docs.yml'
+  pull_request:
+    paths:
+      - 'website/**'
+      - '.github/workflows/docs.yml'
+  # Manual, for republishing without a docs change — after a release, for
+  # instance, when the site text is unchanged but the version it names is not.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages
+  # Never cancel a running deploy. A half-finished publish leaves the live
+  # site holding some of the new files and some of the old, which is worse
+  # than waiting for the previous one to finish.
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: website/package-lock.json
+
+      - name: Install
+        working-directory: website
+        run: npm ci
+
+      # onBrokenLinks: 'throw' means this fails on a broken internal link
+      # rather than publishing one. A docs site whose links rot is worse
+      # than no docs site — it looks maintained.
+      - name: Build
+        working-directory: website
+        run: npm run build
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: website/build
+
+  deploy:
+    # Pull requests build only. Deploying from a PR would let any branch
+    # replace the published site.
+    if: github.event_name != 'pull_request'
+    needs: build
+    runs-on: ubuntu-latest
+
+    permissions:
+      pages: write
+      id-token: write
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
