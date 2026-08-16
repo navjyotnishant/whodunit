@@ -539,19 +539,23 @@
       ]
     },
     {
+      "id": 904,
       "type": "stat",
       "title": "Decided calls",
-      "description": "The denominator: calls with a recorded outcome. Excludes 'unknown', so the rate is not diluted by transcripts that simply never finished.",
-      "datasource": {
-        "type": "mysql",
-        "uid": "${datasource}"
-      },
+      "datasource": "${datasource}",
       "gridPos": {
         "h": 5,
         "w": 6,
         "x": 12,
         "y": 16
       },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT COUNT(*) v FROM whodunit_events e JOIN whodunit_repos r ON r.repo_id=e.repo_id WHERE e.outcome IN ('accepted','rejected','failed') AND ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}') AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000"
+        }
+      ],
       "fieldConfig": {
         "defaults": {
           "unit": "short",
@@ -559,7 +563,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "blue",
+                "color": "text",
                 "value": null
               }
             ]
@@ -568,21 +572,20 @@
       },
       "options": {
         "graphMode": "none",
+        "textMode": "value",
         "reduceOptions": {
           "calcs": [
             "lastNotNull"
           ],
           "fields": "",
           "values": false
+        },
+        "text": {
+          "valueSize": 40,
+          "titleSize": 11
         }
       },
-      "targets": [
-        {
-          "refId": "A",
-          "format": "table",
-          "rawSql": "SELECT COUNT(*) v FROM whodunit_events e JOIN whodunit_repos r ON r.repo_id=e.repo_id WHERE e.outcome IN ('accepted','rejected','failed') AND ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}') AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000"
-        }
-      ]
+      "description": "How many tool calls have a recorded outcome, and therefore how much the acceptance rate beside this is actually measured on.\n\nShown because a percentage without its denominator is not a measurement. A rate over a handful of calls moves entirely on one of them."
     },
     {
       "type": "stat",
@@ -631,6 +634,106 @@
       ]
     },
     {
+      "id": 905,
+      "type": "stat",
+      "title": "Issues compared · assisted",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "h": 5,
+        "w": 12,
+        "x": 0,
+        "y": 21
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT COUNT(*) v FROM (\nSELECT i.issue_key, i.lead_time_minutes AS ltm,\n       COALESCE(MAX(w.status = 'assisted'), 0) AS ai\nFROM issues i\nJOIN board_issues bi ON bi.issue_id = i.id\nLEFT JOIN commits c\n       ON c.message REGEXP CONCAT('(^|[^A-Za-z0-9])', i.issue_key, '([^0-9]|$)')\nLEFT JOIN whodunit_commits w ON w.commit_sha = c.sha\nWHERE bi.board_id = '$board'\n  AND i.lead_time_minutes IS NOT NULL\n  AND $__timeFilter(i.resolution_date)\n  AND i.issue_key REGEXP '^[A-Z][A-Z0-9]+-[0-9]+$'\n    AND i.issue_key REGEXP CONCAT('^',\n        (SELECT SUBSTRING_INDEX(i2.issue_key,'-',1)\n           FROM issues i2 JOIN board_issues bi2 ON bi2.issue_id = i2.id\n          WHERE bi2.board_id = '$board'\n            AND i2.issue_key REGEXP '^[A-Z][A-Z0-9]+-[0-9]+$' LIMIT 1),\n        '-[0-9]+$')\nGROUP BY i.issue_key, i.lead_time_minutes\nHAVING ai = 1\n) t"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          },
+          "noValue": "None in range"
+        }
+      },
+      "options": {
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "text": {
+          "valueSize": 40,
+          "titleSize": 11
+        }
+      },
+      "description": "**How many issues are in this cohort** — the denominator for the median beside it.\n\nShown deliberately rather than tucked into a tooltip. A median over a handful of issues moves hours on one or two of them, and a cohort of zero means there is no comparison at all — the Delta would be measuring nothing. Check this number before reading anything into the medians.\n\nThis panel counts issues **carrying an AI-attribution trailer**.\n\n**How an issue is classified.** Its key is matched against commit messages (`WHO-12` in a commit subject links that commit to that issue). If any linked commit carries `status=assisted`, the issue counts as AI-assisted; otherwise it counts as not. An issue whose key appears in no commit message is in neither cohort — it is absent, not counted as unassisted.\n\n**Scope.** Issues closed within the dashboard time range, on the selected issue board. The Repository filter does not apply: an issue's commits can span repositories, so filtering by one would drop genuinely assisted issues and understate the comparison."
+    },
+    {
+      "id": 906,
+      "type": "stat",
+      "title": "Issues compared · not assisted",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "h": 5,
+        "w": 12,
+        "x": 12,
+        "y": 21
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT COUNT(*) v FROM (\nSELECT i.issue_key, i.lead_time_minutes AS ltm,\n       COALESCE(MAX(w.status = 'assisted'), 0) AS ai\nFROM issues i\nJOIN board_issues bi ON bi.issue_id = i.id\nLEFT JOIN commits c\n       ON c.message REGEXP CONCAT('(^|[^A-Za-z0-9])', i.issue_key, '([^0-9]|$)')\nLEFT JOIN whodunit_commits w ON w.commit_sha = c.sha\nWHERE bi.board_id = '$board'\n  AND i.lead_time_minutes IS NOT NULL\n  AND $__timeFilter(i.resolution_date)\n  AND i.issue_key REGEXP '^[A-Z][A-Z0-9]+-[0-9]+$'\n    AND i.issue_key REGEXP CONCAT('^',\n        (SELECT SUBSTRING_INDEX(i2.issue_key,'-',1)\n           FROM issues i2 JOIN board_issues bi2 ON bi2.issue_id = i2.id\n          WHERE bi2.board_id = '$board'\n            AND i2.issue_key REGEXP '^[A-Z][A-Z0-9]+-[0-9]+$' LIMIT 1),\n        '-[0-9]+$')\nGROUP BY i.issue_key, i.lead_time_minutes\nHAVING ai = 0\n) t"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          },
+          "noValue": "None in range"
+        }
+      },
+      "options": {
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "text": {
+          "valueSize": 40,
+          "titleSize": 11
+        }
+      },
+      "description": "**How many issues are in this cohort** — the denominator for the median beside it.\n\nShown deliberately rather than tucked into a tooltip. A median over a handful of issues moves hours on one or two of them, and a cohort of zero means there is no comparison at all — the Delta would be measuring nothing. Check this number before reading anything into the medians.\n\nThis panel counts issues **with no AI attribution**.\n\n**How an issue is classified.** Its key is matched against commit messages (`WHO-12` in a commit subject links that commit to that issue). If any linked commit carries `status=assisted`, the issue counts as AI-assisted; otherwise it counts as not. An issue whose key appears in no commit message is in neither cohort — it is absent, not counted as unassisted.\n\n**Scope.** Issues closed within the dashboard time range, on the selected issue board. The Repository filter does not apply: an issue's commits can span repositories, so filtering by one would drop genuinely assisted issues and understate the comparison."
+    },
+    {
       "type": "table",
       "title": "Acceptance by tool",
       "description": "Per tool, so a low overall rate can be traced to which one is being turned down. Rate is shown with its denominator on the same row (NAV-54).",
@@ -642,7 +745,7 @@
         "h": 9,
         "w": 12,
         "x": 0,
-        "y": 21
+        "y": 26
       },
       "fieldConfig": {
         "defaults": {},
@@ -667,7 +770,7 @@
         "h": 9,
         "w": 12,
         "x": 12,
-        "y": 21
+        "y": 26
       },
       "targets": [
         {
@@ -704,7 +807,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 30
+        "y": 35
       }
     },
     {
@@ -719,7 +822,7 @@
         "h": 9,
         "w": 8,
         "x": 0,
-        "y": 31
+        "y": 36
       },
       "options": {
         "showHeader": true
@@ -744,7 +847,7 @@
         "h": 9,
         "w": 8,
         "x": 8,
-        "y": 31
+        "y": 36
       },
       "options": {
         "showHeader": true
@@ -769,7 +872,7 @@
         "h": 9,
         "w": 8,
         "x": 16,
-        "y": 31
+        "y": 36
       },
       "options": {
         "showHeader": true
@@ -794,7 +897,7 @@
         "h": 9,
         "w": 12,
         "x": 0,
-        "y": 40
+        "y": 45
       },
       "options": {
         "showHeader": true
@@ -819,7 +922,7 @@
         "h": 9,
         "w": 12,
         "x": 12,
-        "y": 40
+        "y": 45
       },
       "fieldConfig": {
         "defaults": {
@@ -863,7 +966,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 49
+        "y": 54
       }
     },
     {
@@ -874,7 +977,7 @@
         "h": 5,
         "w": 4,
         "x": 0,
-        "y": 50
+        "y": 55
       },
       "targets": [
         {
@@ -919,7 +1022,7 @@
         "h": 5,
         "w": 4,
         "x": 4,
-        "y": 50
+        "y": 55
       },
       "targets": [
         {
@@ -964,7 +1067,7 @@
         "h": 5,
         "w": 4,
         "x": 8,
-        "y": 50
+        "y": 55
       },
       "targets": [
         {
@@ -1009,7 +1112,7 @@
         "h": 5,
         "w": 4,
         "x": 12,
-        "y": 50
+        "y": 55
       },
       "targets": [
         {
@@ -1055,7 +1158,7 @@
         "h": 5,
         "w": 4,
         "x": 16,
-        "y": 50
+        "y": 55
       },
       "targets": [
         {
@@ -1100,7 +1203,7 @@
         "h": 5,
         "w": 4,
         "x": 20,
-        "y": 50
+        "y": 55
       },
       "targets": [
         {
@@ -1149,7 +1252,7 @@
         "h": 9,
         "w": 24,
         "x": 0,
-        "y": 55
+        "y": 60
       },
       "fieldConfig": {
         "defaults": {},
@@ -1173,7 +1276,7 @@
         "h": 6,
         "w": 24,
         "x": 0,
-        "y": 64
+        "y": 69
       },
       "options": {
         "mode": "markdown",
