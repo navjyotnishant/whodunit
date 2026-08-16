@@ -33,6 +33,19 @@
         "refresh": 1,
         "allValue": "__all__",
         "options": []
+      },
+      {
+        "name": "board",
+        "type": "query",
+        "datasource": "${DS_WHODUNIT}",
+        "query": "SELECT name AS __text, id AS __value FROM boards ORDER BY name",
+        "current": {},
+        "refresh": 1,
+        "hide": 0,
+        "label": "Issue board",
+        "includeAll": false,
+        "multi": false,
+        "options": []
       }
     ]
   },
@@ -112,7 +125,7 @@
       "gridPos": {
         "h": 5,
         "w": 4,
-        "x": 4,
+        "x": 8,
         "y": 1
       },
       "fieldConfig": {
@@ -155,7 +168,7 @@
       "gridPos": {
         "h": 5,
         "w": 4,
-        "x": 8,
+        "x": 12,
         "y": 1
       },
       "fieldConfig": {
@@ -198,7 +211,7 @@
       "gridPos": {
         "h": 5,
         "w": 4,
-        "x": 12,
+        "x": 16,
         "y": 1
       },
       "fieldConfig": {
@@ -241,7 +254,7 @@
       "gridPos": {
         "h": 5,
         "w": 4,
-        "x": 16,
+        "x": 20,
         "y": 1
       },
       "fieldConfig": {
@@ -273,62 +286,6 @@
           "refId": "A",
           "format": "table",
           "rawSql": "SELECT COUNT(DISTINCT DATE(FROM_UNIXTIME(e.observed_at / 1000000000))) AS active_days FROM whodunit_events e JOIN whodunit_repos r ON r.repo_id = e.repo_id WHERE ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}') AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000"
-        }
-      ]
-    },
-    {
-      "type": "stat",
-      "title": "Data freshness",
-      "description": "Time since the last recorded agent event. The hooks write on every commit, so this tracks whether anyone has been working — green under 8 hours, amber past a working day, red past three. A long gap is a question, not a fault: a quiet weekend and a broken collector look identical here, which is why `dun verify` exists.",
-      "datasource": "${DS_WHODUNIT}",
-      "gridPos": {
-        "h": 5,
-        "w": 4,
-        "x": 20,
-        "y": 1
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "h",
-          "decimals": 1,
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "yellow",
-                "value": 8
-              },
-              {
-                "color": "orange",
-                "value": 24
-              },
-              {
-                "color": "red",
-                "value": 72
-              }
-            ]
-          }
-        }
-      },
-      "options": {
-        "graphMode": "none",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        }
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "format": "table",
-          "rawSql": "SELECT (UNIX_TIMESTAMP() - MAX(observed_at) / 1000000000) / 3600 AS hours_stale FROM whodunit_events"
         }
       ]
     },
@@ -594,14 +551,70 @@
       ]
     },
     {
+      "id": 907,
+      "type": "stat",
+      "title": "Commits · assisted / total",
+      "datasource": "${DS_WHODUNIT}",
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 0,
+        "y": 21
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT CONCAT(\n         FORMAT(SUM(c.status = 'assisted'), 0), ' / ',\n         FORMAT(COUNT(*), 0)) AS v\nFROM whodunit_commits c\nJOIN whodunit_repos r ON r.repo_id = c.repo_id\nWHERE ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}')\n  AND c.committed_at BETWEEN $__unixEpochFrom() * 1000000000\n                         AND $__unixEpochTo()   * 1000000000"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "noValue": "No commits in range",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#5794F2"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#5794F2",
+                "value": null
+              }
+            ]
+          },
+          "custom": {}
+        }
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "text": {
+          "valueSize": 34
+        }
+      },
+      "description": "Commits carrying `status=assisted`, against every commit whodunit recorded in the range.\n\nShown as a pair because the count alone is not a measurement — 166 means nothing without knowing whether the total was 200 or 2,000. The Adoption gauge above is this same ratio as a percentage.\n\n**This counts commits.** The issue panels beside it count issues, and the two are not related — an issue may have many commits or none."
+    },
+    {
       "id": 905,
       "type": "stat",
       "title": "Issues compared · assisted",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
         "h": 5,
-        "w": 12,
-        "x": 0,
+        "w": 6,
+        "x": 6,
         "y": 21
       },
       "targets": [
@@ -650,7 +663,7 @@
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
         "h": 5,
-        "w": 12,
+        "w": 6,
         "x": 12,
         "y": 21
       },
@@ -692,6 +705,62 @@
         }
       },
       "description": "**How many issues are in this cohort** — the denominator for the median beside it.\n\nShown deliberately rather than tucked into a tooltip. A median over a handful of issues moves hours on one or two of them, and a cohort of zero means there is no comparison at all — the Delta would be measuring nothing. Check this number before reading anything into the medians.\n\nThis panel counts issues **with no AI attribution**.\n\n**How an issue is classified.** Its key is matched against commit messages (`WHO-12` in a commit subject links that commit to that issue). If any linked commit carries `status=assisted`, the issue counts as AI-assisted; otherwise it counts as not. An issue whose key appears in no commit message is in neither cohort — it is absent, not counted as unassisted.\n\n**Scope.** Issues closed within the dashboard time range, on the selected issue board. The Repository filter does not apply: an issue's commits can span repositories, so filtering by one would drop genuinely assisted issues and understate the comparison."
+    },
+    {
+      "type": "stat",
+      "title": "Data freshness",
+      "description": "Time since the last recorded agent event. The hooks write on every commit, so this tracks whether anyone has been working — green under 8 hours, amber past a working day, red past three. A long gap is a question, not a fault: a quiet weekend and a broken collector look identical here, which is why `dun verify` exists.",
+      "datasource": "${DS_WHODUNIT}",
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 18,
+        "y": 21
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "h",
+          "decimals": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 8
+              },
+              {
+                "color": "orange",
+                "value": 24
+              },
+              {
+                "color": "red",
+                "value": 72
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "graphMode": "none",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT (UNIX_TIMESTAMP() - MAX(observed_at) / 1000000000) / 3600 AS hours_stale FROM whodunit_events"
+        }
+      ]
     },
     {
       "type": "table",
