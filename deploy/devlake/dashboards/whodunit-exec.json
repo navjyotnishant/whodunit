@@ -184,7 +184,7 @@
     },
     {
       "id": 904,
-      "title": "Session depth",
+      "title": "Session depth · $repo",
       "type": "piechart",
       "datasource": "${datasource}",
       "gridPos": {
@@ -197,7 +197,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT CASE\n         WHEN s.mcp_calls > 0 OR s.distinct_tools >= 5 THEN 'agentic — MCP or many tools'\n         WHEN s.tool_calls >= 50 THEN 'multi-file work'\n         WHEN s.tool_calls >= 10 THEN 'wrote code'\n         WHEN s.tool_calls > 0   THEN 'light edits'\n         ELSE 'conversation only — no edits'\n       END AS `intensity`,\n       COUNT(*) AS `sessions`\nFROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id\nWHERE s.last_seen BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000 AND ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}')\nGROUP BY `intensity` ORDER BY `sessions` DESC"
+          "rawSql": "SELECT CASE\n         WHEN s.mcp_calls > 0 OR s.distinct_tools >= 5 THEN 'agentic — MCP or many tools'\n         WHEN s.tool_calls >= 50 THEN 'multi-file work'\n         WHEN s.tool_calls >= 10 THEN 'wrote code'\n         WHEN s.tool_calls > 0   THEN 'light edits'\n         ELSE 'conversation only — no edits'\n       END AS `intensity`,\n       COUNT(*) AS `sessions`\nFROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id\nWHERE s.last_seen BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000 AND ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}')\n  AND ('${repo:raw}' = '__all__' OR s.repo_id = '${repo:raw}')\nGROUP BY `intensity` ORDER BY `sessions` DESC"
         }
       ],
       "fieldConfig": {
@@ -320,7 +320,7 @@
     {
       "id": 4,
       "type": "gauge",
-      "title": "Acceptance",
+      "title": "Acceptance · $repo",
       "datasource": "${datasource}",
       "gridPos": {
         "h": 6,
@@ -332,7 +332,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT ROUND(100.0*SUM(e.outcome='accepted')/NULLIF(SUM(e.outcome IN ('accepted','rejected','failed')),0),1) v FROM whodunit_events e JOIN whodunit_repos r ON r.repo_id=e.repo_id WHERE ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}') AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000"
+          "rawSql": "SELECT ROUND(100.0*SUM(e.outcome='accepted')/NULLIF(SUM(e.outcome IN ('accepted','rejected','failed')),0),1) v FROM whodunit_events e JOIN whodunit_repos r ON r.repo_id=e.repo_id WHERE ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}')\n  AND ('${repo:raw}' = '__all__' OR e.repo_id = '${repo:raw}') AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000"
         }
       ],
       "fieldConfig": {
@@ -870,7 +870,7 @@
     {
       "id": 17,
       "type": "timeseries",
-      "title": "Acceptance trend",
+      "title": "Acceptance trend · $repo",
       "datasource": "${datasource}",
       "gridPos": {
         "h": 9,
@@ -882,7 +882,7 @@
         {
           "refId": "A",
           "format": "time_series",
-          "rawSql": "\nSELECT DATE(FROM_UNIXTIME(e.observed_at/1000000000)) AS `time`,\n       ROUND(100.0*SUM(e.outcome='accepted')\n             /NULLIF(SUM(e.outcome IN ('accepted','rejected','failed')),0),1) AS `accept %`\nFROM whodunit_events e JOIN whodunit_repos r ON r.repo_id=e.repo_id\nWHERE ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}') AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nGROUP BY `time` ORDER BY `time`\n"
+          "rawSql": "\nSELECT DATE(FROM_UNIXTIME(e.observed_at/1000000000)) AS `time`,\n       ROUND(100.0*SUM(e.outcome='accepted')\n             /NULLIF(SUM(e.outcome IN ('accepted','rejected','failed')),0),1) AS `accept %`\nFROM whodunit_events e JOIN whodunit_repos r ON r.repo_id=e.repo_id\nWHERE ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}')\n  AND ('${repo:raw}' = '__all__' OR e.repo_id = '${repo:raw}') AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nGROUP BY `time` ORDER BY `time`\n"
         }
       ],
       "fieldConfig": {
@@ -944,7 +944,7 @@
     {
       "id": 16,
       "type": "timeseries",
-      "title": "Edits & lines",
+      "title": "Edits & lines · $repo",
       "datasource": "${datasource}",
       "gridPos": {
         "h": 9,
@@ -956,7 +956,7 @@
         {
           "refId": "A",
           "format": "time_series",
-          "rawSql": "\nSELECT DATE(FROM_UNIXTIME(e.observed_at/1000000000)) AS `time`,\n       COUNT(*) AS `agent edits`,\n       SUM(e.lines_added) AS `lines added`\nFROM whodunit_events e JOIN whodunit_repos r ON r.repo_id=e.repo_id\nWHERE ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}') AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nGROUP BY `time` ORDER BY `time`\n"
+          "rawSql": "\nSELECT DATE(FROM_UNIXTIME(e.observed_at/1000000000)) AS `time`,\n       COUNT(*) AS `agent edits`,\n       SUM(e.lines_added) AS `lines added`\nFROM whodunit_events e JOIN whodunit_repos r ON r.repo_id=e.repo_id\nWHERE ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}')\n  AND ('${repo:raw}' = '__all__' OR e.repo_id = '${repo:raw}') AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nGROUP BY `time` ORDER BY `time`\n"
         }
       ],
       "fieldConfig": {
