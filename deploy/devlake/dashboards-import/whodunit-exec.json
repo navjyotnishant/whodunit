@@ -638,7 +638,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT IF('$grain'='day', DATE_FORMAT(FROM_UNIXTIME(c.committed_at/1000000000),'%d %b'), IF('$grain'='week', DATE_FORMAT(FROM_UNIXTIME(c.committed_at/1000000000),'W%v'), DATE_FORMAT(FROM_UNIXTIME(c.committed_at/1000000000),'%b %Y'))) AS `period`,\n       SUM(c.status =  'assisted') AS `assisted`,\n       SUM(c.status <> 'assisted') AS `not assisted`\nFROM whodunit_commits c\nJOIN whodunit_repos r ON r.repo_id = c.repo_id\nWHERE ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}')\n  AND ('${repo:raw}' = '__all__' OR c.repo_id = '${repo:raw}')\n  AND c.committed_at BETWEEN $__unixEpochFrom() * 1000000000\n                         AND $__unixEpochTo()   * 1000000000\nGROUP BY `period` ORDER BY MIN(c.committed_at)"
+          "rawSql": "SELECT period, assisted, `not assisted`,\n       CASE WHEN prev IS NULL OR prev = 0 THEN NULL\n            ELSE ROUND(100.0*(total-prev)/prev) END AS `change %`\nFROM (\n  SELECT period, assisted, `not assisted`, total, ord,\n         LAG(total) OVER (ORDER BY ord) AS prev\n  FROM (\n    SELECT IF('$grain'='day', CONCAT(DATE_FORMAT(FROM_UNIXTIME(c.committed_at/1000000000),'%d %b'),IF(DATE(FROM_UNIXTIME(c.committed_at/1000000000))=CURDATE(),' ·','')), IF('$grain'='week', CONCAT(DATE_FORMAT(FROM_UNIXTIME(c.committed_at/1000000000),'W%v'),IF(YEARWEEK(FROM_UNIXTIME(c.committed_at/1000000000),3)=YEARWEEK(CURDATE(),3),' ·','')), CONCAT(DATE_FORMAT(FROM_UNIXTIME(c.committed_at/1000000000),'%b %Y'),IF(DATE_FORMAT(FROM_UNIXTIME(c.committed_at/1000000000),'%Y-%m')=DATE_FORMAT(CURDATE(),'%Y-%m'),' ·','')))) AS period,\n           SUM(c.status =  'assisted') AS assisted,\n           SUM(c.status <> 'assisted') AS `not assisted`,\n           COUNT(*) AS total,\n           MIN(c.committed_at) AS ord\n    FROM whodunit_commits c\n    JOIN whodunit_repos r ON r.repo_id = c.repo_id\n    WHERE ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}')\n      AND ('${repo:raw}' = '__all__' OR c.repo_id = '${repo:raw}')\n      AND c.committed_at BETWEEN $__unixEpochFrom() * 1000000000\n                             AND $__unixEpochTo()   * 1000000000\n    GROUP BY period\n  ) a\n) b ORDER BY ord"
         }
       ],
       "fieldConfig": {
@@ -687,14 +687,46 @@
                 }
               }
             ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*change %.*"
+            },
+            "properties": [
+              {
+                "id": "custom.hideFrom",
+                "value": {
+                  "tooltip": false,
+                  "viz": true,
+                  "legend": true
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "ord"
+            },
+            "properties": [
+              {
+                "id": "custom.hideFrom",
+                "value": {
+                  "tooltip": true,
+                  "viz": true,
+                  "legend": true
+                }
+              }
+            ]
           }
         ]
       },
-      "description": "Stacked, so bar height is total commit volume and the coloured share is adoption. A period with no assisted commits is a full bar of manual work, not an empty one — zero assisted is a measurement. A period with no commits at all is absent.\n\nBuckets follow the dashboard time range: a short range shows a bar per day, a long one aggregates. Commit volume over this window tracks instrumentation as much as output — commits rose 29 to 418 across four months while instrumented repositories went 1 to 3, so per repository the figure is nearly flat (29, 124, 134.5, 139.3). Read volume alongside the repository count before concluding anything about throughput.",
+      "description": "A period still in progress is marked **·** after its label — its bar is lower because the period is not over, not because activity dropped.\n\nStacked, so bar height is total commit volume and the coloured share is adoption. A period with no assisted commits is a full bar of manual work, not an empty one — zero assisted is a measurement. A period with no commits at all is absent.\n\nBuckets follow the dashboard time range: a short range shows a bar per day, a long one aggregates. Commit volume over this window tracks instrumentation as much as output — commits rose 29 to 418 across four months while instrumented repositories went 1 to 3, so per repository the figure is nearly flat (29, 124, 134.5, 139.3). Read volume alongside the repository count before concluding anything about throughput.",
       "options": {
         "xField": "period",
         "stacking": "normal",
-        "showValue": "auto",
+        "showValue": "never",
         "legend": {
           "displayMode": "list",
           "placement": "bottom",
@@ -727,7 +759,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT days.d AS `period`,\n       COALESCE(o.opened, 0) AS `opened`,\n       COALESCE(c.closed, 0) AS `closed`\nFROM (\n  SELECT IF('$grain'='day', DATE_FORMAT(i.created_date,'%d %b'), IF('$grain'='week', DATE_FORMAT(i.created_date,'W%v'), DATE_FORMAT(i.created_date,'%b %Y'))) d\n  FROM issues i JOIN board_issues bi ON bi.issue_id = i.id\n  WHERE bi.board_id = '$board' AND i.created_date IS NOT NULL\n    AND $__timeFilter(i.created_date)\n  UNION\n  SELECT IF('$grain'='day', DATE_FORMAT(i.resolution_date,'%d %b'), IF('$grain'='week', DATE_FORMAT(i.resolution_date,'W%v'), DATE_FORMAT(i.resolution_date,'%b %Y')))\n  FROM issues i JOIN board_issues bi ON bi.issue_id = i.id\n  WHERE bi.board_id = '$board' AND i.resolution_date IS NOT NULL\n    AND i.status = 'DONE' AND $__timeFilter(i.resolution_date)\n) days\nLEFT JOIN (\n  SELECT IF('$grain'='day', DATE_FORMAT(i.created_date,'%d %b'), IF('$grain'='week', DATE_FORMAT(i.created_date,'W%v'), DATE_FORMAT(i.created_date,'%b %Y'))) d, COUNT(*) opened\n  FROM issues i JOIN board_issues bi ON bi.issue_id = i.id\n  WHERE bi.board_id = '$board' AND i.created_date IS NOT NULL\n    AND $__timeFilter(i.created_date)\n  GROUP BY d\n) o ON o.d = days.d\nLEFT JOIN (\n  SELECT IF('$grain'='day', DATE_FORMAT(i.resolution_date,'%d %b'), IF('$grain'='week', DATE_FORMAT(i.resolution_date,'W%v'), DATE_FORMAT(i.resolution_date,'%b %Y'))) d, COUNT(*) closed\n  FROM issues i JOIN board_issues bi ON bi.issue_id = i.id\n  WHERE bi.board_id = '$board' AND i.resolution_date IS NOT NULL\n    AND i.status = 'DONE' AND $__timeFilter(i.resolution_date)\n  GROUP BY d\n) c ON c.d = days.d\nORDER BY days.d"
+          "rawSql": "SELECT period, opened, closed,\n       CASE WHEN po IS NULL OR po = 0 THEN NULL\n            ELSE ROUND(100.0*(opened-po)/po) END AS `opened change %`\nFROM (\n  SELECT period, opened, closed, ord,\n         LAG(opened) OVER (ORDER BY ord) AS po\n  FROM (\n    SELECT IF('$grain'='day', CONCAT(DATE_FORMAT(days.d,'%d %b'),IF(days.d=CURDATE(),' ·','')),\n           IF('$grain'='week', CONCAT(DATE_FORMAT(days.d,'W%v'),IF(YEARWEEK(days.d,3)=YEARWEEK(CURDATE(),3),' ·','')),\n              CONCAT(DATE_FORMAT(days.d,'%b %Y'),IF(DATE_FORMAT(days.d,'%Y-%m')=DATE_FORMAT(CURDATE(),'%Y-%m'),' ·','')))) AS period,\n           SUM(COALESCE(o.opened,0)) AS opened,\n           SUM(COALESCE(c.closed,0)) AS closed,\n           MIN(days.d) AS ord\n    FROM (\n      SELECT DATE(i.created_date) d FROM issues i\n      JOIN board_issues bi ON bi.issue_id = i.id\n      WHERE bi.board_id = '$board' AND i.created_date IS NOT NULL\n        AND $__timeFilter(i.created_date)\n      UNION\n      SELECT DATE(i.resolution_date) FROM issues i\n      JOIN board_issues bi ON bi.issue_id = i.id\n      WHERE bi.board_id = '$board' AND i.resolution_date IS NOT NULL\n        AND i.status = 'DONE' AND $__timeFilter(i.resolution_date)\n    ) days\n    LEFT JOIN (\n      SELECT DATE(i.created_date) d, COUNT(*) opened FROM issues i\n      JOIN board_issues bi ON bi.issue_id = i.id\n      WHERE bi.board_id = '$board' AND i.created_date IS NOT NULL\n        AND $__timeFilter(i.created_date) GROUP BY d\n    ) o ON o.d = days.d\n    LEFT JOIN (\n      SELECT DATE(i.resolution_date) d, COUNT(*) closed FROM issues i\n      JOIN board_issues bi ON bi.issue_id = i.id\n      WHERE bi.board_id = '$board' AND i.resolution_date IS NOT NULL\n        AND i.status = 'DONE' AND $__timeFilter(i.resolution_date) GROUP BY d\n    ) c ON c.d = days.d\n    GROUP BY period\n  ) a\n) b ORDER BY ord"
         }
       ],
       "fieldConfig": {
@@ -777,14 +809,46 @@
                 }
               }
             ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*change %.*"
+            },
+            "properties": [
+              {
+                "id": "custom.hideFrom",
+                "value": {
+                  "tooltip": false,
+                  "viz": true,
+                  "legend": true
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "ord"
+            },
+            "properties": [
+              {
+                "id": "custom.hideFrom",
+                "value": {
+                  "tooltip": true,
+                  "viz": true,
+                  "legend": true
+                }
+              }
+            ]
           }
         ]
       },
-      "description": "Grouped rather than stacked: opened and closed are two counts of the same population, not parts of a whole, so stacking would draw a total that means nothing.\n\nClosed means closed in that bucket, whatever bucket it was opened in — not opened and closed within it. Measured here the distinction barely bites: of 143 issues closed in the current month, 141 were also opened in it and only 2 carried over. Roughly half of all issues close within an hour of being filed, so these are largely tickets recorded at completion rather than tracked through, and the gap between the series reads as opened-and-not-yet-closed rather than throughput failing to keep up.\n\nBuckets follow the dashboard time range.",
+      "description": "A period still in progress is marked **·** after its label — its bar is lower because the period is not over, not because activity dropped.\n\nGrouped rather than stacked: opened and closed are two counts of the same population, not parts of a whole, so stacking would draw a total that means nothing.\n\nClosed means closed in that bucket, whatever bucket it was opened in — not opened and closed within it. Measured here the distinction barely bites: of 143 issues closed in the current month, 141 were also opened in it and only 2 carried over. Roughly half of all issues close within an hour of being filed, so these are largely tickets recorded at completion rather than tracked through, and the gap between the series reads as opened-and-not-yet-closed rather than throughput failing to keep up.\n\nBuckets follow the dashboard time range.",
       "options": {
         "xField": "period",
         "stacking": "none",
-        "showValue": "auto",
+        "showValue": "never",
         "legend": {
           "displayMode": "list",
           "placement": "bottom",
