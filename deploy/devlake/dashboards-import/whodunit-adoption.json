@@ -125,7 +125,7 @@
       "gridPos": {
         "h": 5,
         "w": 4,
-        "x": 8,
+        "x": 4,
         "y": 1
       },
       "fieldConfig": {
@@ -168,7 +168,7 @@
       "gridPos": {
         "h": 5,
         "w": 4,
-        "x": 12,
+        "x": 8,
         "y": 1
       },
       "fieldConfig": {
@@ -211,7 +211,7 @@
       "gridPos": {
         "h": 5,
         "w": 4,
-        "x": 16,
+        "x": 12,
         "y": 1
       },
       "fieldConfig": {
@@ -254,7 +254,7 @@
       "gridPos": {
         "h": 5,
         "w": 4,
-        "x": 20,
+        "x": 16,
         "y": 1
       },
       "fieldConfig": {
@@ -288,6 +288,62 @@
           "rawSql": "SELECT COUNT(DISTINCT DATE(FROM_UNIXTIME(e.observed_at / 1000000000))) AS active_days FROM whodunit_events e JOIN whodunit_repos r ON r.repo_id = e.repo_id WHERE ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}') AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000"
         }
       ]
+    },
+    {
+      "id": 907,
+      "type": "stat",
+      "title": "Commits · assisted / total",
+      "datasource": "${DS_WHODUNIT}",
+      "gridPos": {
+        "h": 5,
+        "w": 4,
+        "x": 20,
+        "y": 1
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT CONCAT(\n         FORMAT(SUM(c.status = 'assisted'), 0), ' / ',\n         FORMAT(COUNT(*), 0)) AS v\nFROM whodunit_commits c\nJOIN whodunit_repos r ON r.repo_id = c.repo_id\nWHERE ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}')\n  AND c.committed_at BETWEEN $__unixEpochFrom() * 1000000000\n                         AND $__unixEpochTo()   * 1000000000"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "noValue": "No commits in range",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#5794F2"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#5794F2",
+                "value": null
+              }
+            ]
+          },
+          "custom": {}
+        }
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "text": {
+          "valueSize": 34
+        }
+      },
+      "description": "Commits carrying `status=assisted`, against every commit whodunit recorded in the range.\n\nShown as a pair because the count alone is not a measurement — 166 means nothing without knowing whether the total was 200 or 2,000. The Adoption gauge above is this same ratio as a percentage.\n\n**This counts commits.** The issue panels beside it count issues, and the two are not related — an issue may have many commits or none."
     },
     {
       "type": "timeseries",
@@ -549,62 +605,6 @@
           "rawSql": "SELECT COUNT(*) v FROM whodunit_events e JOIN whodunit_repos r ON r.repo_id=e.repo_id WHERE e.outcome NOT IN ('accepted','rejected','failed') AND ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}') AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000"
         }
       ]
-    },
-    {
-      "id": 907,
-      "type": "stat",
-      "title": "Commits · assisted / total",
-      "datasource": "${DS_WHODUNIT}",
-      "gridPos": {
-        "h": 5,
-        "w": 6,
-        "x": 0,
-        "y": 21
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "format": "table",
-          "rawSql": "SELECT CONCAT(\n         FORMAT(SUM(c.status = 'assisted'), 0), ' / ',\n         FORMAT(COUNT(*), 0)) AS v\nFROM whodunit_commits c\nJOIN whodunit_repos r ON r.repo_id = c.repo_id\nWHERE ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}')\n  AND c.committed_at BETWEEN $__unixEpochFrom() * 1000000000\n                         AND $__unixEpochTo()   * 1000000000"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "none",
-          "noValue": "No commits in range",
-          "color": {
-            "mode": "fixed",
-            "fixedColor": "#5794F2"
-          },
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "#5794F2",
-                "value": null
-              }
-            ]
-          },
-          "custom": {}
-        }
-      },
-      "options": {
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "textMode": "value",
-        "colorMode": "value",
-        "graphMode": "none",
-        "justifyMode": "auto",
-        "text": {
-          "valueSize": 34
-        }
-      },
-      "description": "Commits carrying `status=assisted`, against every commit whodunit recorded in the range.\n\nShown as a pair because the count alone is not a measurement — 166 means nothing without knowing whether the total was 200 or 2,000. The Adoption gauge above is this same ratio as a percentage.\n\n**This counts commits.** The issue panels beside it count issues, and the two are not related — an issue may have many commits or none."
     },
     {
       "id": 905,
