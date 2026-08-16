@@ -391,8 +391,8 @@
       "title": "Commits · assisted / total",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
-        "h": 4,
-        "w": 6,
+        "h": 6,
+        "w": 5,
         "x": 0,
         "y": 6
       },
@@ -447,9 +447,9 @@
       "title": "Decided calls",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
-        "h": 4,
-        "w": 6,
-        "x": 6,
+        "h": 6,
+        "w": 5,
+        "x": 5,
         "y": 6
       },
       "targets": [
@@ -496,9 +496,9 @@
       "title": "Issues compared · assisted",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
-        "h": 4,
-        "w": 6,
-        "x": 12,
+        "h": 6,
+        "w": 4,
+        "x": 10,
         "y": 6
       },
       "targets": [
@@ -546,9 +546,9 @@
       "title": "Issues compared · not assisted",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
-        "h": 4,
-        "w": 6,
-        "x": 18,
+        "h": 6,
+        "w": 4,
+        "x": 14,
         "y": 6
       },
       "targets": [
@@ -589,6 +589,100 @@
         }
       },
       "description": "**How many issues are in this cohort** — the denominator for the median beside it.\n\nShown deliberately rather than tucked into a tooltip. A median over a handful of issues moves hours on one or two of them, and a cohort of zero means there is no comparison at all — the Delta would be measuring nothing. Check this number before reading anything into the medians.\n\nThis panel counts issues **with no AI attribution**.\n\n**How an issue is classified.** Its key is matched against commit messages (`WHO-12` in a commit subject links that commit to that issue). If any linked commit carries `status=assisted`, the issue counts as AI-assisted; otherwise it counts as not. An issue whose key appears in no commit message is in neither cohort — it is absent, not counted as unassisted.\n\n**Scope.** Issues closed within the dashboard time range, on the selected issue board. The Repository filter does not apply: an issue's commits can span repositories, so filtering by one would drop genuinely assisted issues and understate the comparison."
+    },
+    {
+      "id": 904,
+      "title": "Session depth",
+      "type": "piechart",
+      "datasource": "${DS_WHODUNIT}",
+      "gridPos": {
+        "h": 6,
+        "w": 6,
+        "x": 18,
+        "y": 6
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT CASE\n         WHEN s.mcp_calls > 0 OR s.distinct_tools >= 5 THEN 'agentic — MCP or many tools'\n         WHEN s.tool_calls >= 50 THEN 'multi-file work'\n         WHEN s.tool_calls >= 10 THEN 'wrote code'\n         WHEN s.tool_calls > 0   THEN 'light edits'\n         ELSE 'conversation only — no edits'\n       END AS `intensity`,\n       COUNT(*) AS `sessions`\nFROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id\nWHERE s.last_seen BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000 AND ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}')\nGROUP BY `intensity` ORDER BY `sessions` DESC"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "noValue": "No sessions in the selected range",
+          "custom": {
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            }
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "conversation only — no edits"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#3b4657"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "agentic — MCP or many tools"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#25c2a0"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "description": "Sessions by what actually happened in them — conversation only, light edits, or agentic work using MCP or several tools.\n\n**Depth, not count.** Ten sessions that produced nothing and one that rewrote a subsystem are not the same adoption, and a session count treats them identically. A large conversation-only slice means the tool is open but not doing the work.",
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": true
+        },
+        "pieType": "donut",
+        "displayLabels": [
+          "percent"
+        ],
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true,
+          "values": [
+            "value",
+            "percent"
+          ]
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      }
     },
     {
       "type": "timeseries",
