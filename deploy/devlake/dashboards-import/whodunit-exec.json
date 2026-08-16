@@ -382,7 +382,8 @@
                 "value": null
               }
             ]
-          }
+          },
+          "noValue": "No AI-assisted issues closed in range"
         }
       },
       "options": {
@@ -427,7 +428,8 @@
                 "value": null
               }
             ]
-          }
+          },
+          "noValue": "No unassisted issues closed in range"
         }
       },
       "options": {
@@ -472,7 +474,8 @@
                 "value": null
               }
             ]
-          }
+          },
+          "noValue": "None in range"
         }
       },
       "options": {
@@ -517,7 +520,8 @@
                 "value": null
               }
             ]
-          }
+          },
+          "noValue": "None in range"
         }
       },
       "options": {
@@ -562,7 +566,8 @@
                 "value": null
               }
             ]
-          }
+          },
+          "noValue": "Needs both cohorts in range"
         }
       },
       "options": {

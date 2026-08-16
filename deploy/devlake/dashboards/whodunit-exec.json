@@ -33,8 +33,8 @@
         "query": "SELECT name AS __text, id AS __value FROM boards WHERE id LIKE 'linear:%' ORDER BY name",
         "current": {
           "selected": true,
-          "text": "Navjyot's Lab-1",
-          "value": "linear:LinearTeam:1:8842e00a-9b06-4aad-9b27-591ef9990e7b"
+          "text": "whodunit",
+          "value": "linear:LinearTeam:1:1504cde3-5004-4b71-ac4f-2e0872fea6db"
         },
         "refresh": 1,
         "hide": 0,
@@ -395,7 +395,8 @@
                 "value": null
               }
             ]
-          }
+          },
+          "noValue": "No AI-assisted issues closed in range"
         }
       },
       "options": {
@@ -440,7 +441,8 @@
                 "value": null
               }
             ]
-          }
+          },
+          "noValue": "No unassisted issues closed in range"
         }
       },
       "options": {
@@ -485,7 +487,8 @@
                 "value": null
               }
             ]
-          }
+          },
+          "noValue": "None in range"
         }
       },
       "options": {
@@ -530,7 +533,8 @@
                 "value": null
               }
             ]
-          }
+          },
+          "noValue": "None in range"
         }
       },
       "options": {
@@ -575,7 +579,8 @@
                 "value": null
               }
             ]
-          }
+          },
+          "noValue": "Needs both cohorts in range"
         }
       },
       "options": {
