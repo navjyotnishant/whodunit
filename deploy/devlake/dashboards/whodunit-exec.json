@@ -171,7 +171,7 @@
           "titleSize": 11
         }
       },
-      "description": "Commits carrying evidence of agent involvement in the selected range.\n\nCounts `status = 'assisted'` only. A commit with no trailer is `undetermined` — no evidence either way — not proof it was written without an agent (NAV-21). Read this against Attribution coverage beside it, which is the share of commits that carry any verdict at all."
+      "description": "Commits carrying `status=assisted`. **This counts commits.** The issue panels in the row below count issues, and the two populations are not related — an issue may have many commits or none.\n\nCommits carrying evidence of agent involvement in the selected range.\n\nCounts `status = 'assisted'` only. A commit with no trailer is `undetermined` — no evidence either way — not proof it was written without an agent (NAV-21). Read this against Attribution coverage beside it, which is the share of commits that carry any verdict at all."
     },
     {
       "id": 3,
@@ -284,7 +284,7 @@
     {
       "id": 8,
       "type": "stat",
-      "title": "Median cycle · assisted",
+      "title": "Median cycle · assisted issues",
       "datasource": "${datasource}",
       "gridPos": {
         "h": 5,
@@ -335,7 +335,7 @@
     {
       "id": 9,
       "type": "stat",
-      "title": "Median cycle · not assisted",
+      "title": "Median cycle · other issues",
       "datasource": "${datasource}",
       "gridPos": {
         "h": 5,
@@ -491,7 +491,7 @@
     {
       "id": 10,
       "type": "stat",
-      "title": "n assisted",
+      "title": "Issues compared · assisted",
       "datasource": "${datasource}",
       "gridPos": {
         "h": 4,
@@ -541,7 +541,7 @@
     {
       "id": 11,
       "type": "stat",
-      "title": "n not assisted",
+      "title": "Issues compared · not assisted",
       "datasource": "${datasource}",
       "gridPos": {
         "h": 4,
