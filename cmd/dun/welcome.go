@@ -152,8 +152,12 @@ func renderWordmark(out io.Writer, w *termcolor.Writer) {
 	fmt.Fprintln(out)
 	// A release reads "v0.2.0"; a local build reads "dev" without the v,
 	// because "vdev" looks like a typo rather than a state.
+	//
+	// The prefix is conditional on it not already being there: ldflags set
+	// the version from the git tag, which carries its own "v", and an
+	// unconditional prefix rendered that as "vv0.3.0".
 	version := Version()
-	if IsRelease() {
+	if IsRelease() && !strings.HasPrefix(version, "v") {
 		version = "v" + version
 	}
 	// The name in text as well as in the wordmark. Figlet letters are not
