@@ -36,6 +36,19 @@
         "refresh": 1,
         "hide": 0,
         "options": []
+      },
+      {
+        "name": "board",
+        "type": "query",
+        "datasource": "${DS_WHODUNIT}",
+        "query": "SELECT name AS __text, id AS __value FROM boards ORDER BY name",
+        "current": {},
+        "refresh": 1,
+        "hide": 0,
+        "label": "Issue board",
+        "includeAll": false,
+        "multi": false,
+        "options": []
       }
     ]
   },
