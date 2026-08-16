@@ -1486,7 +1486,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT ROUND(SUM(c.status='assisted')*100.0/NULLIF(COUNT(*),0),1) v\nFROM whodunit_commits c JOIN whodunit_repos r ON r.repo_id=c.repo_id\nWHERE ('${contributor:raw}'='__all__' OR r.contributor='${contributor:raw}')\n  AND c.committed_at >= (UNIX_TIMESTAMP() - 7*86400) * 1000000000"
+          "rawSql": "SELECT ROUND(SUM(c.status='assisted')*100.0/NULLIF(COUNT(*),0),1) v\nFROM whodunit_commits c JOIN whodunit_repos r ON r.repo_id=c.repo_id\nWHERE ('${contributor:raw}'='__all__' OR r.contributor='${contributor:raw}')\n  AND c.committed_at BETWEEN $__unixEpochFrom() * 1000000000\n                       AND $__unixEpochTo()   * 1000000000"
         }
       ],
       "fieldConfig": {
@@ -1519,7 +1519,7 @@
           "values": false
         }
       },
-      "description": "Share of the last 7 days' commits carrying an AI-Attribution trailer."
+      "description": "Share of commits in the selected range carrying an AI-Attribution trailer with `status=assisted`.\n\nFollows the dashboard time range. It was previously fixed to the last 7 days while the title said only \"current\", so the number did not move when the range did.\n\n**Adoption is not coverage.** Coverage counts any valid trailer including `undetermined`; this counts only commits an agent actually worked on."
     },
     {
       "id": 4,
