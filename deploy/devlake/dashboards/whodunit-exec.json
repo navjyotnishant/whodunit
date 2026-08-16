@@ -185,11 +185,11 @@
     {
       "id": 904,
       "title": "Session depth · $repo",
-      "type": "bargauge",
+      "type": "piechart",
       "datasource": "${datasource}",
       "gridPos": {
         "h": 6,
-        "w": 6,
+        "w": 5,
         "x": 4,
         "y": 1
       },
@@ -197,38 +197,33 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT CASE\n         WHEN s.mcp_calls > 0 OR s.distinct_tools >= 5 THEN 'agentic — MCP or many tools'\n         WHEN s.tool_calls >= 50 THEN 'multi-file work'\n         WHEN s.tool_calls >= 10 THEN 'wrote code'\n         WHEN s.tool_calls > 0   THEN 'light edits'\n         ELSE 'conversation only — no edits'\n       END AS `intensity`,\n       COUNT(*) AS `sessions`\nFROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id\nWHERE s.last_seen BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000 AND ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}')\n  AND ('${repo:raw}' = '__all__' OR s.repo_id = '${repo:raw}')\nGROUP BY `intensity` ORDER BY `sessions` DESC"
+          "rawSql": "SELECT CASE\n         WHEN s.mcp_calls > 0 OR s.distinct_tools >= 5 OR s.tool_calls >= 50\n              THEN 'agentic'\n         WHEN s.tool_calls > 0 THEN 'edits'\n         ELSE 'chat only'\n       END AS `depth`,\n       COUNT(*) AS `sessions`\nFROM whodunit_sessions s\nJOIN whodunit_repos r ON r.repo_id = s.repo_id\nWHERE s.last_seen BETWEEN $__unixEpochFrom() * 1000000000\n                      AND $__unixEpochTo()   * 1000000000\n  AND ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}')\n  AND ('${repo:raw}' = '__all__' OR s.repo_id = '${repo:raw}')\nGROUP BY `depth`\nORDER BY `sessions` DESC"
         }
       ],
       "fieldConfig": {
         "defaults": {
           "unit": "short",
-          "color": {
-            "mode": "fixed",
-            "fixedColor": "#25c2a0"
-          },
-          "noValue": "No sessions in the selected range",
+          "noValue": "No sessions in range",
           "custom": {
             "hideFrom": {
               "legend": false,
               "tooltip": false,
               "viz": false
             }
-          },
-          "min": 0
+          }
         },
         "overrides": [
           {
             "matcher": {
               "id": "byName",
-              "options": "conversation only — no edits"
+              "options": "agentic"
             },
             "properties": [
               {
                 "id": "color",
                 "value": {
                   "mode": "fixed",
-                  "fixedColor": "#8b95a5"
+                  "fixedColor": "#25c2a0"
                 }
               }
             ]
@@ -236,7 +231,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "light edits"
+              "options": "edits"
             },
             "properties": [
               {
@@ -251,51 +246,21 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "wrote code"
+              "options": "chat only"
             },
             "properties": [
               {
                 "id": "color",
                 "value": {
                   "mode": "fixed",
-                  "fixedColor": "#9d7cd8"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "multi-file work"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "#4fddbf"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "agentic — MCP or many tools"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "#25c2a0"
+                  "fixedColor": "#8b95a5"
                 }
               }
             ]
           }
         ]
       },
-      "description": "Sessions by what actually happened in them — conversation only, light edits, or agentic work using MCP or several tools.\n\n**Depth, not count.** Ten sessions that produced nothing and one that rewrote a subsystem are not the same adoption, and a session count treats them identically. A large conversation-only slice means the tool is open but not doing the work.",
+      "description": "Share of sessions by depth: **agentic** used MCP or many tools, **edits** changed files, **chat only** produced no edits at all.\n\nDepth rather than count — ten sessions that produced nothing and one that rewrote a subsystem are not the same adoption. A large grey slice means the tool is open but not doing the work.",
       "options": {
         "reduceOptions": {
           "calcs": [
@@ -304,15 +269,18 @@
           "fields": "",
           "values": true
         },
-        "orientation": "horizontal",
-        "displayMode": "gradient",
-        "valueMode": "color",
-        "showUnfilled": true,
-        "minVizWidth": 8,
-        "minVizHeight": 10,
-        "sizing": "auto",
+        "pieType": "pie",
+        "displayLabels": [
+          "percent"
+        ],
         "legend": {
-          "showLegend": false
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
         }
       }
     },
@@ -324,7 +292,7 @@
       "gridPos": {
         "h": 6,
         "w": 3,
-        "x": 10,
+        "x": 9,
         "y": 1
       },
       "targets": [
@@ -378,7 +346,7 @@
       "gridPos": {
         "h": 6,
         "w": 4,
-        "x": 13,
+        "x": 12,
         "y": 1
       },
       "targets": [
@@ -429,7 +397,7 @@
       "gridPos": {
         "h": 6,
         "w": 4,
-        "x": 17,
+        "x": 16,
         "y": 1
       },
       "targets": [
@@ -479,8 +447,8 @@
       "datasource": "${datasource}",
       "gridPos": {
         "h": 6,
-        "w": 3,
-        "x": 21,
+        "w": 4,
+        "x": 20,
         "y": 1
       },
       "targets": [
