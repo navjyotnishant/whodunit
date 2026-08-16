@@ -185,11 +185,11 @@
     {
       "id": 904,
       "title": "Session depth · $repo",
-      "type": "piechart",
+      "type": "bargauge",
       "datasource": "${datasource}",
       "gridPos": {
         "h": 6,
-        "w": 8,
+        "w": 6,
         "x": 4,
         "y": 1
       },
@@ -204,7 +204,8 @@
         "defaults": {
           "unit": "short",
           "color": {
-            "mode": "palette-classic"
+            "mode": "fixed",
+            "fixedColor": "#25c2a0"
           },
           "noValue": "No sessions in the selected range",
           "custom": {
@@ -213,7 +214,8 @@
               "tooltip": false,
               "viz": false
             }
-          }
+          },
+          "min": 0
         },
         "overrides": [
           {
@@ -302,20 +304,15 @@
           "fields": "",
           "values": true
         },
-        "pieType": "donut",
-        "displayLabels": [],
+        "orientation": "horizontal",
+        "displayMode": "gradient",
+        "valueMode": "color",
+        "showUnfilled": true,
+        "minVizWidth": 8,
+        "minVizHeight": 10,
+        "sizing": "auto",
         "legend": {
-          "displayMode": "table",
-          "placement": "right",
-          "showLegend": true,
-          "values": [
-            "value",
-            "percent"
-          ]
-        },
-        "tooltip": {
-          "mode": "single",
-          "sort": "none"
+          "showLegend": false
         }
       }
     },
@@ -327,7 +324,7 @@
       "gridPos": {
         "h": 6,
         "w": 3,
-        "x": 12,
+        "x": 10,
         "y": 1
       },
       "targets": [
@@ -380,8 +377,8 @@
       "datasource": "${datasource}",
       "gridPos": {
         "h": 6,
-        "w": 3,
-        "x": 15,
+        "w": 4,
+        "x": 13,
         "y": 1
       },
       "targets": [
@@ -431,8 +428,8 @@
       "datasource": "${datasource}",
       "gridPos": {
         "h": 6,
-        "w": 3,
-        "x": 18,
+        "w": 4,
+        "x": 17,
         "y": 1
       },
       "targets": [
