@@ -118,7 +118,7 @@
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
         "h": 5,
-        "w": 5,
+        "w": 4,
         "x": 0,
         "y": 1
       },
@@ -167,8 +167,8 @@
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
         "h": 5,
-        "w": 5,
-        "x": 5,
+        "w": 4,
+        "x": 4,
         "y": 1
       },
       "targets": [
@@ -221,8 +221,8 @@
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
         "h": 5,
-        "w": 5,
-        "x": 10,
+        "w": 4,
+        "x": 8,
         "y": 1
       },
       "targets": [
@@ -274,10 +274,10 @@
       "title": "Decided calls",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
-        "h": 5,
-        "w": 4,
-        "x": 15,
-        "y": 1
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 6
       },
       "targets": [
         {
@@ -323,10 +323,10 @@
       "title": "Sessions",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
-        "h": 5,
-        "w": 5,
-        "x": 19,
-        "y": 1
+        "h": 4,
+        "w": 6,
+        "x": 18,
+        "y": 6
       },
       "targets": [
         {
@@ -373,9 +373,9 @@
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
         "h": 5,
-        "w": 6,
-        "x": 0,
-        "y": 6
+        "w": 4,
+        "x": 12,
+        "y": 1
       },
       "targets": [
         {
@@ -424,9 +424,9 @@
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
         "h": 5,
-        "w": 6,
-        "x": 6,
-        "y": 6
+        "w": 4,
+        "x": 16,
+        "y": 1
       },
       "targets": [
         {
@@ -474,9 +474,9 @@
       "title": "n assisted",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
-        "h": 5,
-        "w": 3,
-        "x": 12,
+        "h": 4,
+        "w": 6,
+        "x": 6,
         "y": 6
       },
       "targets": [
@@ -524,9 +524,9 @@
       "title": "n not assisted",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
-        "h": 5,
-        "w": 3,
-        "x": 15,
+        "h": 4,
+        "w": 6,
+        "x": 12,
         "y": 6
       },
       "targets": [
@@ -575,9 +575,9 @@
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
         "h": 5,
-        "w": 6,
-        "x": 18,
-        "y": 6
+        "w": 4,
+        "x": 20,
+        "y": 1
       },
       "targets": [
         {
@@ -593,8 +593,12 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
+                "color": "#e0826c",
                 "value": null
+              },
+              {
+                "color": "#25c2a0",
+                "value": 0
               }
             ]
           },
@@ -603,8 +607,6 @@
         }
       },
       "options": {
-        "graphMode": "none",
-        "textMode": "value",
         "reduceOptions": {
           "calcs": [
             "lastNotNull"
@@ -612,9 +614,12 @@
           "fields": "",
           "values": false
         },
+        "textMode": "value",
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
         "text": {
-          "valueSize": 40,
-          "titleSize": 11
+          "valueSize": 40
         }
       },
       "description": "**Median cycle of unassisted issues minus median cycle of assisted issues**, in hours. Positive means assisted issues closed faster.\n\n**This is a difference, not an effect.** The two cohorts are not randomised: developers choose when to reach for an agent, and tend to reach for it on larger or less familiar work. A difference in either direction may be measuring which issues were assigned to the agent rather than what the agent did.\n\n**It means nothing unless both counts beside it are substantial.** With one cohort at zero there is no control group; with a handful either side, one long-running issue moves this number by hours.\n\n**How an issue is classified.** Its key is matched against commit messages (`WHO-12` in a commit subject links that commit to that issue). If any linked commit carries `status=assisted`, the issue counts as AI-assisted; otherwise it counts as not. An issue whose key appears in no commit message is in neither cohort — it is absent, not counted as unassisted.\n\n**Scope.** Issues closed within the dashboard time range, on the selected issue board. The Repository filter does not apply: an issue's commits can span repositories, so filtering by one would drop genuinely assisted issues and understate the comparison."
@@ -627,7 +632,7 @@
         "h": 9,
         "w": 12,
         "x": 0,
-        "y": 11
+        "y": 10
       },
       "targets": [
         {
@@ -716,7 +721,7 @@
         "h": 9,
         "w": 12,
         "x": 12,
-        "y": 11
+        "y": 10
       },
       "targets": [
         {
@@ -808,7 +813,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 20
+        "y": 19
       }
     },
     {
@@ -820,7 +825,7 @@
         "h": 9,
         "w": 12,
         "x": 0,
-        "y": 21
+        "y": 20
       },
       "targets": [
         {
@@ -911,7 +916,7 @@
         "h": 9,
         "w": 12,
         "x": 12,
-        "y": 21
+        "y": 20
       },
       "targets": [
         {
@@ -950,7 +955,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 30
+        "y": 29
       }
     },
     {
@@ -962,7 +967,7 @@
         "h": 9,
         "w": 8,
         "x": 0,
-        "y": 31
+        "y": 30
       },
       "targets": [
         {
@@ -992,7 +997,7 @@
         "h": 9,
         "w": 8,
         "x": 8,
-        "y": 31
+        "y": 30
       },
       "targets": [
         {
@@ -1030,7 +1035,7 @@
         "h": 9,
         "w": 8,
         "x": 16,
-        "y": 31
+        "y": 30
       },
       "targets": [
         {
@@ -1067,7 +1072,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 40
+        "y": 39
       }
     },
     {
@@ -1079,7 +1084,7 @@
         "h": 9,
         "w": 12,
         "x": 0,
-        "y": 41
+        "y": 40
       },
       "targets": [
         {
@@ -1112,7 +1117,7 @@
         "h": 9,
         "w": 12,
         "x": 12,
-        "y": 41
+        "y": 40
       },
       "targets": [
         {
