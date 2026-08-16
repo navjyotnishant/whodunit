@@ -112,30 +112,28 @@
   },
   "panels": [
     {
-      "type": "text",
+      "type": "row",
+      "title": "Adoption",
+      "collapsed": false,
+      "panels": [],
+      "id": 900,
       "gridPos": {
-        "h": 3,
+        "h": 1,
         "w": 24,
         "x": 0,
         "y": 0
-      },
-      "options": {
-        "mode": "markdown",
-        "content": "## How much of the work is AI-assisted, and is it landing?\nAdoption is the share of commits carrying `status=assisted`. **Coverage is a different number** — the share carrying any valid trailer, including `undetermined`. A repository at full coverage may have had no agent involvement at all; coverage says the instrumentation works, adoption says the agents are used."
-      },
-      "transparent": true,
-      "id": 23
+      }
     },
     {
       "id": 2,
       "type": "stat",
-      "title": "AI-assisted commits · $repo",
+      "title": "Assisted commits · $repo",
       "datasource": "${datasource}",
       "gridPos": {
         "h": 5,
         "w": 5,
         "x": 0,
-        "y": 3
+        "y": 1
       },
       "targets": [
         {
@@ -174,13 +172,13 @@
     {
       "id": 3,
       "type": "gauge",
-      "title": "Attribution coverage · $repo",
+      "title": "Coverage · $repo",
       "datasource": "${datasource}",
       "gridPos": {
         "h": 5,
         "w": 5,
         "x": 5,
-        "y": 3
+        "y": 1
       },
       "targets": [
         {
@@ -220,18 +218,18 @@
         "minVizHeight": 75,
         "sizing": "auto"
       },
-      "description": "Share of commits carrying any attribution verdict — anything other than `undetermined`.\n\nThis is a measure of **instrumentation, not of AI use**. A repository instrumented last week has low coverage for its whole history, because commits made before the hooks existed cannot be attributed retroactively.\n\nLow coverage means the numbers on this page describe a small slice. Read every other panel against it."
+      "description": "**Coverage is not adoption.** This is the share of commits carrying any valid trailer, including `undetermined`. A repository at full coverage may have had no agent involvement whatsoever — coverage says the instrumentation is working, adoption says the agents are being used.\n\nShare of commits carrying any attribution verdict — anything other than `undetermined`.\n\nThis is a measure of **instrumentation, not of AI use**. A repository instrumented last week has low coverage for its whole history, because commits made before the hooks existed cannot be attributed retroactively.\n\nLow coverage means the numbers on this page describe a small slice. Read every other panel against it."
     },
     {
       "id": 4,
       "type": "gauge",
-      "title": "Code acceptance",
+      "title": "Acceptance",
       "datasource": "${datasource}",
       "gridPos": {
         "h": 5,
         "w": 5,
         "x": 10,
-        "y": 3
+        "y": 1
       },
       "targets": [
         {
@@ -276,13 +274,13 @@
     {
       "id": 5,
       "type": "stat",
-      "title": "Decided tool calls",
+      "title": "Decided calls",
       "datasource": "${datasource}",
       "gridPos": {
         "h": 5,
         "w": 4,
         "x": 15,
-        "y": 3
+        "y": 1
       },
       "targets": [
         {
@@ -321,13 +319,13 @@
     {
       "id": 6,
       "type": "stat",
-      "title": "Agent sessions",
+      "title": "Sessions",
       "datasource": "${datasource}",
       "gridPos": {
         "h": 5,
         "w": 5,
         "x": 19,
-        "y": 3
+        "y": 1
       },
       "targets": [
         {
@@ -365,13 +363,13 @@
     },
     {
       "type": "barchart",
-      "title": "Commits — assisted vs the rest · $repo",
+      "title": "Commits by month · $repo",
       "datasource": "${datasource}",
       "gridPos": {
         "h": 9,
         "w": 12,
         "x": 0,
-        "y": 8
+        "y": 6
       },
       "targets": [
         {
@@ -453,372 +451,6 @@
       }
     },
     {
-      "id": 17,
-      "type": "timeseries",
-      "title": "Acceptance rate over time",
-      "datasource": "${datasource}",
-      "gridPos": {
-        "h": 9,
-        "w": 8,
-        "x": 8,
-        "y": 37
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "format": "time_series",
-          "rawSql": "\nSELECT DATE(FROM_UNIXTIME(e.observed_at/1000000000)) AS `time`,\n       ROUND(100.0*SUM(e.outcome='accepted')\n             /NULLIF(SUM(e.outcome IN ('accepted','rejected','failed')),0),1) AS `accept %`\nFROM whodunit_events e JOIN whodunit_repos r ON r.repo_id=e.repo_id\nWHERE ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}') AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nGROUP BY `time` ORDER BY `time`\n"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "percent",
-          "max": 100,
-          "min": 0,
-          "custom": {
-            "drawStyle": "line",
-            "fillOpacity": 10,
-            "lineWidth": 2,
-            "pointSize": 6
-          }
-        }
-      },
-      "description": "Daily acceptance rate over decided tool calls.\n\nSame denominator rule as the headline figure: only calls with a recorded outcome. A day with few decided calls swings violently, so read the shape over weeks rather than the value on any one day."
-    },
-    {
-      "type": "text",
-      "gridPos": {
-        "h": 3,
-        "w": 24,
-        "x": 0,
-        "y": 17
-      },
-      "options": {
-        "mode": "markdown",
-        "content": "## Does AI-assisted work ship faster?\nCycle time for issues whose commits carry an AI-attribution trailer, against those that don't. A measured comparison, not an estimate — and not a causal one: harder work tends to be handed to an agent, so a slower assisted cohort is as likely to reflect what was chosen as what the agent did. If either count is zero there is no control group and the delta means nothing, which is why both counts are shown.\n\nThe purpose split beside it is classified from the commit itself, not self-reported — so it measures what commits were **labelled**. A repository not using Conventional Commits shows almost no features regardless of what it shipped."
-      },
-      "transparent": true,
-      "id": 24
-    },
-    {
-      "id": 8,
-      "type": "stat",
-      "title": "Median cycle — AI-assisted · $board",
-      "datasource": "${datasource}",
-      "gridPos": {
-        "h": 5,
-        "w": 6,
-        "x": 0,
-        "y": 20
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "format": "table",
-          "rawSql": "SELECT ROUND(AVG(ltm)/60, 1) v FROM (\n  SELECT ltm, rn, cnt FROM (\n    SELECT ltm,\n           ROW_NUMBER() OVER (ORDER BY ltm) rn,\n           COUNT(*)     OVER ()            cnt\n    FROM (\nSELECT i.issue_key, i.lead_time_minutes AS ltm,\n       COALESCE(MAX(w.status = 'assisted'), 0) AS ai\nFROM issues i\nJOIN board_issues bi ON bi.issue_id = i.id\nLEFT JOIN commits c\n       ON c.message REGEXP CONCAT('(^|[^A-Za-z0-9])', i.issue_key, '([^0-9]|$)')\nLEFT JOIN whodunit_commits w ON w.commit_sha = c.sha\nWHERE bi.board_id = '$board'\n  AND i.lead_time_minutes IS NOT NULL\n  AND $__timeFilter(i.resolution_date)\n  AND i.issue_key REGEXP '^[A-Z][A-Z0-9]+-[0-9]+$'\n    AND i.issue_key REGEXP CONCAT('^',\n        (SELECT SUBSTRING_INDEX(i2.issue_key,'-',1)\n           FROM issues i2 JOIN board_issues bi2 ON bi2.issue_id = i2.id\n          WHERE bi2.board_id = '$board'\n            AND i2.issue_key REGEXP '^[A-Z][A-Z0-9]+-[0-9]+$' LIMIT 1),\n        '-[0-9]+$')\nGROUP BY i.issue_key, i.lead_time_minutes\nHAVING ai = 1\n    ) c\n  ) r\n  WHERE rn IN (FLOOR((cnt+1)/2), CEIL((cnt+1)/2))\n) m"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "h",
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "blue",
-                "value": null
-              }
-            ]
-          },
-          "noValue": "No AI-assisted issues closed in range"
-        }
-      },
-      "options": {
-        "graphMode": "none",
-        "textMode": "value",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        }
-      },
-      "description": "**Median hours from issue open to issue close**, for issues whose linked commits carry an AI-attribution trailer.\n\n**The median, not the mean** — half the issues closed faster than this, half slower. Cycle times have a long tail, and the two diverge sharply: measured on this data the mean is 3.47 days against a median of 0.17. The mean describes neither the typical issue nor the slow one, so it is the wrong summary for this shape of distribution.\n\nRead it as a description, not a verdict. Harder work tends to get handed to an agent, so a longer assisted cycle usually reflects **which issues were chosen**, not the agent slowing them down. Nothing here establishes cause.\n\n**How an issue is classified.** Its key is matched against commit messages (`WHO-12` in a commit subject links that commit to that issue). If any linked commit carries `status=assisted`, the issue counts as AI-assisted; otherwise it counts as not. An issue whose key appears in no commit message is in neither cohort — it is absent, not counted as unassisted.\n\n**Scope.** Issues closed within the dashboard time range, on the selected issue board. The Repository filter does not apply: an issue's commits can span repositories, so filtering by one would drop genuinely assisted issues and understate the comparison."
-    },
-    {
-      "id": 9,
-      "type": "stat",
-      "title": "Median cycle — not AI-assisted · $board",
-      "datasource": "${datasource}",
-      "gridPos": {
-        "h": 5,
-        "w": 6,
-        "x": 6,
-        "y": 20
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "format": "table",
-          "rawSql": "SELECT ROUND(AVG(ltm)/60, 1) v FROM (\n  SELECT ltm, rn, cnt FROM (\n    SELECT ltm,\n           ROW_NUMBER() OVER (ORDER BY ltm) rn,\n           COUNT(*)     OVER ()            cnt\n    FROM (\nSELECT i.issue_key, i.lead_time_minutes AS ltm,\n       COALESCE(MAX(w.status = 'assisted'), 0) AS ai\nFROM issues i\nJOIN board_issues bi ON bi.issue_id = i.id\nLEFT JOIN commits c\n       ON c.message REGEXP CONCAT('(^|[^A-Za-z0-9])', i.issue_key, '([^0-9]|$)')\nLEFT JOIN whodunit_commits w ON w.commit_sha = c.sha\nWHERE bi.board_id = '$board'\n  AND i.lead_time_minutes IS NOT NULL\n  AND $__timeFilter(i.resolution_date)\n  AND i.issue_key REGEXP '^[A-Z][A-Z0-9]+-[0-9]+$'\n    AND i.issue_key REGEXP CONCAT('^',\n        (SELECT SUBSTRING_INDEX(i2.issue_key,'-',1)\n           FROM issues i2 JOIN board_issues bi2 ON bi2.issue_id = i2.id\n          WHERE bi2.board_id = '$board'\n            AND i2.issue_key REGEXP '^[A-Z][A-Z0-9]+-[0-9]+$' LIMIT 1),\n        '-[0-9]+$')\nGROUP BY i.issue_key, i.lead_time_minutes\nHAVING ai = 0\n    ) c\n  ) r\n  WHERE rn IN (FLOOR((cnt+1)/2), CEIL((cnt+1)/2))\n) m"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "h",
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "orange",
-                "value": null
-              }
-            ]
-          },
-          "noValue": "No unassisted issues closed in range"
-        }
-      },
-      "options": {
-        "graphMode": "none",
-        "textMode": "value",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        }
-      },
-      "description": "**Median hours from issue open to issue close**, for issues whose linked commits carry **no** AI-attribution trailer — the control group for the comparison beside it.\n\n**The median, not the mean** — half the issues closed faster than this, half slower. Cycle times have a long tail, and the two diverge sharply: measured on this data the mean is 3.47 days against a median of 0.17. The mean describes neither the typical issue nor the slow one, so it is the wrong summary for this shape of distribution.\n\nRead it as a description, not a verdict. Harder work tends to get handed to an agent, so a longer assisted cycle usually reflects **which issues were chosen**, not the agent slowing them down. Nothing here establishes cause.\n\n**How an issue is classified.** Its key is matched against commit messages (`WHO-12` in a commit subject links that commit to that issue). If any linked commit carries `status=assisted`, the issue counts as AI-assisted; otherwise it counts as not. An issue whose key appears in no commit message is in neither cohort — it is absent, not counted as unassisted.\n\n**Scope.** Issues closed within the dashboard time range, on the selected issue board. The Repository filter does not apply: an issue's commits can span repositories, so filtering by one would drop genuinely assisted issues and understate the comparison."
-    },
-    {
-      "id": 10,
-      "type": "stat",
-      "title": "Issues compared (AI) · $board",
-      "datasource": "${datasource}",
-      "gridPos": {
-        "h": 5,
-        "w": 3,
-        "x": 12,
-        "y": 20
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "format": "table",
-          "rawSql": "SELECT COUNT(*) v FROM (\nSELECT i.issue_key, i.lead_time_minutes AS ltm,\n       COALESCE(MAX(w.status = 'assisted'), 0) AS ai\nFROM issues i\nJOIN board_issues bi ON bi.issue_id = i.id\nLEFT JOIN commits c\n       ON c.message REGEXP CONCAT('(^|[^A-Za-z0-9])', i.issue_key, '([^0-9]|$)')\nLEFT JOIN whodunit_commits w ON w.commit_sha = c.sha\nWHERE bi.board_id = '$board'\n  AND i.lead_time_minutes IS NOT NULL\n  AND $__timeFilter(i.resolution_date)\n  AND i.issue_key REGEXP '^[A-Z][A-Z0-9]+-[0-9]+$'\n    AND i.issue_key REGEXP CONCAT('^',\n        (SELECT SUBSTRING_INDEX(i2.issue_key,'-',1)\n           FROM issues i2 JOIN board_issues bi2 ON bi2.issue_id = i2.id\n          WHERE bi2.board_id = '$board'\n            AND i2.issue_key REGEXP '^[A-Z][A-Z0-9]+-[0-9]+$' LIMIT 1),\n        '-[0-9]+$')\nGROUP BY i.issue_key, i.lead_time_minutes\nHAVING ai = 1\n) t"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "short",
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "text",
-                "value": null
-              }
-            ]
-          },
-          "noValue": "None in range"
-        }
-      },
-      "options": {
-        "graphMode": "none",
-        "textMode": "value",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        }
-      },
-      "description": "**How many issues are in this cohort** — the denominator for the median beside it.\n\nShown deliberately rather than tucked into a tooltip. A median over a handful of issues moves hours on one or two of them, and a cohort of zero means there is no comparison at all — the Delta would be measuring nothing. Check this number before reading anything into the medians.\n\nThis panel counts issues **carrying an AI-attribution trailer**.\n\n**How an issue is classified.** Its key is matched against commit messages (`WHO-12` in a commit subject links that commit to that issue). If any linked commit carries `status=assisted`, the issue counts as AI-assisted; otherwise it counts as not. An issue whose key appears in no commit message is in neither cohort — it is absent, not counted as unassisted.\n\n**Scope.** Issues closed within the dashboard time range, on the selected issue board. The Repository filter does not apply: an issue's commits can span repositories, so filtering by one would drop genuinely assisted issues and understate the comparison."
-    },
-    {
-      "id": 11,
-      "type": "stat",
-      "title": "Issues compared (non-AI) · $board",
-      "datasource": "${datasource}",
-      "gridPos": {
-        "h": 5,
-        "w": 3,
-        "x": 15,
-        "y": 20
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "format": "table",
-          "rawSql": "SELECT COUNT(*) v FROM (\nSELECT i.issue_key, i.lead_time_minutes AS ltm,\n       COALESCE(MAX(w.status = 'assisted'), 0) AS ai\nFROM issues i\nJOIN board_issues bi ON bi.issue_id = i.id\nLEFT JOIN commits c\n       ON c.message REGEXP CONCAT('(^|[^A-Za-z0-9])', i.issue_key, '([^0-9]|$)')\nLEFT JOIN whodunit_commits w ON w.commit_sha = c.sha\nWHERE bi.board_id = '$board'\n  AND i.lead_time_minutes IS NOT NULL\n  AND $__timeFilter(i.resolution_date)\n  AND i.issue_key REGEXP '^[A-Z][A-Z0-9]+-[0-9]+$'\n    AND i.issue_key REGEXP CONCAT('^',\n        (SELECT SUBSTRING_INDEX(i2.issue_key,'-',1)\n           FROM issues i2 JOIN board_issues bi2 ON bi2.issue_id = i2.id\n          WHERE bi2.board_id = '$board'\n            AND i2.issue_key REGEXP '^[A-Z][A-Z0-9]+-[0-9]+$' LIMIT 1),\n        '-[0-9]+$')\nGROUP BY i.issue_key, i.lead_time_minutes\nHAVING ai = 0\n) t"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "short",
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "text",
-                "value": null
-              }
-            ]
-          },
-          "noValue": "None in range"
-        }
-      },
-      "options": {
-        "graphMode": "none",
-        "textMode": "value",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        }
-      },
-      "description": "**How many issues are in this cohort** — the denominator for the median beside it.\n\nShown deliberately rather than tucked into a tooltip. A median over a handful of issues moves hours on one or two of them, and a cohort of zero means there is no comparison at all — the Delta would be measuring nothing. Check this number before reading anything into the medians.\n\nThis panel counts issues **with no AI attribution**.\n\n**How an issue is classified.** Its key is matched against commit messages (`WHO-12` in a commit subject links that commit to that issue). If any linked commit carries `status=assisted`, the issue counts as AI-assisted; otherwise it counts as not. An issue whose key appears in no commit message is in neither cohort — it is absent, not counted as unassisted.\n\n**Scope.** Issues closed within the dashboard time range, on the selected issue board. The Repository filter does not apply: an issue's commits can span repositories, so filtering by one would drop genuinely assisted issues and understate the comparison."
-    },
-    {
-      "id": 12,
-      "type": "stat",
-      "title": "Delta · $board",
-      "datasource": "${datasource}",
-      "gridPos": {
-        "h": 5,
-        "w": 6,
-        "x": 18,
-        "y": 20
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "format": "table",
-          "rawSql": "SELECT ROUND(\n  (SELECT AVG(ltm) FROM (\n     SELECT ltm, ROW_NUMBER() OVER (ORDER BY ltm) rn, COUNT(*) OVER () cnt\n     FROM (SELECT i.issue_key, i.lead_time_minutes AS ltm,\n       COALESCE(MAX(w.status = 'assisted'), 0) AS ai\nFROM issues i\nJOIN board_issues bi ON bi.issue_id = i.id\nLEFT JOIN commits c\n       ON c.message REGEXP CONCAT('(^|[^A-Za-z0-9])', i.issue_key, '([^0-9]|$)')\nLEFT JOIN whodunit_commits w ON w.commit_sha = c.sha\nWHERE bi.board_id = '$board'\n  AND i.lead_time_minutes IS NOT NULL\n  AND $__timeFilter(i.resolution_date)\n  AND i.issue_key REGEXP '^[A-Z][A-Z0-9]+-[0-9]+$'\n    AND i.issue_key REGEXP CONCAT('^',\n        (SELECT SUBSTRING_INDEX(i2.issue_key,'-',1)\n           FROM issues i2 JOIN board_issues bi2 ON bi2.issue_id = i2.id\n          WHERE bi2.board_id = '$board'\n            AND i2.issue_key REGEXP '^[A-Z][A-Z0-9]+-[0-9]+$' LIMIT 1),\n        '-[0-9]+$')\nGROUP BY i.issue_key, i.lead_time_minutes\nHAVING ai = 0) a) x\n   WHERE rn IN (FLOOR((cnt+1)/2), CEIL((cnt+1)/2)))\n  -\n  (SELECT AVG(ltm) FROM (\n     SELECT ltm, ROW_NUMBER() OVER (ORDER BY ltm) rn, COUNT(*) OVER () cnt\n     FROM (SELECT i.issue_key, i.lead_time_minutes AS ltm,\n       COALESCE(MAX(w.status = 'assisted'), 0) AS ai\nFROM issues i\nJOIN board_issues bi ON bi.issue_id = i.id\nLEFT JOIN commits c\n       ON c.message REGEXP CONCAT('(^|[^A-Za-z0-9])', i.issue_key, '([^0-9]|$)')\nLEFT JOIN whodunit_commits w ON w.commit_sha = c.sha\nWHERE bi.board_id = '$board'\n  AND i.lead_time_minutes IS NOT NULL\n  AND $__timeFilter(i.resolution_date)\n  AND i.issue_key REGEXP '^[A-Z][A-Z0-9]+-[0-9]+$'\n    AND i.issue_key REGEXP CONCAT('^',\n        (SELECT SUBSTRING_INDEX(i2.issue_key,'-',1)\n           FROM issues i2 JOIN board_issues bi2 ON bi2.issue_id = i2.id\n          WHERE bi2.board_id = '$board'\n            AND i2.issue_key REGEXP '^[A-Z][A-Z0-9]+-[0-9]+$' LIMIT 1),\n        '-[0-9]+$')\nGROUP BY i.issue_key, i.lead_time_minutes\nHAVING ai = 1) b) y\n   WHERE rn IN (FLOOR((cnt+1)/2), CEIL((cnt+1)/2)))\n, 0) / 60 v"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "h",
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              }
-            ]
-          },
-          "noValue": "Needs both cohorts in range"
-        }
-      },
-      "options": {
-        "graphMode": "none",
-        "textMode": "value",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        }
-      },
-      "description": "**Median cycle of unassisted issues minus median cycle of assisted issues**, in hours. Positive means assisted issues closed faster.\n\n**This is a difference, not an effect.** The two cohorts are not randomised: developers choose when to reach for an agent, and tend to reach for it on larger or less familiar work. A difference in either direction may be measuring which issues were assigned to the agent rather than what the agent did.\n\n**It means nothing unless both counts beside it are substantial.** With one cohort at zero there is no control group; with a handful either side, one long-running issue moves this number by hours.\n\n**How an issue is classified.** Its key is matched against commit messages (`WHO-12` in a commit subject links that commit to that issue). If any linked commit carries `status=assisted`, the issue counts as AI-assisted; otherwise it counts as not. An issue whose key appears in no commit message is in neither cohort — it is absent, not counted as unassisted.\n\n**Scope.** Issues closed within the dashboard time range, on the selected issue board. The Repository filter does not apply: an issue's commits can span repositories, so filtering by one would drop genuinely assisted issues and understate the comparison."
-    },
-    {
-      "id": 13,
-      "type": "timeseries",
-      "title": "Average cycle time · $board",
-      "datasource": "${datasource}",
-      "gridPos": {
-        "h": 9,
-        "w": 12,
-        "x": 0,
-        "y": 25
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "format": "time_series",
-          "rawSql": "SELECT IF('$grain'='day', DATE(i.resolution_date), IF('$grain'='week', DATE(i.resolution_date - INTERVAL WEEKDAY(i.resolution_date) DAY), DATE(i.resolution_date - INTERVAL DAYOFMONTH(i.resolution_date)-1 DAY))) AS `time`,\n       ROUND(AVG(TIMESTAMPDIFF(MINUTE, i.created_date, i.resolution_date) / 60.0), 1)\n         AS `avg cycle hours`,\n       COUNT(DISTINCT i.id) AS `issues closed`\nFROM issues i\nJOIN board_issues bi ON bi.issue_id = i.id\nWHERE bi.board_id = '$board'\n  AND i.status = 'DONE'\n  AND i.resolution_date IS NOT NULL\n  AND i.created_date IS NOT NULL\n  AND i.created_date <= i.resolution_date\n  AND $__timeFilter(i.resolution_date)\nGROUP BY `time`\nORDER BY `time`"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "custom": {
-            "drawStyle": "line",
-            "lineWidth": 2,
-            "fillOpacity": 10,
-            "showPoints": "always",
-            "pointSize": 6,
-            "spanNulls": false,
-            "axisPlacement": "auto"
-          },
-          "unit": "h",
-          "decimals": 1,
-          "color": {
-            "mode": "fixed",
-            "fixedColor": "#25c2a0"
-          },
-          "noValue": "No issues closed on this board in the selected range"
-        },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "issues closed"
-            },
-            "properties": [
-              {
-                "id": "custom.axisPlacement",
-                "value": "right"
-              },
-              {
-                "id": "custom.drawStyle",
-                "value": "bars"
-              },
-              {
-                "id": "custom.fillOpacity",
-                "value": 22
-              },
-              {
-                "id": "custom.lineWidth",
-                "value": 0
-              },
-              {
-                "id": "unit",
-                "value": "short"
-              },
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "#3b4657"
-                }
-              }
-            ]
-          }
-        ]
-      },
-      "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "none"
-        }
-      },
-      "description": "Average time from an issue being opened to being closed, for issues that closed in each period.\n\nAn issue counts in the period it **closed**, but its cycle time is measured from when it was **opened** — so an issue opened in March and closed in August contributes its full five months. The dashboard time range filters which closures are counted; it does not truncate how far back their clocks started.\n\nRead it with the issue count beside it: an average over a handful of closures moves several hours on one or two of them. And roughly half the issues here close within an hour of being filed, which is a recording habit rather than a delivery time — where that dominates a period, this measures how tickets are filed more than how work flows.\n\nNot split by AI attribution deliberately. Assisted issues take longer here (72.4h against 62.8h in the one month with both), which almost certainly reflects harder work being handed to an agent rather than the agent slowing anything down — a split would invite a causal reading the data cannot support."
-    },
-    {
       "type": "barchart",
       "title": "Issues opened vs closed · $board",
       "datasource": "${datasource}",
@@ -826,7 +458,7 @@
         "h": 9,
         "w": 12,
         "x": 12,
-        "y": 8
+        "y": 6
       },
       "targets": [
         {
@@ -909,30 +541,346 @@
       }
     },
     {
-      "type": "text",
+      "type": "row",
+      "title": "Delivery speed",
+      "collapsed": false,
+      "panels": [],
+      "id": 901,
       "gridPos": {
-        "h": 3,
+        "h": 1,
         "w": 24,
         "x": 0,
-        "y": 34
+        "y": 15
+      }
+    },
+    {
+      "id": 8,
+      "type": "stat",
+      "title": "Median cycle · assisted · $board",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 0,
+        "y": 16
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT ROUND(AVG(ltm)/60, 1) v FROM (\n  SELECT ltm, rn, cnt FROM (\n    SELECT ltm,\n           ROW_NUMBER() OVER (ORDER BY ltm) rn,\n           COUNT(*)     OVER ()            cnt\n    FROM (\nSELECT i.issue_key, i.lead_time_minutes AS ltm,\n       COALESCE(MAX(w.status = 'assisted'), 0) AS ai\nFROM issues i\nJOIN board_issues bi ON bi.issue_id = i.id\nLEFT JOIN commits c\n       ON c.message REGEXP CONCAT('(^|[^A-Za-z0-9])', i.issue_key, '([^0-9]|$)')\nLEFT JOIN whodunit_commits w ON w.commit_sha = c.sha\nWHERE bi.board_id = '$board'\n  AND i.lead_time_minutes IS NOT NULL\n  AND $__timeFilter(i.resolution_date)\n  AND i.issue_key REGEXP '^[A-Z][A-Z0-9]+-[0-9]+$'\n    AND i.issue_key REGEXP CONCAT('^',\n        (SELECT SUBSTRING_INDEX(i2.issue_key,'-',1)\n           FROM issues i2 JOIN board_issues bi2 ON bi2.issue_id = i2.id\n          WHERE bi2.board_id = '$board'\n            AND i2.issue_key REGEXP '^[A-Z][A-Z0-9]+-[0-9]+$' LIMIT 1),\n        '-[0-9]+$')\nGROUP BY i.issue_key, i.lead_time_minutes\nHAVING ai = 1\n    ) c\n  ) r\n  WHERE rn IN (FLOOR((cnt+1)/2), CEIL((cnt+1)/2))\n) m"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "h",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          },
+          "noValue": "No AI-assisted issues closed in range"
+        }
       },
       "options": {
-        "mode": "markdown",
-        "content": "## Is the output being kept?\nAcceptance is the share of **decided** tool calls that were accepted — not all calls. An agent that reports no decision for a call is absent from the denominator rather than counted as a rejection, so a low rate means work was turned down, not that the agent was quiet."
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
       },
-      "transparent": true,
-      "id": 25
+      "description": "**Median hours from issue open to issue close**, for issues whose linked commits carry an AI-attribution trailer.\n\n**The median, not the mean** — half the issues closed faster than this, half slower. Cycle times have a long tail, and the two diverge sharply: measured on this data the mean is 3.47 days against a median of 0.17. The mean describes neither the typical issue nor the slow one, so it is the wrong summary for this shape of distribution.\n\nRead it as a description, not a verdict. Harder work tends to get handed to an agent, so a longer assisted cycle usually reflects **which issues were chosen**, not the agent slowing them down. Nothing here establishes cause.\n\n**How an issue is classified.** Its key is matched against commit messages (`WHO-12` in a commit subject links that commit to that issue). If any linked commit carries `status=assisted`, the issue counts as AI-assisted; otherwise it counts as not. An issue whose key appears in no commit message is in neither cohort — it is absent, not counted as unassisted.\n\n**Scope.** Issues closed within the dashboard time range, on the selected issue board. The Repository filter does not apply: an issue's commits can span repositories, so filtering by one would drop genuinely assisted issues and understate the comparison."
+    },
+    {
+      "id": 9,
+      "type": "stat",
+      "title": "Median cycle · not assisted · $board",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 6,
+        "y": 16
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT ROUND(AVG(ltm)/60, 1) v FROM (\n  SELECT ltm, rn, cnt FROM (\n    SELECT ltm,\n           ROW_NUMBER() OVER (ORDER BY ltm) rn,\n           COUNT(*)     OVER ()            cnt\n    FROM (\nSELECT i.issue_key, i.lead_time_minutes AS ltm,\n       COALESCE(MAX(w.status = 'assisted'), 0) AS ai\nFROM issues i\nJOIN board_issues bi ON bi.issue_id = i.id\nLEFT JOIN commits c\n       ON c.message REGEXP CONCAT('(^|[^A-Za-z0-9])', i.issue_key, '([^0-9]|$)')\nLEFT JOIN whodunit_commits w ON w.commit_sha = c.sha\nWHERE bi.board_id = '$board'\n  AND i.lead_time_minutes IS NOT NULL\n  AND $__timeFilter(i.resolution_date)\n  AND i.issue_key REGEXP '^[A-Z][A-Z0-9]+-[0-9]+$'\n    AND i.issue_key REGEXP CONCAT('^',\n        (SELECT SUBSTRING_INDEX(i2.issue_key,'-',1)\n           FROM issues i2 JOIN board_issues bi2 ON bi2.issue_id = i2.id\n          WHERE bi2.board_id = '$board'\n            AND i2.issue_key REGEXP '^[A-Z][A-Z0-9]+-[0-9]+$' LIMIT 1),\n        '-[0-9]+$')\nGROUP BY i.issue_key, i.lead_time_minutes\nHAVING ai = 0\n    ) c\n  ) r\n  WHERE rn IN (FLOOR((cnt+1)/2), CEIL((cnt+1)/2))\n) m"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "h",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "orange",
+                "value": null
+              }
+            ]
+          },
+          "noValue": "No unassisted issues closed in range"
+        }
+      },
+      "options": {
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "description": "**Median hours from issue open to issue close**, for issues whose linked commits carry **no** AI-attribution trailer — the control group for the comparison beside it.\n\n**The median, not the mean** — half the issues closed faster than this, half slower. Cycle times have a long tail, and the two diverge sharply: measured on this data the mean is 3.47 days against a median of 0.17. The mean describes neither the typical issue nor the slow one, so it is the wrong summary for this shape of distribution.\n\nRead it as a description, not a verdict. Harder work tends to get handed to an agent, so a longer assisted cycle usually reflects **which issues were chosen**, not the agent slowing them down. Nothing here establishes cause.\n\n**How an issue is classified.** Its key is matched against commit messages (`WHO-12` in a commit subject links that commit to that issue). If any linked commit carries `status=assisted`, the issue counts as AI-assisted; otherwise it counts as not. An issue whose key appears in no commit message is in neither cohort — it is absent, not counted as unassisted.\n\n**Scope.** Issues closed within the dashboard time range, on the selected issue board. The Repository filter does not apply: an issue's commits can span repositories, so filtering by one would drop genuinely assisted issues and understate the comparison."
+    },
+    {
+      "id": 10,
+      "type": "stat",
+      "title": "n assisted · $board",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "h": 5,
+        "w": 3,
+        "x": 12,
+        "y": 16
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT COUNT(*) v FROM (\nSELECT i.issue_key, i.lead_time_minutes AS ltm,\n       COALESCE(MAX(w.status = 'assisted'), 0) AS ai\nFROM issues i\nJOIN board_issues bi ON bi.issue_id = i.id\nLEFT JOIN commits c\n       ON c.message REGEXP CONCAT('(^|[^A-Za-z0-9])', i.issue_key, '([^0-9]|$)')\nLEFT JOIN whodunit_commits w ON w.commit_sha = c.sha\nWHERE bi.board_id = '$board'\n  AND i.lead_time_minutes IS NOT NULL\n  AND $__timeFilter(i.resolution_date)\n  AND i.issue_key REGEXP '^[A-Z][A-Z0-9]+-[0-9]+$'\n    AND i.issue_key REGEXP CONCAT('^',\n        (SELECT SUBSTRING_INDEX(i2.issue_key,'-',1)\n           FROM issues i2 JOIN board_issues bi2 ON bi2.issue_id = i2.id\n          WHERE bi2.board_id = '$board'\n            AND i2.issue_key REGEXP '^[A-Z][A-Z0-9]+-[0-9]+$' LIMIT 1),\n        '-[0-9]+$')\nGROUP BY i.issue_key, i.lead_time_minutes\nHAVING ai = 1\n) t"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          },
+          "noValue": "None in range"
+        }
+      },
+      "options": {
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "description": "**How many issues are in this cohort** — the denominator for the median beside it.\n\nShown deliberately rather than tucked into a tooltip. A median over a handful of issues moves hours on one or two of them, and a cohort of zero means there is no comparison at all — the Delta would be measuring nothing. Check this number before reading anything into the medians.\n\nThis panel counts issues **carrying an AI-attribution trailer**.\n\n**How an issue is classified.** Its key is matched against commit messages (`WHO-12` in a commit subject links that commit to that issue). If any linked commit carries `status=assisted`, the issue counts as AI-assisted; otherwise it counts as not. An issue whose key appears in no commit message is in neither cohort — it is absent, not counted as unassisted.\n\n**Scope.** Issues closed within the dashboard time range, on the selected issue board. The Repository filter does not apply: an issue's commits can span repositories, so filtering by one would drop genuinely assisted issues and understate the comparison."
+    },
+    {
+      "id": 11,
+      "type": "stat",
+      "title": "n not assisted · $board",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "h": 5,
+        "w": 3,
+        "x": 15,
+        "y": 16
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT COUNT(*) v FROM (\nSELECT i.issue_key, i.lead_time_minutes AS ltm,\n       COALESCE(MAX(w.status = 'assisted'), 0) AS ai\nFROM issues i\nJOIN board_issues bi ON bi.issue_id = i.id\nLEFT JOIN commits c\n       ON c.message REGEXP CONCAT('(^|[^A-Za-z0-9])', i.issue_key, '([^0-9]|$)')\nLEFT JOIN whodunit_commits w ON w.commit_sha = c.sha\nWHERE bi.board_id = '$board'\n  AND i.lead_time_minutes IS NOT NULL\n  AND $__timeFilter(i.resolution_date)\n  AND i.issue_key REGEXP '^[A-Z][A-Z0-9]+-[0-9]+$'\n    AND i.issue_key REGEXP CONCAT('^',\n        (SELECT SUBSTRING_INDEX(i2.issue_key,'-',1)\n           FROM issues i2 JOIN board_issues bi2 ON bi2.issue_id = i2.id\n          WHERE bi2.board_id = '$board'\n            AND i2.issue_key REGEXP '^[A-Z][A-Z0-9]+-[0-9]+$' LIMIT 1),\n        '-[0-9]+$')\nGROUP BY i.issue_key, i.lead_time_minutes\nHAVING ai = 0\n) t"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          },
+          "noValue": "None in range"
+        }
+      },
+      "options": {
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "description": "**How many issues are in this cohort** — the denominator for the median beside it.\n\nShown deliberately rather than tucked into a tooltip. A median over a handful of issues moves hours on one or two of them, and a cohort of zero means there is no comparison at all — the Delta would be measuring nothing. Check this number before reading anything into the medians.\n\nThis panel counts issues **with no AI attribution**.\n\n**How an issue is classified.** Its key is matched against commit messages (`WHO-12` in a commit subject links that commit to that issue). If any linked commit carries `status=assisted`, the issue counts as AI-assisted; otherwise it counts as not. An issue whose key appears in no commit message is in neither cohort — it is absent, not counted as unassisted.\n\n**Scope.** Issues closed within the dashboard time range, on the selected issue board. The Repository filter does not apply: an issue's commits can span repositories, so filtering by one would drop genuinely assisted issues and understate the comparison."
+    },
+    {
+      "id": 12,
+      "type": "stat",
+      "title": "Difference · $board",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 18,
+        "y": 16
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT ROUND(\n  (SELECT AVG(ltm) FROM (\n     SELECT ltm, ROW_NUMBER() OVER (ORDER BY ltm) rn, COUNT(*) OVER () cnt\n     FROM (SELECT i.issue_key, i.lead_time_minutes AS ltm,\n       COALESCE(MAX(w.status = 'assisted'), 0) AS ai\nFROM issues i\nJOIN board_issues bi ON bi.issue_id = i.id\nLEFT JOIN commits c\n       ON c.message REGEXP CONCAT('(^|[^A-Za-z0-9])', i.issue_key, '([^0-9]|$)')\nLEFT JOIN whodunit_commits w ON w.commit_sha = c.sha\nWHERE bi.board_id = '$board'\n  AND i.lead_time_minutes IS NOT NULL\n  AND $__timeFilter(i.resolution_date)\n  AND i.issue_key REGEXP '^[A-Z][A-Z0-9]+-[0-9]+$'\n    AND i.issue_key REGEXP CONCAT('^',\n        (SELECT SUBSTRING_INDEX(i2.issue_key,'-',1)\n           FROM issues i2 JOIN board_issues bi2 ON bi2.issue_id = i2.id\n          WHERE bi2.board_id = '$board'\n            AND i2.issue_key REGEXP '^[A-Z][A-Z0-9]+-[0-9]+$' LIMIT 1),\n        '-[0-9]+$')\nGROUP BY i.issue_key, i.lead_time_minutes\nHAVING ai = 0) a) x\n   WHERE rn IN (FLOOR((cnt+1)/2), CEIL((cnt+1)/2)))\n  -\n  (SELECT AVG(ltm) FROM (\n     SELECT ltm, ROW_NUMBER() OVER (ORDER BY ltm) rn, COUNT(*) OVER () cnt\n     FROM (SELECT i.issue_key, i.lead_time_minutes AS ltm,\n       COALESCE(MAX(w.status = 'assisted'), 0) AS ai\nFROM issues i\nJOIN board_issues bi ON bi.issue_id = i.id\nLEFT JOIN commits c\n       ON c.message REGEXP CONCAT('(^|[^A-Za-z0-9])', i.issue_key, '([^0-9]|$)')\nLEFT JOIN whodunit_commits w ON w.commit_sha = c.sha\nWHERE bi.board_id = '$board'\n  AND i.lead_time_minutes IS NOT NULL\n  AND $__timeFilter(i.resolution_date)\n  AND i.issue_key REGEXP '^[A-Z][A-Z0-9]+-[0-9]+$'\n    AND i.issue_key REGEXP CONCAT('^',\n        (SELECT SUBSTRING_INDEX(i2.issue_key,'-',1)\n           FROM issues i2 JOIN board_issues bi2 ON bi2.issue_id = i2.id\n          WHERE bi2.board_id = '$board'\n            AND i2.issue_key REGEXP '^[A-Z][A-Z0-9]+-[0-9]+$' LIMIT 1),\n        '-[0-9]+$')\nGROUP BY i.issue_key, i.lead_time_minutes\nHAVING ai = 1) b) y\n   WHERE rn IN (FLOOR((cnt+1)/2), CEIL((cnt+1)/2)))\n, 0) / 60 v"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "h",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "noValue": "Needs both cohorts in range"
+        }
+      },
+      "options": {
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "description": "**Median cycle of unassisted issues minus median cycle of assisted issues**, in hours. Positive means assisted issues closed faster.\n\n**This is a difference, not an effect.** The two cohorts are not randomised: developers choose when to reach for an agent, and tend to reach for it on larger or less familiar work. A difference in either direction may be measuring which issues were assigned to the agent rather than what the agent did.\n\n**It means nothing unless both counts beside it are substantial.** With one cohort at zero there is no control group; with a handful either side, one long-running issue moves this number by hours.\n\n**How an issue is classified.** Its key is matched against commit messages (`WHO-12` in a commit subject links that commit to that issue). If any linked commit carries `status=assisted`, the issue counts as AI-assisted; otherwise it counts as not. An issue whose key appears in no commit message is in neither cohort — it is absent, not counted as unassisted.\n\n**Scope.** Issues closed within the dashboard time range, on the selected issue board. The Repository filter does not apply: an issue's commits can span repositories, so filtering by one would drop genuinely assisted issues and understate the comparison."
+    },
+    {
+      "id": 13,
+      "type": "timeseries",
+      "title": "Cycle time trend · $board",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 0,
+        "y": 21
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawSql": "SELECT IF('$grain'='day', DATE(i.resolution_date), IF('$grain'='week', DATE(i.resolution_date - INTERVAL WEEKDAY(i.resolution_date) DAY), DATE(i.resolution_date - INTERVAL DAYOFMONTH(i.resolution_date)-1 DAY))) AS `time`,\n       ROUND(AVG(TIMESTAMPDIFF(MINUTE, i.created_date, i.resolution_date) / 60.0), 1)\n         AS `avg cycle hours`,\n       COUNT(DISTINCT i.id) AS `issues closed`\nFROM issues i\nJOIN board_issues bi ON bi.issue_id = i.id\nWHERE bi.board_id = '$board'\n  AND i.status = 'DONE'\n  AND i.resolution_date IS NOT NULL\n  AND i.created_date IS NOT NULL\n  AND i.created_date <= i.resolution_date\n  AND $__timeFilter(i.resolution_date)\nGROUP BY `time`\nORDER BY `time`"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "always",
+            "pointSize": 6,
+            "spanNulls": false,
+            "axisPlacement": "auto"
+          },
+          "unit": "h",
+          "decimals": 1,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#25c2a0"
+          },
+          "noValue": "No issues closed on this board in the selected range"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "issues closed"
+            },
+            "properties": [
+              {
+                "id": "custom.axisPlacement",
+                "value": "right"
+              },
+              {
+                "id": "custom.drawStyle",
+                "value": "bars"
+              },
+              {
+                "id": "custom.fillOpacity",
+                "value": 22
+              },
+              {
+                "id": "custom.lineWidth",
+                "value": 0
+              },
+              {
+                "id": "unit",
+                "value": "short"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#3b4657"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "description": "Average time from an issue being opened to being closed, for issues that closed in each period.\n\nAn issue counts in the period it **closed**, but its cycle time is measured from when it was **opened** — so an issue opened in March and closed in August contributes its full five months. The dashboard time range filters which closures are counted; it does not truncate how far back their clocks started.\n\nRead it with the issue count beside it: an average over a handful of closures moves several hours on one or two of them. And roughly half the issues here close within an hour of being filed, which is a recording habit rather than a delivery time — where that dominates a period, this measures how tickets are filed more than how work flows.\n\nNot split by AI attribution deliberately. Assisted issues take longer here (72.4h against 62.8h in the one month with both), which almost certainly reflects harder work being handed to an agent rather than the agent slowing anything down — a split would invite a causal reading the data cannot support."
     },
     {
       "id": 20,
       "type": "piechart",
-      "title": "AI-assisted work by purpose · $repo",
+      "title": "Work by purpose · $repo",
       "datasource": "${datasource}",
       "gridPos": {
         "h": 9,
         "w": 12,
         "x": 12,
-        "y": 25
+        "y": 21
       },
       "targets": [
         {
@@ -962,6 +910,19 @@
       "description": "What kind of work the agent was used for, from Conventional Commit prefixes and path heuristics.\n\n**Purpose is a label, not an observation.** `feature` is reachable only through a literal `feat:` prefix, so a repository not using Conventional Commits will show almost none — which says nothing about the work itself."
     },
     {
+      "type": "row",
+      "title": "Quality",
+      "collapsed": false,
+      "panels": [],
+      "id": 902,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 30
+      }
+    },
+    {
       "id": 21,
       "type": "table",
       "title": "Acceptance by tool",
@@ -970,7 +931,7 @@
         "h": 9,
         "w": 8,
         "x": 0,
-        "y": 37
+        "y": 31
       },
       "targets": [
         {
@@ -992,15 +953,48 @@
       "description": "Acceptance broken down by which tool the agent used, with the decided count beside each rate.\n\nThe counts matter more than the percentages here: a tool used three times shows 0% or 100% and neither means anything. Sorted by decided volume so the rates worth reading are at the top."
     },
     {
+      "id": 17,
+      "type": "timeseries",
+      "title": "Acceptance trend",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "h": 9,
+        "w": 8,
+        "x": 8,
+        "y": 31
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawSql": "\nSELECT DATE(FROM_UNIXTIME(e.observed_at/1000000000)) AS `time`,\n       ROUND(100.0*SUM(e.outcome='accepted')\n             /NULLIF(SUM(e.outcome IN ('accepted','rejected','failed')),0),1) AS `accept %`\nFROM whodunit_events e JOIN whodunit_repos r ON r.repo_id=e.repo_id\nWHERE ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}') AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nGROUP BY `time` ORDER BY `time`\n"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "max": 100,
+          "min": 0,
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineWidth": 2,
+            "pointSize": 6
+          }
+        }
+      },
+      "description": "Daily acceptance rate over decided tool calls.\n\nSame denominator rule as the headline figure: only calls with a recorded outcome. A day with few decided calls swings violently, so read the shape over weeks rather than the value on any one day."
+    },
+    {
       "id": 18,
       "type": "timeseries",
-      "title": "Issues resolved over time · $board",
+      "title": "Issues resolved · $board",
       "datasource": "${datasource}",
       "gridPos": {
         "h": 9,
         "w": 8,
         "x": 16,
-        "y": 37
+        "y": 31
       },
       "targets": [
         {
@@ -1023,30 +1017,28 @@
       "description": "Issues resolved per day, split by whether any linked commit was assisted.\n\nRequires a connected issue tracker. The split is per issue rather than per commit, so an issue with one assisted commit among ten counts as assisted.\n\n**The Repository filter does not apply here.** This panel is scoped by issue board, and deliberately so: an issue is only reachable from a repository *through its commits*, and most issues have none. Measured on this data, 109 of 379 issues have a linked commit — a repository filter would silently drop the other 270, which includes every open issue and everything closed without code. The number would look precise and be computed from a biased quarter of the population."
     },
     {
-      "type": "text",
+      "type": "row",
+      "title": "Activity",
+      "collapsed": false,
+      "panels": [],
+      "id": 903,
       "gridPos": {
-        "h": 3,
+        "h": 1,
         "w": 24,
         "x": 0,
-        "y": 46
-      },
-      "options": {
-        "mode": "markdown",
-        "content": "## Activity detail\nVolume and engagement behind the headline numbers. Tool calls and edits are activity, not delivered work: a permissive mode produces more of both by construction."
-      },
-      "transparent": true,
-      "id": 26
+        "y": 40
+      }
     },
     {
       "id": 16,
       "type": "timeseries",
-      "title": "Agent edits & lines written over time",
+      "title": "Edits & lines",
       "datasource": "${datasource}",
       "gridPos": {
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 49
+        "y": 41
       },
       "targets": [
         {
@@ -1074,7 +1066,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 49
+        "y": 41
       },
       "targets": [
         {
