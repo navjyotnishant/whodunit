@@ -702,7 +702,7 @@
         {
           "refId": "A",
           "format": "time_series",
-          "rawSql": "SELECT `time`, `opened`, `closed`,\n       SUM(net) OVER (ORDER BY `time`) AS `net backlog`\nFROM (\n  SELECT IF('$grain'='day',  days.d,\n    IF('$grain'='week', DATE(days.d - INTERVAL WEEKDAY(days.d) DAY),\n                        DATE(days.d - INTERVAL DAYOFMONTH(days.d)-1 DAY))) AS `time`,\n         NULLIF(SUM(COALESCE(o.opened, 0)), 0) AS `opened`,\n         NULLIF(SUM(COALESCE(c.closed,  0)), 0) AS `closed`,\n         SUM(COALESCE(o.opened,0)) - SUM(COALESCE(c.closed,0)) AS net\n  FROM (\n    SELECT DATE(i.created_date) d FROM issues i\n    JOIN board_issues bi ON bi.issue_id = i.id\n    WHERE bi.board_id = '$board' AND i.created_date IS NOT NULL\n      AND $__timeFilter(i.created_date)\n    UNION\n    SELECT DATE(i.resolution_date) FROM issues i\n    JOIN board_issues bi ON bi.issue_id = i.id\n    WHERE bi.board_id = '$board' AND i.resolution_date IS NOT NULL\n      AND i.status = 'DONE' AND $__timeFilter(i.resolution_date)\n  ) days\n  LEFT JOIN (\n    SELECT DATE(i.created_date) d, COUNT(*) opened FROM issues i\n    JOIN board_issues bi ON bi.issue_id = i.id\n    WHERE bi.board_id = '$board' AND i.created_date IS NOT NULL\n      AND $__timeFilter(i.created_date) GROUP BY d\n  ) o ON o.d = days.d\n  LEFT JOIN (\n    SELECT DATE(i.resolution_date) d, COUNT(*) closed FROM issues i\n    JOIN board_issues bi ON bi.issue_id = i.id\n    WHERE bi.board_id = '$board' AND i.resolution_date IS NOT NULL\n      AND i.status = 'DONE' AND $__timeFilter(i.resolution_date) GROUP BY d\n  ) c ON c.d = days.d\n  GROUP BY `time`\n) t ORDER BY `time`"
+          "rawSql": "SELECT `time`, `opened`, `closed`,\n       SUM(net) OVER (ORDER BY `time`) AS `net backlog (issues)`\nFROM (\n  SELECT IF('$grain'='day',  days.d,\n    IF('$grain'='week', DATE(days.d - INTERVAL WEEKDAY(days.d) DAY),\n                        DATE(days.d - INTERVAL DAYOFMONTH(days.d)-1 DAY))) AS `time`,\n         NULLIF(SUM(COALESCE(o.opened, 0)), 0) AS `opened`,\n         NULLIF(SUM(COALESCE(c.closed,  0)), 0) AS `closed`,\n         SUM(COALESCE(o.opened,0)) - SUM(COALESCE(c.closed,0)) AS net\n  FROM (\n    SELECT DATE(i.created_date) d FROM issues i\n    JOIN board_issues bi ON bi.issue_id = i.id\n    WHERE bi.board_id = '$board' AND i.created_date IS NOT NULL\n      AND $__timeFilter(i.created_date)\n    UNION\n    SELECT DATE(i.resolution_date) FROM issues i\n    JOIN board_issues bi ON bi.issue_id = i.id\n    WHERE bi.board_id = '$board' AND i.resolution_date IS NOT NULL\n      AND i.status = 'DONE' AND $__timeFilter(i.resolution_date)\n  ) days\n  LEFT JOIN (\n    SELECT DATE(i.created_date) d, COUNT(*) opened FROM issues i\n    JOIN board_issues bi ON bi.issue_id = i.id\n    WHERE bi.board_id = '$board' AND i.created_date IS NOT NULL\n      AND $__timeFilter(i.created_date) GROUP BY d\n  ) o ON o.d = days.d\n  LEFT JOIN (\n    SELECT DATE(i.resolution_date) d, COUNT(*) closed FROM issues i\n    JOIN board_issues bi ON bi.issue_id = i.id\n    WHERE bi.board_id = '$board' AND i.resolution_date IS NOT NULL\n      AND i.status = 'DONE' AND $__timeFilter(i.resolution_date) GROUP BY d\n  ) c ON c.d = days.d\n  GROUP BY `time`\n) t ORDER BY `time`"
         }
       ],
       "fieldConfig": {
@@ -728,7 +728,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "net backlog"
+              "options": "net backlog (issues)"
             },
             "properties": [
               {
@@ -771,6 +771,10 @@
                   "mode": "fixed",
                   "fixedColor": "#e8edf3"
                 }
+              },
+              {
+                "id": "custom.axisLabel",
+                "value": "issues"
               }
             ]
           }
