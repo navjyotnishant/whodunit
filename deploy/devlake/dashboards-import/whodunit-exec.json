@@ -446,9 +446,9 @@
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
         "h": 9,
-        "w": 12,
-        "x": 12,
-        "y": 25
+        "w": 8,
+        "x": 8,
+        "y": 37
       },
       "targets": [
         {
@@ -482,7 +482,7 @@
       },
       "options": {
         "mode": "markdown",
-        "content": "## Does AI-assisted work ship faster?\nCycle time for issues whose commits carry an AI-attribution trailer, against those that don't. A measured comparison, not an estimate — and not a causal one: harder work tends to be handed to an agent, so a slower assisted cohort is as likely to reflect what was chosen as what the agent did. If either count is zero there is no control group and the delta means nothing, which is why both counts are shown."
+        "content": "## Does AI-assisted work ship faster?\nCycle time for issues whose commits carry an AI-attribution trailer, against those that don't. A measured comparison, not an estimate — and not a causal one: harder work tends to be handed to an agent, so a slower assisted cohort is as likely to reflect what was chosen as what the agent did. If either count is zero there is no control group and the delta means nothing, which is why both counts are shown.\n\nThe purpose split beside it is classified from the commit itself, not self-reported — so it measures what commits were **labelled**. A repository not using Conventional Commits shows almost no features regardless of what it shipped."
       },
       "transparent": true,
       "id": 24
@@ -905,7 +905,7 @@
       },
       "options": {
         "mode": "markdown",
-        "content": "## Where is the AI being applied?\nPurpose is classified from the commit itself, not self-reported — so it measures what commits were **labelled**, not what the work was. A repository not using Conventional Commits will show almost no features regardless of what it shipped."
+        "content": "## Is the output being kept?\nAcceptance is the share of **decided** tool calls that were accepted — not all calls. An agent that reports no decision for a call is absent from the denominator rather than counted as a rejection, so a low rate means work was turned down, not that the agent was quiet."
       },
       "transparent": true,
       "id": 25
@@ -917,9 +917,9 @@
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
         "h": 9,
-        "w": 8,
-        "x": 0,
-        "y": 37
+        "w": 12,
+        "x": 12,
+        "y": 25
       },
       "targets": [
         {
@@ -956,7 +956,7 @@
       "gridPos": {
         "h": 9,
         "w": 8,
-        "x": 8,
+        "x": 0,
         "y": 37
       },
       "targets": [
