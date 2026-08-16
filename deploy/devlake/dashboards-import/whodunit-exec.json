@@ -675,16 +675,12 @@
           }
         ]
       },
-      "description": "A period still in progress is marked **·** after its label — its bar is lower because the period is not over, not because activity dropped.\n\nStacked, so bar height is total commit volume and the coloured share is adoption. A period with no assisted commits is a full bar of manual work, not an empty one — zero assisted is a measurement. A period with no commits at all is absent.\n\nBuckets follow the dashboard time range: a short range shows a bar per day, a long one aggregates. Commit volume over this window tracks instrumentation as much as output — commits rose 29 to 418 across four months while instrumented repositories went 1 to 3, so per repository the figure is nearly flat (29, 124, 134.5, 139.3). Read volume alongside the repository count before concluding anything about throughput.",
+      "description": "The amber line is the **share of commits that were AI-assisted**, on the right axis. Exact values per period are on hover — Grafana's timeseries panel has no per-point labels, and a bar chart that could print them cannot draw the line.\n\nA period still in progress is marked **·** after its label — its bar is lower because the period is not over, not because activity dropped.\n\nStacked, so bar height is total commit volume and the coloured share is adoption. A period with no assisted commits is a full bar of manual work, not an empty one — zero assisted is a measurement. A period with no commits at all is absent.\n\nBuckets follow the dashboard time range: a short range shows a bar per day, a long one aggregates. Commit volume over this window tracks instrumentation as much as output — commits rose 29 to 418 across four months while instrumented repositories went 1 to 3, so per repository the figure is nearly flat (29, 124, 134.5, 139.3). Read volume alongside the repository count before concluding anything about throughput.",
       "options": {
         "legend": {
-          "displayMode": "table",
+          "displayMode": "list",
           "placement": "bottom",
-          "showLegend": true,
-          "calcs": [
-            "lastNotNull",
-            "max"
-          ]
+          "showLegend": true
         },
         "tooltip": {
           "mode": "multi",
