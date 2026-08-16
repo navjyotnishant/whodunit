@@ -197,7 +197,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT ROUND(100.0*SUM(c.status<>'undetermined')/NULLIF(COUNT(*),0),0) v FROM whodunit_commits c JOIN whodunit_repos r ON r.repo_id=c.repo_id WHERE ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}')\n  AND ('${repo:raw}' = '__all__' OR c.repo_id = '${repo:raw}') AND c.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000"
+          "rawSql": "SELECT ROUND(100.0 * COUNT(DISTINCT w.commit_sha)\n                    / NULLIF(COUNT(DISTINCT c.sha), 0), 1) AS v\nFROM commits c\nJOIN repo_commits rc ON rc.commit_sha = c.sha\nJOIN whodunit_commits seen ON seen.commit_sha IN (\n       SELECT commit_sha FROM repo_commits WHERE repo_id = rc.repo_id)\nLEFT JOIN whodunit_commits w ON w.commit_sha = c.sha\nLEFT JOIN whodunit_repos r ON r.repo_id = w.repo_id\nWHERE ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}' OR w.commit_sha IS NULL)\n  AND ('${repo:raw}' = '__all__' OR w.repo_id = '${repo:raw}' OR w.commit_sha IS NULL)\n  AND c.authored_date BETWEEN FROM_UNIXTIME($__unixEpochFrom())\n                          AND FROM_UNIXTIME($__unixEpochTo())"
         }
       ],
       "fieldConfig": {
@@ -234,7 +234,7 @@
           "valueSize": 28
         }
       },
-      "description": "**Coverage is not adoption.** This is the share of commits carrying any valid trailer, including `undetermined`. A repository at full coverage may have had no agent involvement whatsoever — coverage says the instrumentation is working, adoption says the agents are being used.\n\nShare of commits carrying any attribution verdict — anything other than `undetermined`.\n\nThis is a measure of **instrumentation, not of AI use**. A repository instrumented last week has low coverage for its whole history, because commits made before the hooks existed cannot be attributed retroactively.\n\nLow coverage means the numbers on this page describe a small slice. Read every other panel against it."
+      "description": "Share of the repository's commits that carry an AI-Attribution trailer at all — instrumented or not.\n\n**This measures instrumentation, not AI use.** A commit with `status=undetermined` counts here: it has a trailer, it just records that no agent activity was found. Adoption beside it counts only `status=assisted`.\n\nMeasured per repository: whodunit 98.9%, nj-agents 99.0%, EngageHub 79.0% — EngageHub was instrumented later, so a fifth of its history predates the hooks. Commits made before `dun init` can never be covered.\n\nThe denominator is every commit the warehouse knows about for the repository, not every commit whodunit recorded. Dividing by the latter is what made this identical to adoption."
     },
     {
       "id": 4,
