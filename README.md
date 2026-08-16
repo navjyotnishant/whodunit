@@ -213,7 +213,7 @@ writes for its own purposes — whodunit only reads them:
 |---|---|---|
 | **Claude Code** | `~/.claude/projects/**/*.jsonl` | `intersected` |
 | **Codex** | `~/.codex/sessions/**/*.jsonl` | `intersected` |
-| **Antigravity** (`agy`) | its local SQLite store | `observed` |
+| **Antigravity** (`agy`) | its local SQLite store | `intersected` |
 
 At commit time, `dun` checks which staged files were touched by a recent
 session and, if the exact text matches, upgrades confidence to
