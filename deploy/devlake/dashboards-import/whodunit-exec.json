@@ -580,33 +580,91 @@
     },
     {
       "id": 13,
-      "type": "table",
-      "title": "Cycle time by issue",
+      "type": "timeseries",
+      "title": "Average cycle time",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
+        "h": 8,
+        "w": 12,
         "x": 0,
-        "y": 14,
-        "w": 24,
-        "h": 8
+        "y": 14
       },
       "targets": [
         {
           "refId": "A",
-          "format": "table",
-          "rawSql": "\nSELECT issue_key AS `Issue`,\n       CASE ai WHEN 1 THEN 'AI-assisted' ELSE 'not AI-assisted' END AS `Attribution`,\n       ROUND(ltm/60, 1) AS `Cycle hours`,\n       resolution_date AS `Resolved`\nFROM (\nSELECT i.issue_key,\n       i.lead_time_minutes AS ltm,\n       i.resolution_date,\n       COALESCE(MAX(w.status = 'assisted'), 0) AS ai\nFROM issues i\nJOIN board_issues bi ON bi.issue_id = i.id\nLEFT JOIN commits c\n       ON c.message REGEXP CONCAT('(^|[^A-Za-z0-9])', i.issue_key, '([^0-9]|$)')\nLEFT JOIN whodunit_commits w ON w.commit_sha = c.sha\nWHERE bi.board_id = '$board'\n  AND i.lead_time_minutes IS NOT NULL\n  AND i.issue_key REGEXP '^[A-Z][A-Z0-9]+-[0-9]+$'\nGROUP BY i.issue_key, i.lead_time_minutes, i.resolution_date\n) t\nORDER BY resolution_date DESC\n"
+          "format": "time_series",
+          "rawSql": "SELECT IF('$grain'='day', DATE(i.resolution_date), IF('$grain'='week', DATE(i.resolution_date - INTERVAL WEEKDAY(i.resolution_date) DAY), DATE(i.resolution_date - INTERVAL DAYOFMONTH(i.resolution_date)-1 DAY))) AS `time`,\n       ROUND(AVG(TIMESTAMPDIFF(MINUTE, i.created_date, i.resolution_date) / 60.0), 1)\n         AS `avg cycle hours`,\n       COUNT(DISTINCT i.id) AS `issues closed`\nFROM issues i\nJOIN board_issues bi ON bi.issue_id = i.id\nWHERE bi.board_id = '$board'\n  AND i.status = 'DONE'\n  AND i.resolution_date IS NOT NULL\n  AND i.created_date IS NOT NULL\n  AND i.created_date <= i.resolution_date\n  AND $__timeFilter(i.resolution_date)\nGROUP BY `time`\nORDER BY `time`"
         }
       ],
       "fieldConfig": {
         "defaults": {
           "custom": {
-            "align": "auto"
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "always",
+            "pointSize": 6,
+            "spanNulls": false,
+            "axisPlacement": "auto"
+          },
+          "unit": "h",
+          "decimals": 1,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#25c2a0"
+          },
+          "noValue": "No issues closed on this board in the selected range"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "issues closed"
+            },
+            "properties": [
+              {
+                "id": "custom.axisPlacement",
+                "value": "right"
+              },
+              {
+                "id": "custom.drawStyle",
+                "value": "bars"
+              },
+              {
+                "id": "custom.fillOpacity",
+                "value": 22
+              },
+              {
+                "id": "custom.lineWidth",
+                "value": 0
+              },
+              {
+                "id": "unit",
+                "value": "short"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#3b4657"
+                }
+              }
+            ]
           }
-        }
+        ]
       },
       "options": {
-        "showHeader": true
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
       },
-      "description": "Every compared issue with its cycle time, so the medians above can be checked against the rows that produced them.\n\nCycle time is DevLake's `lead_time_minutes`, rendered in hours. Attribution is per issue: assisted when any linked commit was.\n\nListed rather than summarised because with this few issues a median is one or two rows moving."
+      "description": "Average time from an issue being opened to being closed, for issues that closed in each period.\n\nAn issue counts in the period it **closed**, but its cycle time is measured from when it was **opened** — so an issue opened in March and closed in August contributes its full five months. The dashboard time range filters which closures are counted; it does not truncate how far back their clocks started.\n\nRead it with the issue count beside it: an average over a handful of closures moves several hours on one or two of them. And roughly half the issues here close within an hour of being filed, which is a recording habit rather than a delivery time — where that dominates a period, this measures how tickets are filed more than how work flows.\n\nNot split by AI attribution deliberately. Assisted issues take longer here (72.4h against 62.8h in the one month with both), which almost certainly reflects harder work being handed to an agent rather than the agent slowing anything down — a split would invite a causal reading the data cannot support."
     },
     {
       "id": 14,
@@ -856,8 +914,10 @@
             },
             "lineWidth": 0,
             "barAlignment": 0,
-            "pointSize": 1
-          }
+            "pointSize": 1,
+            "axisLabel": ""
+          },
+          "noValue": "No commits in the selected range"
         },
         "overrides": [
           {
@@ -896,7 +956,7 @@
       "options": {
         "xField": "period",
         "stacking": "normal",
-        "showValue": "auto",
+        "showValue": "always",
         "legend": {
           "displayMode": "list",
           "placement": "bottom",
@@ -905,7 +965,14 @@
         "tooltip": {
           "mode": "multi",
           "sort": "none"
-        }
+        },
+        "text": {
+          "valueSize": 10
+        },
+        "xTickLabelRotation": 0,
+        "xTickLabelSpacing": 100,
+        "barWidth": 0.7,
+        "groupWidth": 0.7
       }
     },
     {
@@ -937,8 +1004,10 @@
               "mode": "none",
               "group": "A"
             },
-            "barAlignment": 0
-          }
+            "barAlignment": 0,
+            "axisLabel": ""
+          },
+          "noValue": "No issues opened or closed on this board in the selected range"
         },
         "overrides": [
           {
@@ -977,7 +1046,7 @@
       "options": {
         "xField": "period",
         "stacking": "none",
-        "showValue": "auto",
+        "showValue": "always",
         "legend": {
           "displayMode": "list",
           "placement": "bottom",
@@ -986,7 +1055,14 @@
         "tooltip": {
           "mode": "multi",
           "sort": "none"
-        }
+        },
+        "text": {
+          "valueSize": 10
+        },
+        "xTickLabelRotation": 0,
+        "xTickLabelSpacing": 100,
+        "barWidth": 0.7,
+        "groupWidth": 0.7
       }
     }
   ],
