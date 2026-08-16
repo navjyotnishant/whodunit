@@ -1007,7 +1007,7 @@
           }
         }
       },
-      "description": "Issues resolved per day, split by whether any linked commit was assisted.\n\nRequires a connected issue tracker. The split is per issue rather than per commit, so an issue with one assisted commit among ten counts as assisted.\n\n**The Repository filter does not apply here.** This panel is scoped by issue board. An issue's commits can live in more than one repository, so filtering it by repository would drop issues that are genuinely assisted and make the acceptance picture look worse than it is."
+      "description": "Issues resolved per day, split by whether any linked commit was assisted.\n\nRequires a connected issue tracker. The split is per issue rather than per commit, so an issue with one assisted commit among ten counts as assisted.\n\n**The Repository filter does not apply here.** This panel is scoped by issue board, and deliberately so: an issue is only reachable from a repository *through its commits*, and most issues have none. Measured on this data, 109 of 379 issues have a linked commit — a repository filter would silently drop the other 270, which includes every open issue and everything closed without code. The number would look precise and be computed from a biased quarter of the population."
     },
     {
       "type": "text",
