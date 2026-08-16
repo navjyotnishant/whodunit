@@ -490,7 +490,7 @@
     {
       "id": 8,
       "type": "stat",
-      "title": "Median cycle — AI-assisted",
+      "title": "Median cycle — AI-assisted · $board",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
         "h": 5,
@@ -536,7 +536,7 @@
     {
       "id": 9,
       "type": "stat",
-      "title": "Median cycle — not AI-assisted",
+      "title": "Median cycle — not AI-assisted · $board",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
         "h": 5,
@@ -582,7 +582,7 @@
     {
       "id": 10,
       "type": "stat",
-      "title": "Issues compared (AI)",
+      "title": "Issues compared (AI) · $board",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
         "h": 5,
@@ -628,7 +628,7 @@
     {
       "id": 11,
       "type": "stat",
-      "title": "Issues compared (non-AI)",
+      "title": "Issues compared (non-AI) · $board",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
         "h": 5,
@@ -674,7 +674,7 @@
     {
       "id": 12,
       "type": "stat",
-      "title": "Delta",
+      "title": "Delta · $board",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
         "h": 5,
@@ -720,7 +720,7 @@
     {
       "id": 13,
       "type": "timeseries",
-      "title": "Average cycle time",
+      "title": "Average cycle time · $board",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
         "h": 9,
@@ -807,7 +807,7 @@
     },
     {
       "type": "barchart",
-      "title": "Issues opened vs closed",
+      "title": "Issues opened vs closed · $board",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
         "h": 9,
@@ -981,7 +981,7 @@
     {
       "id": 18,
       "type": "timeseries",
-      "title": "Issues resolved over time",
+      "title": "Issues resolved over time · $board",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
         "h": 9,
