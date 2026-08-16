@@ -160,7 +160,7 @@
     },
     {
       "id": 3,
-      "type": "stat",
+      "type": "gauge",
       "title": "Attribution coverage",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
@@ -187,25 +187,31 @@
                 "value": null
               }
             ]
-          }
+          },
+          "min": 0,
+          "max": 100,
+          "decimals": 0
         }
       },
       "options": {
-        "graphMode": "none",
-        "textMode": "value",
         "reduceOptions": {
           "calcs": [
             "lastNotNull"
           ],
           "fields": "",
           "values": false
-        }
+        },
+        "showThresholdLabels": false,
+        "showThresholdMarkers": false,
+        "minVizWidth": 75,
+        "minVizHeight": 75,
+        "sizing": "auto"
       },
       "description": "Share of commits carrying any attribution verdict — anything other than `undetermined`.\n\nThis is a measure of **instrumentation, not of AI use**. A repository instrumented last week has low coverage for its whole history, because commits made before the hooks existed cannot be attributed retroactively.\n\nLow coverage means the numbers on this page describe a small slice. Read every other panel against it."
     },
     {
       "id": 4,
-      "type": "stat",
+      "type": "gauge",
       "title": "Code acceptance",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
@@ -232,19 +238,25 @@
                 "value": null
               }
             ]
-          }
+          },
+          "min": 0,
+          "max": 100,
+          "decimals": 0
         }
       },
       "options": {
-        "graphMode": "none",
-        "textMode": "value",
         "reduceOptions": {
           "calcs": [
             "lastNotNull"
           ],
           "fields": "",
           "values": false
-        }
+        },
+        "showThresholdLabels": false,
+        "showThresholdMarkers": false,
+        "minVizWidth": 75,
+        "minVizHeight": 75,
+        "sizing": "auto"
       },
       "description": "Share of decided tool calls that were accepted.\n\n**The denominator is decided calls only** — accepted, rejected or failed — not all calls. A call whose outcome was never recorded is excluded rather than counted as accepted, which would flatter the rate. See Decided tool calls beside this for the size of that denominator.\n\nA rejection is a human declining; a failure is the tool erroring. Both count as decided, and only acceptance is in the numerator."
     },
