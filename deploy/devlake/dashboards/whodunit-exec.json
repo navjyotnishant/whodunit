@@ -677,12 +677,27 @@
                 "id": "color",
                 "value": {
                   "mode": "fixed",
-                  "fixedColor": "#22d3ee"
+                  "fixedColor": "#25c2a0"
                 }
               },
               {
                 "id": "custom.axisLabel",
                 "value": "% assisted"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "assisted"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#1a8870"
+                }
               }
             ]
           }
