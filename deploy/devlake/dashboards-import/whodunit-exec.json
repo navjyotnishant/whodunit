@@ -154,7 +154,7 @@
           "values": false
         },
         "text": {
-          "valueSize": 26,
+          "valueSize": 30,
           "titleSize": 11
         }
       },
@@ -162,7 +162,7 @@
     },
     {
       "id": 3,
-      "type": "gauge",
+      "type": "stat",
       "title": "Coverage",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
@@ -203,22 +203,19 @@
           "fields": "",
           "values": false
         },
-        "showThresholdLabels": false,
-        "showThresholdMarkers": false,
-        "minVizWidth": 75,
-        "minVizHeight": 75,
-        "sizing": "auto",
         "textMode": "value",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
         "text": {
-          "valueSize": 26,
-          "titleSize": 11
+          "valueSize": 30
         }
       },
       "description": "**Coverage is not adoption.** This is the share of commits carrying any valid trailer, including `undetermined`. A repository at full coverage may have had no agent involvement whatsoever — coverage says the instrumentation is working, adoption says the agents are being used.\n\nShare of commits carrying any attribution verdict — anything other than `undetermined`.\n\nThis is a measure of **instrumentation, not of AI use**. A repository instrumented last week has low coverage for its whole history, because commits made before the hooks existed cannot be attributed retroactively.\n\nLow coverage means the numbers on this page describe a small slice. Read every other panel against it."
     },
     {
       "id": 4,
-      "type": "gauge",
+      "type": "stat",
       "title": "Acceptance",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
@@ -259,15 +256,12 @@
           "fields": "",
           "values": false
         },
-        "showThresholdLabels": false,
-        "showThresholdMarkers": false,
-        "minVizWidth": 75,
-        "minVizHeight": 75,
-        "sizing": "auto",
         "textMode": "value",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
         "text": {
-          "valueSize": 26,
-          "titleSize": 11
+          "valueSize": 30
         }
       },
       "description": "Share of decided tool calls that were accepted.\n\n**The denominator is decided calls only** — accepted, rejected or failed — not all calls. A call whose outcome was never recorded is excluded rather than counted as accepted, which would flatter the rate. See Decided tool calls beside this for the size of that denominator.\n\nA rejection is a human declining; a failure is the tool erroring. Both count as decided, and only acceptance is in the numerator."
@@ -315,7 +309,7 @@
           "values": false
         },
         "text": {
-          "valueSize": 26,
+          "valueSize": 30,
           "titleSize": 11
         }
       },
@@ -364,7 +358,7 @@
           "values": false
         },
         "text": {
-          "valueSize": 26,
+          "valueSize": 30,
           "titleSize": 11
         }
       },
@@ -400,7 +394,8 @@
               }
             ]
           },
-          "noValue": "No AI-assisted issues closed in range"
+          "noValue": "No AI-assisted issues closed in range",
+          "decimals": 1
         }
       },
       "options": {
@@ -414,7 +409,7 @@
           "values": false
         },
         "text": {
-          "valueSize": 26,
+          "valueSize": 30,
           "titleSize": 11
         }
       },
@@ -450,7 +445,8 @@
               }
             ]
           },
-          "noValue": "No unassisted issues closed in range"
+          "noValue": "No unassisted issues closed in range",
+          "decimals": 1
         }
       },
       "options": {
@@ -464,7 +460,7 @@
           "values": false
         },
         "text": {
-          "valueSize": 26,
+          "valueSize": 30,
           "titleSize": 11
         }
       },
@@ -514,7 +510,7 @@
           "values": false
         },
         "text": {
-          "valueSize": 26,
+          "valueSize": 30,
           "titleSize": 11
         }
       },
@@ -564,7 +560,7 @@
           "values": false
         },
         "text": {
-          "valueSize": 26,
+          "valueSize": 30,
           "titleSize": 11
         }
       },
@@ -600,7 +596,8 @@
               }
             ]
           },
-          "noValue": "Needs both cohorts in range"
+          "noValue": "Needs both cohorts in range",
+          "decimals": 1
         }
       },
       "options": {
@@ -614,7 +611,7 @@
           "values": false
         },
         "text": {
-          "valueSize": 26,
+          "valueSize": 30,
           "titleSize": 11
         }
       },
@@ -634,7 +631,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT IF('$grain'='day', DATE_FORMAT(FROM_UNIXTIME(c.committed_at/1000000000),'%Y-%m-%d'), IF('$grain'='week', DATE_FORMAT(FROM_UNIXTIME(c.committed_at/1000000000),'%x-W%v'), DATE_FORMAT(FROM_UNIXTIME(c.committed_at/1000000000),'%Y-%m'))) AS `period`,\n       SUM(c.status =  'assisted') AS `assisted`,\n       SUM(c.status <> 'assisted') AS `not assisted`\nFROM whodunit_commits c\nJOIN whodunit_repos r ON r.repo_id = c.repo_id\nWHERE ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}')\n  AND ('${repo:raw}' = '__all__' OR c.repo_id = '${repo:raw}')\n  AND c.committed_at BETWEEN $__unixEpochFrom() * 1000000000\n                         AND $__unixEpochTo()   * 1000000000\nGROUP BY `period` ORDER BY `period`"
+          "rawSql": "SELECT IF('$grain'='day', DATE_FORMAT(FROM_UNIXTIME(c.committed_at/1000000000),'%d %b'), IF('$grain'='week', DATE_FORMAT(FROM_UNIXTIME(c.committed_at/1000000000),'W%v'), DATE_FORMAT(FROM_UNIXTIME(c.committed_at/1000000000),'%b %Y'))) AS `period`,\n       SUM(c.status =  'assisted') AS `assisted`,\n       SUM(c.status <> 'assisted') AS `not assisted`\nFROM whodunit_commits c\nJOIN whodunit_repos r ON r.repo_id = c.repo_id\nWHERE ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}')\n  AND ('${repo:raw}' = '__all__' OR c.repo_id = '${repo:raw}')\n  AND c.committed_at BETWEEN $__unixEpochFrom() * 1000000000\n                         AND $__unixEpochTo()   * 1000000000\nGROUP BY `period` ORDER BY MIN(c.committed_at)"
         }
       ],
       "fieldConfig": {
@@ -690,7 +687,7 @@
       "options": {
         "xField": "period",
         "stacking": "normal",
-        "showValue": "always",
+        "showValue": "auto",
         "legend": {
           "displayMode": "list",
           "placement": "bottom",
@@ -703,8 +700,8 @@
         "text": {
           "valueSize": 10
         },
-        "xTickLabelRotation": 0,
-        "xTickLabelSpacing": 100,
+        "xTickLabelRotation": -45,
+        "xTickLabelSpacing": 200,
         "barWidth": 0.7,
         "groupWidth": 0.7
       }
@@ -723,7 +720,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT days.d AS `period`,\n       COALESCE(o.opened, 0) AS `opened`,\n       COALESCE(c.closed, 0) AS `closed`\nFROM (\n  SELECT IF('$grain'='day', DATE_FORMAT(i.created_date,'%Y-%m-%d'), IF('$grain'='week', DATE_FORMAT(i.created_date,'%x-W%v'), DATE_FORMAT(i.created_date,'%Y-%m'))) d\n  FROM issues i JOIN board_issues bi ON bi.issue_id = i.id\n  WHERE bi.board_id = '$board' AND i.created_date IS NOT NULL\n    AND $__timeFilter(i.created_date)\n  UNION\n  SELECT IF('$grain'='day', DATE_FORMAT(i.resolution_date,'%Y-%m-%d'), IF('$grain'='week', DATE_FORMAT(i.resolution_date,'%x-W%v'), DATE_FORMAT(i.resolution_date,'%Y-%m')))\n  FROM issues i JOIN board_issues bi ON bi.issue_id = i.id\n  WHERE bi.board_id = '$board' AND i.resolution_date IS NOT NULL\n    AND i.status = 'DONE' AND $__timeFilter(i.resolution_date)\n) days\nLEFT JOIN (\n  SELECT IF('$grain'='day', DATE_FORMAT(i.created_date,'%Y-%m-%d'), IF('$grain'='week', DATE_FORMAT(i.created_date,'%x-W%v'), DATE_FORMAT(i.created_date,'%Y-%m'))) d, COUNT(*) opened\n  FROM issues i JOIN board_issues bi ON bi.issue_id = i.id\n  WHERE bi.board_id = '$board' AND i.created_date IS NOT NULL\n    AND $__timeFilter(i.created_date)\n  GROUP BY d\n) o ON o.d = days.d\nLEFT JOIN (\n  SELECT IF('$grain'='day', DATE_FORMAT(i.resolution_date,'%Y-%m-%d'), IF('$grain'='week', DATE_FORMAT(i.resolution_date,'%x-W%v'), DATE_FORMAT(i.resolution_date,'%Y-%m'))) d, COUNT(*) closed\n  FROM issues i JOIN board_issues bi ON bi.issue_id = i.id\n  WHERE bi.board_id = '$board' AND i.resolution_date IS NOT NULL\n    AND i.status = 'DONE' AND $__timeFilter(i.resolution_date)\n  GROUP BY d\n) c ON c.d = days.d\nORDER BY `period`"
+          "rawSql": "SELECT days.d AS `period`,\n       COALESCE(o.opened, 0) AS `opened`,\n       COALESCE(c.closed, 0) AS `closed`\nFROM (\n  SELECT IF('$grain'='day', DATE_FORMAT(i.created_date,'%d %b'), IF('$grain'='week', DATE_FORMAT(i.created_date,'W%v'), DATE_FORMAT(i.created_date,'%b %Y'))) d\n  FROM issues i JOIN board_issues bi ON bi.issue_id = i.id\n  WHERE bi.board_id = '$board' AND i.created_date IS NOT NULL\n    AND $__timeFilter(i.created_date)\n  UNION\n  SELECT IF('$grain'='day', DATE_FORMAT(i.resolution_date,'%d %b'), IF('$grain'='week', DATE_FORMAT(i.resolution_date,'W%v'), DATE_FORMAT(i.resolution_date,'%b %Y')))\n  FROM issues i JOIN board_issues bi ON bi.issue_id = i.id\n  WHERE bi.board_id = '$board' AND i.resolution_date IS NOT NULL\n    AND i.status = 'DONE' AND $__timeFilter(i.resolution_date)\n) days\nLEFT JOIN (\n  SELECT IF('$grain'='day', DATE_FORMAT(i.created_date,'%d %b'), IF('$grain'='week', DATE_FORMAT(i.created_date,'W%v'), DATE_FORMAT(i.created_date,'%b %Y'))) d, COUNT(*) opened\n  FROM issues i JOIN board_issues bi ON bi.issue_id = i.id\n  WHERE bi.board_id = '$board' AND i.created_date IS NOT NULL\n    AND $__timeFilter(i.created_date)\n  GROUP BY d\n) o ON o.d = days.d\nLEFT JOIN (\n  SELECT IF('$grain'='day', DATE_FORMAT(i.resolution_date,'%d %b'), IF('$grain'='week', DATE_FORMAT(i.resolution_date,'W%v'), DATE_FORMAT(i.resolution_date,'%b %Y'))) d, COUNT(*) closed\n  FROM issues i JOIN board_issues bi ON bi.issue_id = i.id\n  WHERE bi.board_id = '$board' AND i.resolution_date IS NOT NULL\n    AND i.status = 'DONE' AND $__timeFilter(i.resolution_date)\n  GROUP BY d\n) c ON c.d = days.d\nORDER BY days.d"
         }
       ],
       "fieldConfig": {
@@ -780,7 +777,7 @@
       "options": {
         "xField": "period",
         "stacking": "none",
-        "showValue": "always",
+        "showValue": "auto",
         "legend": {
           "displayMode": "list",
           "placement": "bottom",
@@ -793,8 +790,8 @@
         "text": {
           "valueSize": 10
         },
-        "xTickLabelRotation": 0,
-        "xTickLabelSpacing": 100,
+        "xTickLabelRotation": -45,
+        "xTickLabelSpacing": 200,
         "barWidth": 0.7,
         "groupWidth": 0.7
       }
@@ -839,7 +836,8 @@
             "showPoints": "always",
             "pointSize": 6,
             "spanNulls": false,
-            "axisPlacement": "auto"
+            "axisPlacement": "auto",
+            "axisLabel": ""
           },
           "unit": "h",
           "decimals": 1,
@@ -896,7 +894,9 @@
         "tooltip": {
           "mode": "multi",
           "sort": "none"
-        }
+        },
+        "xTickLabelRotation": -45,
+        "xTickLabelSpacing": 200
       },
       "description": "Average time from an issue being opened to being closed, for issues that closed in each period.\n\nAn issue counts in the period it **closed**, but its cycle time is measured from when it was **opened** — so an issue opened in March and closed in August contributes its full five months. The dashboard time range filters which closures are counted; it does not truncate how far back their clocks started.\n\nRead it with the issue count beside it: an average over a handful of closures moves several hours on one or two of them. And roughly half the issues here close within an hour of being filed, which is a recording habit rather than a delivery time — where that dominates a period, this measures how tickets are filed more than how work flows.\n\nNot split by AI attribution deliberately. Assisted issues take longer here (72.4h against 62.8h in the one month with both), which almost certainly reflects harder work being handed to an agent rather than the agent slowing anything down — a split would invite a causal reading the data cannot support."
     },
@@ -1008,11 +1008,16 @@
             "drawStyle": "line",
             "fillOpacity": 10,
             "lineWidth": 2,
-            "pointSize": 6
+            "pointSize": 6,
+            "axisLabel": ""
           }
         }
       },
-      "description": "Daily acceptance rate over decided tool calls.\n\nSame denominator rule as the headline figure: only calls with a recorded outcome. A day with few decided calls swings violently, so read the shape over weeks rather than the value on any one day."
+      "description": "Daily acceptance rate over decided tool calls.\n\nSame denominator rule as the headline figure: only calls with a recorded outcome. A day with few decided calls swings violently, so read the shape over weeks rather than the value on any one day.",
+      "options": {
+        "xTickLabelRotation": -45,
+        "xTickLabelSpacing": 200
+      }
     },
     {
       "id": 18,
@@ -1039,11 +1044,16 @@
             "fillOpacity": 70,
             "stacking": {
               "mode": "normal"
-            }
+            },
+            "axisLabel": ""
           }
         }
       },
-      "description": "Issues resolved per day, split by whether any linked commit was assisted.\n\nRequires a connected issue tracker. The split is per issue rather than per commit, so an issue with one assisted commit among ten counts as assisted.\n\n**The Repository filter does not apply here.** This panel is scoped by issue board, and deliberately so: an issue is only reachable from a repository *through its commits*, and most issues have none. Measured on this data, 109 of 379 issues have a linked commit — a repository filter would silently drop the other 270, which includes every open issue and everything closed without code. The number would look precise and be computed from a biased quarter of the population."
+      "description": "Issues resolved per day, split by whether any linked commit was assisted.\n\nRequires a connected issue tracker. The split is per issue rather than per commit, so an issue with one assisted commit among ten counts as assisted.\n\n**The Repository filter does not apply here.** This panel is scoped by issue board, and deliberately so: an issue is only reachable from a repository *through its commits*, and most issues have none. Measured on this data, 109 of 379 issues have a linked commit — a repository filter would silently drop the other 270, which includes every open issue and everything closed without code. The number would look precise and be computed from a biased quarter of the population.",
+      "options": {
+        "xTickLabelRotation": -45,
+        "xTickLabelSpacing": 200
+      }
     },
     {
       "type": "row",
@@ -1080,11 +1090,16 @@
         "defaults": {
           "custom": {
             "drawStyle": "bars",
-            "fillOpacity": 70
+            "fillOpacity": 70,
+            "axisLabel": ""
           }
         }
       },
-      "description": "Recorded agent edits per day, and the lines those edits added.\n\nEdits count tool calls that touched a file; lines count what those calls wrote. The two diverge when the agent makes many small changes or a few large ones, which is the shape worth noticing.\n\nLines from rejected or failed calls are excluded — text that never reached a file is not authored code."
+      "description": "Recorded agent edits per day, and the lines those edits added.\n\nEdits count tool calls that touched a file; lines count what those calls wrote. The two diverge when the agent makes many small changes or a few large ones, which is the shape worth noticing.\n\nLines from rejected or failed calls are excluded — text that never reached a file is not authored code.",
+      "options": {
+        "xTickLabelRotation": -45,
+        "xTickLabelSpacing": 200
+      }
     },
     {
       "id": 22,
