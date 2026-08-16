@@ -58,25 +58,25 @@
       "title": "",
       "type": "text",
       "gridPos": {
-        "x": 0,
-        "y": 0,
+        "h": 3,
         "w": 24,
-        "h": 6
+        "x": 0,
+        "y": 0
       },
       "options": {
         "mode": "markdown",
-        "content": "# AI Productivity Funnel\n\n*Six stages, each measured on its own. Adoption is not productivity, and this\nis laid out so the two cannot be mistaken for each other.*\n\n**The stages do not multiply.** 70% adoption × 80% engagement × 60% assisted\nwork is not a productivity figure — it is arithmetic on unrelated\ndenominators. Read each stage against its own question.\n"
+        "content": "**The stages do not multiply.** 70% adoption × 80% engagement × 60% assisted work is not a productivity figure — it is arithmetic on unrelated denominators. Each stage answers its own question, measured on its own denominator."
       }
     },
     {
       "type": "row",
-      "title": "Adoption funnel — are we adopting AI?",
+      "title": "Adoption — stages 1 and 2",
       "collapsed": false,
       "gridPos": {
-        "x": 0,
-        "y": 6,
+        "h": 1,
         "w": 24,
-        "h": 1
+        "x": 0,
+        "y": 3
       },
       "panels": []
     },
@@ -86,10 +86,10 @@
       "type": "bargauge",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
-        "x": 0,
-        "y": 7,
+        "h": 5,
         "w": 12,
-        "h": 5
+        "x": 0,
+        "y": 4
       },
       "targets": [
         {
@@ -140,10 +140,10 @@
       "type": "bargauge",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
-        "x": 12,
-        "y": 7,
+        "h": 5,
         "w": 12,
-        "h": 5
+        "x": 12,
+        "y": 4
       },
       "targets": [
         {
@@ -194,10 +194,10 @@
       "type": "stat",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
-        "x": 0,
-        "y": 12,
+        "h": 4,
         "w": 12,
-        "h": 4
+        "x": 0,
+        "y": 9
       },
       "targets": [
         {
@@ -246,10 +246,10 @@
       "type": "stat",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
-        "x": 12,
-        "y": 12,
+        "h": 4,
         "w": 12,
-        "h": 4
+        "x": 12,
+        "y": 9
       },
       "targets": [
         {
@@ -294,13 +294,13 @@
     },
     {
       "type": "row",
-      "title": "Value funnel — is AI producing value?",
+      "title": "Value — stages 3 to 6",
       "collapsed": false,
       "gridPos": {
-        "x": 0,
-        "y": 16,
+        "h": 1,
         "w": 24,
-        "h": 1
+        "x": 0,
+        "y": 13
       },
       "panels": []
     },
@@ -310,10 +310,10 @@
       "type": "bargauge",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
-        "x": 0,
-        "y": 17,
+        "h": 5,
         "w": 12,
-        "h": 5
+        "x": 0,
+        "y": 14
       },
       "targets": [
         {
@@ -364,10 +364,10 @@
       "type": "bargauge",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
-        "x": 12,
-        "y": 17,
+        "h": 5,
         "w": 12,
-        "h": 5
+        "x": 12,
+        "y": 14
       },
       "targets": [
         {
@@ -418,10 +418,10 @@
       "type": "stat",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
+        "h": 5,
+        "w": 8,
         "x": 0,
-        "y": 22,
-        "w": 6,
-        "h": 5
+        "y": 19
       },
       "targets": [
         {
@@ -469,10 +469,10 @@
       "type": "stat",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
-        "x": 6,
-        "y": 22,
-        "w": 6,
-        "h": 5
+        "h": 5,
+        "w": 8,
+        "x": 8,
+        "y": 19
       },
       "targets": [
         {
@@ -521,10 +521,10 @@
       "type": "stat",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
-        "x": 12,
-        "y": 22,
-        "w": 6,
-        "h": 5
+        "h": 5,
+        "w": 8,
+        "x": 16,
+        "y": 19
       },
       "targets": [
         {
@@ -566,33 +566,33 @@
       }
     },
     {
-      "id": 25,
-      "title": "",
-      "type": "text",
-      "gridPos": {
-        "x": 18,
-        "y": 22,
-        "w": 6,
-        "h": 15
-      },
-      "options": {
-        "mode": "markdown",
-        "content": "### Stage 6 · Business value\n\n**Not measurable here, and that is not a gap to be closed.**\n\nRevenue, customer outcomes and time-to-market are the things a business\nactually cares about. Nothing in a git history or an agent transcript\nreaches them, and any number this tool produced for them would be\ninvented.\n\nThe stage stays on the funnel because deleting it would imply the funnel\nends at stage 5 — and that stage 5 is the answer to \"was it worth it\".\nIt is not.\n"
-      }
-    },
-    {
       "id": 26,
       "title": "",
       "type": "text",
       "gridPos": {
+        "h": 6,
+        "w": 14,
         "x": 0,
-        "y": 37,
-        "w": 24,
-        "h": 10
+        "y": 24
       },
       "options": {
         "mode": "markdown",
-        "content": "### What stage 5 still cannot say\n\nThe three panels above measure **cost and rework**, not gain. A productivity\ngain needs the same work done both ways, and this data does not contain that:\n\n- **Selection is not random.** An agent is reached for on some kinds of work\n  and not others, so assisted and unassisted commits are different populations.\n- **The baseline is pre-instrumentation, not pre-AI.** Commits before the hooks\n  went in may well have been assisted and simply unrecorded.\n- **Change size is not output.** A larger commit may be more work done, or more\n  code written for the same outcome.\n\nCost per delivered unit and rework rate are the honest answers available. A\npercentage would not be.\n"
+        "content": "### What stage 5 cannot say\n\nThe panels above measure **cost and rework, not gain** — a gain needs the same work done both ways, which this data does not contain.\n\n- **Selection is not random** — an agent is reached for on some work and not others, so the two cohorts are different populations\n- **The baseline is pre-instrumentation, not pre-AI** — earlier commits may have been assisted and simply unrecorded\n- **Change size is not output** — more lines is not more delivered"
+      }
+    },
+    {
+      "id": 25,
+      "title": "",
+      "type": "text",
+      "gridPos": {
+        "h": 6,
+        "w": 10,
+        "x": 14,
+        "y": 24
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "### Stage 6 · Business value\n\n**Not measurable here, and not a gap to be closed.** Revenue, customer outcomes and time-to-market are what a business cares about; nothing in a git history or an agent transcript reaches them. The stage stays on the funnel because deleting it would imply stage 5 answers *was it worth it*. It does not."
       }
     }
   ],
