@@ -638,22 +638,20 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT period, assisted, `not assisted`,\n       CASE WHEN prev IS NULL OR prev = 0 THEN NULL\n            ELSE ROUND(100.0*(total-prev)/prev) END AS `change %`\nFROM (\n  SELECT period, assisted, `not assisted`, total, ord,\n         LAG(total) OVER (ORDER BY ord) AS prev\n  FROM (\n    SELECT IF('$grain'='day', CONCAT(DATE_FORMAT(FROM_UNIXTIME(c.committed_at/1000000000),'%d %b'),IF(DATE(FROM_UNIXTIME(c.committed_at/1000000000))=CURDATE(),' ·','')), IF('$grain'='week', CONCAT(DATE_FORMAT(FROM_UNIXTIME(c.committed_at/1000000000),'W%v'),IF(YEARWEEK(FROM_UNIXTIME(c.committed_at/1000000000),3)=YEARWEEK(CURDATE(),3),' ·','')), CONCAT(DATE_FORMAT(FROM_UNIXTIME(c.committed_at/1000000000),'%b %Y'),IF(DATE_FORMAT(FROM_UNIXTIME(c.committed_at/1000000000),'%Y-%m')=DATE_FORMAT(CURDATE(),'%Y-%m'),' ·','')))) AS period,\n           SUM(c.status =  'assisted') AS assisted,\n           SUM(c.status <> 'assisted') AS `not assisted`,\n           COUNT(*) AS total,\n           MIN(c.committed_at) AS ord\n    FROM whodunit_commits c\n    JOIN whodunit_repos r ON r.repo_id = c.repo_id\n    WHERE ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}')\n      AND ('${repo:raw}' = '__all__' OR c.repo_id = '${repo:raw}')\n      AND c.committed_at BETWEEN $__unixEpochFrom() * 1000000000\n                             AND $__unixEpochTo()   * 1000000000\n    GROUP BY period\n  ) a\n) b ORDER BY ord"
+          "rawSql": "SELECT period,\n       NULLIF(assisted,0)        AS `assisted`,\n       NULLIF(`not assisted`,0)  AS `not assisted`,\n       CASE WHEN prev IS NULL OR prev = 0 THEN NULL\n            ELSE ROUND(100.0*(total-prev)/prev) END AS `change %`\nFROM (\n  SELECT period,\n       NULLIF(assisted,0)        AS `assisted`,\n       NULLIF(`not assisted`,0)  AS `not assisted`, total, ord,\n         LAG(total) OVER (ORDER BY ord) AS prev\n  FROM (\n    SELECT IF('$grain'='day', CONCAT(DATE_FORMAT(FROM_UNIXTIME(c.committed_at/1000000000),'%d %b'),IF(DATE(FROM_UNIXTIME(c.committed_at/1000000000))=CURDATE(),' ·','')), IF('$grain'='week', CONCAT(DATE_FORMAT(FROM_UNIXTIME(c.committed_at/1000000000),'W%v'),IF(YEARWEEK(FROM_UNIXTIME(c.committed_at/1000000000),3)=YEARWEEK(CURDATE(),3),' ·','')), CONCAT(DATE_FORMAT(FROM_UNIXTIME(c.committed_at/1000000000),'%b %Y'),IF(DATE_FORMAT(FROM_UNIXTIME(c.committed_at/1000000000),'%Y-%m')=DATE_FORMAT(CURDATE(),'%Y-%m'),' ·','')))) AS period,\n           SUM(c.status =  'assisted') AS assisted,\n           SUM(c.status <> 'assisted') AS `not assisted`,\n           COUNT(*) AS total,\n           MIN(c.committed_at) AS ord\n    FROM whodunit_commits c\n    JOIN whodunit_repos r ON r.repo_id = c.repo_id\n    WHERE ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}')\n      AND ('${repo:raw}' = '__all__' OR c.repo_id = '${repo:raw}')\n      AND c.committed_at BETWEEN $__unixEpochFrom() * 1000000000\n                             AND $__unixEpochTo()   * 1000000000\n    GROUP BY period\n  ) a\n) b ORDER BY ord"
         }
       ],
       "fieldConfig": {
         "defaults": {
           "unit": "short",
           "custom": {
-            "fillOpacity": 85,
+            "axisPlacement": "left",
+            "fillOpacity": 80,
+            "lineWidth": 0,
             "stacking": {
               "mode": "normal",
               "group": "A"
-            },
-            "lineWidth": 0,
-            "barAlignment": 0,
-            "pointSize": 1,
-            "axisLabel": ""
+            }
           },
           "noValue": "No commits in the selected range"
         },
@@ -690,16 +688,55 @@
           },
           {
             "matcher": {
-              "id": "byRegexp",
-              "options": ".*change %.*"
+              "id": "byName",
+              "options": "ord"
             },
             "properties": [
               {
                 "id": "custom.hideFrom",
                 "value": {
-                  "tooltip": false,
+                  "tooltip": true,
                   "viz": true,
                   "legend": true
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*change %.*"
+            },
+            "properties": [
+              {
+                "id": "custom.drawStyle",
+                "value": "line"
+              },
+              {
+                "id": "custom.lineWidth",
+                "value": 2
+              },
+              {
+                "id": "custom.axisPlacement",
+                "value": "right"
+              },
+              {
+                "id": "custom.showPoints",
+                "value": "always"
+              },
+              {
+                "id": "custom.pointSize",
+                "value": 6
+              },
+              {
+                "id": "unit",
+                "value": "percent"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#e0af68"
                 }
               }
             ]
@@ -726,7 +763,11 @@
       "options": {
         "xField": "period",
         "stacking": "normal",
-        "showValue": "never",
+        "showValue": "always",
+        "text": {
+          "valueSize": 11
+        },
+        "xTickLabelRotation": 0,
         "legend": {
           "displayMode": "list",
           "placement": "bottom",
@@ -735,14 +776,7 @@
         "tooltip": {
           "mode": "multi",
           "sort": "none"
-        },
-        "text": {
-          "valueSize": 10
-        },
-        "xTickLabelRotation": -45,
-        "xTickLabelSpacing": 200,
-        "barWidth": 0.7,
-        "groupWidth": 0.7
+        }
       }
     },
     {
@@ -759,23 +793,20 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT period, opened, closed,\n       CASE WHEN po IS NULL OR po = 0 THEN NULL\n            ELSE ROUND(100.0*(opened-po)/po) END AS `opened change %`\nFROM (\n  SELECT period, opened, closed, ord,\n         LAG(opened) OVER (ORDER BY ord) AS po\n  FROM (\n    SELECT IF('$grain'='day', CONCAT(DATE_FORMAT(days.d,'%d %b'),IF(days.d=CURDATE(),' ·','')),\n           IF('$grain'='week', CONCAT(DATE_FORMAT(days.d,'W%v'),IF(YEARWEEK(days.d,3)=YEARWEEK(CURDATE(),3),' ·','')),\n              CONCAT(DATE_FORMAT(days.d,'%b %Y'),IF(DATE_FORMAT(days.d,'%Y-%m')=DATE_FORMAT(CURDATE(),'%Y-%m'),' ·','')))) AS period,\n           SUM(COALESCE(o.opened,0)) AS opened,\n           SUM(COALESCE(c.closed,0)) AS closed,\n           MIN(days.d) AS ord\n    FROM (\n      SELECT DATE(i.created_date) d FROM issues i\n      JOIN board_issues bi ON bi.issue_id = i.id\n      WHERE bi.board_id = '$board' AND i.created_date IS NOT NULL\n        AND $__timeFilter(i.created_date)\n      UNION\n      SELECT DATE(i.resolution_date) FROM issues i\n      JOIN board_issues bi ON bi.issue_id = i.id\n      WHERE bi.board_id = '$board' AND i.resolution_date IS NOT NULL\n        AND i.status = 'DONE' AND $__timeFilter(i.resolution_date)\n    ) days\n    LEFT JOIN (\n      SELECT DATE(i.created_date) d, COUNT(*) opened FROM issues i\n      JOIN board_issues bi ON bi.issue_id = i.id\n      WHERE bi.board_id = '$board' AND i.created_date IS NOT NULL\n        AND $__timeFilter(i.created_date) GROUP BY d\n    ) o ON o.d = days.d\n    LEFT JOIN (\n      SELECT DATE(i.resolution_date) d, COUNT(*) closed FROM issues i\n      JOIN board_issues bi ON bi.issue_id = i.id\n      WHERE bi.board_id = '$board' AND i.resolution_date IS NOT NULL\n        AND i.status = 'DONE' AND $__timeFilter(i.resolution_date) GROUP BY d\n    ) c ON c.d = days.d\n    GROUP BY period\n  ) a\n) b ORDER BY ord"
+          "rawSql": "SELECT period,\n       NULLIF(opened,0) AS `opened`,\n       NULLIF(closed,0) AS `closed`,\n       CASE WHEN po IS NULL OR po = 0 THEN NULL\n            ELSE ROUND(100.0*(opened-po)/po) END AS `opened change %`\nFROM (\n  SELECT period,\n       NULLIF(opened,0) AS `opened`,\n       NULLIF(closed,0) AS `closed`, ord,\n         LAG(opened) OVER (ORDER BY ord) AS po\n  FROM (\n    SELECT IF('$grain'='day', CONCAT(DATE_FORMAT(days.d,'%d %b'),IF(days.d=CURDATE(),' ·','')),\n           IF('$grain'='week', CONCAT(DATE_FORMAT(days.d,'W%v'),IF(YEARWEEK(days.d,3)=YEARWEEK(CURDATE(),3),' ·','')),\n              CONCAT(DATE_FORMAT(days.d,'%b %Y'),IF(DATE_FORMAT(days.d,'%Y-%m')=DATE_FORMAT(CURDATE(),'%Y-%m'),' ·','')))) AS period,\n           SUM(COALESCE(o.opened,0)) AS opened,\n           SUM(COALESCE(c.closed,0)) AS closed,\n           MIN(days.d) AS ord\n    FROM (\n      SELECT DATE(i.created_date) d FROM issues i\n      JOIN board_issues bi ON bi.issue_id = i.id\n      WHERE bi.board_id = '$board' AND i.created_date IS NOT NULL\n        AND $__timeFilter(i.created_date)\n      UNION\n      SELECT DATE(i.resolution_date) FROM issues i\n      JOIN board_issues bi ON bi.issue_id = i.id\n      WHERE bi.board_id = '$board' AND i.resolution_date IS NOT NULL\n        AND i.status = 'DONE' AND $__timeFilter(i.resolution_date)\n    ) days\n    LEFT JOIN (\n      SELECT DATE(i.created_date) d, COUNT(*) opened FROM issues i\n      JOIN board_issues bi ON bi.issue_id = i.id\n      WHERE bi.board_id = '$board' AND i.created_date IS NOT NULL\n        AND $__timeFilter(i.created_date) GROUP BY d\n    ) o ON o.d = days.d\n    LEFT JOIN (\n      SELECT DATE(i.resolution_date) d, COUNT(*) closed FROM issues i\n      JOIN board_issues bi ON bi.issue_id = i.id\n      WHERE bi.board_id = '$board' AND i.resolution_date IS NOT NULL\n        AND i.status = 'DONE' AND $__timeFilter(i.resolution_date) GROUP BY d\n    ) c ON c.d = days.d\n    GROUP BY period\n  ) a\n) b ORDER BY ord"
         }
       ],
       "fieldConfig": {
         "defaults": {
           "unit": "short",
           "custom": {
+            "axisPlacement": "left",
+            "fillOpacity": 80,
             "lineWidth": 0,
-            "fillOpacity": 85,
-            "spanNulls": true,
-            "pointSize": 1,
             "stacking": {
               "mode": "none",
               "group": "A"
-            },
-            "barAlignment": 0,
-            "axisLabel": ""
+            }
           },
           "noValue": "No issues opened or closed on this board in the selected range"
         },
@@ -812,16 +843,55 @@
           },
           {
             "matcher": {
-              "id": "byRegexp",
-              "options": ".*change %.*"
+              "id": "byName",
+              "options": "ord"
             },
             "properties": [
               {
                 "id": "custom.hideFrom",
                 "value": {
-                  "tooltip": false,
+                  "tooltip": true,
                   "viz": true,
                   "legend": true
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*change %.*"
+            },
+            "properties": [
+              {
+                "id": "custom.drawStyle",
+                "value": "line"
+              },
+              {
+                "id": "custom.lineWidth",
+                "value": 2
+              },
+              {
+                "id": "custom.axisPlacement",
+                "value": "right"
+              },
+              {
+                "id": "custom.showPoints",
+                "value": "always"
+              },
+              {
+                "id": "custom.pointSize",
+                "value": 6
+              },
+              {
+                "id": "unit",
+                "value": "percent"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#e0af68"
                 }
               }
             ]
@@ -848,7 +918,11 @@
       "options": {
         "xField": "period",
         "stacking": "none",
-        "showValue": "never",
+        "showValue": "always",
+        "text": {
+          "valueSize": 11
+        },
+        "xTickLabelRotation": 0,
         "legend": {
           "displayMode": "list",
           "placement": "bottom",
@@ -857,14 +931,7 @@
         "tooltip": {
           "mode": "multi",
           "sort": "none"
-        },
-        "text": {
-          "valueSize": 10
-        },
-        "xTickLabelRotation": -45,
-        "xTickLabelSpacing": 200,
-        "barWidth": 0.7,
-        "groupWidth": 0.7
+        }
       }
     },
     {
