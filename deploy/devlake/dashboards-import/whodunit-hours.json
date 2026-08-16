@@ -78,19 +78,380 @@
   },
   "panels": [
     {
-      "id": 1,
-      "type": "text",
-      "title": "",
+      "id": 7,
+      "type": "row",
+      "title": "Session shape",
+      "collapsed": false,
       "gridPos": {
-        "x": 0,
-        "y": 0,
+        "h": 1,
         "w": 24,
-        "h": 7
+        "x": 0,
+        "y": 0
+      },
+      "panels": []
+    },
+    {
+      "id": 8,
+      "type": "stat",
+      "title": "Sessions",
+      "datasource": "${DS_WHODUNIT}",
+      "gridPos": {
+        "h": 5,
+        "w": 4,
+        "x": 0,
+        "y": 1
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT COUNT(*) v FROM whodunit_sessions s\nWHERE s.last_seen BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  AND s.agent IN ($agent)"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "0",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          }
+        }
       },
       "options": {
-        "mode": "markdown",
-        "content": "## When and how the agent is used\n*Working rhythm, tool mix and session shape — from the agent's own session records.*\n\nEvery figure is measured from what the agent did on this machine. Nothing is self-reported, and no vendor API is involved, so this works the same for Claude Code, Codex and `agy`.\n\n**No prompt or response text is recorded anywhere** — whodunit stores counts, file paths and line hashes, never message content. Message *volume* is as close as this gets to measuring conversation, and that is deliberate.\n\nSet **Timezone** below to read hours in your own working day rather than UTC, and **Agent** to narrow to one tool."
-      }
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "description": "Agent sessions active in the selected range, for the selected agents.\n\nCounted by last activity, so a session that started earlier and continued into the range is included. This is the denominator for the rhythm panels below."
+    },
+    {
+      "id": 9,
+      "type": "stat",
+      "title": "Tool calls per session",
+      "datasource": "${DS_WHODUNIT}",
+      "gridPos": {
+        "h": 5,
+        "w": 4,
+        "x": 4,
+        "y": 1
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT ROUND(AVG(s.tool_calls),1) v FROM whodunit_sessions s\nWHERE s.last_seen BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  AND s.agent IN ($agent)"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 1,
+          "noValue": "no sessions",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "description": "Average tool calls per session — how much work happens in a typical session.\n\nAn average over a wide spread: a session ending after two calls and one running for hours both count once. Read it beside the session count rather than alone."
+    },
+    {
+      "id": 10,
+      "type": "stat",
+      "title": "Agent replies per prompt",
+      "datasource": "${DS_WHODUNIT}",
+      "gridPos": {
+        "h": 5,
+        "w": 4,
+        "x": 8,
+        "y": 1
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT ROUND(SUM(s.agent_messages)/NULLIF(SUM(s.user_messages),0),1) v\nFROM whodunit_sessions s\nWHERE s.last_seen BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 1,
+          "noValue": "no sessions",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "description": "Message volume only — whodunit never records what was said. A high number means long autonomous stretches per instruction."
+    },
+    {
+      "id": 11,
+      "type": "stat",
+      "title": "MCP calls",
+      "datasource": "${DS_WHODUNIT}",
+      "gridPos": {
+        "h": 5,
+        "w": 4,
+        "x": 12,
+        "y": 1
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT SUM(s.mcp_calls) v FROM whodunit_sessions s\nWHERE s.last_seen BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  AND s.agent IN ($agent)"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "0",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "purple",
+                "value": null
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "description": "Calls to connected MCP servers — external tools the agent reached for."
+    },
+    {
+      "id": 12,
+      "type": "stat",
+      "title": "Edits applied cleanly",
+      "datasource": "${DS_WHODUNIT}",
+      "gridPos": {
+        "h": 5,
+        "w": 4,
+        "x": 16,
+        "y": 1
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT ROUND(SUM(e.outcome='accepted')*100.0/NULLIF(COUNT(*),0),1) v\nFROM whodunit_events e\nWHERE e.outcome <> '' AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  AND e.agent IN ($agent)"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 1,
+          "noValue": "no outcomes recorded",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 80
+              },
+              {
+                "color": "green",
+                "value": 95
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "description": "Share of edits the agent applied without erroring. Not a quality measure — a failed edit is a tool failure, not a bad suggestion."
+    },
+    {
+      "id": 13,
+      "type": "stat",
+      "title": "Distinct tools used",
+      "datasource": "${DS_WHODUNIT}",
+      "gridPos": {
+        "h": 5,
+        "w": 4,
+        "x": 20,
+        "y": 1
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT COUNT(DISTINCT e.tool) v FROM whodunit_events e\nWHERE e.tool <> '' AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  AND e.agent IN ($agent)"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "0",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "description": "How many different tools the agents reached for.\n\nA breadth signal rather than a volume one: an agent using twenty tools is working differently from one hammering a single edit tool, and the tool-call count alone cannot tell those apart."
+    },
+    {
+      "id": 14,
+      "type": "barchart",
+      "title": "How long sessions run",
+      "datasource": "${DS_WHODUNIT}",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 6
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT b AS `length`, COUNT(*) AS `sessions` FROM (\n  SELECT CASE\n    WHEN TIMESTAMPDIFF(MINUTE, FROM_UNIXTIME(first_seen/1000000000), FROM_UNIXTIME(last_seen/1000000000)) < 15 THEN '1. under 15m'\n    WHEN TIMESTAMPDIFF(MINUTE, FROM_UNIXTIME(first_seen/1000000000), FROM_UNIXTIME(last_seen/1000000000)) < 60 THEN '2. 15-60m'\n    WHEN TIMESTAMPDIFF(MINUTE, FROM_UNIXTIME(first_seen/1000000000), FROM_UNIXTIME(last_seen/1000000000)) < 240 THEN '3. 1-4h'\n    ELSE '4. over 4h' END AS b\n  FROM whodunit_sessions s\n  WHERE s.last_seen BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  AND s.agent IN ($agent)\n) t GROUP BY b ORDER BY b"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "fillOpacity": 80
+          }
+        }
+      },
+      "options": {
+        "xTickLabelRotation": 0,
+        "legend": {
+          "showLegend": false
+        },
+        "tooltip": {
+          "mode": "multi"
+        },
+        "xField": "length"
+      },
+      "description": "Wall-clock first to last event. A session left open overnight inflates this — read it as span, not effort."
+    },
+    {
+      "id": 15,
+      "type": "barchart",
+      "title": "Work per session",
+      "datasource": "${DS_WHODUNIT}",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 6
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT CONCAT(s.agent, ' · #', LPAD(ROW_NUMBER() OVER (ORDER BY s.tool_calls DESC), 2, '0')) AS `session`,\n       s.tool_calls AS `tool calls`\nFROM whodunit_sessions s\nWHERE s.tool_calls > 0\n  AND s.last_seen BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  AND s.agent IN ($agent)\nORDER BY s.tool_calls DESC LIMIT 10"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "fillOpacity": 80
+          }
+        }
+      },
+      "options": {
+        "xTickLabelRotation": -45,
+        "legend": {
+          "showLegend": false
+        },
+        "tooltip": {
+          "mode": "multi"
+        },
+        "xField": "session"
+      },
+      "description": "Ranked, not identified. The session column in the sidecar still holds the agent's own session id, which on Claude Code is the transcript filename — so it is deliberately not rendered here."
     },
     {
       "id": 2,
@@ -98,10 +459,10 @@
       "title": "Working rhythm",
       "collapsed": false,
       "gridPos": {
-        "x": 0,
-        "y": 7,
+        "h": 1,
         "w": 24,
-        "h": 1
+        "x": 0,
+        "y": 14
       },
       "panels": []
     },
@@ -111,10 +472,10 @@
       "title": "Agent activity by hour of day",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
-        "x": 0,
-        "y": 8,
+        "h": 8,
         "w": 12,
-        "h": 8
+        "x": 0,
+        "y": 15
       },
       "targets": [
         {
@@ -217,10 +578,10 @@
       "title": "Agent activity by day of week",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
-        "x": 12,
-        "y": 8,
+        "h": 8,
         "w": 12,
-        "h": 8
+        "x": 12,
+        "y": 15
       },
       "targets": [
         {
@@ -323,10 +684,10 @@
       "title": "Code churn by hour",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
-        "x": 0,
-        "y": 16,
+        "h": 8,
         "w": 12,
-        "h": 7
+        "x": 0,
+        "y": 23
       },
       "targets": [
         {
@@ -396,10 +757,10 @@
       "title": "Tools used, by agent",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
-        "x": 12,
-        "y": 16,
+        "h": 8,
         "w": 12,
-        "h": 7
+        "x": 12,
+        "y": 23
       },
       "targets": [
         {
@@ -497,391 +858,15 @@
       }
     },
     {
-      "id": 7,
-      "type": "row",
-      "title": "Session shape",
-      "collapsed": false,
-      "gridPos": {
-        "x": 0,
-        "y": 30,
-        "w": 24,
-        "h": 1
-      },
-      "panels": []
-    },
-    {
-      "id": 8,
-      "type": "stat",
-      "title": "Sessions",
-      "datasource": "${DS_WHODUNIT}",
-      "gridPos": {
-        "x": 0,
-        "y": 31,
-        "w": 4,
-        "h": 5
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "format": "table",
-          "rawSql": "SELECT COUNT(*) v FROM whodunit_sessions s\nWHERE s.last_seen BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  AND s.agent IN ($agent)"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "short",
-          "noValue": "0",
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "blue",
-                "value": null
-              }
-            ]
-          }
-        }
-      },
-      "options": {
-        "graphMode": "none",
-        "textMode": "value",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        }
-      },
-      "description": "Agent sessions active in the selected range, for the selected agents.\n\nCounted by last activity, so a session that started earlier and continued into the range is included. This is the denominator for the rhythm panels below."
-    },
-    {
-      "id": 9,
-      "type": "stat",
-      "title": "Tool calls per session",
-      "datasource": "${DS_WHODUNIT}",
-      "gridPos": {
-        "x": 4,
-        "y": 31,
-        "w": 4,
-        "h": 5
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "format": "table",
-          "rawSql": "SELECT ROUND(AVG(s.tool_calls),1) v FROM whodunit_sessions s\nWHERE s.last_seen BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  AND s.agent IN ($agent)"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "short",
-          "decimals": 1,
-          "noValue": "no sessions",
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "blue",
-                "value": null
-              }
-            ]
-          }
-        }
-      },
-      "options": {
-        "graphMode": "none",
-        "textMode": "value",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        }
-      },
-      "description": "Average tool calls per session — how much work happens in a typical session.\n\nAn average over a wide spread: a session ending after two calls and one running for hours both count once. Read it beside the session count rather than alone."
-    },
-    {
-      "id": 10,
-      "type": "stat",
-      "title": "Agent replies per prompt",
-      "datasource": "${DS_WHODUNIT}",
-      "gridPos": {
-        "x": 8,
-        "y": 31,
-        "w": 4,
-        "h": 5
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "format": "table",
-          "rawSql": "SELECT ROUND(SUM(s.agent_messages)/NULLIF(SUM(s.user_messages),0),1) v\nFROM whodunit_sessions s\nWHERE s.last_seen BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "short",
-          "decimals": 1,
-          "noValue": "no sessions",
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "blue",
-                "value": null
-              }
-            ]
-          }
-        }
-      },
-      "options": {
-        "graphMode": "none",
-        "textMode": "value",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        }
-      },
-      "description": "Message volume only — whodunit never records what was said. A high number means long autonomous stretches per instruction."
-    },
-    {
-      "id": 11,
-      "type": "stat",
-      "title": "MCP calls",
-      "datasource": "${DS_WHODUNIT}",
-      "gridPos": {
-        "x": 12,
-        "y": 31,
-        "w": 4,
-        "h": 5
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "format": "table",
-          "rawSql": "SELECT SUM(s.mcp_calls) v FROM whodunit_sessions s\nWHERE s.last_seen BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  AND s.agent IN ($agent)"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "short",
-          "noValue": "0",
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "purple",
-                "value": null
-              }
-            ]
-          }
-        }
-      },
-      "options": {
-        "graphMode": "none",
-        "textMode": "value",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        }
-      },
-      "description": "Calls to connected MCP servers — external tools the agent reached for."
-    },
-    {
-      "id": 12,
-      "type": "stat",
-      "title": "Edits applied cleanly",
-      "datasource": "${DS_WHODUNIT}",
-      "gridPos": {
-        "x": 16,
-        "y": 31,
-        "w": 4,
-        "h": 5
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "format": "table",
-          "rawSql": "SELECT ROUND(SUM(e.outcome='accepted')*100.0/NULLIF(COUNT(*),0),1) v\nFROM whodunit_events e\nWHERE e.outcome <> '' AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  AND e.agent IN ($agent)"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "percent",
-          "decimals": 1,
-          "noValue": "no outcomes recorded",
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "red",
-                "value": null
-              },
-              {
-                "color": "orange",
-                "value": 80
-              },
-              {
-                "color": "green",
-                "value": 95
-              }
-            ]
-          }
-        }
-      },
-      "options": {
-        "graphMode": "none",
-        "textMode": "value",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        }
-      },
-      "description": "Share of edits the agent applied without erroring. Not a quality measure — a failed edit is a tool failure, not a bad suggestion."
-    },
-    {
-      "id": 13,
-      "type": "stat",
-      "title": "Distinct tools used",
-      "datasource": "${DS_WHODUNIT}",
-      "gridPos": {
-        "x": 20,
-        "y": 31,
-        "w": 4,
-        "h": 5
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "format": "table",
-          "rawSql": "SELECT COUNT(DISTINCT e.tool) v FROM whodunit_events e\nWHERE e.tool <> '' AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  AND e.agent IN ($agent)"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "short",
-          "noValue": "0",
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "blue",
-                "value": null
-              }
-            ]
-          }
-        }
-      },
-      "options": {
-        "graphMode": "none",
-        "textMode": "value",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        }
-      },
-      "description": "How many different tools the agents reached for.\n\nA breadth signal rather than a volume one: an agent using twenty tools is working differently from one hammering a single edit tool, and the tool-call count alone cannot tell those apart."
-    },
-    {
-      "id": 14,
-      "type": "barchart",
-      "title": "How long sessions run",
-      "datasource": "${DS_WHODUNIT}",
-      "gridPos": {
-        "x": 0,
-        "y": 36,
-        "w": 12,
-        "h": 7
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "format": "table",
-          "rawSql": "SELECT b AS `length`, COUNT(*) AS `sessions` FROM (\n  SELECT CASE\n    WHEN TIMESTAMPDIFF(MINUTE, FROM_UNIXTIME(first_seen/1000000000), FROM_UNIXTIME(last_seen/1000000000)) < 15 THEN '1. under 15m'\n    WHEN TIMESTAMPDIFF(MINUTE, FROM_UNIXTIME(first_seen/1000000000), FROM_UNIXTIME(last_seen/1000000000)) < 60 THEN '2. 15-60m'\n    WHEN TIMESTAMPDIFF(MINUTE, FROM_UNIXTIME(first_seen/1000000000), FROM_UNIXTIME(last_seen/1000000000)) < 240 THEN '3. 1-4h'\n    ELSE '4. over 4h' END AS b\n  FROM whodunit_sessions s\n  WHERE s.last_seen BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  AND s.agent IN ($agent)\n) t GROUP BY b ORDER BY b"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "short",
-          "custom": {
-            "fillOpacity": 80
-          }
-        }
-      },
-      "options": {
-        "xTickLabelRotation": 0,
-        "legend": {
-          "showLegend": false
-        },
-        "tooltip": {
-          "mode": "multi"
-        },
-        "xField": "length"
-      },
-      "description": "Wall-clock first to last event. A session left open overnight inflates this — read it as span, not effort."
-    },
-    {
-      "id": 15,
-      "type": "barchart",
-      "title": "Work per session",
-      "datasource": "${DS_WHODUNIT}",
-      "gridPos": {
-        "x": 12,
-        "y": 36,
-        "w": 12,
-        "h": 7
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "format": "table",
-          "rawSql": "SELECT CONCAT(s.agent, ' · #', LPAD(ROW_NUMBER() OVER (ORDER BY s.tool_calls DESC), 2, '0')) AS `session`,\n       s.tool_calls AS `tool calls`\nFROM whodunit_sessions s\nWHERE s.tool_calls > 0\n  AND s.last_seen BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  AND s.agent IN ($agent)\nORDER BY s.tool_calls DESC LIMIT 10"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "short",
-          "custom": {
-            "fillOpacity": 80
-          }
-        }
-      },
-      "options": {
-        "xTickLabelRotation": -45,
-        "legend": {
-          "showLegend": false
-        },
-        "tooltip": {
-          "mode": "multi"
-        },
-        "xField": "session"
-      },
-      "description": "Ranked, not identified. The session column in the sidecar still holds the agent's own session id, which on Claude Code is the transcript filename — so it is deliberately not rendered here."
-    },
-    {
       "id": 16,
       "type": "table",
       "title": "Agent comparison",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
-        "x": 0,
-        "y": 23,
+        "h": 8,
         "w": 24,
-        "h": 7
+        "x": 0,
+        "y": 31
       },
       "targets": [
         {
@@ -916,6 +901,21 @@
         "showHeader": true
       },
       "description": "Every agent this machine has seen, whether or not it produced anything. An agent with sessions but no edits is running and contributing nothing measurable — worth knowing, and invisible in a merged total."
+    },
+    {
+      "id": 1,
+      "type": "text",
+      "title": "",
+      "gridPos": {
+        "h": 5,
+        "w": 24,
+        "x": 0,
+        "y": 39
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "## When and how the agent is used\n*Working rhythm, tool mix and session shape — from the agent's own session records.*\n\nEvery figure is measured from what the agent did on this machine. Nothing is self-reported, and no vendor API is involved, so this works the same for Claude Code, Codex and `agy`.\n\n**No prompt or response text is recorded anywhere** — whodunit stores counts, file paths and line hashes, never message content. Message *volume* is as close as this gets to measuring conversation, and that is deliberate.\n\nSet **Timezone** below to read hours in your own working day rather than UTC, and **Agent** to narrow to one tool."
+      }
     }
   ],
   "__inputs": [
