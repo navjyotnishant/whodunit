@@ -61,6 +61,60 @@
       }
     },
     {
+      "id": 1,
+      "type": "gauge",
+      "title": "Coverage",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 18,
+        "y": 1
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT ROUND(100.0 * COUNT(DISTINCT w.commit_sha)\n                    / NULLIF(COUNT(DISTINCT c.sha), 0), 1) AS v\nFROM commits c\nJOIN repo_commits rc ON rc.commit_sha = c.sha\nJOIN whodunit_commits seen ON seen.commit_sha IN (\n       SELECT commit_sha FROM repo_commits WHERE repo_id = rc.repo_id)\nLEFT JOIN whodunit_commits w ON w.commit_sha = c.sha\nLEFT JOIN whodunit_repos r ON r.repo_id = w.repo_id\nWHERE ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}' OR w.commit_sha IS NULL)\n  AND c.authored_date BETWEEN FROM_UNIXTIME($__unixEpochFrom())\n                          AND FROM_UNIXTIME($__unixEpochTo())"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "min": 0,
+          "max": 100,
+          "decimals": 0
+        }
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showThresholdLabels": false,
+        "showThresholdMarkers": false,
+        "minVizWidth": 75,
+        "minVizHeight": 75,
+        "sizing": "auto",
+        "text": {
+          "valueSize": 28
+        }
+      },
+      "description": "Share of the repository's commits that carry an AI-Attribution trailer at all — instrumented or not.\n\n**This measures instrumentation, not AI use.** A commit with `status=undetermined` counts here: it has a trailer, it just records that no agent activity was found. Adoption beside it counts only `status=assisted`.\n\nMeasured per repository: whodunit 98.9%, nj-agents 99.0%, EngageHub 79.0% — EngageHub was instrumented later, so a fifth of its history predates the hooks. Commits made before `dun init` can never be covered.\n\nThe denominator is every commit the warehouse knows about for the repository, not every commit whodunit recorded. Dividing by the latter is what made this identical to adoption."
+    },
+    {
       "type": "stat",
       "title": "Active days",
       "description": "Days on which any agent activity was observed. Not the same as a vendor's 'daily active users' — this counts days with recorded work, not seats logged in.",
