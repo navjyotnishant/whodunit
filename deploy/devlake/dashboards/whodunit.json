@@ -1,5 +1,5 @@
 {
-  "title": "Whodunit \u2014 AI attribution",
+  "title": "AI attribution",
   "uid": "whodunit",
   "tags": [
     "whodunit"
@@ -39,7 +39,7 @@
       },
       "options": {
         "mode": "markdown",
-        "content": "**Coverage is the denominator for everything below it.** A penetration figure without it says how much of what we could see was AI-assisted, not how much of the work was. Read them together.\n\n`undetermined` means no determination was made \u2014 it never means \"no AI was used\"."
+        "content": "**Coverage is the denominator for everything below it.** A penetration figure without it says how much of what we could see was AI-assisted, not how much of the work was. Read them together.\n\n`undetermined` means no determination was made — it never means \"no AI was used\"."
       }
     },
     {
@@ -103,7 +103,7 @@
     {
       "type": "stat",
       "title": "Penetration",
-      "description": "Share of DETERMINED commits that are AI-assisted. Undetermined commits are excluded from the denominator on purpose \u2014 including them would understate it, and reporting this without coverage overstates confidence.",
+      "description": "Share of DETERMINED commits that are AI-assisted. Undetermined commits are excluded from the denominator on purpose — including them would understate it, and reporting this without coverage overstates confidence.",
       "datasource": {
         "type": "mysql",
         "uid": "${datasource}"
@@ -199,7 +199,7 @@
     {
       "type": "stat",
       "title": "Median agent share",
-      "description": "Median ratio across commits that have one. Ratio is the share of a commit's changed lines matching text an agent produced \u2014 overlap, not authorship. A line the agent wrote and a developer then edited counts as the developer's. Commits with no line-level evidence are excluded, not counted as zero.",
+      "description": "Median ratio across commits that have one. Ratio is the share of a commit's changed lines matching text an agent produced — overlap, not authorship. A line the agent wrote and a developer then edited counts as the developer's. Commits with no line-level evidence are excluded, not counted as zero.",
       "datasource": {
         "type": "mysql",
         "uid": "${datasource}"
@@ -248,7 +248,7 @@
     {
       "type": "piechart",
       "title": "Method mix",
-      "description": "How the attribution for each commit was determined, weakest to strongest: undetermined, declared, inferred, observed, intersected. This must accompany any penetration figure \u2014 a number resting on 'declared' is a different claim from one resting on 'intersected'.",
+      "description": "How the attribution for each commit was determined, weakest to strongest: undetermined, declared, inferred, observed, intersected. This must accompany any penetration figure — a number resting on 'declared' is a different claim from one resting on 'intersected'.",
       "datasource": {
         "type": "mysql",
         "uid": "${datasource}"
@@ -451,13 +451,13 @@
       },
       "options": {
         "mode": "markdown",
-        "content": "**Below is journal data, not commit data.** It records what an agent touched, including work that never reached a commit \u2014 so these numbers will not reconcile with the panels above, and are not meant to."
+        "content": "**Below is journal data, not commit data.** It records what an agent touched, including work that never reached a commit — so these numbers will not reconcile with the panels above, and are not meant to."
       }
     },
     {
       "type": "table",
       "title": "Most agent-edited files",
-      "description": "Per-file agent activity, from observed edits rather than commits. A file with many edits and few committed lines is one the agent iterated on heavily \u2014 that is effort, not output.",
+      "description": "Per-file agent activity, from observed edits rather than commits. A file with many edits and few committed lines is one the agent iterated on heavily — that is effort, not output.",
       "datasource": {
         "type": "mysql",
         "uid": "${datasource}"
