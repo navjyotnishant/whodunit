@@ -266,7 +266,7 @@
               }
             ]
           },
-          "noValue": "Needs 10+ issues in both groups",
+          "noValue": "n/a — too few issues",
           "decimals": 1
         }
       },
@@ -281,7 +281,7 @@
           "values": false
         },
         "text": {
-          "valueSize": 40,
+          "valueSize": 22,
           "titleSize": 11
         }
       },
@@ -317,7 +317,7 @@
               }
             ]
           },
-          "noValue": "Needs 10+ issues in both groups",
+          "noValue": "n/a — too few issues",
           "decimals": 1
         }
       },
@@ -332,7 +332,7 @@
           "values": false
         },
         "text": {
-          "valueSize": 40,
+          "valueSize": 22,
           "titleSize": 11
         }
       },
@@ -363,8 +363,12 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "#e0826c",
+                "color": "text",
                 "value": null
+              },
+              {
+                "color": "#e0826c",
+                "value": -9999
               },
               {
                 "color": "#25c2a0",
@@ -372,7 +376,7 @@
               }
             ]
           },
-          "noValue": "Needs 10+ issues in both groups",
+          "noValue": "n/a — too few issues",
           "decimals": 1
         }
       },
@@ -389,7 +393,7 @@
         "graphMode": "none",
         "justifyMode": "auto",
         "text": {
-          "valueSize": 40
+          "valueSize": 22
         }
       },
       "description": "How much **faster** AI-assisted issues closed, as the median of other issues minus the median of assisted ones. Positive is the advantage; negative means assisted issues took longer.\n\n**A difference, not an effect.** The two groups are not randomised — developers choose when to reach for an agent, and tend to reach for it on larger or less familiar work. A gap in either direction may be measuring which issues were handed over rather than what the agent did.\n\n**Meaningless unless both counts beside it are substantial.** With one group at zero there is no comparison at all; with a handful either side, one long-running issue moves this by hours.\n\n**Withheld below 10 issues either side.** A median over a handful moves hours on one of them, and same-minute tickets — opened and closed in one action — would otherwise set it to zero. Issues with no measurable duration are excluded entirely."
