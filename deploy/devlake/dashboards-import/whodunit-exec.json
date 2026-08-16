@@ -176,7 +176,7 @@
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
         "h": 6,
-        "w": 5,
+        "w": 8,
         "x": 4,
         "y": 1
       },
@@ -290,13 +290,15 @@
           "values": true
         },
         "pieType": "donut",
-        "displayLabels": [
-          "percent"
-        ],
+        "displayLabels": [],
         "legend": {
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": false
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true,
+          "values": [
+            "value",
+            "percent"
+          ]
         },
         "tooltip": {
           "mode": "single",
@@ -311,8 +313,8 @@
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
         "h": 6,
-        "w": 4,
-        "x": 9,
+        "w": 3,
+        "x": 12,
         "y": 1
       },
       "targets": [
@@ -365,8 +367,8 @@
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
         "h": 6,
-        "w": 4,
-        "x": 13,
+        "w": 3,
+        "x": 15,
         "y": 1
       },
       "targets": [
@@ -416,8 +418,8 @@
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
         "h": 6,
-        "w": 4,
-        "x": 17,
+        "w": 3,
+        "x": 18,
         "y": 1
       },
       "targets": [
