@@ -116,7 +116,7 @@
     {
       "id": 2,
       "type": "stat",
-      "title": "AI-assisted commits",
+      "title": "AI-assisted commits · $repo",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
         "h": 5,
@@ -161,7 +161,7 @@
     {
       "id": 3,
       "type": "gauge",
-      "title": "Attribution coverage",
+      "title": "Attribution coverage · $repo",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
         "h": 5,
@@ -352,7 +352,7 @@
     },
     {
       "type": "barchart",
-      "title": "Commits — assisted vs the rest",
+      "title": "Commits — assisted vs the rest · $repo",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
         "h": 9,
@@ -913,7 +913,7 @@
     {
       "id": 20,
       "type": "piechart",
-      "title": "AI-assisted work by purpose",
+      "title": "AI-assisted work by purpose · $repo",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
         "h": 9,
