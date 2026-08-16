@@ -683,13 +683,9 @@
           "percent"
         ],
         "legend": {
-          "displayMode": "table",
+          "displayMode": "list",
           "placement": "right",
-          "showLegend": true,
-          "values": [
-            "value",
-            "percent"
-          ]
+          "showLegend": true
         },
         "tooltip": {
           "mode": "single",
