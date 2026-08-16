@@ -117,7 +117,7 @@
       "title": "Assisted commits",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
-        "h": 3,
+        "h": 5,
         "w": 5,
         "x": 0,
         "y": 1
@@ -154,7 +154,7 @@
           "values": false
         },
         "text": {
-          "valueSize": 30,
+          "valueSize": 40,
           "titleSize": 11
         }
       },
@@ -166,7 +166,7 @@
       "title": "Coverage",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
-        "h": 3,
+        "h": 5,
         "w": 5,
         "x": 5,
         "y": 1
@@ -208,7 +208,7 @@
         "graphMode": "none",
         "justifyMode": "auto",
         "text": {
-          "valueSize": 30
+          "valueSize": 40
         }
       },
       "description": "**Coverage is not adoption.** This is the share of commits carrying any valid trailer, including `undetermined`. A repository at full coverage may have had no agent involvement whatsoever — coverage says the instrumentation is working, adoption says the agents are being used.\n\nShare of commits carrying any attribution verdict — anything other than `undetermined`.\n\nThis is a measure of **instrumentation, not of AI use**. A repository instrumented last week has low coverage for its whole history, because commits made before the hooks existed cannot be attributed retroactively.\n\nLow coverage means the numbers on this page describe a small slice. Read every other panel against it."
@@ -219,7 +219,7 @@
       "title": "Acceptance",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
-        "h": 3,
+        "h": 5,
         "w": 5,
         "x": 10,
         "y": 1
@@ -261,7 +261,7 @@
         "graphMode": "none",
         "justifyMode": "auto",
         "text": {
-          "valueSize": 30
+          "valueSize": 40
         }
       },
       "description": "Share of decided tool calls that were accepted.\n\n**The denominator is decided calls only** — accepted, rejected or failed — not all calls. A call whose outcome was never recorded is excluded rather than counted as accepted, which would flatter the rate. See Decided tool calls beside this for the size of that denominator.\n\nA rejection is a human declining; a failure is the tool erroring. Both count as decided, and only acceptance is in the numerator."
@@ -272,7 +272,7 @@
       "title": "Decided calls",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
-        "h": 3,
+        "h": 5,
         "w": 4,
         "x": 15,
         "y": 1
@@ -309,7 +309,7 @@
           "values": false
         },
         "text": {
-          "valueSize": 30,
+          "valueSize": 40,
           "titleSize": 11
         }
       },
@@ -321,7 +321,7 @@
       "title": "Sessions",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
-        "h": 3,
+        "h": 5,
         "w": 5,
         "x": 19,
         "y": 1
@@ -358,7 +358,7 @@
           "values": false
         },
         "text": {
-          "valueSize": 30,
+          "valueSize": 40,
           "titleSize": 11
         }
       },
@@ -370,10 +370,10 @@
       "title": "Median cycle · assisted",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
-        "h": 3,
+        "h": 5,
         "w": 6,
         "x": 0,
-        "y": 4
+        "y": 6
       },
       "targets": [
         {
@@ -409,7 +409,7 @@
           "values": false
         },
         "text": {
-          "valueSize": 30,
+          "valueSize": 40,
           "titleSize": 11
         }
       },
@@ -421,10 +421,10 @@
       "title": "Median cycle · not assisted",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
-        "h": 3,
+        "h": 5,
         "w": 6,
         "x": 6,
-        "y": 4
+        "y": 6
       },
       "targets": [
         {
@@ -460,7 +460,7 @@
           "values": false
         },
         "text": {
-          "valueSize": 30,
+          "valueSize": 40,
           "titleSize": 11
         }
       },
@@ -472,10 +472,10 @@
       "title": "n assisted",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
-        "h": 3,
+        "h": 5,
         "w": 3,
         "x": 12,
-        "y": 4
+        "y": 6
       },
       "targets": [
         {
@@ -510,7 +510,7 @@
           "values": false
         },
         "text": {
-          "valueSize": 30,
+          "valueSize": 40,
           "titleSize": 11
         }
       },
@@ -522,10 +522,10 @@
       "title": "n not assisted",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
-        "h": 3,
+        "h": 5,
         "w": 3,
         "x": 15,
-        "y": 4
+        "y": 6
       },
       "targets": [
         {
@@ -560,7 +560,7 @@
           "values": false
         },
         "text": {
-          "valueSize": 30,
+          "valueSize": 40,
           "titleSize": 11
         }
       },
@@ -572,10 +572,10 @@
       "title": "Difference",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
-        "h": 3,
+        "h": 5,
         "w": 6,
         "x": 18,
-        "y": 4
+        "y": 6
       },
       "targets": [
         {
@@ -611,7 +611,7 @@
           "values": false
         },
         "text": {
-          "valueSize": 30,
+          "valueSize": 40,
           "titleSize": 11
         }
       },
@@ -622,10 +622,10 @@
       "title": "Commits by month · $repo",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
-        "h": 8,
+        "h": 9,
         "w": 12,
         "x": 0,
-        "y": 7
+        "y": 11
       },
       "targets": [
         {
@@ -711,10 +711,10 @@
       "title": "Issues opened vs closed · $board",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
-        "h": 8,
+        "h": 9,
         "w": 12,
         "x": 12,
-        "y": 7
+        "y": 11
       },
       "targets": [
         {
@@ -806,7 +806,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 15
+        "y": 20
       }
     },
     {
@@ -815,10 +815,10 @@
       "title": "Cycle time trend · $board",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
-        "h": 8,
+        "h": 9,
         "w": 12,
         "x": 0,
-        "y": 16
+        "y": 21
       },
       "targets": [
         {
@@ -906,10 +906,10 @@
       "title": "Work by purpose · $repo",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
-        "h": 8,
+        "h": 9,
         "w": 12,
         "x": 12,
-        "y": 16
+        "y": 21
       },
       "targets": [
         {
@@ -948,7 +948,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 24
+        "y": 30
       }
     },
     {
@@ -957,10 +957,10 @@
       "title": "Acceptance by tool",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
-        "h": 8,
+        "h": 9,
         "w": 8,
         "x": 0,
-        "y": 25
+        "y": 31
       },
       "targets": [
         {
@@ -987,10 +987,10 @@
       "title": "Acceptance trend",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
-        "h": 8,
+        "h": 9,
         "w": 8,
         "x": 8,
-        "y": 25
+        "y": 31
       },
       "targets": [
         {
@@ -1025,10 +1025,10 @@
       "title": "Issues resolved · $board",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
-        "h": 8,
+        "h": 9,
         "w": 8,
         "x": 16,
-        "y": 25
+        "y": 31
       },
       "targets": [
         {
@@ -1065,7 +1065,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 33
+        "y": 40
       }
     },
     {
@@ -1074,10 +1074,10 @@
       "title": "Edits & lines",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
-        "h": 8,
+        "h": 9,
         "w": 12,
         "x": 0,
-        "y": 34
+        "y": 41
       },
       "targets": [
         {
@@ -1107,10 +1107,10 @@
       "title": "Session engagement",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
-        "h": 8,
+        "h": 9,
         "w": 12,
         "x": 12,
-        "y": 34
+        "y": 41
       },
       "targets": [
         {
