@@ -702,7 +702,7 @@
         {
           "refId": "A",
           "format": "time_series",
-          "rawSql": "SELECT `time`, `opened`, `closed`,\n       SUM(net) OVER (ORDER BY `time`) AS `backlog, running total`\nFROM (\n  SELECT IF('$grain'='day',  days.d,\n    IF('$grain'='week', DATE(days.d - INTERVAL WEEKDAY(days.d) DAY),\n                        DATE(days.d - INTERVAL DAYOFMONTH(days.d)-1 DAY))) AS `time`,\n         NULLIF(SUM(COALESCE(o.opened, 0)), 0) AS `opened`,\n         NULLIF(SUM(COALESCE(c.closed,  0)), 0) AS `closed`,\n         SUM(COALESCE(o.opened,0)) - SUM(COALESCE(c.closed,0)) AS net\n  FROM (\n    SELECT DATE(i.created_date) d FROM issues i\n    JOIN board_issues bi ON bi.issue_id = i.id\n    WHERE bi.board_id = '$board' AND i.created_date IS NOT NULL\n      AND $__timeFilter(i.created_date)\n    UNION\n    SELECT DATE(i.resolution_date) FROM issues i\n    JOIN board_issues bi ON bi.issue_id = i.id\n    WHERE bi.board_id = '$board' AND i.resolution_date IS NOT NULL\n      AND i.status = 'DONE' AND $__timeFilter(i.resolution_date)\n  ) days\n  LEFT JOIN (\n    SELECT DATE(i.created_date) d, COUNT(*) opened FROM issues i\n    JOIN board_issues bi ON bi.issue_id = i.id\n    WHERE bi.board_id = '$board' AND i.created_date IS NOT NULL\n      AND $__timeFilter(i.created_date) GROUP BY d\n  ) o ON o.d = days.d\n  LEFT JOIN (\n    SELECT DATE(i.resolution_date) d, COUNT(*) closed FROM issues i\n    JOIN board_issues bi ON bi.issue_id = i.id\n    WHERE bi.board_id = '$board' AND i.resolution_date IS NOT NULL\n      AND i.status = 'DONE' AND $__timeFilter(i.resolution_date) GROUP BY d\n  ) c ON c.d = days.d\n  GROUP BY `time`\n) t ORDER BY `time`"
+          "rawSql": "SELECT IF('$grain'='day',  days.d,\n    IF('$grain'='week', DATE(days.d - INTERVAL WEEKDAY(days.d) DAY),\n                        DATE(days.d - INTERVAL DAYOFMONTH(days.d)-1 DAY))) AS `time`,\n       NULLIF(SUM(COALESCE(o.opened, 0)), 0) AS `opened`,\n       NULLIF(SUM(COALESCE(c.closed,  0)), 0) AS `closed`\nFROM (\n  SELECT DATE(i.created_date) d FROM issues i\n  JOIN board_issues bi ON bi.issue_id = i.id\n  WHERE bi.board_id = '$board' AND i.created_date IS NOT NULL\n    AND $__timeFilter(i.created_date)\n  UNION\n  SELECT DATE(i.resolution_date) FROM issues i\n  JOIN board_issues bi ON bi.issue_id = i.id\n  WHERE bi.board_id = '$board' AND i.resolution_date IS NOT NULL\n    AND i.status = 'DONE' AND $__timeFilter(i.resolution_date)\n) days\nLEFT JOIN (\n  SELECT DATE(i.created_date) d, COUNT(*) opened FROM issues i\n  JOIN board_issues bi ON bi.issue_id = i.id\n  WHERE bi.board_id = '$board' AND i.created_date IS NOT NULL\n    AND $__timeFilter(i.created_date) GROUP BY d\n) o ON o.d = days.d\nLEFT JOIN (\n  SELECT DATE(i.resolution_date) d, COUNT(*) closed FROM issues i\n  JOIN board_issues bi ON bi.issue_id = i.id\n  WHERE bi.board_id = '$board' AND i.resolution_date IS NOT NULL\n    AND i.status = 'DONE' AND $__timeFilter(i.resolution_date) GROUP BY d\n) c ON c.d = days.d\nGROUP BY `time`\nORDER BY `time`"
         }
       ],
       "fieldConfig": {
@@ -724,63 +724,9 @@
           },
           "noValue": "No issues opened or closed on this board in the selected range"
         },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "backlog, running total"
-            },
-            "properties": [
-              {
-                "id": "custom.drawStyle",
-                "value": "line"
-              },
-              {
-                "id": "custom.lineWidth",
-                "value": 2
-              },
-              {
-                "id": "custom.fillOpacity",
-                "value": 0
-              },
-              {
-                "id": "custom.showPoints",
-                "value": "always"
-              },
-              {
-                "id": "custom.pointSize",
-                "value": 8
-              },
-              {
-                "id": "custom.axisPlacement",
-                "value": "right"
-              },
-              {
-                "id": "custom.stacking",
-                "value": {
-                  "mode": "none"
-                }
-              },
-              {
-                "id": "unit",
-                "value": "short"
-              },
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "#e8edf3"
-                }
-              },
-              {
-                "id": "custom.axisLabel",
-                "value": "issues"
-              }
-            ]
-          }
-        ]
+        "overrides": []
       },
-      "description": "The line is a **running total**, not this period's arithmetic: it accumulates opened minus closed across the whole range, so a period where one issue opened and one closed leaves it unchanged rather than at zero.\n\nMeasured on this board over three months: 240 opened against 141 closed, ending at 99. That gap is the thing neither bar shows — you can see 36 opened one day and 15 closed another without ever seeing that the difference compounds.\n\nIt starts at zero for the selected range rather than the beginning of time, so it shows the change across the window, not the absolute open count. Widen the range and the line starts earlier and ends higher.\n\nNot a closed-over-opened ratio: closures include issues opened in earlier periods, so that figure is unbounded and read 367% in testing.",
+      "description": "Issues opened and closed per period, on the selected board.\n\n**Closed means closed in that period, whatever period it was opened in.** Measured here, 141 of 240 issues over three months — so the bars are not a matched pair and the gap between them is not this period's arithmetic.\n\nScoped by issue board rather than repository: an issue is reachable from a repository only through its commits, and most issues have none — 109 of 379 here. A repository filter would silently drop the rest.",
       "options": {
         "legend": {
           "displayMode": "list",
