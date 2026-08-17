@@ -125,6 +125,10 @@ type BaselineRow struct {
 	HeadSHA       string
 	SchemaVersion string
 
+	// NULL on snapshots captured before --since/--until existed.
+	WindowSince *time.Time
+	WindowUntil *time.Time
+
 	Commits          int
 	CommitsPerWeek   *float64
 	MedianDiffLines  *int64
@@ -151,6 +155,8 @@ func BaselineRowFrom(snap *baseline.Snapshot, repoID string, syncedAt time.Time)
 		WindowDays:    snap.WindowDays,
 		HeadSHA:       snap.HeadSHA,
 		SchemaVersion: snap.SchemaVersion,
+		WindowSince:   timep(snap.WindowSince),
+		WindowUntil:   timep(snap.WindowUntil),
 
 		Commits:          g.Commits,
 		CommitsPerWeek:   f64p(g.CommitsPerWeek),
@@ -314,4 +320,14 @@ func LineRowsFrom(hashes map[uint64]struct{}, repoID string, syncedAt time.Time)
 		})
 	}
 	return rows
+}
+
+// timep drops a zero time to NULL. A snapshot captured before the window
+// bounds existed has no start or end to report, and a zero timestamp would
+// render as 1970 on a panel that names the window it compared (NAV-21).
+func timep(t time.Time) *time.Time {
+	if t.IsZero() {
+		return nil
+	}
+	return &t
 }

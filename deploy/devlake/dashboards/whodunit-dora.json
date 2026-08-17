@@ -1,6 +1,6 @@
 {
   "uid": "whodunit-dora",
-  "title": "Whodunit \u2014 AI Impact on Delivery",
+  "title": "AI Impact on Delivery",
   "tags": [
     "whodunit",
     "dora"
@@ -76,30 +76,234 @@
   },
   "panels": [
     {
-      "id": 1,
-      "type": "text",
-      "title": "",
+      "id": 2,
+      "type": "row",
+      "title": "Adoption",
+      "collapsed": false,
       "gridPos": {
-        "x": 0,
-        "y": 0,
+        "h": 1,
         "w": 24,
-        "h": 4
+        "x": 0,
+        "y": 0
+      },
+      "panels": []
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Current adoption",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "h": 5,
+        "w": 4,
+        "x": 0,
+        "y": 1
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT ROUND(SUM(c.status='assisted')*100.0/NULLIF(COUNT(*),0),1) v\nFROM whodunit_commits c JOIN whodunit_repos r ON r.repo_id=c.repo_id\nWHERE ('${contributor:raw}'='__all__' OR r.contributor='${contributor:raw}')\n  AND c.committed_at BETWEEN $__unixEpochFrom() * 1000000000\n                       AND $__unixEpochTo()   * 1000000000"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              },
+              {
+                "color": "blue",
+                "value": 1
+              }
+            ]
+          }
+        }
       },
       "options": {
-        "mode": "markdown",
-        "content": "## Whodunit \u2014 AI Impact on Delivery\n*Does AI assistance move delivery outcomes?* Adoption is measured from git history and the agent's own session records; delivery outcomes come from DevLake's DORA pipeline. Nothing here is self-reported.\n\n**Read the scope before the numbers.** Adoption covers every instrumented repository. Delivery outcomes currently come from **EngageHub only** \u2014 it is the one project with deployments. Correlation panels state their sample size and withhold a coefficient until there are enough overlapping weeks to support one."
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "description": "Share of commits in the selected range carrying an AI-Attribution trailer with `status=assisted`.\n\nFollows the dashboard time range. It was previously fixed to the last 7 days while the title said only \"current\", so the number did not move when the range did.\n\n**Adoption is not coverage.** Coverage counts any valid trailer including `undetermined`; this counts only commits an agent actually worked on."
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "Adoption over time",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "h": 5,
+        "w": 12,
+        "x": 4,
+        "y": 1
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawSql": "SELECT DATE(FROM_UNIXTIME(c.committed_at/1000000000)) AS `time`,\n       e.agent AS `metric`,\n       ROUND(COUNT(DISTINCT CASE WHEN c.status='assisted' THEN c.commit_sha END)*100.0\n             /NULLIF(COUNT(DISTINCT c.commit_sha),0),1) AS `value`\nFROM whodunit_commits c\nJOIN whodunit_repos r ON r.repo_id=c.repo_id\nJOIN whodunit_events e ON e.repo_id=c.repo_id\n AND e.observed_at BETWEEN c.committed_at - 86400000000000 AND c.committed_at\nWHERE ('${contributor:raw}'='__all__' OR r.contributor='${contributor:raw}')\n  AND c.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nGROUP BY `time`, `metric` ORDER BY `time`"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 15,
+            "spanNulls": false,
+            "pointSize": 5,
+            "showPoints": "always"
+          }
+        }
+      },
+      "description": "Share of commits carrying agent attribution, split by which agent was active.\n\nAn agent is credited for a commit when it recorded activity in that repository within 24 hours before the commit. That window is a heuristic, not a claim: a commit worked on by two agents appears in both series, so the lines do not sum to the overall rate.\n\nAn agent with no line recorded no activity in the range — not zero adoption, no data (NAV-21)."
+    },
+    {
+      "id": 5,
+      "type": "piechart",
+      "title": "Evidence strength",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "h": 5,
+        "w": 8,
+        "x": 16,
+        "y": 1
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT CASE c.method\n         WHEN 'intersected' THEN 'intersected'\n         WHEN 'observed'    THEN 'observed'\n         WHEN 'declared'    THEN 'declared'\n         WHEN 'inferred'    THEN 'inferred'\n         ELSE 'undetermined'\n       END AS `method`,\n       COUNT(*) AS `commits`\nFROM whodunit_commits c JOIN whodunit_repos r ON r.repo_id=c.repo_id\nWHERE ('${contributor:raw}'='__all__' OR r.contributor='${contributor:raw}') AND c.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nGROUP BY c.method ORDER BY commits DESC"
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "values": [
+            "value"
+          ]
+        },
+        "pieType": "donut",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": true
+        }
+      },
+      "description": "How each commit's attribution was established, from strongest evidence to none.\n\n- **intersected** — agent-written lines survived into the commit. The strongest claim: the text the agent produced is in the diff.\n- **observed** — the agent touched the file, but the text changed afterwards. It worked here; what shipped may not be its work.\n- **inferred** — established from surrounding evidence rather than line-level matching.\n- **declared** — stated in the trailer, not measured.\n- **undetermined** — no evidence either way. **Not a claim that no agent was used** — a commit made before the hooks were installed, or on a machine without them, lands here regardless of how it was written (NAV-21).\n\nColours run cool to warm by strength of evidence, with undetermined grey because it is an absence rather than a tier. Warm is not 'good': strong evidence that an agent wrote the code is a confident measurement, not a desirable outcome.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "undetermined"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#8e8e8e"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "declared"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#5794F2"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "inferred"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#73BF69"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "observed"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#FF9830"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "intersected"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#B877D9"
+                }
+              }
+            ]
+          }
+        ]
       }
     },
     {
       "id": 9,
       "type": "row",
-      "title": "Delivery outcomes \u2014 projects with deployments",
+      "title": "Delivery outcomes",
       "collapsed": false,
       "gridPos": {
-        "x": 0,
-        "y": 4,
+        "h": 1,
         "w": 24,
-        "h": 1
+        "x": 0,
+        "y": 6
       },
       "panels": []
     },
@@ -109,10 +313,10 @@
       "title": "Successful deployments",
       "datasource": "${datasource}",
       "gridPos": {
-        "x": 0,
-        "y": 5,
+        "h": 5,
         "w": 4,
-        "h": 5
+        "x": 0,
+        "y": 7
       },
       "targets": [
         {
@@ -155,10 +359,10 @@
       "title": "Change failure rate",
       "datasource": "${datasource}",
       "gridPos": {
-        "x": 4,
-        "y": 5,
+        "h": 5,
         "w": 4,
-        "h": 5
+        "x": 4,
+        "y": 7
       },
       "targets": [
         {
@@ -202,7 +406,7 @@
           "values": false
         }
       },
-      "description": "Share of deployments that required a fix afterwards, from DevLake's own incident linkage.\n\n**Needs a deployment pattern configured**, or every CI run is unclassified and this reads empty rather than zero. Also needs incidents, which most trackers do not provide for free.\n\nThis is a delivery metric, not an AI metric \u2014 it is here so adoption can be read against it, not because whodunit measures it."
+      "description": "Share of deployments that required a fix afterwards, from DevLake's own incident linkage.\n\n**Needs a deployment pattern configured**, or every CI run is unclassified and this reads empty rather than zero. Also needs incidents, which most trackers do not provide for free.\n\nThis is a delivery metric, not an AI metric — it is here so adoption can be read against it, not because whodunit measures it."
     },
     {
       "id": 12,
@@ -210,10 +414,10 @@
       "title": "Deployments in the denominator",
       "datasource": "${datasource}",
       "gridPos": {
-        "x": 8,
-        "y": 5,
+        "h": 5,
         "w": 4,
-        "h": 5
+        "x": 8,
+        "y": 7
       },
       "targets": [
         {
@@ -256,10 +460,10 @@
       "title": "Median PR cycle time",
       "datasource": "${datasource}",
       "gridPos": {
-        "x": 12,
-        "y": 5,
+        "h": 5,
         "w": 4,
-        "h": 5
+        "x": 12,
+        "y": 7
       },
       "targets": [
         {
@@ -303,10 +507,10 @@
       "title": "PRs measured",
       "datasource": "${datasource}",
       "gridPos": {
-        "x": 16,
-        "y": 5,
+        "h": 5,
         "w": 4,
-        "h": 5
+        "x": 16,
+        "y": 7
       },
       "targets": [
         {
@@ -349,10 +553,10 @@
       "title": "Mean time to recovery",
       "datasource": "${datasource}",
       "gridPos": {
-        "x": 20,
-        "y": 5,
+        "h": 5,
         "w": 4,
-        "h": 5
+        "x": 20,
+        "y": 7
       },
       "targets": [
         {
@@ -396,10 +600,10 @@
       "title": "Deployment frequency",
       "datasource": "${datasource}",
       "gridPos": {
-        "x": 0,
-        "y": 10,
+        "h": 7,
         "w": 12,
-        "h": 7
+        "x": 0,
+        "y": 12
       },
       "targets": [
         {
@@ -417,7 +621,7 @@
           }
         }
       },
-      "description": "Deployments per day, from DevLake's CI collection.\n\nRequires a deployment pattern on the scope config \u2014 without one, `cicd_deployment_commits` stays empty and every DORA panel on this page reads blank while collection reports success."
+      "description": "Deployments per day, from DevLake's CI collection.\n\nRequires a deployment pattern on the scope config — without one, `cicd_deployment_commits` stays empty and every DORA panel on this page reads blank while collection reports success."
     },
     {
       "id": 17,
@@ -425,10 +629,10 @@
       "title": "Deployment outcomes",
       "datasource": "${datasource}",
       "gridPos": {
-        "x": 12,
-        "y": 10,
+        "h": 7,
         "w": 12,
-        "h": 7
+        "x": 12,
+        "y": 12
       },
       "targets": [
         {
@@ -485,15 +689,153 @@
     },
     {
       "type": "row",
-      "title": "Assisted vs unassisted \u2014 rework, size and cost",
+      "title": "Assisted vs unassisted",
       "collapsed": false,
       "gridPos": {
-        "x": 0,
-        "y": 17,
+        "h": 1,
         "w": 24,
-        "h": 1
+        "x": 0,
+        "y": 19
       },
       "panels": []
+    },
+    {
+      "id": 200,
+      "title": "Change size, assisted vs not",
+      "type": "stat",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "h": 5,
+        "w": 8,
+        "x": 0,
+        "y": 20
+      },
+      "description": "**This is a size difference, not a productivity gain.**\n\nMean lines changed per assisted commit against unassisted ones, within purposes where both sides have at least 20 commits — so `feature` is not being compared against `docs`.\n\nA positive number means assisted commits are larger. Larger is not faster and not better: it may mean the agent takes on bigger work, or that it writes more code for the same outcome. Both are consistent with this figure.\n\nEmpty when no purpose has 20 commits on both sides, rather than showing a ratio computed from a handful.\n\n**Deliberately not colour-coded.** Green for positive would assert that larger commits are better, which is the claim the panel beside this one exists to refuse.",
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT ROUND(\n  100.0 * (\n    AVG(CASE WHEN c.status='assisted' THEN c.lines_added + c.lines_removed END)\n    - AVG(CASE WHEN c.status='undetermined' THEN c.lines_added + c.lines_removed END)\n  ) / NULLIF(AVG(CASE WHEN c.status='undetermined'\n                      THEN c.lines_added + c.lines_removed END), 0)\n, 0) AS v\nFROM whodunit_commits c JOIN whodunit_repos r ON r.repo_id = c.repo_id\nWHERE ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}') AND c.purpose IN (\n  SELECT purpose FROM (\n    SELECT c2.purpose\n    FROM whodunit_commits c2 JOIN whodunit_repos r2 ON r2.repo_id = c2.repo_id\n    WHERE ('${contributor:raw}' = '__all__' OR r2.contributor = '${contributor:raw}')\n    GROUP BY c2.purpose\n    HAVING SUM(c2.status='assisted') >= 20\n       AND SUM(c2.status='undetermined') >= 20\n  ) eligible\n)"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 0,
+          "noValue": "no purpose has 20+ commits on both sides",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 201,
+      "title": "Matched commits",
+      "type": "stat",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "h": 5,
+        "w": 8,
+        "x": 8,
+        "y": 20
+      },
+      "description": "The denominator behind the figure beside this — assisted against unassisted commits in the matched purposes.\n\nShown because a percentage without its sample size is not a measurement. Both sides must reach 20 before a purpose is included.",
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT CONCAT(\n  SUM(c.status='assisted'), ' vs ', SUM(c.status='undetermined')) AS v\nFROM whodunit_commits c JOIN whodunit_repos r ON r.repo_id = c.repo_id\nWHERE ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}') AND c.purpose IN (\n  SELECT purpose FROM (\n    SELECT c2.purpose FROM whodunit_commits c2 JOIN whodunit_repos r2 ON r2.repo_id = c2.repo_id\n    WHERE ('${contributor:raw}' = '__all__' OR r2.contributor = '${contributor:raw}')\n    GROUP BY c2.purpose\n    HAVING SUM(c2.status='assisted') >= 20 AND SUM(c2.status='undetermined') >= 20\n  ) eligible)"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "no matched cohort",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 6,
+      "type": "piechart",
+      "title": "By agent",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "h": 5,
+        "w": 8,
+        "x": 16,
+        "y": 20
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT c.agent AS `agent`, COUNT(*) AS `commits`\nFROM whodunit_commits c JOIN whodunit_repos r ON r.repo_id=c.repo_id\nWHERE c.status='assisted' AND c.agent<>''\n  AND ('${contributor:raw}'='__all__' OR r.contributor='${contributor:raw}') AND c.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nGROUP BY c.agent ORDER BY commits DESC"
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "values": [
+            "value"
+          ]
+        },
+        "pieType": "pie",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": true
+        }
+      },
+      "description": "Which agent wrote the code. One slice means only one agent has produced commits here."
     },
     {
       "id": 210,
@@ -501,12 +843,12 @@
       "type": "table",
       "datasource": "${datasource}",
       "gridPos": {
-        "x": 0,
-        "y": 18,
+        "h": 7,
         "w": 14,
-        "h": 7
+        "x": 0,
+        "y": 25
       },
-      "description": "**A rework proxy, not a defect rate.** `purpose` is derived from Conventional Commits prefixes and path heuristics, so this measures what commits were *labelled* \u2014 not what actually broke.\n\n**Banded by change size, and that changes the answer.** The unbanded figure is 28.4% assisted against 33.3% unassisted, which looks favourable. Split by size it reverses in the middle band: assisted work is 42.1% fixes against 24.7% at 50-300 lines, while at under 50 lines it is 38.5% against 46.6%. The aggregate was a size-mix artefact \u2014 assisted commits skew larger, and large commits are rarely labelled fixes.\n\nBoth denominators are shown because several bands are thin. Selection bias is uncontrolled either way: an agent is reached for on some kinds of work and not others, so part of this measures which work was assigned rather than what the agent did to it.",
+      "description": "**A rework proxy, not a defect rate.** `purpose` is derived from Conventional Commits prefixes and path heuristics, so this measures what commits were *labelled* — not what actually broke.\n\n**Banded by change size, and that changes the answer.** The unbanded figure is 28.4% assisted against 33.3% unassisted, which looks favourable. Split by size it reverses in the middle band: assisted work is 42.1% fixes against 24.7% at 50-300 lines, while at under 50 lines it is 38.5% against 46.6%. The aggregate was a size-mix artefact — assisted commits skew larger, and large commits are rarely labelled fixes.\n\nBoth denominators are shown because several bands are thin. Selection bias is uncontrolled either way: an agent is reached for on some kinds of work and not others, so part of this measures which work was assigned rather than what the agent did to it.",
       "targets": [
         {
           "refId": "A",
@@ -555,17 +897,90 @@
       }
     },
     {
+      "id": 212,
+      "title": "Autonomy and what it produced",
+      "type": "table",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "h": 7,
+        "w": 10,
+        "x": 14,
+        "y": 25
+      },
+      "description": "How much work happened at each level of autonomy.\n\n**The session counts are thin and shown for that reason** — measured here, `default` is 3 sessions and `auto` is 1, against 64 for `never`. A mode with one session tells you about that session.\n\nTool calls are not shipped work. A mode that permits more actions produces more actions by construction; whether that becomes delivered code is the question this panel raises and cannot answer.\n\nEach agent's own vocabulary is kept rather than mapped onto a shared enum — Codex says `never` and `on-request`, Claude Code says `acceptEdits`, `auto` and `default`.",
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT\n  s.permission_mode          AS Mode,\n  COUNT(*)                   AS Sessions,\n  SUM(s.tool_calls)          AS `Tool calls`\nFROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id\nWHERE s.permission_mode IS NOT NULL AND ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}')\nGROUP BY s.permission_mode ORDER BY SUM(s.tool_calls) DESC"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          },
+          "noValue": "no session recorded a permission mode"
+        },
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true
+      }
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "Change size — assisted vs undetermined",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 0,
+        "y": 32
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawSql": "SELECT DATE(FROM_UNIXTIME(c.committed_at/1000000000)) AS `time`,\n       ROUND(AVG(CASE WHEN c.status='assisted' THEN c.lines_added+c.lines_removed END),0) AS `assisted`,\n       ROUND(AVG(CASE WHEN c.status<>'assisted' THEN c.lines_added+c.lines_removed END),0) AS `undetermined`\nFROM whodunit_commits c JOIN whodunit_repos r ON r.repo_id=c.repo_id\nWHERE ('${contributor:raw}'='__all__' OR r.contributor='${contributor:raw}') AND c.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nGROUP BY `time` ORDER BY `time`"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "spanNulls": true
+          }
+        }
+      },
+      "description": "Average lines changed per commit. Bigger assisted commits are a fact to explain, not automatically a win."
+    },
+    {
       "id": 211,
       "title": "Output tokens per delivered line",
       "type": "stat",
       "datasource": "${datasource}",
       "gridPos": {
-        "x": 14,
-        "y": 18,
-        "w": 5,
-        "h": 7
+        "h": 7,
+        "w": 6,
+        "x": 12,
+        "y": 32
       },
-      "description": "Output tokens spent per line of assisted work that **reached a commit**.\n\nThe denominator is what distinguishes this from the token-per-attributed-line panel above: that one divides by agent activity, this one by work that shipped. Tokens spent on edits that were abandoned or rewritten count in the numerator and not the denominator, which is the point \u2014 that gap is the cost of work that did not land.\n\nTokens, never currency: under a subscription the marginal cost of a token is zero, so a price table would report money nobody spent.\n\nSessions and commits are counted over the same window but are not joined row-to-row \u2014 a session can span commits and a commit can span sessions. Read it as a rate for the period, not as an attribution per commit.",
+      "description": "Output tokens spent per line of assisted work that **reached a commit**.\n\nThe denominator is what distinguishes this from the token-per-attributed-line panel above: that one divides by agent activity, this one by work that shipped. Tokens spent on edits that were abandoned or rewritten count in the numerator and not the denominator, which is the point — that gap is the cost of work that did not land.\n\nTokens, never currency: under a subscription the marginal cost of a token is zero, so a price table would report money nobody spent.\n\nSessions and commits are counted over the same window but are not joined row-to-row — a session can span commits and a commit can span sessions. Read it as a rate for the period, not as an attribution per commit.",
       "targets": [
         {
           "refId": "A",
@@ -606,243 +1021,17 @@
       }
     },
     {
-      "id": 212,
-      "title": "Autonomy and what it produced",
-      "type": "table",
-      "datasource": "${datasource}",
-      "gridPos": {
-        "x": 19,
-        "y": 18,
-        "w": 5,
-        "h": 7
-      },
-      "description": "How much work happened at each level of autonomy.\n\n**The session counts are thin and shown for that reason** \u2014 measured here, `default` is 3 sessions and `auto` is 1, against 64 for `never`. A mode with one session tells you about that session.\n\nTool calls are not shipped work. A mode that permits more actions produces more actions by construction; whether that becomes delivered code is the question this panel raises and cannot answer.\n\nEach agent's own vocabulary is kept rather than mapped onto a shared enum \u2014 Codex says `never` and `on-request`, Claude Code says `acceptEdits`, `auto` and `default`.",
-      "targets": [
-        {
-          "refId": "A",
-          "format": "table",
-          "rawSql": "SELECT\n  s.permission_mode          AS Mode,\n  COUNT(*)                   AS Sessions,\n  SUM(s.tool_calls)          AS `Tool calls`\nFROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id\nWHERE s.permission_mode IS NOT NULL AND ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}')\nGROUP BY s.permission_mode ORDER BY SUM(s.tool_calls) DESC"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "fixed",
-            "fixedColor": "text"
-          },
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "text",
-                "value": null
-              }
-            ]
-          },
-          "noValue": "no session recorded a permission mode"
-        },
-        "overrides": []
-      },
-      "options": {
-        "showHeader": true
-      }
-    },
-    {
-      "id": 200,
-      "title": "Change size, assisted vs not",
-      "type": "stat",
-      "datasource": "${datasource}",
-      "gridPos": {
-        "x": 0,
-        "y": 25,
-        "w": 5,
-        "h": 5
-      },
-      "description": "**This is a size difference, not a productivity gain.**\n\nMean lines changed per assisted commit against unassisted ones, within purposes where both sides have at least 20 commits \u2014 so `feature` is not being compared against `docs`.\n\nA positive number means assisted commits are larger. Larger is not faster and not better: it may mean the agent takes on bigger work, or that it writes more code for the same outcome. Both are consistent with this figure.\n\nEmpty when no purpose has 20 commits on both sides, rather than showing a ratio computed from a handful.\n\n**Deliberately not colour-coded.** Green for positive would assert that larger commits are better, which is the claim the panel beside this one exists to refuse.",
-      "targets": [
-        {
-          "refId": "A",
-          "format": "table",
-          "rawSql": "SELECT ROUND(\n  100.0 * (\n    AVG(CASE WHEN c.status='assisted' THEN c.lines_added + c.lines_removed END)\n    - AVG(CASE WHEN c.status='undetermined' THEN c.lines_added + c.lines_removed END)\n  ) / NULLIF(AVG(CASE WHEN c.status='undetermined'\n                      THEN c.lines_added + c.lines_removed END), 0)\n, 0) AS v\nFROM whodunit_commits c JOIN whodunit_repos r ON r.repo_id = c.repo_id\nWHERE ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}') AND c.purpose IN (\n  SELECT purpose FROM (\n    SELECT c2.purpose\n    FROM whodunit_commits c2 JOIN whodunit_repos r2 ON r2.repo_id = c2.repo_id\n    WHERE ('${contributor:raw}' = '__all__' OR r2.contributor = '${contributor:raw}')\n    GROUP BY c2.purpose\n    HAVING SUM(c2.status='assisted') >= 20\n       AND SUM(c2.status='undetermined') >= 20\n  ) eligible\n)"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "percent",
-          "decimals": 0,
-          "noValue": "no purpose has 20+ commits on both sides",
-          "color": {
-            "mode": "fixed",
-            "fixedColor": "text"
-          },
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "text",
-                "value": null
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "options": {
-        "graphMode": "none",
-        "textMode": "value",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        }
-      }
-    },
-    {
-      "id": 201,
-      "title": "Matched commits",
-      "type": "stat",
-      "datasource": "${datasource}",
-      "gridPos": {
-        "x": 5,
-        "y": 25,
-        "w": 4,
-        "h": 5
-      },
-      "description": "The denominator behind the figure beside this \u2014 assisted against unassisted commits in the matched purposes.\n\nShown because a percentage without its sample size is not a measurement. Both sides must reach 20 before a purpose is included.",
-      "targets": [
-        {
-          "refId": "A",
-          "format": "table",
-          "rawSql": "SELECT CONCAT(\n  SUM(c.status='assisted'), ' vs ', SUM(c.status='undetermined')) AS v\nFROM whodunit_commits c JOIN whodunit_repos r ON r.repo_id = c.repo_id\nWHERE ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}') AND c.purpose IN (\n  SELECT purpose FROM (\n    SELECT c2.purpose FROM whodunit_commits c2 JOIN whodunit_repos r2 ON r2.repo_id = c2.repo_id\n    WHERE ('${contributor:raw}' = '__all__' OR r2.contributor = '${contributor:raw}')\n    GROUP BY c2.purpose\n    HAVING SUM(c2.status='assisted') >= 20 AND SUM(c2.status='undetermined') >= 20\n  ) eligible)"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "noValue": "no matched cohort",
-          "color": {
-            "mode": "fixed",
-            "fixedColor": "text"
-          },
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "text",
-                "value": null
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "options": {
-        "graphMode": "none",
-        "textMode": "value",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        }
-      }
-    },
-    {
-      "id": 202,
-      "title": "Why this is not a productivity percentage",
-      "type": "text",
-      "gridPos": {
-        "x": 9,
-        "y": 25,
-        "w": 15,
-        "h": 5
-      },
-      "options": {
-        "mode": "markdown",
-        "content": "### The comparison this dashboard cannot make\n\nA productivity gain needs a **before** and an **after** of the same work. What exists here is assisted against unassisted commits *in the same period*, and the two are not the same population:\n\n- **Selection is not random.** An agent is reached for on some kinds of work and not others. Measured on this data, 48% of assisted commits are features against 38% of unassisted ones \u2014 so an unmatched comparison partly measures which work got assigned to the agent.\n- **Larger is not faster.** The only outcome here is change size. A bigger commit may be more work done or more code written for the same outcome.\n- **No pre-adoption baseline is synced.** `dun baseline capture` records one locally \u2014 commits, cadence, median diff size, revert rate over a fixed window \u2014 but nothing publishes it, so the before-and-after comparison has no *before* to read. That is the comparison worth having: same repository, before and after, with the selection problem above absent by construction. Tracked as NAV-107.\n\nThe panels to the left control for purpose and show both sample sizes. That is as far as this data honestly goes."
-      }
-    },
-    {
-      "id": 6,
-      "type": "piechart",
-      "title": "By agent",
-      "datasource": "${datasource}",
-      "gridPos": {
-        "x": 0,
-        "y": 30,
-        "w": 8,
-        "h": 6
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "format": "table",
-          "rawSql": "SELECT c.agent AS `agent`, COUNT(*) AS `commits`\nFROM whodunit_commits c JOIN whodunit_repos r ON r.repo_id=c.repo_id\nWHERE c.status='assisted' AND c.agent<>''\n  AND ('${contributor:raw}'='__all__' OR r.contributor='${contributor:raw}') AND c.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nGROUP BY c.agent ORDER BY commits DESC"
-        }
-      ],
-      "options": {
-        "legend": {
-          "displayMode": "table",
-          "placement": "right",
-          "values": [
-            "value"
-          ]
-        },
-        "pieType": "pie",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "values": true
-        }
-      },
-      "description": "Which agent wrote the code. One slice means only one agent has produced commits here."
-    },
-    {
-      "id": 7,
-      "type": "timeseries",
-      "title": "Change size \u2014 assisted vs undetermined",
-      "datasource": "${datasource}",
-      "gridPos": {
-        "x": 8,
-        "y": 30,
-        "w": 10,
-        "h": 6
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "format": "time_series",
-          "rawSql": "SELECT DATE(FROM_UNIXTIME(c.committed_at/1000000000)) AS `time`,\n       ROUND(AVG(CASE WHEN c.status='assisted' THEN c.lines_added+c.lines_removed END),0) AS `assisted`,\n       ROUND(AVG(CASE WHEN c.status<>'assisted' THEN c.lines_added+c.lines_removed END),0) AS `undetermined`\nFROM whodunit_commits c JOIN whodunit_repos r ON r.repo_id=c.repo_id\nWHERE ('${contributor:raw}'='__all__' OR r.contributor='${contributor:raw}') AND c.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nGROUP BY `time` ORDER BY `time`"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "short",
-          "custom": {
-            "drawStyle": "line",
-            "lineWidth": 2,
-            "fillOpacity": 10,
-            "spanNulls": true
-          }
-        }
-      },
-      "description": "Average lines changed per commit. Bigger assisted commits are a fact to explain, not automatically a win."
-    },
-    {
       "id": 8,
       "title": "Output tokens per 1,000 attributed lines",
       "type": "stat",
       "datasource": "${datasource}",
       "gridPos": {
-        "x": 18,
-        "y": 30,
+        "h": 7,
         "w": 6,
-        "h": 6
+        "x": 18,
+        "y": 32
       },
-      "description": "What the agent spent, in tokens, per thousand lines it wrote.\n\n**This replaced a dollar figure** derived from a hand-typed monthly spend divided evenly over every line \u2014 an allocation dressed as a measurement, which reported the same unit cost whether the agent ran once or a thousand times, and defaulted to a $200 placeholder that was nobody's actual bill.\n\nTokens rather than currency, deliberately: under a subscription the marginal cost of a token is zero, so multiplying by an API rate would report money nobody spent \u2014 and nothing in a transcript says which billing model a user is on. Multiply by your own contract if you need a figure.\n\nEmpty where no session reported tokens: Antigravity reports none at all, and that is a property of the agent rather than a gap.",
+      "description": "What the agent spent, in tokens, per thousand lines it wrote.\n\n**This replaced a dollar figure** derived from a hand-typed monthly spend divided evenly over every line — an allocation dressed as a measurement, which reported the same unit cost whether the agent ran once or a thousand times, and defaulted to a $200 placeholder that was nobody's actual bill.\n\nTokens rather than currency, deliberately: under a subscription the marginal cost of a token is zero, so multiplying by an API rate would report money nobody spent — and nothing in a transcript says which billing model a user is on. Multiply by your own contract if you need a figure.\n\nEmpty where no session reported tokens: Antigravity reports none at all, and that is a property of the agent rather than a gap.",
       "targets": [
         {
           "refId": "A",
@@ -873,30 +1062,15 @@
     {
       "id": 18,
       "type": "row",
-      "title": "Does adoption move delivery?",
+      "title": "Correlation",
       "collapsed": false,
       "gridPos": {
-        "x": 0,
-        "y": 36,
+        "h": 1,
         "w": 24,
-        "h": 1
+        "x": 0,
+        "y": 39
       },
       "panels": []
-    },
-    {
-      "id": 19,
-      "type": "text",
-      "title": "",
-      "gridPos": {
-        "x": 0,
-        "y": 37,
-        "w": 24,
-        "h": 4
-      },
-      "options": {
-        "mode": "markdown",
-        "content": "**How to read this section.** Each chart plots AI adoption against a delivery outcome over the same weeks. The `r` beside it is a correlation coefficient: `+1` means they rise together, `-1` means one rises as the other falls, `0` means no linear relationship.\n\n**`r` is withheld until there are 10 overlapping weeks.** Below that it is arithmetic, not evidence \u2014 three points can produce `r = 0.99` from coincidence. The paired series still plots, so you can watch the relationship form. **Correlation is not causation** even at high `n`: a release freeze, a hiring round or a quarter boundary moves these numbers too."
-      }
     },
     {
       "id": 20,
@@ -904,10 +1078,10 @@
       "title": "Adoption vs deployment frequency",
       "datasource": "${datasource}",
       "gridPos": {
-        "x": 0,
-        "y": 41,
+        "h": 9,
         "w": 8,
-        "h": 9
+        "x": 0,
+        "y": 40
       },
       "targets": [
         {
@@ -997,10 +1171,10 @@
       "title": "Adoption vs change failure rate",
       "datasource": "${datasource}",
       "gridPos": {
-        "x": 8,
-        "y": 41,
+        "h": 9,
         "w": 8,
-        "h": 9
+        "x": 8,
+        "y": 40
       },
       "targets": [
         {
@@ -1090,10 +1264,10 @@
       "title": "Adoption vs pr cycle time",
       "datasource": "${datasource}",
       "gridPos": {
-        "x": 16,
-        "y": 41,
+        "h": 9,
         "w": 8,
-        "h": 9
+        "x": 16,
+        "y": 40
       },
       "targets": [
         {
@@ -1180,13 +1354,13 @@
     {
       "id": 21,
       "type": "stat",
-      "title": "r \u2014 adoption vs deployment frequency",
+      "title": "r — adoption vs deployment frequency",
       "datasource": "${datasource}",
       "gridPos": {
-        "x": 0,
-        "y": 50,
+        "h": 4,
         "w": 4,
-        "h": 4
+        "x": 0,
+        "y": 49
       },
       "targets": [
         {
@@ -1221,7 +1395,7 @@
           "values": false
         }
       },
-      "description": "Pearson correlation between weekly adoption and weekly deployment frequency.\n\n**Correlation, not causation, and on very few weeks.** The overlapping-weeks count beside it is the number that decides whether this means anything \u2014 below about ten weeks it is noise wearing a decimal point."
+      "description": "Pearson correlation between weekly adoption and weekly deployment frequency.\n\n**Correlation, not causation, and on very few weeks.** The overlapping-weeks count beside it is the number that decides whether this means anything — below about ten weeks it is noise wearing a decimal point."
     },
     {
       "id": 22,
@@ -1229,10 +1403,10 @@
       "title": "overlapping weeks (n)",
       "datasource": "${datasource}",
       "gridPos": {
-        "x": 4,
-        "y": 50,
+        "h": 4,
         "w": 4,
-        "h": 4
+        "x": 4,
+        "y": 49
       },
       "targets": [
         {
@@ -1276,13 +1450,13 @@
     {
       "id": 24,
       "type": "stat",
-      "title": "r \u2014 adoption vs change failure rate",
+      "title": "r — adoption vs change failure rate",
       "datasource": "${datasource}",
       "gridPos": {
-        "x": 8,
-        "y": 50,
+        "h": 4,
         "w": 4,
-        "h": 4
+        "x": 8,
+        "y": 49
       },
       "targets": [
         {
@@ -1317,7 +1491,7 @@
           "values": false
         }
       },
-      "description": "Pearson correlation between weekly adoption and weekly change failure rate.\n\nA negative r would mean failures fall as adoption rises. It would not mean adoption caused that \u2014 teams adopting AI are also doing other things \u2014 and the overlapping-weeks count beside it usually rules out reading it at all."
+      "description": "Pearson correlation between weekly adoption and weekly change failure rate.\n\nA negative r would mean failures fall as adoption rises. It would not mean adoption caused that — teams adopting AI are also doing other things — and the overlapping-weeks count beside it usually rules out reading it at all."
     },
     {
       "id": 25,
@@ -1325,10 +1499,10 @@
       "title": "overlapping weeks (n)",
       "datasource": "${datasource}",
       "gridPos": {
-        "x": 12,
-        "y": 50,
+        "h": 4,
         "w": 4,
-        "h": 4
+        "x": 12,
+        "y": 49
       },
       "targets": [
         {
@@ -1372,13 +1546,13 @@
     {
       "id": 27,
       "type": "stat",
-      "title": "r \u2014 adoption vs pr cycle time",
+      "title": "r — adoption vs pr cycle time",
       "datasource": "${datasource}",
       "gridPos": {
-        "x": 16,
-        "y": 50,
+        "h": 4,
         "w": 4,
-        "h": 4
+        "x": 16,
+        "y": 49
       },
       "targets": [
         {
@@ -1421,10 +1595,10 @@
       "title": "overlapping weeks (n)",
       "datasource": "${datasource}",
       "gridPos": {
-        "x": 20,
-        "y": 50,
+        "h": 4,
         "w": 4,
-        "h": 4
+        "x": 20,
+        "y": 49
       },
       "targets": [
         {
@@ -1466,221 +1640,48 @@
       "description": "Green once it reaches 10, the point at which the coefficient appears."
     },
     {
-      "id": 2,
-      "type": "row",
-      "title": "Adoption \u2014 every instrumented repository",
-      "collapsed": false,
+      "id": 1,
+      "type": "text",
+      "title": "",
       "gridPos": {
-        "x": 0,
-        "y": 54,
+        "h": 3,
         "w": 24,
-        "h": 1
-      },
-      "panels": []
-    },
-    {
-      "id": 3,
-      "type": "stat",
-      "title": "Current adoption",
-      "datasource": "${datasource}",
-      "gridPos": {
         "x": 0,
-        "y": 55,
-        "w": 4,
-        "h": 5
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "format": "table",
-          "rawSql": "SELECT ROUND(SUM(c.status='assisted')*100.0/NULLIF(COUNT(*),0),1) v\nFROM whodunit_commits c JOIN whodunit_repos r ON r.repo_id=c.repo_id\nWHERE ('${contributor:raw}'='__all__' OR r.contributor='${contributor:raw}')\n  AND c.committed_at >= (UNIX_TIMESTAMP() - 7*86400) * 1000000000"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "percent",
-          "decimals": 1,
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "text",
-                "value": null
-              },
-              {
-                "color": "blue",
-                "value": 1
-              }
-            ]
-          }
-        }
+        "y": 53
       },
       "options": {
-        "graphMode": "none",
-        "textMode": "value",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        }
-      },
-      "description": "Share of the last 7 days' commits carrying an AI-Attribution trailer."
+        "mode": "markdown",
+        "content": "*Does AI assistance move delivery outcomes?* Adoption comes from git history and agent session records; outcomes from DevLake's DORA pipeline — nothing self-reported. **Scope:** adoption covers every instrumented repo, delivery outcomes **EngageHub only** (the one project with deployments)."
+      }
     },
     {
-      "id": 4,
-      "type": "timeseries",
-      "title": "Adoption over time",
-      "datasource": "${datasource}",
+      "id": 202,
+      "title": "Why this is not a productivity percentage",
+      "type": "text",
       "gridPos": {
-        "x": 4,
-        "y": 55,
-        "w": 12,
-        "h": 5
+        "h": 4,
+        "w": 24,
+        "x": 0,
+        "y": 56
       },
-      "targets": [
-        {
-          "refId": "A",
-          "format": "time_series",
-          "rawSql": "SELECT DATE(FROM_UNIXTIME(c.committed_at/1000000000)) AS `time`,\n       ROUND(SUM(c.status='assisted')*100.0/NULLIF(COUNT(*),0),1) AS `assisted %`\nFROM whodunit_commits c JOIN whodunit_repos r ON r.repo_id=c.repo_id\nWHERE ('${contributor:raw}'='__all__' OR r.contributor='${contributor:raw}') AND c.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nGROUP BY `time` ORDER BY `time`"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "percent",
-          "min": 0,
-          "max": 100,
-          "custom": {
-            "drawStyle": "line",
-            "lineWidth": 2,
-            "fillOpacity": 15,
-            "spanNulls": true,
-            "pointSize": 6
-          }
-        }
-      },
-      "description": "The adoption curve. A flat line at zero before instrumentation is expected, not a gap in the data."
-    },
-    {
-      "id": 5,
-      "type": "piechart",
-      "title": "Evidence strength",
-      "datasource": "${datasource}",
-      "gridPos": {
-        "x": 16,
-        "y": 55,
-        "w": 8,
-        "h": 5
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "format": "table",
-          "rawSql": "SELECT CASE c.method\n         WHEN 'intersected' THEN 'intersected'\n         WHEN 'observed'    THEN 'observed'\n         WHEN 'declared'    THEN 'declared'\n         WHEN 'inferred'    THEN 'inferred'\n         ELSE 'undetermined'\n       END AS `method`,\n       COUNT(*) AS `commits`\nFROM whodunit_commits c JOIN whodunit_repos r ON r.repo_id=c.repo_id\nWHERE ('${contributor:raw}'='__all__' OR r.contributor='${contributor:raw}') AND c.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nGROUP BY c.method ORDER BY commits DESC"
-        }
-      ],
       "options": {
-        "legend": {
-          "displayMode": "table",
-          "placement": "right",
-          "values": [
-            "value"
-          ]
-        },
-        "pieType": "donut",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "values": true
-        }
+        "mode": "markdown",
+        "content": "### The comparison this dashboard cannot make\n\nA gain needs a **before** and an **after** of the same work. This has assisted against unassisted commits *in the same period* — not the same population.\n\n- **Selection is not random** — 48% of assisted commits are features against 38% of unassisted, so an unmatched comparison partly measures which work got assigned to the agent\n- **Larger is not faster** — the only outcome here is change size\n- **Only one repository has a baseline.** `dun baseline capture` publishes to the sidecar, but a snapshot exists for one repo only, so the before-and-after comparison cannot be drawn for the rest"
+      }
+    },
+    {
+      "id": 19,
+      "type": "text",
+      "title": "",
+      "gridPos": {
+        "h": 3,
+        "w": 24,
+        "x": 0,
+        "y": 60
       },
-      "description": "How each commit's attribution was established, from strongest evidence to none.\n\n- **intersected** \u2014 agent-written lines survived into the commit. The strongest claim: the text the agent produced is in the diff.\n- **observed** \u2014 the agent touched the file, but the text changed afterwards. It worked here; what shipped may not be its work.\n- **inferred** \u2014 established from surrounding evidence rather than line-level matching.\n- **declared** \u2014 stated in the trailer, not measured.\n- **undetermined** \u2014 no evidence either way. **Not a claim that no agent was used** \u2014 a commit made before the hooks were installed, or on a machine without them, lands here regardless of how it was written (NAV-21).\n\nColours run cool to warm by strength of evidence, with undetermined grey because it is an absence rather than a tier. Warm is not 'good': strong evidence that an agent wrote the code is a confident measurement, not a desirable outcome.",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "fixed",
-            "fixedColor": "text"
-          }
-        },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "undetermined"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "#8e8e8e"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "declared"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "#5794F2"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "inferred"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "#73BF69"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "observed"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "#FF9830"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "intersected"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "#B877D9"
-                }
-              }
-            ]
-          }
-        ]
+      "options": {
+        "mode": "markdown",
+        "content": "**Reading the correlations.** Each chart plots adoption against a delivery outcome over the same weeks; `r` is the correlation coefficient (`+1` rise together, `-1` opposite, `0` no linear relationship). **Withheld below 10 overlapping weeks** — three points can produce `r = 0.99` by coincidence. **Correlation is not causation** even at high `n`."
       }
     }
   ]

@@ -1,6 +1,6 @@
 {
   "uid": "whodunit-exec",
-  "title": "Whodunit — Executive Summary",
+  "title": "Executive Summary",
   "tags": [
     "whodunit"
   ],
@@ -38,31 +38,32 @@
       {
         "name": "grain",
         "type": "custom",
-        "label": "Granularity",
-        "query": "%Y-%m-%d : Daily, %x-W%v : Weekly, %Y-%m : Monthly",
+        "query": "Daily : day, Weekly : week, Monthly : month",
         "options": [
           {
+            "selected": true,
             "text": "Daily",
-            "value": "%Y-%m-%d",
-            "selected": true
+            "value": "day"
           },
           {
+            "selected": false,
             "text": "Weekly",
-            "value": "%x-W%v",
-            "selected": false
+            "value": "week"
           },
           {
+            "selected": false,
             "text": "Monthly",
-            "value": "%Y-%m",
-            "selected": false
+            "value": "month"
           }
         ],
         "current": {
           "selected": false,
           "text": "Daily",
-          "value": "%Y-%m-%d"
+          "value": "day"
         },
+        "refresh": 0,
         "hide": 0,
+        "label": "Granularity",
         "includeAll": false,
         "multi": false
       },
@@ -79,131 +80,213 @@
         "allValue": "__all__",
         "multi": false,
         "options": []
+      },
+      {
+        "name": "repo",
+        "type": "query",
+        "datasource": "${DS_WHODUNIT}",
+        "query": "SELECT COALESCE(MAX(r.name), LEFT(w.repo_id, 8)) AS __text, w.repo_id AS __value FROM whodunit_commits w LEFT JOIN repo_commits rc ON rc.commit_sha = w.commit_sha LEFT JOIN repos r ON r.id = rc.repo_id GROUP BY w.repo_id ORDER BY __text",
+        "current": {},
+        "refresh": 1,
+        "hide": 0,
+        "label": "Repository (commit panels)",
+        "includeAll": true,
+        "allValue": "__all__",
+        "multi": false,
+        "options": []
       }
     ]
   },
   "panels": [
     {
-      "id": 1,
-      "type": "text",
-      "title": "",
+      "type": "row",
+      "title": "Headline",
+      "collapsed": false,
+      "panels": [],
+      "id": 900,
       "gridPos": {
-        "x": 0,
-        "y": 0,
+        "h": 1,
         "w": 24,
-        "h": 3
-      },
-      "options": {
-        "mode": "markdown",
-        "content": "## GenAI Adoption — Executive Summary\n*How much of this team's delivery is AI-assisted, and what it costs or saves.* Every number below is measured from git history and the agent's own session records — none of it is self-reported or estimated."
+        "x": 0,
+        "y": 0
       }
     },
     {
-      "id": 2,
-      "type": "stat",
-      "title": "AI-assisted commits",
+      "id": 903,
+      "type": "gauge",
+      "title": "Adoption · $repo",
+      "description": "Share of commits in the selected range carrying `status=assisted`.\n\n**Adoption is not coverage.** Coverage beside it counts any valid trailer including `undetermined` — a repository at full coverage may have had no agent involvement at all. Coverage says the instrumentation works; this says the agents are being used.\n\nThe delivery dashboard carries the same figure; both follow the time range.",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
+        "h": 6,
+        "w": 4,
         "x": 0,
-        "y": 3,
-        "w": 5,
-        "h": 5
+        "y": 1
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "decimals": 1,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#25c2a0"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#25c2a0",
+                "value": null
+              }
+            ]
+          },
+          "noValue": "No commits in the selected range"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showThresholdLabels": false,
+        "showThresholdMarkers": false,
+        "minVizWidth": 75,
+        "minVizHeight": 75,
+        "sizing": "auto"
       },
       "targets": [
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT COUNT(*) v FROM whodunit_commits c JOIN whodunit_repos r ON r.repo_id=c.repo_id WHERE c.status='assisted' AND ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}') AND c.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000"
+          "datasource": "${DS_WHODUNIT}",
+          "rawSql": "SELECT ROUND(SUM(c.status='assisted')*100.0/NULLIF(COUNT(*),0),1) AS v\nFROM whodunit_commits c\nJOIN whodunit_repos r ON r.repo_id = c.repo_id\nWHERE ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}')\n  AND ('${repo:raw}' = '__all__' OR c.repo_id = '${repo:raw}')\n  AND c.committed_at BETWEEN $__unixEpochFrom() * 1000000000\n                         AND $__unixEpochTo()   * 1000000000"
+        }
+      ]
+    },
+    {
+      "id": 904,
+      "title": "Session depth · $repo",
+      "type": "piechart",
+      "datasource": "${DS_WHODUNIT}",
+      "gridPos": {
+        "h": 6,
+        "w": 5,
+        "x": 4,
+        "y": 1
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT CASE\n         WHEN s.mcp_calls > 0 OR s.distinct_tools >= 5 OR s.tool_calls >= 50\n              THEN 'agentic'\n         WHEN s.tool_calls > 0 THEN 'edits'\n         ELSE 'chat only'\n       END AS `depth`,\n       COUNT(*) AS `sessions`\nFROM whodunit_sessions s\nJOIN whodunit_repos r ON r.repo_id = s.repo_id\nWHERE s.last_seen BETWEEN $__unixEpochFrom() * 1000000000\n                      AND $__unixEpochTo()   * 1000000000\n  AND ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}')\n  AND ('${repo:raw}' = '__all__' OR s.repo_id = '${repo:raw}')\nGROUP BY `depth`\nORDER BY `sessions` DESC"
         }
       ],
       "fieldConfig": {
         "defaults": {
           "unit": "short",
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
+          "noValue": "No sessions in range",
+          "custom": {
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            }
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "agentic"
+            },
+            "properties": [
               {
-                "color": "blue",
-                "value": null
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#25c2a0"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "edits"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#7aa2f7"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "chat only"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#8b95a5"
+                }
               }
             ]
           }
-        }
+        ]
       },
+      "description": "Share of sessions by depth: **agentic** used MCP or many tools, **edits** changed files, **chat only** produced no edits at all.\n\nDepth rather than count — ten sessions that produced nothing and one that rewrote a subsystem are not the same adoption. A large grey slice means the tool is open but not doing the work.",
       "options": {
-        "graphMode": "none",
-        "textMode": "value_and_name",
         "reduceOptions": {
           "calcs": [
             "lastNotNull"
           ],
           "fields": "",
-          "values": false
+          "values": true
+        },
+        "pieType": "pie",
+        "displayLabels": [
+          "percent"
+        ],
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
         }
-      },
-      "description": "Commits carrying evidence of agent involvement in the selected range.\n\nCounts `status = 'assisted'` only. A commit with no trailer is `undetermined` — no evidence either way — not proof it was written without an agent (NAV-21). Read this against Attribution coverage beside it, which is the share of commits that carry any verdict at all."
-    },
-    {
-      "id": 3,
-      "type": "stat",
-      "title": "Attribution coverage",
-      "datasource": "${DS_WHODUNIT}",
-      "gridPos": {
-        "x": 5,
-        "y": 3,
-        "w": 5,
-        "h": 5
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "format": "table",
-          "rawSql": "SELECT ROUND(100.0*SUM(c.status<>'undetermined')/NULLIF(COUNT(*),0),0) v FROM whodunit_commits c JOIN whodunit_repos r ON r.repo_id=c.repo_id WHERE ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}') AND c.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "percent",
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              }
-            ]
-          }
-        }
-      },
-      "options": {
-        "graphMode": "none",
-        "textMode": "value_and_name",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        }
-      },
-      "description": "Share of commits carrying any attribution verdict — anything other than `undetermined`.\n\nThis is a measure of **instrumentation, not of AI use**. A repository instrumented last week has low coverage for its whole history, because commits made before the hooks existed cannot be attributed retroactively.\n\nLow coverage means the numbers on this page describe a small slice. Read every other panel against it."
+      }
     },
     {
       "id": 4,
-      "type": "stat",
-      "title": "Code acceptance",
+      "type": "gauge",
+      "title": "Acceptance · $repo",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
-        "x": 10,
-        "y": 3,
-        "w": 5,
-        "h": 5
+        "h": 6,
+        "w": 3,
+        "x": 9,
+        "y": 1
       },
       "targets": [
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT ROUND(100.0*SUM(e.outcome='accepted')/NULLIF(SUM(e.outcome IN ('accepted','rejected','failed')),0),1) v FROM whodunit_events e JOIN whodunit_repos r ON r.repo_id=e.repo_id WHERE ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}') AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000"
+          "rawSql": "SELECT ROUND(100.0*SUM(e.outcome='accepted')/NULLIF(SUM(e.outcome IN ('accepted','rejected','failed')),0),1) v FROM whodunit_events e JOIN whodunit_repos r ON r.repo_id=e.repo_id WHERE ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}')\n  AND ('${repo:raw}' = '__all__' OR e.repo_id = '${repo:raw}') AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000"
         }
       ],
       "fieldConfig": {
@@ -217,143 +300,47 @@
                 "value": null
               }
             ]
-          }
+          },
+          "min": 0,
+          "max": 100,
+          "decimals": 0
         }
       },
       "options": {
-        "graphMode": "none",
-        "textMode": "value_and_name",
         "reduceOptions": {
           "calcs": [
             "lastNotNull"
           ],
           "fields": "",
           "values": false
+        },
+        "showThresholdLabels": false,
+        "showThresholdMarkers": false,
+        "minVizWidth": 75,
+        "minVizHeight": 75,
+        "sizing": "auto",
+        "text": {
+          "valueSize": 28
         }
       },
       "description": "Share of decided tool calls that were accepted.\n\n**The denominator is decided calls only** — accepted, rejected or failed — not all calls. A call whose outcome was never recorded is excluded rather than counted as accepted, which would flatter the rate. See Decided tool calls beside this for the size of that denominator.\n\nA rejection is a human declining; a failure is the tool erroring. Both count as decided, and only acceptance is in the numerator."
     },
     {
-      "id": 5,
-      "type": "stat",
-      "title": "Decided tool calls",
-      "datasource": "${DS_WHODUNIT}",
-      "gridPos": {
-        "x": 15,
-        "y": 3,
-        "w": 4,
-        "h": 5
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "format": "table",
-          "rawSql": "SELECT COUNT(*) v FROM whodunit_events e JOIN whodunit_repos r ON r.repo_id=e.repo_id WHERE e.outcome IN ('accepted','rejected','failed') AND ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}') AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "short",
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "text",
-                "value": null
-              }
-            ]
-          }
-        }
-      },
-      "options": {
-        "graphMode": "none",
-        "textMode": "value_and_name",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        }
-      },
-      "description": "How many tool calls have a recorded outcome, and therefore how much the acceptance rate beside this is actually measured on.\n\nShown because a percentage without its denominator is not a measurement. A rate over a handful of calls moves entirely on one of them."
-    },
-    {
-      "id": 6,
-      "type": "stat",
-      "title": "Agent sessions",
-      "datasource": "${DS_WHODUNIT}",
-      "gridPos": {
-        "x": 19,
-        "y": 3,
-        "w": 5,
-        "h": 5
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "format": "table",
-          "rawSql": "SELECT COUNT(DISTINCT e.session) v FROM whodunit_events e JOIN whodunit_repos r ON r.repo_id=e.repo_id WHERE e.session<>'' AND ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}') AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "short",
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "orange",
-                "value": null
-              }
-            ]
-          }
-        }
-      },
-      "options": {
-        "graphMode": "none",
-        "textMode": "value_and_name",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        }
-      },
-      "description": "Distinct agent sessions that produced at least one recorded event in range.\n\nA session is one conversation with an agent. Sessions that only read or ran commands count here — this measures how often an agent was used, not how much code resulted."
-    },
-    {
-      "id": 7,
-      "type": "text",
-      "title": "",
-      "gridPos": {
-        "x": 0,
-        "y": 8,
-        "w": 24,
-        "h": 2
-      },
-      "options": {
-        "mode": "markdown",
-        "content": "### Does AI-assisted work ship faster?\nCycle time for issues whose commits carry an AI-attribution trailer, against those that don't. **A measured comparison, not an estimate** — if the *Not AI-assisted* count is zero there is no control group yet and the delta means nothing. That count is shown deliberately."
-      }
-    },
-    {
       "id": 8,
       "type": "stat",
-      "title": "Median cycle — AI-assisted",
+      "title": "Median cycle · assisted issues",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
-        "x": 0,
-        "y": 10,
-        "w": 6,
-        "h": 5
+        "h": 6,
+        "w": 4,
+        "x": 12,
+        "y": 1
       },
       "targets": [
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT ROUND(AVG(ltm)/60,1) v FROM (\nSELECT i.issue_key,\n       i.lead_time_minutes AS ltm,\n       i.resolution_date,\n       COALESCE(MAX(w.status = 'assisted'), 0) AS ai\nFROM issues i\nJOIN board_issues bi ON bi.issue_id = i.id\nLEFT JOIN commits c\n       ON c.message REGEXP CONCAT('(^|[^A-Za-z0-9])', i.issue_key, '([^0-9]|$)')\nLEFT JOIN whodunit_commits w ON w.commit_sha = c.sha\nWHERE bi.board_id = '$board'\n  AND i.lead_time_minutes IS NOT NULL\nGROUP BY i.issue_key, i.lead_time_minutes, i.resolution_date\n) t WHERE ai=1"
+          "rawSql": "SELECT CASE\n         WHEN (SELECT COUNT(*) FROM (SELECT i.issue_key, i.lead_time_minutes AS ltm,\n       COALESCE(MAX(w.status = 'assisted'), 0) AS ai\nFROM issues i\nJOIN board_issues bi ON bi.issue_id = i.id\nLEFT JOIN commits c\n       ON c.message REGEXP CONCAT('(^|[^A-Za-z0-9])', i.issue_key, '([^0-9]|$)')\nLEFT JOIN whodunit_commits w ON w.commit_sha = c.sha\nWHERE bi.board_id = '$board'\n  AND i.lead_time_minutes IS NOT NULL\n  AND i.lead_time_minutes > 0\n  AND $__timeFilter(i.resolution_date)\n  AND i.issue_key REGEXP '^[A-Z][A-Z0-9]+-[0-9]+$'\n    AND i.issue_key REGEXP CONCAT('^',\n        (SELECT SUBSTRING_INDEX(i2.issue_key,'-',1)\n           FROM issues i2 JOIN board_issues bi2 ON bi2.issue_id = i2.id\n          WHERE bi2.board_id = '$board'\n            AND i2.issue_key REGEXP '^[A-Z][A-Z0-9]+-[0-9]+$' LIMIT 1),\n        '-[0-9]+$')\nGROUP BY i.issue_key, i.lead_time_minutes\nHAVING ai = 1) ca) < 10\n           OR (SELECT COUNT(*) FROM (SELECT i.issue_key, i.lead_time_minutes AS ltm,\n       COALESCE(MAX(w.status = 'assisted'), 0) AS ai\nFROM issues i\nJOIN board_issues bi ON bi.issue_id = i.id\nLEFT JOIN commits c\n       ON c.message REGEXP CONCAT('(^|[^A-Za-z0-9])', i.issue_key, '([^0-9]|$)')\nLEFT JOIN whodunit_commits w ON w.commit_sha = c.sha\nWHERE bi.board_id = '$board'\n  AND i.lead_time_minutes IS NOT NULL\n  AND i.lead_time_minutes > 0\n  AND $__timeFilter(i.resolution_date)\n  AND i.issue_key REGEXP '^[A-Z][A-Z0-9]+-[0-9]+$'\n    AND i.issue_key REGEXP CONCAT('^',\n        (SELECT SUBSTRING_INDEX(i2.issue_key,'-',1)\n           FROM issues i2 JOIN board_issues bi2 ON bi2.issue_id = i2.id\n          WHERE bi2.board_id = '$board'\n            AND i2.issue_key REGEXP '^[A-Z][A-Z0-9]+-[0-9]+$' LIMIT 1),\n        '-[0-9]+$')\nGROUP BY i.issue_key, i.lead_time_minutes\nHAVING ai = 0) cb) < 10\n         THEN NULL\n         ELSE (SELECT ROUND(AVG(ltm)/60, 1) FROM (\n                 SELECT ltm, ROW_NUMBER() OVER (ORDER BY ltm) rn, COUNT(*) OVER () cnt\n                 FROM (SELECT i.issue_key, i.lead_time_minutes AS ltm,\n       COALESCE(MAX(w.status = 'assisted'), 0) AS ai\nFROM issues i\nJOIN board_issues bi ON bi.issue_id = i.id\nLEFT JOIN commits c\n       ON c.message REGEXP CONCAT('(^|[^A-Za-z0-9])', i.issue_key, '([^0-9]|$)')\nLEFT JOIN whodunit_commits w ON w.commit_sha = c.sha\nWHERE bi.board_id = '$board'\n  AND i.lead_time_minutes IS NOT NULL\n  AND i.lead_time_minutes > 0\n  AND $__timeFilter(i.resolution_date)\n  AND i.issue_key REGEXP '^[A-Z][A-Z0-9]+-[0-9]+$'\n    AND i.issue_key REGEXP CONCAT('^',\n        (SELECT SUBSTRING_INDEX(i2.issue_key,'-',1)\n           FROM issues i2 JOIN board_issues bi2 ON bi2.issue_id = i2.id\n          WHERE bi2.board_id = '$board'\n            AND i2.issue_key REGEXP '^[A-Z][A-Z0-9]+-[0-9]+$' LIMIT 1),\n        '-[0-9]+$')\nGROUP BY i.issue_key, i.lead_time_minutes\nHAVING ai = 1) c) r\n               WHERE rn IN (FLOOR((cnt+1)/2), CEIL((cnt+1)/2)))\n       END AS v"
         }
       ],
       "fieldConfig": {
@@ -367,38 +354,44 @@
                 "value": null
               }
             ]
-          }
+          },
+          "noValue": "n/a — under 10 issues either side",
+          "decimals": 1
         }
       },
       "options": {
         "graphMode": "none",
-        "textMode": "value_and_name",
+        "textMode": "value",
         "reduceOptions": {
           "calcs": [
             "lastNotNull"
           ],
           "fields": "",
           "values": false
+        },
+        "text": {
+          "valueSize": 22,
+          "titleSize": 11
         }
       },
-      "description": "Issues whose commits carry an attribution trailer, against those that do not. Read it as a description, not a verdict: harder work tends to get handed to an agent, so a longer AI-assisted cycle usually reflects which issues were chosen, not the agent slowing them down."
+      "description": "**Median hours from issue open to issue close**, for issues whose linked commits carry an AI-attribution trailer.\n\n**The median, not the mean** — half the issues closed faster than this, half slower. Cycle times have a long tail, and the two diverge sharply: measured on this data the mean is 3.47 days against a median of 0.17. The mean describes neither the typical issue nor the slow one, so it is the wrong summary for this shape of distribution.\n\nRead it as a description, not a verdict. Harder work tends to get handed to an agent, so a longer assisted cycle usually reflects **which issues were chosen**, not the agent slowing them down. Nothing here establishes cause.\n\n**How an issue is classified.** Its key is matched against commit messages (`WHO-12` in a commit subject links that commit to that issue). If any linked commit carries `status=assisted`, the issue counts as AI-assisted; otherwise it counts as not. An issue whose key appears in no commit message is in neither cohort — it is absent, not counted as unassisted.\n\n**Scope.** Issues closed within the dashboard time range, on the selected issue board. The Repository filter does not apply: an issue's commits can span repositories, so filtering by one would drop genuinely assisted issues and understate the comparison.\n\n**Withheld below 10 issues either side.** A median over a handful moves hours on one of them, and same-minute tickets — opened and closed in one action — would otherwise set it to zero. Issues with no measurable duration are excluded entirely."
     },
     {
       "id": 9,
       "type": "stat",
-      "title": "Median cycle — not AI-assisted",
+      "title": "Median cycle · other issues",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
-        "x": 6,
-        "y": 10,
-        "w": 6,
-        "h": 5
+        "h": 6,
+        "w": 4,
+        "x": 16,
+        "y": 1
       },
       "targets": [
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT ROUND(AVG(ltm)/60,1) v FROM (\nSELECT i.issue_key,\n       i.lead_time_minutes AS ltm,\n       i.resolution_date,\n       COALESCE(MAX(w.status = 'assisted'), 0) AS ai\nFROM issues i\nJOIN board_issues bi ON bi.issue_id = i.id\nLEFT JOIN commits c\n       ON c.message REGEXP CONCAT('(^|[^A-Za-z0-9])', i.issue_key, '([^0-9]|$)')\nLEFT JOIN whodunit_commits w ON w.commit_sha = c.sha\nWHERE bi.board_id = '$board'\n  AND i.lead_time_minutes IS NOT NULL\nGROUP BY i.issue_key, i.lead_time_minutes, i.resolution_date\n) t WHERE ai=0"
+          "rawSql": "SELECT CASE\n         WHEN (SELECT COUNT(*) FROM (SELECT i.issue_key, i.lead_time_minutes AS ltm,\n       COALESCE(MAX(w.status = 'assisted'), 0) AS ai\nFROM issues i\nJOIN board_issues bi ON bi.issue_id = i.id\nLEFT JOIN commits c\n       ON c.message REGEXP CONCAT('(^|[^A-Za-z0-9])', i.issue_key, '([^0-9]|$)')\nLEFT JOIN whodunit_commits w ON w.commit_sha = c.sha\nWHERE bi.board_id = '$board'\n  AND i.lead_time_minutes IS NOT NULL\n  AND i.lead_time_minutes > 0\n  AND $__timeFilter(i.resolution_date)\n  AND i.issue_key REGEXP '^[A-Z][A-Z0-9]+-[0-9]+$'\n    AND i.issue_key REGEXP CONCAT('^',\n        (SELECT SUBSTRING_INDEX(i2.issue_key,'-',1)\n           FROM issues i2 JOIN board_issues bi2 ON bi2.issue_id = i2.id\n          WHERE bi2.board_id = '$board'\n            AND i2.issue_key REGEXP '^[A-Z][A-Z0-9]+-[0-9]+$' LIMIT 1),\n        '-[0-9]+$')\nGROUP BY i.issue_key, i.lead_time_minutes\nHAVING ai = 1) ca) < 10\n           OR (SELECT COUNT(*) FROM (SELECT i.issue_key, i.lead_time_minutes AS ltm,\n       COALESCE(MAX(w.status = 'assisted'), 0) AS ai\nFROM issues i\nJOIN board_issues bi ON bi.issue_id = i.id\nLEFT JOIN commits c\n       ON c.message REGEXP CONCAT('(^|[^A-Za-z0-9])', i.issue_key, '([^0-9]|$)')\nLEFT JOIN whodunit_commits w ON w.commit_sha = c.sha\nWHERE bi.board_id = '$board'\n  AND i.lead_time_minutes IS NOT NULL\n  AND i.lead_time_minutes > 0\n  AND $__timeFilter(i.resolution_date)\n  AND i.issue_key REGEXP '^[A-Z][A-Z0-9]+-[0-9]+$'\n    AND i.issue_key REGEXP CONCAT('^',\n        (SELECT SUBSTRING_INDEX(i2.issue_key,'-',1)\n           FROM issues i2 JOIN board_issues bi2 ON bi2.issue_id = i2.id\n          WHERE bi2.board_id = '$board'\n            AND i2.issue_key REGEXP '^[A-Z][A-Z0-9]+-[0-9]+$' LIMIT 1),\n        '-[0-9]+$')\nGROUP BY i.issue_key, i.lead_time_minutes\nHAVING ai = 0) cb) < 10\n         THEN NULL\n         ELSE (SELECT ROUND(AVG(ltm)/60, 1) FROM (\n                 SELECT ltm, ROW_NUMBER() OVER (ORDER BY ltm) rn, COUNT(*) OVER () cnt\n                 FROM (SELECT i.issue_key, i.lead_time_minutes AS ltm,\n       COALESCE(MAX(w.status = 'assisted'), 0) AS ai\nFROM issues i\nJOIN board_issues bi ON bi.issue_id = i.id\nLEFT JOIN commits c\n       ON c.message REGEXP CONCAT('(^|[^A-Za-z0-9])', i.issue_key, '([^0-9]|$)')\nLEFT JOIN whodunit_commits w ON w.commit_sha = c.sha\nWHERE bi.board_id = '$board'\n  AND i.lead_time_minutes IS NOT NULL\n  AND i.lead_time_minutes > 0\n  AND $__timeFilter(i.resolution_date)\n  AND i.issue_key REGEXP '^[A-Z][A-Z0-9]+-[0-9]+$'\n    AND i.issue_key REGEXP CONCAT('^',\n        (SELECT SUBSTRING_INDEX(i2.issue_key,'-',1)\n           FROM issues i2 JOIN board_issues bi2 ON bi2.issue_id = i2.id\n          WHERE bi2.board_id = '$board'\n            AND i2.issue_key REGEXP '^[A-Z][A-Z0-9]+-[0-9]+$' LIMIT 1),\n        '-[0-9]+$')\nGROUP BY i.issue_key, i.lead_time_minutes\nHAVING ai = 0) c) r\n               WHERE rn IN (FLOOR((cnt+1)/2), CEIL((cnt+1)/2)))\n       END AS v"
         }
       ],
       "fieldConfig": {
@@ -412,128 +405,44 @@
                 "value": null
               }
             ]
-          }
+          },
+          "noValue": "n/a — under 10 issues either side",
+          "decimals": 1
         }
       },
       "options": {
         "graphMode": "none",
-        "textMode": "value_and_name",
+        "textMode": "value",
         "reduceOptions": {
           "calcs": [
             "lastNotNull"
           ],
           "fields": "",
           "values": false
+        },
+        "text": {
+          "valueSize": 22,
+          "titleSize": 11
         }
       },
-      "description": "Issues whose commits carry an attribution trailer, against those that do not. Read it as a description, not a verdict: harder work tends to get handed to an agent, so a longer AI-assisted cycle usually reflects which issues were chosen, not the agent slowing them down."
-    },
-    {
-      "id": 10,
-      "type": "stat",
-      "title": "Issues compared (AI)",
-      "datasource": "${DS_WHODUNIT}",
-      "gridPos": {
-        "x": 12,
-        "y": 10,
-        "w": 3,
-        "h": 5
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "format": "table",
-          "rawSql": "SELECT COUNT(*) v FROM (\nSELECT i.issue_key,\n       i.lead_time_minutes AS ltm,\n       i.resolution_date,\n       COALESCE(MAX(w.status = 'assisted'), 0) AS ai\nFROM issues i\nJOIN board_issues bi ON bi.issue_id = i.id\nLEFT JOIN commits c\n       ON c.message REGEXP CONCAT('(^|[^A-Za-z0-9])', i.issue_key, '([^0-9]|$)')\nLEFT JOIN whodunit_commits w ON w.commit_sha = c.sha\nWHERE bi.board_id = '$board'\n  AND i.lead_time_minutes IS NOT NULL\nGROUP BY i.issue_key, i.lead_time_minutes, i.resolution_date\n) t WHERE ai=1"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "short",
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "text",
-                "value": null
-              }
-            ]
-          }
-        }
-      },
-      "options": {
-        "graphMode": "none",
-        "textMode": "value_and_name",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        }
-      },
-      "description": "Tracker issues resolved in range whose linked commits include assisted work.\n\nThe denominator behind the cycle-time comparison. An issue counts as AI-assisted when **any** commit on it was assisted, so a mostly-manual issue with one assisted commit lands here.\n\nRequires a connected issue tracker in DevLake. Empty means no issues were linked, not that no AI work happened."
-    },
-    {
-      "id": 11,
-      "type": "stat",
-      "title": "Issues compared (non-AI)",
-      "datasource": "${DS_WHODUNIT}",
-      "gridPos": {
-        "x": 15,
-        "y": 10,
-        "w": 3,
-        "h": 5
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "format": "table",
-          "rawSql": "SELECT COUNT(*) v FROM (\nSELECT i.issue_key,\n       i.lead_time_minutes AS ltm,\n       i.resolution_date,\n       COALESCE(MAX(w.status = 'assisted'), 0) AS ai\nFROM issues i\nJOIN board_issues bi ON bi.issue_id = i.id\nLEFT JOIN commits c\n       ON c.message REGEXP CONCAT('(^|[^A-Za-z0-9])', i.issue_key, '([^0-9]|$)')\nLEFT JOIN whodunit_commits w ON w.commit_sha = c.sha\nWHERE bi.board_id = '$board'\n  AND i.lead_time_minutes IS NOT NULL\nGROUP BY i.issue_key, i.lead_time_minutes, i.resolution_date\n) t WHERE ai=0"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "short",
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "text",
-                "value": null
-              }
-            ]
-          }
-        }
-      },
-      "options": {
-        "graphMode": "none",
-        "textMode": "value_and_name",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        }
-      },
-      "description": "Tracker issues resolved in range with no assisted commits linked.\n\nThe other half of the cycle-time comparison's denominator. Both counts are shown because a difference in medians means nothing without them — and these two groups are **not** matched work: an agent is reached for on some kinds of issue and not others."
+      "description": "**Median hours from issue open to issue close**, for issues whose linked commits carry **no** AI-attribution trailer — the control group for the comparison beside it.\n\n**The median, not the mean** — half the issues closed faster than this, half slower. Cycle times have a long tail, and the two diverge sharply: measured on this data the mean is 3.47 days against a median of 0.17. The mean describes neither the typical issue nor the slow one, so it is the wrong summary for this shape of distribution.\n\nRead it as a description, not a verdict. Harder work tends to get handed to an agent, so a longer assisted cycle usually reflects **which issues were chosen**, not the agent slowing them down. Nothing here establishes cause.\n\n**How an issue is classified.** Its key is matched against commit messages (`WHO-12` in a commit subject links that commit to that issue). If any linked commit carries `status=assisted`, the issue counts as AI-assisted; otherwise it counts as not. An issue whose key appears in no commit message is in neither cohort — it is absent, not counted as unassisted.\n\n**Scope.** Issues closed within the dashboard time range, on the selected issue board. The Repository filter does not apply: an issue's commits can span repositories, so filtering by one would drop genuinely assisted issues and understate the comparison.\n\n**Withheld below 10 issues either side.** A median over a handful moves hours on one of them, and same-minute tickets — opened and closed in one action — would otherwise set it to zero. Issues with no measurable duration are excluded entirely."
     },
     {
       "id": 12,
       "type": "stat",
-      "title": "Delta",
+      "title": "Assisted advantage",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
-        "x": 18,
-        "y": 10,
-        "w": 6,
-        "h": 5
+        "h": 6,
+        "w": 4,
+        "x": 20,
+        "y": 1
       },
       "targets": [
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT ROUND(\n   (SELECT AVG(ltm) FROM (\nSELECT i.issue_key,\n       i.lead_time_minutes AS ltm,\n       i.resolution_date,\n       COALESCE(MAX(w.status = 'assisted'), 0) AS ai\nFROM issues i\nJOIN board_issues bi ON bi.issue_id = i.id\nLEFT JOIN commits c\n       ON c.message REGEXP CONCAT('(^|[^A-Za-z0-9])', i.issue_key, '([^0-9]|$)')\nLEFT JOIN whodunit_commits w ON w.commit_sha = c.sha\nWHERE bi.board_id = '$board'\n  AND i.lead_time_minutes IS NOT NULL\nGROUP BY i.issue_key, i.lead_time_minutes, i.resolution_date\n) a WHERE ai=0)\n - (SELECT AVG(ltm) FROM (\nSELECT i.issue_key,\n       i.lead_time_minutes AS ltm,\n       i.resolution_date,\n       COALESCE(MAX(w.status = 'assisted'), 0) AS ai\nFROM issues i\nJOIN board_issues bi ON bi.issue_id = i.id\nLEFT JOIN commits c\n       ON c.message REGEXP CONCAT('(^|[^A-Za-z0-9])', i.issue_key, '([^0-9]|$)')\nLEFT JOIN whodunit_commits w ON w.commit_sha = c.sha\nWHERE bi.board_id = '$board'\n  AND i.lead_time_minutes IS NOT NULL\nGROUP BY i.issue_key, i.lead_time_minutes, i.resolution_date\n) b WHERE ai=1), 0) / 60 v"
+          "rawSql": "SELECT CASE\n         WHEN (SELECT COUNT(*) FROM (SELECT i.issue_key, i.lead_time_minutes AS ltm,\n       COALESCE(MAX(w.status = 'assisted'), 0) AS ai\nFROM issues i\nJOIN board_issues bi ON bi.issue_id = i.id\nLEFT JOIN commits c\n       ON c.message REGEXP CONCAT('(^|[^A-Za-z0-9])', i.issue_key, '([^0-9]|$)')\nLEFT JOIN whodunit_commits w ON w.commit_sha = c.sha\nWHERE bi.board_id = '$board'\n  AND i.lead_time_minutes IS NOT NULL\n  AND i.lead_time_minutes > 0\n  AND $__timeFilter(i.resolution_date)\n  AND i.issue_key REGEXP '^[A-Z][A-Z0-9]+-[0-9]+$'\n    AND i.issue_key REGEXP CONCAT('^',\n        (SELECT SUBSTRING_INDEX(i2.issue_key,'-',1)\n           FROM issues i2 JOIN board_issues bi2 ON bi2.issue_id = i2.id\n          WHERE bi2.board_id = '$board'\n            AND i2.issue_key REGEXP '^[A-Z][A-Z0-9]+-[0-9]+$' LIMIT 1),\n        '-[0-9]+$')\nGROUP BY i.issue_key, i.lead_time_minutes\nHAVING ai = 1) ca) < 10\n           OR (SELECT COUNT(*) FROM (SELECT i.issue_key, i.lead_time_minutes AS ltm,\n       COALESCE(MAX(w.status = 'assisted'), 0) AS ai\nFROM issues i\nJOIN board_issues bi ON bi.issue_id = i.id\nLEFT JOIN commits c\n       ON c.message REGEXP CONCAT('(^|[^A-Za-z0-9])', i.issue_key, '([^0-9]|$)')\nLEFT JOIN whodunit_commits w ON w.commit_sha = c.sha\nWHERE bi.board_id = '$board'\n  AND i.lead_time_minutes IS NOT NULL\n  AND i.lead_time_minutes > 0\n  AND $__timeFilter(i.resolution_date)\n  AND i.issue_key REGEXP '^[A-Z][A-Z0-9]+-[0-9]+$'\n    AND i.issue_key REGEXP CONCAT('^',\n        (SELECT SUBSTRING_INDEX(i2.issue_key,'-',1)\n           FROM issues i2 JOIN board_issues bi2 ON bi2.issue_id = i2.id\n          WHERE bi2.board_id = '$board'\n            AND i2.issue_key REGEXP '^[A-Z][A-Z0-9]+-[0-9]+$' LIMIT 1),\n        '-[0-9]+$')\nGROUP BY i.issue_key, i.lead_time_minutes\nHAVING ai = 0) cb) < 10\n         THEN NULL\n         ELSE ROUND(\n           (SELECT AVG(ltm) FROM (\n              SELECT ltm, ROW_NUMBER() OVER (ORDER BY ltm) rn, COUNT(*) OVER () cnt\n              FROM (SELECT i.issue_key, i.lead_time_minutes AS ltm,\n       COALESCE(MAX(w.status = 'assisted'), 0) AS ai\nFROM issues i\nJOIN board_issues bi ON bi.issue_id = i.id\nLEFT JOIN commits c\n       ON c.message REGEXP CONCAT('(^|[^A-Za-z0-9])', i.issue_key, '([^0-9]|$)')\nLEFT JOIN whodunit_commits w ON w.commit_sha = c.sha\nWHERE bi.board_id = '$board'\n  AND i.lead_time_minutes IS NOT NULL\n  AND i.lead_time_minutes > 0\n  AND $__timeFilter(i.resolution_date)\n  AND i.issue_key REGEXP '^[A-Z][A-Z0-9]+-[0-9]+$'\n    AND i.issue_key REGEXP CONCAT('^',\n        (SELECT SUBSTRING_INDEX(i2.issue_key,'-',1)\n           FROM issues i2 JOIN board_issues bi2 ON bi2.issue_id = i2.id\n          WHERE bi2.board_id = '$board'\n            AND i2.issue_key REGEXP '^[A-Z][A-Z0-9]+-[0-9]+$' LIMIT 1),\n        '-[0-9]+$')\nGROUP BY i.issue_key, i.lead_time_minutes\nHAVING ai = 0) a) x WHERE rn IN (FLOOR((cnt+1)/2), CEIL((cnt+1)/2)))\n           -\n           (SELECT AVG(ltm) FROM (\n              SELECT ltm, ROW_NUMBER() OVER (ORDER BY ltm) rn, COUNT(*) OVER () cnt\n              FROM (SELECT i.issue_key, i.lead_time_minutes AS ltm,\n       COALESCE(MAX(w.status = 'assisted'), 0) AS ai\nFROM issues i\nJOIN board_issues bi ON bi.issue_id = i.id\nLEFT JOIN commits c\n       ON c.message REGEXP CONCAT('(^|[^A-Za-z0-9])', i.issue_key, '([^0-9]|$)')\nLEFT JOIN whodunit_commits w ON w.commit_sha = c.sha\nWHERE bi.board_id = '$board'\n  AND i.lead_time_minutes IS NOT NULL\n  AND i.lead_time_minutes > 0\n  AND $__timeFilter(i.resolution_date)\n  AND i.issue_key REGEXP '^[A-Z][A-Z0-9]+-[0-9]+$'\n    AND i.issue_key REGEXP CONCAT('^',\n        (SELECT SUBSTRING_INDEX(i2.issue_key,'-',1)\n           FROM issues i2 JOIN board_issues bi2 ON bi2.issue_id = i2.id\n          WHERE bi2.board_id = '$board'\n            AND i2.issue_key REGEXP '^[A-Z][A-Z0-9]+-[0-9]+$' LIMIT 1),\n        '-[0-9]+$')\nGROUP BY i.issue_key, i.lead_time_minutes\nHAVING ai = 1) b) y WHERE rn IN (FLOOR((cnt+1)/2), CEIL((cnt+1)/2)))\n         , 0) / 60\n       END AS v"
         }
       ],
       "fieldConfig": {
@@ -543,225 +452,340 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
+                "color": "text",
                 "value": null
+              },
+              {
+                "color": "#e0826c",
+                "value": -9999
+              },
+              {
+                "color": "#25c2a0",
+                "value": 0
               }
             ]
-          }
+          },
+          "noValue": "n/a — under 10 issues either side",
+          "decimals": 1
         }
       },
       "options": {
-        "graphMode": "none",
-        "textMode": "value_and_name",
         "reduceOptions": {
           "calcs": [
             "lastNotNull"
           ],
           "fields": "",
           "values": false
+        },
+        "textMode": "value",
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "text": {
+          "valueSize": 22
         }
       },
-      "description": "Issues whose commits carry an attribution trailer, against those that do not. Read it as a description, not a verdict: harder work tends to get handed to an agent, so a longer AI-assisted cycle usually reflects which issues were chosen, not the agent slowing them down."
+      "description": "How much **faster** AI-assisted issues closed, as the median of other issues minus the median of assisted ones. Positive is the advantage; negative means assisted issues took longer.\n\n**A difference, not an effect.** The two groups are not randomised — developers choose when to reach for an agent, and tend to reach for it on larger or less familiar work. A gap in either direction may be measuring which issues were handed over rather than what the agent did.\n\n**Meaningless unless both counts beside it are substantial.** With one group at zero there is no comparison at all; with a handful either side, one long-running issue moves this by hours.\n\n**Withheld below 10 issues either side.** A median over a handful moves hours on one of them, and same-minute tickets — opened and closed in one action — would otherwise set it to zero. Issues with no measurable duration are excluded entirely."
+    },
+    {
+      "type": "timeseries",
+      "title": "Commits by month · $repo",
+      "datasource": "${DS_WHODUNIT}",
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 0,
+        "y": 7
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawSql": "SELECT IF('$grain'='day',  DATE(FROM_UNIXTIME(c.committed_at/1000000000)),\n    IF('$grain'='week', DATE(FROM_UNIXTIME(c.committed_at/1000000000)\n                             - INTERVAL WEEKDAY(FROM_UNIXTIME(c.committed_at/1000000000)) DAY),\n                        DATE(FROM_UNIXTIME(c.committed_at/1000000000)\n                             - INTERVAL DAYOFMONTH(FROM_UNIXTIME(c.committed_at/1000000000))-1 DAY))) AS `time`,\n       NULLIF(SUM(c.status =  'assisted'), 0) AS `assisted`,\n       NULLIF(SUM(c.status <> 'assisted'), 0) AS `not assisted`,\n       ROUND(100.0 * SUM(c.status = 'assisted') / COUNT(*), 0) AS `% assisted`\nFROM whodunit_commits c\nJOIN whodunit_repos r ON r.repo_id = c.repo_id\nWHERE ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}')\n  AND ('${repo:raw}' = '__all__' OR c.repo_id = '${repo:raw}')\n  AND c.committed_at BETWEEN $__unixEpochFrom() * 1000000000\n                         AND $__unixEpochTo()   * 1000000000\nGROUP BY `time`\nORDER BY `time`"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 80,
+            "lineWidth": 0,
+            "barAlignment": 0,
+            "stacking": {
+              "mode": "normal",
+              "group": "A"
+            },
+            "axisPlacement": "left",
+            "pointSize": 1,
+            "showPoints": "never",
+            "spanNulls": false
+          },
+          "noValue": "No commits in the selected range"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "% assisted"
+            },
+            "properties": [
+              {
+                "id": "custom.drawStyle",
+                "value": "line"
+              },
+              {
+                "id": "custom.lineWidth",
+                "value": 2
+              },
+              {
+                "id": "custom.fillOpacity",
+                "value": 0
+              },
+              {
+                "id": "custom.showPoints",
+                "value": "always"
+              },
+              {
+                "id": "custom.pointSize",
+                "value": 8
+              },
+              {
+                "id": "custom.axisPlacement",
+                "value": "right"
+              },
+              {
+                "id": "custom.axisSoftMin",
+                "value": 0
+              },
+              {
+                "id": "custom.axisSoftMax",
+                "value": 100
+              },
+              {
+                "id": "custom.stacking",
+                "value": {
+                  "mode": "none"
+                }
+              },
+              {
+                "id": "unit",
+                "value": "percent"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#25c2a0"
+                }
+              },
+              {
+                "id": "custom.axisLabel",
+                "value": "% assisted"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "assisted"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#1a8870"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "description": "The amber line is the **share of commits that were AI-assisted**, on the right axis. Exact values per period are on hover — Grafana's timeseries panel has no per-point labels, and a bar chart that could print them cannot draw the line.\n\nA period still in progress is marked **·** after its label — its bar is lower because the period is not over, not because activity dropped.\n\nStacked, so bar height is total commit volume and the coloured share is adoption. A period with no assisted commits is a full bar of manual work, not an empty one — zero assisted is a measurement. A period with no commits at all is absent.\n\nBuckets follow the dashboard time range: a short range shows a bar per day, a long one aggregates. Commit volume over this window tracks instrumentation as much as output — commits rose 29 to 418 across four months while instrumented repositories went 1 to 3, so per repository the figure is nearly flat (29, 124, 134.5, 139.3). Read volume alongside the repository count before concluding anything about throughput.",
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Issues opened vs closed · $board",
+      "datasource": "${DS_WHODUNIT}",
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 12,
+        "y": 7
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawSql": "SELECT IF('$grain'='day',  days.d,\n    IF('$grain'='week', DATE(days.d - INTERVAL WEEKDAY(days.d) DAY),\n                        DATE(days.d - INTERVAL DAYOFMONTH(days.d)-1 DAY))) AS `time`,\n       NULLIF(SUM(COALESCE(o.opened, 0)), 0) AS `opened`,\n       NULLIF(SUM(COALESCE(c.closed,  0)), 0) AS `closed`\nFROM (\n  SELECT DATE(i.created_date) d FROM issues i\n  JOIN board_issues bi ON bi.issue_id = i.id\n  WHERE bi.board_id = '$board' AND i.created_date IS NOT NULL\n    AND $__timeFilter(i.created_date)\n  UNION\n  SELECT DATE(i.resolution_date) FROM issues i\n  JOIN board_issues bi ON bi.issue_id = i.id\n  WHERE bi.board_id = '$board' AND i.resolution_date IS NOT NULL\n    AND i.status = 'DONE' AND $__timeFilter(i.resolution_date)\n) days\nLEFT JOIN (\n  SELECT DATE(i.created_date) d, COUNT(*) opened FROM issues i\n  JOIN board_issues bi ON bi.issue_id = i.id\n  WHERE bi.board_id = '$board' AND i.created_date IS NOT NULL\n    AND $__timeFilter(i.created_date) GROUP BY d\n) o ON o.d = days.d\nLEFT JOIN (\n  SELECT DATE(i.resolution_date) d, COUNT(*) closed FROM issues i\n  JOIN board_issues bi ON bi.issue_id = i.id\n  WHERE bi.board_id = '$board' AND i.resolution_date IS NOT NULL\n    AND i.status = 'DONE' AND $__timeFilter(i.resolution_date) GROUP BY d\n) c ON c.d = days.d\nGROUP BY `time`\nORDER BY `time`"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 80,
+            "lineWidth": 0,
+            "barAlignment": 0,
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            },
+            "axisPlacement": "left",
+            "pointSize": 1,
+            "showPoints": "never",
+            "spanNulls": false
+          },
+          "noValue": "No issues opened or closed on this board in the selected range"
+        },
+        "overrides": []
+      },
+      "description": "Issues opened and closed per period, on the selected board.\n\n**Closed means closed in that period, whatever period it was opened in.** Measured here, 141 of 240 issues over three months — so the bars are not a matched pair and the gap between them is not this period's arithmetic.\n\nScoped by issue board rather than repository: an issue is reachable from a repository only through its commits, and most issues have none — 109 of 379 here. A repository filter would silently drop the rest.",
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      }
+    },
+    {
+      "type": "row",
+      "title": "Delivery speed",
+      "collapsed": false,
+      "panels": [],
+      "id": 901,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 16
+      }
     },
     {
       "id": 13,
-      "type": "table",
-      "title": "Cycle time by issue",
-      "datasource": "${DS_WHODUNIT}",
-      "gridPos": {
-        "x": 0,
-        "y": 15,
-        "w": 24,
-        "h": 8
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "format": "table",
-          "rawSql": "\nSELECT issue_key AS `Issue`,\n       CASE ai WHEN 1 THEN 'AI-assisted' ELSE 'not AI-assisted' END AS `Attribution`,\n       ROUND(ltm/60, 1) AS `Cycle hours`,\n       resolution_date AS `Resolved`\nFROM (\nSELECT i.issue_key,\n       i.lead_time_minutes AS ltm,\n       i.resolution_date,\n       COALESCE(MAX(w.status = 'assisted'), 0) AS ai\nFROM issues i\nJOIN board_issues bi ON bi.issue_id = i.id\nLEFT JOIN commits c\n       ON c.message REGEXP CONCAT('(^|[^A-Za-z0-9])', i.issue_key, '([^0-9]|$)')\nLEFT JOIN whodunit_commits w ON w.commit_sha = c.sha\nWHERE bi.board_id = '$board'\n  AND i.lead_time_minutes IS NOT NULL\nGROUP BY i.issue_key, i.lead_time_minutes, i.resolution_date\n) t\nORDER BY resolution_date DESC\n"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "custom": {
-            "align": "auto"
-          }
-        }
-      },
-      "options": {
-        "showHeader": true
-      },
-      "description": "Every compared issue with its cycle time, so the medians above can be checked against the rows that produced them.\n\nCycle time is DevLake's `lead_time_minutes`, rendered in hours. Attribution is per issue: assisted when any linked commit was.\n\nListed rather than summarised because with this few issues a median is one or two rows moving."
-    },
-    {
-      "id": 14,
-      "type": "text",
-      "title": "",
-      "gridPos": {
-        "x": 0,
-        "y": 23,
-        "w": 24,
-        "h": 2
-      },
-      "options": {
-        "mode": "markdown",
-        "content": "### Trend\nUse the **Granularity** control above to switch between daily, weekly and monthly buckets."
-      }
-    },
-    {
-      "id": 15,
       "type": "timeseries",
-      "title": "AI-assisted commits over time",
+      "title": "Cycle time trend · $board",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
-        "x": 0,
-        "y": 25,
+        "h": 9,
         "w": 12,
-        "h": 8
+        "x": 0,
+        "y": 17
       },
       "targets": [
         {
           "refId": "A",
           "format": "time_series",
-          "rawSql": "\nSELECT DATE(FROM_UNIXTIME(c.committed_at/1000000000)) AS `time`,\n       SUM(c.status='assisted') AS `assisted`,\n       SUM(c.status='undetermined') AS `undetermined`\nFROM whodunit_commits c JOIN whodunit_repos r ON r.repo_id=c.repo_id\nWHERE ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}') AND c.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nGROUP BY `time` ORDER BY `time`\n"
+          "rawSql": "SELECT IF('$grain'='day', DATE(i.resolution_date), IF('$grain'='week', DATE(i.resolution_date - INTERVAL WEEKDAY(i.resolution_date) DAY), DATE(i.resolution_date - INTERVAL DAYOFMONTH(i.resolution_date)-1 DAY))) AS `time`,\n       ROUND(AVG(TIMESTAMPDIFF(MINUTE, i.created_date, i.resolution_date) / 60.0), 1)\n         AS `avg cycle hours`,\n       COUNT(DISTINCT i.id) AS `issues closed`\nFROM issues i\nJOIN board_issues bi ON bi.issue_id = i.id\nWHERE bi.board_id = '$board'\n  AND i.status = 'DONE'\n  AND i.resolution_date IS NOT NULL\n  AND i.created_date IS NOT NULL\n  AND i.created_date <= i.resolution_date\n  AND $__timeFilter(i.resolution_date)\nGROUP BY `time`\nORDER BY `time`"
         }
       ],
       "fieldConfig": {
         "defaults": {
-          "custom": {
-            "drawStyle": "bars",
-            "fillOpacity": 70,
-            "stacking": {
-              "mode": "normal"
-            }
-          }
-        }
-      },
-      "description": "Assisted against undetermined commits per day.\n\nThe undetermined series is **not** a 'no AI' series — it is commits carrying no evidence either way, which includes everything before instrumentation. A rising assisted line against a falling undetermined one usually means coverage improving, not adoption rising."
-    },
-    {
-      "id": 16,
-      "type": "timeseries",
-      "title": "Agent edits & lines written over time",
-      "datasource": "${DS_WHODUNIT}",
-      "gridPos": {
-        "x": 12,
-        "y": 25,
-        "w": 12,
-        "h": 8
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "format": "time_series",
-          "rawSql": "\nSELECT DATE(FROM_UNIXTIME(e.observed_at/1000000000)) AS `time`,\n       COUNT(*) AS `agent edits`,\n       SUM(e.lines_added) AS `lines added`\nFROM whodunit_events e JOIN whodunit_repos r ON r.repo_id=e.repo_id\nWHERE ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}') AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nGROUP BY `time` ORDER BY `time`\n"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "custom": {
-            "drawStyle": "bars",
-            "fillOpacity": 70
-          }
-        }
-      },
-      "description": "Recorded agent edits per day, and the lines those edits added.\n\nEdits count tool calls that touched a file; lines count what those calls wrote. The two diverge when the agent makes many small changes or a few large ones, which is the shape worth noticing.\n\nLines from rejected or failed calls are excluded — text that never reached a file is not authored code."
-    },
-    {
-      "id": 17,
-      "type": "timeseries",
-      "title": "Acceptance rate over time",
-      "datasource": "${DS_WHODUNIT}",
-      "gridPos": {
-        "x": 0,
-        "y": 33,
-        "w": 12,
-        "h": 8
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "format": "time_series",
-          "rawSql": "\nSELECT DATE(FROM_UNIXTIME(e.observed_at/1000000000)) AS `time`,\n       ROUND(100.0*SUM(e.outcome='accepted')\n             /NULLIF(SUM(e.outcome IN ('accepted','rejected','failed')),0),1) AS `accept %`\nFROM whodunit_events e JOIN whodunit_repos r ON r.repo_id=e.repo_id\nWHERE ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}') AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nGROUP BY `time` ORDER BY `time`\n"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "percent",
-          "max": 100,
-          "min": 0,
           "custom": {
             "drawStyle": "line",
-            "fillOpacity": 10,
             "lineWidth": 2,
-            "pointSize": 6
+            "fillOpacity": 10,
+            "showPoints": "always",
+            "pointSize": 6,
+            "spanNulls": false,
+            "axisPlacement": "auto",
+            "axisLabel": ""
+          },
+          "unit": "h",
+          "decimals": 1,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#25c2a0"
+          },
+          "noValue": "No issues closed on this board in the selected range"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "issues closed"
+            },
+            "properties": [
+              {
+                "id": "custom.axisPlacement",
+                "value": "right"
+              },
+              {
+                "id": "custom.drawStyle",
+                "value": "bars"
+              },
+              {
+                "id": "custom.fillOpacity",
+                "value": 22
+              },
+              {
+                "id": "custom.lineWidth",
+                "value": 0
+              },
+              {
+                "id": "unit",
+                "value": "short"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#3b4657"
+                }
+              }
+            ]
           }
-        }
-      },
-      "description": "Daily acceptance rate over decided tool calls.\n\nSame denominator rule as the headline figure: only calls with a recorded outcome. A day with few decided calls swings violently, so read the shape over weeks rather than the value on any one day."
-    },
-    {
-      "id": 18,
-      "type": "timeseries",
-      "title": "Issues resolved over time",
-      "datasource": "${DS_WHODUNIT}",
-      "gridPos": {
-        "x": 12,
-        "y": 33,
-        "w": 12,
-        "h": 8
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "format": "time_series",
-          "rawSql": "\nSELECT DATE(i.resolution_date) AS `time`,\n       SUM(t.ai = 1) AS `AI-assisted`,\n       SUM(t.ai = 0) AS `not AI-assisted`\nFROM issues i\nJOIN board_issues bi ON bi.issue_id = i.id\nLEFT JOIN (\nSELECT i.issue_key,\n       i.lead_time_minutes AS ltm,\n       i.resolution_date,\n       COALESCE(MAX(w.status = 'assisted'), 0) AS ai\nFROM issues i\nJOIN board_issues bi ON bi.issue_id = i.id\nLEFT JOIN commits c\n       ON c.message REGEXP CONCAT('(^|[^A-Za-z0-9])', i.issue_key, '([^0-9]|$)')\nLEFT JOIN whodunit_commits w ON w.commit_sha = c.sha\nWHERE bi.board_id = '$board'\n  AND i.lead_time_minutes IS NOT NULL\nGROUP BY i.issue_key, i.lead_time_minutes, i.resolution_date\n) t ON t.issue_key = i.issue_key\nWHERE bi.board_id = '$board' AND i.resolution_date IS NOT NULL\nGROUP BY `time` ORDER BY `time`\n"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "custom": {
-            "drawStyle": "bars",
-            "fillOpacity": 70,
-            "stacking": {
-              "mode": "normal"
-            }
-          }
-        }
-      },
-      "description": "Issues resolved per day, split by whether any linked commit was assisted.\n\nRequires a connected issue tracker. The split is per issue rather than per commit, so an issue with one assisted commit among ten counts as assisted."
-    },
-    {
-      "id": 19,
-      "type": "text",
-      "title": "",
-      "gridPos": {
-        "x": 0,
-        "y": 41,
-        "w": 24,
-        "h": 2
+        ]
       },
       "options": {
-        "mode": "markdown",
-        "content": "### Where the AI is being applied\nPurpose is classified from the commit itself, not self-reported."
-      }
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        },
+        "xTickLabelRotation": -45,
+        "xTickLabelSpacing": 200
+      },
+      "description": "Average time from an issue being opened to being closed, for issues that closed in each period.\n\nAn issue counts in the period it **closed**, but its cycle time is measured from when it was **opened** — so an issue opened in March and closed in August contributes its full five months. The dashboard time range filters which closures are counted; it does not truncate how far back their clocks started.\n\nRead it with the issue count beside it: an average over a handful of closures moves several hours on one or two of them. And roughly half the issues here close within an hour of being filed, which is a recording habit rather than a delivery time — where that dominates a period, this measures how tickets are filed more than how work flows.\n\nNot split by AI attribution deliberately. Assisted issues take longer here (72.4h against 62.8h in the one month with both), which almost certainly reflects harder work being handed to an agent rather than the agent slowing anything down — a split would invite a causal reading the data cannot support."
     },
     {
       "id": 20,
       "type": "piechart",
-      "title": "AI-assisted work by purpose",
+      "title": "Work by purpose · $repo",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
-        "x": 0,
-        "y": 43,
-        "w": 8,
-        "h": 9
+        "h": 9,
+        "w": 12,
+        "x": 12,
+        "y": 17
       },
       "targets": [
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "\nSELECT c.purpose AS `metric`, COUNT(*) AS `value`\nFROM whodunit_commits c JOIN whodunit_repos r ON r.repo_id=c.repo_id\nWHERE c.status='assisted' AND c.purpose<>'' AND ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}')\n  AND c.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nGROUP BY c.purpose ORDER BY `value` DESC\n"
+          "rawSql": "\nSELECT c.purpose AS `metric`, COUNT(*) AS `value`\nFROM whodunit_commits c JOIN whodunit_repos r ON r.repo_id=c.repo_id\nWHERE c.status='assisted' AND c.purpose<>'' AND ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}')\n  AND ('${repo:raw}' = '__all__' OR c.repo_id = '${repo:raw}')\n  AND c.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nGROUP BY c.purpose ORDER BY `value` DESC\n"
         }
       ],
       "options": {
@@ -785,202 +809,172 @@
       "description": "What kind of work the agent was used for, from Conventional Commit prefixes and path heuristics.\n\n**Purpose is a label, not an observation.** `feature` is reachable only through a literal `feat:` prefix, so a repository not using Conventional Commits will show almost none — which says nothing about the work itself."
     },
     {
-      "id": 21,
-      "type": "table",
-      "title": "Acceptance by tool",
-      "datasource": "${DS_WHODUNIT}",
-      "gridPos": {
-        "x": 8,
-        "y": 43,
-        "w": 8,
-        "h": 9
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "format": "table",
-          "rawSql": "\nSELECT e.tool AS `Tool`,\n       SUM(e.outcome='accepted') AS `Accepted`,\n       SUM(e.outcome='rejected') AS `Rejected`,\n       SUM(e.outcome IN ('accepted','rejected','failed')) AS `Decided`,\n       ROUND(100.0*SUM(e.outcome='accepted')\n             /NULLIF(SUM(e.outcome IN ('accepted','rejected','failed')),0),1) AS `Accept %`\nFROM whodunit_events e JOIN whodunit_repos r ON r.repo_id=e.repo_id\nWHERE e.tool<>'' AND ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}') AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nGROUP BY e.tool ORDER BY `Decided` DESC\n"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "custom": {
-            "align": "auto"
-          }
-        }
-      },
-      "options": {
-        "showHeader": true
-      },
-      "description": "Acceptance broken down by which tool the agent used, with the decided count beside each rate.\n\nThe counts matter more than the percentages here: a tool used three times shows 0% or 100% and neither means anything. Sorted by decided volume so the rates worth reading are at the top."
-    },
-    {
-      "id": 22,
-      "type": "table",
-      "title": "Session engagement",
-      "datasource": "${DS_WHODUNIT}",
-      "gridPos": {
-        "x": 16,
-        "y": 43,
-        "w": 8,
-        "h": 9
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "format": "table",
-          "rawSql": "\nSELECT LEFT(s.session,8) AS `Session`,\n       ROUND((s.last_seen-s.first_seen)/60000000000) AS `Minutes`,\n       s.user_messages AS `Prompts`,\n       s.tool_calls AS `Tool calls`,\n       s.distinct_tools AS `Tools`\nFROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id=s.repo_id\nWHERE ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}') AND s.first_seen BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nORDER BY s.first_seen DESC\n"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "custom": {
-            "align": "auto"
-          }
-        }
-      },
-      "options": {
-        "showHeader": true
-      },
-      "description": "Individual sessions with their duration, prompt count and tool activity — the raw shape behind the aggregates above.\n\nPrompts count user messages only, excluding the harness replying to the agent with tool results. Minutes are first to last recorded event, so a session left open overnight reads as long without being busy; read it against tool calls."
-    },
-    {
       "type": "row",
-      "title": "Trends",
+      "title": "Quality & activity",
       "collapsed": false,
+      "panels": [],
+      "id": 902,
       "gridPos": {
-        "x": 0,
-        "y": 52,
+        "h": 1,
         "w": 24,
-        "h": 1
-      },
-      "panels": []
-    },
-    {
-      "type": "timeseries",
-      "title": "Commits — assisted vs the rest",
-      "datasource": "${DS_WHODUNIT}",
-      "gridPos": {
         "x": 0,
-        "y": 53,
-        "w": 12,
-        "h": 8
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "format": "time_series",
-          "rawSql": "SELECT DATE(FROM_UNIXTIME(c.committed_at/1000000000)) AS `time`,\n       SUM(c.status = 'assisted') AS `assisted`,\n       SUM(c.status <> 'assisted') AS `not assisted`\nFROM whodunit_commits c JOIN whodunit_repos r ON r.repo_id = c.repo_id\nWHERE ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}')\n  AND c.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nGROUP BY `time` ORDER BY `time`"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "short",
-          "custom": {
-            "drawStyle": "bars",
-            "fillOpacity": 80,
-            "stacking": {
-              "mode": "normal"
-            }
-          }
-        },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "assisted"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "blue"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "not assisted"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "text"
-                }
-              }
-            ]
-          }
-        ]
-      },
-      "description": "Stacked, so the bar height is total commit volume and the blue share is adoption. A flat blue band before instrumentation is expected — those commits predate whodunit and are not evidence that no agent was used."
+        "y": 26
+      }
     },
     {
+      "id": 17,
       "type": "timeseries",
-      "title": "Issues opened vs completed",
+      "title": "Acceptance trend · $repo",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
-        "x": 12,
-        "y": 53,
+        "h": 9,
         "w": 12,
-        "h": 8
+        "x": 0,
+        "y": 27
       },
       "targets": [
         {
           "refId": "A",
           "format": "time_series",
-          "rawSql": "SELECT DATE(i.created_date) AS `time`,\n       COUNT(*) AS `opened`,\n       SUM(i.status = 'DONE') AS `completed`\nFROM issues i JOIN board_issues bi ON bi.issue_id = i.id\nWHERE bi.board_id = '$board'\n  AND i.created_date IS NOT NULL\n  AND $__timeFilter(i.created_date)\nGROUP BY `time` ORDER BY `time`"
+          "rawSql": "\nSELECT DATE(FROM_UNIXTIME(e.observed_at/1000000000)) AS `time`,\n       ROUND(100.0*SUM(e.outcome='accepted')\n             /NULLIF(SUM(e.outcome IN ('accepted','rejected','failed')),0),1) AS `accept %`\nFROM whodunit_events e JOIN whodunit_repos r ON r.repo_id=e.repo_id\nWHERE ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}')\n  AND ('${repo:raw}' = '__all__' OR e.repo_id = '${repo:raw}') AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nGROUP BY `time` ORDER BY `time`\n"
         }
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "short",
+          "unit": "percent",
+          "max": 100,
+          "min": 0,
           "custom": {
             "drawStyle": "line",
-            "lineWidth": 2,
             "fillOpacity": 10,
-            "spanNulls": true,
-            "pointSize": 6
+            "lineWidth": 2,
+            "pointSize": 6,
+            "axisLabel": ""
+          }
+        }
+      },
+      "description": "Daily acceptance rate over decided tool calls.\n\nSame denominator rule as the headline figure: only calls with a recorded outcome. A day with few decided calls swings violently, so read the shape over weeks rather than the value on any one day.",
+      "options": {
+        "xTickLabelRotation": -45,
+        "xTickLabelSpacing": 200
+      }
+    },
+    {
+      "id": 18,
+      "type": "timeseries",
+      "title": "Issues resolved · $board",
+      "datasource": "${DS_WHODUNIT}",
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 12,
+        "y": 27
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawSql": "\nSELECT DATE(i.resolution_date) AS `time`,\n       SUM(t.ai = 1) AS `AI-assisted`,\n       SUM(t.ai = 0) AS `not AI-assisted`\nFROM issues i\nJOIN board_issues bi ON bi.issue_id = i.id\nLEFT JOIN (\nSELECT i.issue_key,\n       i.lead_time_minutes AS ltm,\n       i.resolution_date,\n       COALESCE(MAX(w.status = 'assisted'), 0) AS ai\nFROM issues i\nJOIN board_issues bi ON bi.issue_id = i.id\nLEFT JOIN commits c\n       ON c.message REGEXP CONCAT('(^|[^A-Za-z0-9])', i.issue_key, '([^0-9]|$)')\nLEFT JOIN whodunit_commits w ON w.commit_sha = c.sha\nWHERE bi.board_id = '$board'\n  AND i.lead_time_minutes IS NOT NULL\n  AND i.issue_key REGEXP '^[A-Z][A-Z0-9]+-[0-9]+$'\n    AND i.issue_key REGEXP CONCAT('^',\n        (SELECT SUBSTRING_INDEX(i2.issue_key,'-',1)\n           FROM issues i2 JOIN board_issues bi2 ON bi2.issue_id = i2.id\n          WHERE bi2.board_id = '$board'\n            AND i2.issue_key REGEXP '^[A-Z][A-Z0-9]+-[0-9]+$' LIMIT 1),\n        '-[0-9]+$')\nGROUP BY i.issue_key, i.lead_time_minutes, i.resolution_date\n) t ON t.issue_key = i.issue_key\nWHERE bi.board_id = '$board' AND i.resolution_date IS NOT NULL\nGROUP BY `time` ORDER BY `time`\n"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 70,
+            "stacking": {
+              "mode": "normal"
+            },
+            "axisLabel": ""
+          }
+        }
+      },
+      "description": "Issues resolved per day, split by whether any linked commit was assisted.\n\nRequires a connected issue tracker. The split is per issue rather than per commit, so an issue with one assisted commit among ten counts as assisted.\n\n**The Repository filter does not apply here.** This panel is scoped by issue board, and deliberately so: an issue is only reachable from a repository *through its commits*, and most issues have none. Measured on this data, 109 of 379 issues have a linked commit — a repository filter would silently drop the other 270, which includes every open issue and everything closed without code. The number would look precise and be computed from a biased quarter of the population.",
+      "options": {
+        "xTickLabelRotation": -45,
+        "xTickLabelSpacing": 200
+      }
+    },
+    {
+      "id": 16,
+      "type": "timeseries",
+      "title": "Edits & lines · $repo",
+      "datasource": "${DS_WHODUNIT}",
+      "gridPos": {
+        "h": 9,
+        "w": 24,
+        "x": 0,
+        "y": 36
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawSql": "\nSELECT DATE(FROM_UNIXTIME(e.observed_at/1000000000)) AS `time`,\n       COUNT(*) AS `agent edits`,\n       SUM(e.lines_added) AS `lines added`\nFROM whodunit_events e JOIN whodunit_repos r ON r.repo_id=e.repo_id\nWHERE ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}')\n  AND ('${repo:raw}' = '__all__' OR e.repo_id = '${repo:raw}') AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nGROUP BY `time` ORDER BY `time`\n"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 70,
+            "axisLabel": ""
           }
         },
         "overrides": [
           {
             "matcher": {
               "id": "byName",
-              "options": "completed"
+              "options": "agent edits"
             },
             "properties": [
               {
                 "id": "color",
                 "value": {
                   "mode": "fixed",
-                  "fixedColor": "green"
+                  "fixedColor": "#25c2a0"
                 }
+              },
+              {
+                "id": "custom.axisPlacement",
+                "value": "left"
+              },
+              {
+                "id": "custom.axisLabel",
+                "value": "edits"
               }
             ]
           },
           {
             "matcher": {
               "id": "byName",
-              "options": "opened"
+              "options": "lines added"
             },
             "properties": [
               {
                 "id": "color",
                 "value": {
                   "mode": "fixed",
-                  "fixedColor": "orange"
+                  "fixedColor": "#7aa2f7"
                 }
+              },
+              {
+                "id": "custom.axisPlacement",
+                "value": "right"
+              },
+              {
+                "id": "custom.axisLabel",
+                "value": "lines"
               }
             ]
           }
         ]
       },
-      "description": "Both series are keyed on the date an issue was opened, so 'completed' is how many of that week's issues are now done — not how many were closed that week. Recent weeks therefore look worse than they will."
+      "description": "Recorded agent edits per day, and the lines those edits added.\n\nEdits count tool calls that touched a file; lines count what those calls wrote. The two diverge when the agent makes many small changes or a few large ones, which is the shape worth noticing.\n\nLines from rejected or failed calls are excluded — text that never reached a file is not authored code.",
+      "options": {
+        "xTickLabelRotation": -45,
+        "xTickLabelSpacing": 200
+      }
     }
   ],
   "__inputs": [

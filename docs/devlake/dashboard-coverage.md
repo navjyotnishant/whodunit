@@ -200,6 +200,32 @@ pooled figure would be confidently wrong.
 
 **The issue-to-commit link is a text match.** GitHub issue keys are bare
 integers, so matching them against commit messages makes issue `1` match every
-commit containing a "1" — 57 of 57 assisted commits. The panel guards with
-`issue_key REGEXP '^[A-Z][A-Z0-9]+-[0-9]+$'`, which restricts it to
+commit containing a "1" — 57 of 57 assisted commits. The guard is
+`issue_key REGEXP '^[A-Z][A-Z0-9]+-[0-9]+$'`, which restricts the match to
 tracker-style keys and reproduces the correct count.
+
+**That guard was on one panel and missing from seven** until NAV-122. The
+executive dashboard's issue panels (ids 8–13, 18) carried the unguarded join;
+only the funnel's Stage 4 had the predicate. Measured per GitHub board,
+unguarded against guarded, on panel 10 alone:
+
+| board | unguarded | guarded |
+|---|---|---|
+| navjyotnishant/specter-agent | 11 | 0 |
+| navjyotnishant/nj-agents | 4 | 0 |
+| navjyotnishant/whodunit | 2 | 0 |
+| a Linear board | 1 | 1 |
+
+Every unguarded count above zero was a fabricated AI-assisted issue. Nothing
+errored — the panels rendered plausible numbers.
+
+The dashboards were correct in practice only because the `board` variable's
+own query was scoped `LIKE 'linear:%'`, so a GitHub board was never selectable.
+That is a property of a dropdown's default rather than of the query, and it is
+exactly the kind of accidental safety that stops being safe when someone widens
+the variable. `check-issue-key-guard.py` now fails the build if any panel
+matches `issue_key` against a commit message without the predicate.
+
+The same checker also catches a panel filtering on `$board` from a dashboard
+that never declares the variable — the funnel was doing this, substituting an
+undefined value and rendering empty rather than erroring.

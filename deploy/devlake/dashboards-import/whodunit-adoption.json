@@ -1,5 +1,5 @@
 {
-  "title": "Whodunit — Adoption",
+  "title": "Adoption",
   "uid": "whodunit-adoption",
   "tags": [
     "whodunit"
@@ -33,108 +33,89 @@
         "refresh": 1,
         "allValue": "__all__",
         "options": []
+      },
+      {
+        "name": "board",
+        "type": "query",
+        "datasource": "${DS_WHODUNIT}",
+        "query": "SELECT name AS __text, id AS __value FROM boards ORDER BY name",
+        "current": {},
+        "refresh": 1,
+        "hide": 0,
+        "label": "Issue board",
+        "includeAll": false,
+        "multi": false,
+        "options": []
       }
     ]
   },
   "panels": [
     {
-      "type": "text",
+      "type": "row",
+      "title": "Usage",
+      "collapsed": false,
+      "panels": [],
+      "id": 900,
       "gridPos": {
-        "h": 4,
+        "h": 1,
         "w": 24,
         "x": 0,
         "y": 0
-      },
-      "options": {
-        "mode": "markdown",
-        "content": "**What this measures, and what it does not.** These figures come from agent sessions observed on developers' own machines, so they cover only repositories where `dun init` has been run and `dun sync` has been executed.\n\nThere is no accept/reject rate here. A suggestion a developer declined never reaches the journal, so we have no denominator for it — unlike a vendor's admin API, which sees both sides. What we have instead is the link to shipped code: which commits and which lines."
       }
     },
     {
-      "type": "stat",
-      "title": "Active days",
-      "description": "Days on which any agent activity was observed. Not the same as a vendor's 'daily active users' — this counts days with recorded work, not seats logged in.",
+      "id": 1,
+      "type": "gauge",
+      "title": "Coverage",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
         "h": 5,
         "w": 4,
         "x": 0,
-        "y": 4
+        "y": 1
       },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT ROUND(100.0 * COUNT(DISTINCT w.commit_sha)\n                    / NULLIF(COUNT(DISTINCT c.sha), 0), 1) AS v\nFROM commits c\nJOIN repo_commits rc ON rc.commit_sha = c.sha\nJOIN whodunit_commits seen ON seen.commit_sha IN (\n       SELECT commit_sha FROM repo_commits WHERE repo_id = rc.repo_id)\nLEFT JOIN whodunit_commits w ON w.commit_sha = c.sha\nLEFT JOIN whodunit_repos r ON r.repo_id = w.repo_id\nWHERE ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}' OR w.commit_sha IS NULL)\n  AND c.authored_date BETWEEN FROM_UNIXTIME($__unixEpochFrom())\n                          AND FROM_UNIXTIME($__unixEpochTo())"
+        }
+      ],
       "fieldConfig": {
         "defaults": {
-          "unit": "short",
+          "unit": "percent",
           "thresholds": {
             "mode": "absolute",
             "steps": [
               {
-                "color": "blue",
+                "color": "green",
                 "value": null
               }
             ]
-          }
+          },
+          "min": 0,
+          "max": 100,
+          "decimals": 0
         }
       },
       "options": {
-        "graphMode": "none",
         "reduceOptions": {
           "calcs": [
             "lastNotNull"
           ],
           "fields": "",
           "values": false
+        },
+        "showThresholdLabels": false,
+        "showThresholdMarkers": false,
+        "minVizWidth": 75,
+        "minVizHeight": 75,
+        "sizing": "auto",
+        "text": {
+          "valueSize": 28
         }
       },
-      "targets": [
-        {
-          "refId": "A",
-          "format": "table",
-          "rawSql": "SELECT COUNT(DISTINCT DATE(FROM_UNIXTIME(e.observed_at / 1000000000))) AS active_days FROM whodunit_events e JOIN whodunit_repos r ON r.repo_id = e.repo_id WHERE ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}') AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000"
-        }
-      ]
-    },
-    {
-      "type": "stat",
-      "title": "Sessions",
-      "description": "Agent sessions recorded in the selected range.\n\nA session is one conversation, counted regardless of whether it produced an edit — so this measures how often an agent was opened, not how much it did. The engagement panels below separate those.",
-      "datasource": "${DS_WHODUNIT}",
-      "gridPos": {
-        "h": 5,
-        "w": 4,
-        "x": 4,
-        "y": 4
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "short",
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "blue",
-                "value": null
-              }
-            ]
-          }
-        }
-      },
-      "options": {
-        "graphMode": "none",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        }
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "format": "table",
-          "rawSql": "SELECT COUNT(DISTINCT e.session) AS sessions FROM whodunit_events e JOIN whodunit_repos r ON r.repo_id = e.repo_id WHERE e.session <> '' AND ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}') AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000"
-        }
-      ]
+      "description": "Share of the repository's commits that carry an AI-Attribution trailer at all — instrumented or not.\n\n**This measures instrumentation, not AI use.** A commit with `status=undetermined` counts here: it has a trailer, it just records that no agent activity was found. Adoption beside it counts only `status=assisted`.\n\nMeasured per repository: whodunit 98.9%, nj-agents 99.0%, EngageHub 79.0% — EngageHub was instrumented later, so a fifth of its history predates the hooks. Commits made before `dun init` can never be covered.\n\nThe denominator is every commit the warehouse knows about for the repository, not every commit whodunit recorded. Dividing by the latter is what made this identical to adoption."
     },
     {
       "type": "stat",
@@ -144,8 +125,8 @@
       "gridPos": {
         "h": 5,
         "w": 4,
-        "x": 8,
-        "y": 4
+        "x": 4,
+        "y": 1
       },
       "fieldConfig": {
         "defaults": {
@@ -187,8 +168,8 @@
       "gridPos": {
         "h": 5,
         "w": 4,
-        "x": 12,
-        "y": 4
+        "x": 8,
+        "y": 1
       },
       "fieldConfig": {
         "defaults": {
@@ -224,14 +205,282 @@
     },
     {
       "type": "stat",
-      "title": "Lines written by agents",
-      "description": "Lines an agent produced across all observed edits, including work that was later rewritten or never committed. This is effort, not output — compare it with the committed figures on the attribution dashboard.",
+      "title": "Sessions",
+      "description": "Agent sessions recorded in the selected range.\n\nA session is one conversation, counted regardless of whether it produced an edit — so this measures how often an agent was opened, not how much it did. The engagement panels below separate those.",
+      "datasource": "${DS_WHODUNIT}",
+      "gridPos": {
+        "h": 5,
+        "w": 4,
+        "x": 12,
+        "y": 1
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "graphMode": "none",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT COUNT(DISTINCT e.session) AS sessions FROM whodunit_events e JOIN whodunit_repos r ON r.repo_id = e.repo_id WHERE e.session <> '' AND ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}') AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Active days",
+      "description": "Days on which any agent activity was observed. Not the same as a vendor's 'daily active users' — this counts days with recorded work, not seats logged in.",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
         "h": 5,
         "w": 4,
         "x": 16,
-        "y": 4
+        "y": 1
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "graphMode": "none",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT COUNT(DISTINCT DATE(FROM_UNIXTIME(e.observed_at / 1000000000))) AS active_days FROM whodunit_events e JOIN whodunit_repos r ON r.repo_id = e.repo_id WHERE ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}') AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000"
+        }
+      ]
+    },
+    {
+      "id": 907,
+      "type": "stat",
+      "title": "Commits · assisted / total",
+      "datasource": "${DS_WHODUNIT}",
+      "gridPos": {
+        "h": 5,
+        "w": 4,
+        "x": 20,
+        "y": 1
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT CONCAT(\n         FORMAT(SUM(c.status = 'assisted'), 0), ' / ',\n         FORMAT(COUNT(*), 0)) AS v\nFROM whodunit_commits c\nJOIN whodunit_repos r ON r.repo_id = c.repo_id\nWHERE ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}')\n  AND c.committed_at BETWEEN $__unixEpochFrom() * 1000000000\n                         AND $__unixEpochTo()   * 1000000000"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "noValue": "No commits in range",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#5794F2"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#5794F2",
+                "value": null
+              }
+            ]
+          },
+          "custom": {}
+        }
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "text": {
+          "valueSize": 34
+        }
+      },
+      "description": "Commits carrying `status=assisted`, against every commit whodunit recorded in the range.\n\nShown as a pair because the count alone is not a measurement — 166 means nothing without knowing whether the total was 200 or 2,000. The Adoption gauge above is this same ratio as a percentage.\n\n**This counts commits.** The issue panels beside it count issues, and the two are not related — an issue may have many commits or none."
+    },
+    {
+      "type": "timeseries",
+      "title": "Agent activity over time",
+      "description": "Observed agent edits per day. Compare shape with the committed-work panels — a rise here without a matching rise there means iteration, not delivery.",
+      "datasource": "${DS_WHODUNIT}",
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 0,
+        "y": 6
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 70,
+            "lineWidth": 0
+          }
+        }
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawSql": "SELECT FROM_UNIXTIME(FLOOR(e.observed_at / 1000000000 / 86400) * 86400) AS time, 'agent edits' AS metric, COUNT(*) AS value FROM whodunit_events e JOIN whodunit_repos r ON r.repo_id = e.repo_id WHERE ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}') AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000 GROUP BY time, metric ORDER BY time"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Code churn over time",
+      "description": "Lines written and removed by agents per day, from observed edits rather than commits.",
+      "datasource": "${DS_WHODUNIT}",
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 12,
+        "y": 6
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 20,
+            "lineWidth": 2
+          }
+        }
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawSql": "SELECT FROM_UNIXTIME(FLOOR(e.observed_at / 1000000000 / 86400) * 86400) AS time, 'lines added' AS metric, SUM(e.lines_added) AS value FROM whodunit_events e JOIN whodunit_repos r ON r.repo_id = e.repo_id WHERE ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}') AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000 GROUP BY time, metric UNION ALL SELECT FROM_UNIXTIME(FLOOR(e.observed_at / 1000000000 / 86400) * 86400) AS time, 'lines removed' AS metric, SUM(e.lines_removed) AS value FROM whodunit_events e JOIN whodunit_repos r ON r.repo_id = e.repo_id WHERE ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}') AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000 GROUP BY time, metric ORDER BY time"
+        }
+      ]
+    },
+    {
+      "type": "row",
+      "title": "Acceptance",
+      "collapsed": false,
+      "panels": [],
+      "id": 901,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 15
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Acceptance rate",
+      "description": "Accepted / decided. Meaningless without the denominator to its left — check that first.",
+      "datasource": "${DS_WHODUNIT}",
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 0,
+        "y": 16
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "graphMode": "none",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT ROUND(100.0*SUM(e.outcome='accepted')/NULLIF(SUM(e.outcome IN ('accepted','rejected','failed')),0),1) v FROM whodunit_events e JOIN whodunit_repos r ON r.repo_id=e.repo_id WHERE ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}') AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Accepted edits",
+      "description": "Edit/Write calls the developer kept. This is the numerator — read it with the denominator beside it.",
+      "datasource": "${DS_WHODUNIT}",
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 6,
+        "y": 16
       },
       "fieldConfig": {
         "defaults": {
@@ -261,9 +510,201 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT SUM(e.lines_added) AS lines_written FROM whodunit_events e JOIN whodunit_repos r ON r.repo_id = e.repo_id WHERE ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}') AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000"
+          "rawSql": "SELECT COUNT(*) v FROM whodunit_events e JOIN whodunit_repos r ON r.repo_id=e.repo_id WHERE e.outcome='accepted' AND ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}') AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000"
         }
       ]
+    },
+    {
+      "id": 904,
+      "type": "stat",
+      "title": "Decided calls",
+      "datasource": "${DS_WHODUNIT}",
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 12,
+        "y": 16
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT COUNT(*) v FROM whodunit_events e JOIN whodunit_repos r ON r.repo_id=e.repo_id WHERE e.outcome IN ('accepted','rejected','failed') AND ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}') AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "text": {
+          "valueSize": 40,
+          "titleSize": 11
+        }
+      },
+      "description": "How many tool calls have a recorded outcome, and therefore how much the acceptance rate beside this is actually measured on.\n\nShown because a percentage without its denominator is not a measurement. A rate over a handful of calls moves entirely on one of them."
+    },
+    {
+      "type": "stat",
+      "title": "Undecided",
+      "description": "Calls with no recorded result. A large number here means the rate above rests on a small slice of the work.",
+      "datasource": "${DS_WHODUNIT}",
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 18,
+        "y": 16
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "yellow",
+                "value": null
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "graphMode": "none",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT COUNT(*) v FROM whodunit_events e JOIN whodunit_repos r ON r.repo_id=e.repo_id WHERE e.outcome NOT IN ('accepted','rejected','failed') AND ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}') AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000"
+        }
+      ]
+    },
+    {
+      "id": 905,
+      "type": "stat",
+      "title": "Issues compared · assisted",
+      "datasource": "${DS_WHODUNIT}",
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 6,
+        "y": 21
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT COUNT(*) v FROM (\nSELECT i.issue_key, i.lead_time_minutes AS ltm,\n       COALESCE(MAX(w.status = 'assisted'), 0) AS ai\nFROM issues i\nJOIN board_issues bi ON bi.issue_id = i.id\nLEFT JOIN commits c\n       ON c.message REGEXP CONCAT('(^|[^A-Za-z0-9])', i.issue_key, '([^0-9]|$)')\nLEFT JOIN whodunit_commits w ON w.commit_sha = c.sha\nWHERE bi.board_id = '$board'\n  AND i.lead_time_minutes IS NOT NULL\n  AND $__timeFilter(i.resolution_date)\n  AND i.issue_key REGEXP '^[A-Z][A-Z0-9]+-[0-9]+$'\n    AND i.issue_key REGEXP CONCAT('^',\n        (SELECT SUBSTRING_INDEX(i2.issue_key,'-',1)\n           FROM issues i2 JOIN board_issues bi2 ON bi2.issue_id = i2.id\n          WHERE bi2.board_id = '$board'\n            AND i2.issue_key REGEXP '^[A-Z][A-Z0-9]+-[0-9]+$' LIMIT 1),\n        '-[0-9]+$')\nGROUP BY i.issue_key, i.lead_time_minutes\nHAVING ai = 1\n) t"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          },
+          "noValue": "None in range"
+        }
+      },
+      "options": {
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "text": {
+          "valueSize": 40,
+          "titleSize": 11
+        }
+      },
+      "description": "**How many issues are in this cohort** — the denominator for the median beside it.\n\nShown deliberately rather than tucked into a tooltip. A median over a handful of issues moves hours on one or two of them, and a cohort of zero means there is no comparison at all — the Delta would be measuring nothing. Check this number before reading anything into the medians.\n\nThis panel counts issues **carrying an AI-attribution trailer**.\n\n**How an issue is classified.** Its key is matched against commit messages (`WHO-12` in a commit subject links that commit to that issue). If any linked commit carries `status=assisted`, the issue counts as AI-assisted; otherwise it counts as not. An issue whose key appears in no commit message is in neither cohort — it is absent, not counted as unassisted.\n\n**Scope.** Issues closed within the dashboard time range, on the selected issue board. The Repository filter does not apply: an issue's commits can span repositories, so filtering by one would drop genuinely assisted issues and understate the comparison."
+    },
+    {
+      "id": 906,
+      "type": "stat",
+      "title": "Issues compared · not assisted",
+      "datasource": "${DS_WHODUNIT}",
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 12,
+        "y": 21
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT COUNT(*) v FROM (\nSELECT i.issue_key, i.lead_time_minutes AS ltm,\n       COALESCE(MAX(w.status = 'assisted'), 0) AS ai\nFROM issues i\nJOIN board_issues bi ON bi.issue_id = i.id\nLEFT JOIN commits c\n       ON c.message REGEXP CONCAT('(^|[^A-Za-z0-9])', i.issue_key, '([^0-9]|$)')\nLEFT JOIN whodunit_commits w ON w.commit_sha = c.sha\nWHERE bi.board_id = '$board'\n  AND i.lead_time_minutes IS NOT NULL\n  AND $__timeFilter(i.resolution_date)\n  AND i.issue_key REGEXP '^[A-Z][A-Z0-9]+-[0-9]+$'\n    AND i.issue_key REGEXP CONCAT('^',\n        (SELECT SUBSTRING_INDEX(i2.issue_key,'-',1)\n           FROM issues i2 JOIN board_issues bi2 ON bi2.issue_id = i2.id\n          WHERE bi2.board_id = '$board'\n            AND i2.issue_key REGEXP '^[A-Z][A-Z0-9]+-[0-9]+$' LIMIT 1),\n        '-[0-9]+$')\nGROUP BY i.issue_key, i.lead_time_minutes\nHAVING ai = 0\n) t"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          },
+          "noValue": "None in range"
+        }
+      },
+      "options": {
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "text": {
+          "valueSize": 40,
+          "titleSize": 11
+        }
+      },
+      "description": "**How many issues are in this cohort** — the denominator for the median beside it.\n\nShown deliberately rather than tucked into a tooltip. A median over a handful of issues moves hours on one or two of them, and a cohort of zero means there is no comparison at all — the Delta would be measuring nothing. Check this number before reading anything into the medians.\n\nThis panel counts issues **with no AI attribution**.\n\n**How an issue is classified.** Its key is matched against commit messages (`WHO-12` in a commit subject links that commit to that issue). If any linked commit carries `status=assisted`, the issue counts as AI-assisted; otherwise it counts as not. An issue whose key appears in no commit message is in neither cohort — it is absent, not counted as unassisted.\n\n**Scope.** Issues closed within the dashboard time range, on the selected issue board. The Repository filter does not apply: an issue's commits can span repositories, so filtering by one would drop genuinely assisted issues and understate the comparison."
     },
     {
       "type": "stat",
@@ -272,9 +713,9 @@
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
         "h": 5,
-        "w": 4,
-        "x": 20,
-        "y": 4
+        "w": 6,
+        "x": 18,
+        "y": 21
       },
       "fieldConfig": {
         "defaults": {
@@ -322,191 +763,6 @@
       ]
     },
     {
-      "type": "text",
-      "gridPos": {
-        "h": 3,
-        "w": 24,
-        "x": 0,
-        "y": 9
-      },
-      "options": {
-        "mode": "markdown",
-        "content": "## Did the developer keep it?\n\nAn edit an agent proposed is not an edit that shipped. These panels count what the developer **accepted**, and every rate is shown next to the count it came from — a 100% acceptance rate over 3 calls is not the same result as one over 300. `unknown` means the transcript never recorded a result (in-flight or truncated); it is never silently counted as an acceptance."
-      }
-    },
-    {
-      "type": "stat",
-      "title": "Accepted edits",
-      "description": "Edit/Write calls the developer kept. This is the numerator — read it with the denominator beside it.",
-      "datasource": "${DS_WHODUNIT}",
-      "gridPos": {
-        "h": 5,
-        "w": 6,
-        "x": 0,
-        "y": 12
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "short",
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              }
-            ]
-          }
-        }
-      },
-      "options": {
-        "graphMode": "none",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        }
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "format": "table",
-          "rawSql": "SELECT COUNT(*) v FROM whodunit_events e JOIN whodunit_repos r ON r.repo_id=e.repo_id WHERE e.outcome='accepted' AND ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}') AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000"
-        }
-      ]
-    },
-    {
-      "type": "stat",
-      "title": "Decided calls",
-      "description": "The denominator: calls with a recorded outcome. Excludes 'unknown', so the rate is not diluted by transcripts that simply never finished.",
-      "datasource": "${DS_WHODUNIT}",
-      "gridPos": {
-        "h": 5,
-        "w": 6,
-        "x": 6,
-        "y": 12
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "short",
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "blue",
-                "value": null
-              }
-            ]
-          }
-        }
-      },
-      "options": {
-        "graphMode": "none",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        }
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "format": "table",
-          "rawSql": "SELECT COUNT(*) v FROM whodunit_events e JOIN whodunit_repos r ON r.repo_id=e.repo_id WHERE e.outcome IN ('accepted','rejected','failed') AND ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}') AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000"
-        }
-      ]
-    },
-    {
-      "type": "stat",
-      "title": "Acceptance rate",
-      "description": "Accepted / decided. Meaningless without the denominator to its left — check that first.",
-      "datasource": "${DS_WHODUNIT}",
-      "gridPos": {
-        "h": 5,
-        "w": 6,
-        "x": 12,
-        "y": 12
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "percent",
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              }
-            ]
-          }
-        }
-      },
-      "options": {
-        "graphMode": "none",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        }
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "format": "table",
-          "rawSql": "SELECT ROUND(100.0*SUM(e.outcome='accepted')/NULLIF(SUM(e.outcome IN ('accepted','rejected','failed')),0),1) v FROM whodunit_events e JOIN whodunit_repos r ON r.repo_id=e.repo_id WHERE ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}') AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000"
-        }
-      ]
-    },
-    {
-      "type": "stat",
-      "title": "Undecided",
-      "description": "Calls with no recorded result. A large number here means the rate above rests on a small slice of the work.",
-      "datasource": "${DS_WHODUNIT}",
-      "gridPos": {
-        "h": 5,
-        "w": 6,
-        "x": 18,
-        "y": 12
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "short",
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "yellow",
-                "value": null
-              }
-            ]
-          }
-        }
-      },
-      "options": {
-        "graphMode": "none",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        }
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "format": "table",
-          "rawSql": "SELECT COUNT(*) v FROM whodunit_events e JOIN whodunit_repos r ON r.repo_id=e.repo_id WHERE e.outcome NOT IN ('accepted','rejected','failed') AND ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}') AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000"
-        }
-      ]
-    },
-    {
       "type": "table",
       "title": "Acceptance by tool",
       "description": "Per tool, so a low overall rate can be traced to which one is being turned down. Rate is shown with its denominator on the same row (NAV-54).",
@@ -515,7 +771,7 @@
         "h": 9,
         "w": 12,
         "x": 0,
-        "y": 17
+        "y": 26
       },
       "fieldConfig": {
         "defaults": {},
@@ -533,144 +789,52 @@
       ]
     },
     {
-      "type": "table",
-      "title": "Session engagement",
-      "description": "How a session was actually worked, from counts only — no message text is ever recorded. 'Turns per prompt' is agent messages per human message: a high number means long autonomous runs, a low one means tight back-and-forth (NAV-55).",
+      "type": "piechart",
+      "title": "Evidence strength",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
         "h": 9,
         "w": 12,
         "x": 12,
-        "y": 17
-      },
-      "fieldConfig": {
-        "defaults": {},
-        "overrides": []
-      },
-      "options": {
-        "showHeader": true
+        "y": 26
       },
       "targets": [
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT LEFT(s.session,8) AS `Session`, FROM_UNIXTIME(s.first_seen/1000000000) AS `Started`, ROUND((s.last_seen-s.first_seen)/60000000000) AS `Minutes`, s.user_messages AS `Prompts`, s.agent_messages AS `Agent msgs`, ROUND(s.agent_messages/NULLIF(s.user_messages,0),1) AS `Turns per prompt`, s.tool_calls AS `Tool calls`, s.distinct_tools AS `Distinct tools`, s.mcp_calls AS `MCP calls` FROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id=s.repo_id WHERE ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}') AND s.first_seen BETWEEN $__unixEpochFrom()*1000000000 AND $__unixEpochTo()*1000000000 ORDER BY s.first_seen DESC"
+          "rawSql": "SELECT CASE c.method\n         WHEN 'intersected' THEN 'intersected — the agent''s lines survived'\n         WHEN 'observed'    THEN 'observed — edited before committing'\n         WHEN 'declared'    THEN 'declared — stated, not measured'\n         WHEN 'inferred'    THEN 'inferred — from surrounding evidence'\n         ELSE 'undetermined — no evidence either way'\n       END AS `method`, COUNT(*) AS `commits`\nFROM whodunit_commits c JOIN whodunit_repos r ON r.repo_id=c.repo_id\nWHERE 1=1 AND ('${contributor:raw}'='__all__' OR r.contributor='${contributor:raw}') AND c.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nGROUP BY c.method ORDER BY `commits` DESC"
         }
-      ]
-    },
-    {
-      "type": "timeseries",
-      "title": "Agent activity over time",
-      "description": "Observed agent edits per day. Compare shape with the committed-work panels — a rise here without a matching rise there means iteration, not delivery.",
-      "datasource": "${DS_WHODUNIT}",
-      "gridPos": {
-        "h": 9,
-        "w": 12,
-        "x": 0,
-        "y": 28
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "short",
-          "custom": {
-            "drawStyle": "bars",
-            "fillOpacity": 70,
-            "lineWidth": 0
-          }
-        }
-      },
+      ],
       "options": {
         "legend": {
-          "displayMode": "list",
-          "placement": "bottom"
+          "displayMode": "table",
+          "placement": "right",
+          "values": [
+            "value"
+          ]
+        },
+        "pieType": "donut",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": true
         }
       },
-      "targets": [
-        {
-          "refId": "A",
-          "format": "time_series",
-          "rawSql": "SELECT FROM_UNIXTIME(FLOOR(e.observed_at / 1000000000 / 86400) * 86400) AS time, 'agent edits' AS metric, COUNT(*) AS value FROM whodunit_events e JOIN whodunit_repos r ON r.repo_id = e.repo_id WHERE ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}') AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000 GROUP BY time, metric ORDER BY time"
-        }
-      ]
+      "description": "'undetermined' means whodunit could not tell — never that no AI was used."
     },
     {
-      "type": "timeseries",
-      "title": "Code churn over time",
-      "description": "Lines written and removed by agents per day, from observed edits rather than commits.",
-      "datasource": "${DS_WHODUNIT}",
+      "type": "row",
+      "title": "Who and what",
+      "collapsed": false,
+      "panels": [],
+      "id": 902,
       "gridPos": {
-        "h": 9,
-        "w": 12,
-        "x": 12,
-        "y": 28
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "short",
-          "custom": {
-            "drawStyle": "line",
-            "fillOpacity": 20,
-            "lineWidth": 2
-          }
-        }
-      },
-      "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom"
-        }
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "format": "time_series",
-          "rawSql": "SELECT FROM_UNIXTIME(FLOOR(e.observed_at / 1000000000 / 86400) * 86400) AS time, 'lines added' AS metric, SUM(e.lines_added) AS value FROM whodunit_events e JOIN whodunit_repos r ON r.repo_id = e.repo_id WHERE ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}') AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000 GROUP BY time, metric UNION ALL SELECT FROM_UNIXTIME(FLOOR(e.observed_at / 1000000000 / 86400) * 86400) AS time, 'lines removed' AS metric, SUM(e.lines_removed) AS value FROM whodunit_events e JOIN whodunit_repos r ON r.repo_id = e.repo_id WHERE ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}') AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000 GROUP BY time, metric ORDER BY time"
-        }
-      ]
-    },
-    {
-      "type": "table",
-      "title": "Activity by tool",
-      "description": "Which operations agents performed. A vendor's admin API also reports how many of these a developer rejected; that is not observable here, because a rejected edit never reaches the journal.",
-      "datasource": "${DS_WHODUNIT}",
-      "gridPos": {
-        "h": 9,
-        "w": 8,
+        "h": 1,
+        "w": 24,
         "x": 0,
-        "y": 37
-      },
-      "options": {
-        "showHeader": true
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "format": "table",
-          "rawSql": "SELECT e.tool, COUNT(*) AS events, SUM(e.lines_added) AS lines_added, SUM(e.lines_removed) AS lines_removed FROM whodunit_events e JOIN whodunit_repos r ON r.repo_id = e.repo_id WHERE e.tool <> '' AND ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}') AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000 GROUP BY e.tool ORDER BY events DESC"
-        }
-      ]
-    },
-    {
-      "type": "table",
-      "title": "By agent and version",
-      "description": "Which agents and versions were seen. A version disappearing while activity continues usually means an adapter stopped recognising its format, not that people stopped using it.",
-      "datasource": "${DS_WHODUNIT}",
-      "gridPos": {
-        "h": 9,
-        "w": 8,
-        "x": 8,
-        "y": 37
-      },
-      "options": {
-        "showHeader": true
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "format": "table",
-          "rawSql": "SELECT e.agent, e.agent_version, COUNT(*) AS events, COUNT(DISTINCT e.session) AS sessions FROM whodunit_events e JOIN whodunit_repos r ON r.repo_id = e.repo_id WHERE ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}') AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000 GROUP BY e.agent, e.agent_version ORDER BY events DESC"
-        }
-      ]
+        "y": 35
+      }
     },
     {
       "type": "table",
@@ -680,8 +844,8 @@
       "gridPos": {
         "h": 9,
         "w": 8,
-        "x": 16,
-        "y": 37
+        "x": 0,
+        "y": 36
       },
       "options": {
         "showHeader": true
@@ -696,14 +860,58 @@
     },
     {
       "type": "table",
+      "title": "By agent and version",
+      "description": "Which agents and versions were seen. A version disappearing while activity continues usually means an adapter stopped recognising its format, not that people stopped using it.",
+      "datasource": "${DS_WHODUNIT}",
+      "gridPos": {
+        "h": 9,
+        "w": 8,
+        "x": 8,
+        "y": 36
+      },
+      "options": {
+        "showHeader": true
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT e.agent, e.agent_version, COUNT(*) AS events, COUNT(DISTINCT e.session) AS sessions FROM whodunit_events e JOIN whodunit_repos r ON r.repo_id = e.repo_id WHERE ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}') AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000 GROUP BY e.agent, e.agent_version ORDER BY events DESC"
+        }
+      ]
+    },
+    {
+      "type": "table",
+      "title": "Activity by tool",
+      "description": "Which operations agents performed. A vendor's admin API also reports how many of these a developer rejected; that is not observable here, because a rejected edit never reaches the journal.",
+      "datasource": "${DS_WHODUNIT}",
+      "gridPos": {
+        "h": 9,
+        "w": 8,
+        "x": 16,
+        "y": 36
+      },
+      "options": {
+        "showHeader": true
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT e.tool, COUNT(*) AS events, SUM(e.lines_added) AS lines_added, SUM(e.lines_removed) AS lines_removed FROM whodunit_events e JOIN whodunit_repos r ON r.repo_id = e.repo_id WHERE e.tool <> '' AND ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}') AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000 GROUP BY e.tool ORDER BY events DESC"
+        }
+      ]
+    },
+    {
+      "type": "table",
       "title": "Committed work by contributor",
       "description": "What reached a commit, per person — the question a vendor's usage API cannot answer. Coverage is shown alongside, because a penetration figure without it says how much of what we could see was assisted, not how much of the work was.",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
         "h": 9,
-        "w": 24,
+        "w": 12,
         "x": 0,
-        "y": 46
+        "y": 45
       },
       "options": {
         "showHeader": true
@@ -717,26 +925,70 @@
       ]
     },
     {
-      "type": "row",
-      "title": "Active contributors",
-      "collapsed": false,
+      "type": "stat",
+      "title": "Lines written by agents",
+      "description": "Lines an agent produced across all observed edits, including work that was later rewritten or never committed. This is effort, not output — compare it with the committed figures on the attribution dashboard.",
+      "datasource": "${DS_WHODUNIT}",
       "gridPos": {
-        "x": 0,
-        "y": 48,
-        "w": 24,
-        "h": 1
+        "h": 9,
+        "w": 12,
+        "x": 12,
+        "y": 45
       },
-      "panels": []
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "graphMode": "none",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT SUM(e.lines_added) AS lines_written FROM whodunit_events e JOIN whodunit_repos r ON r.repo_id = e.repo_id WHERE ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}') AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000"
+        }
+      ]
+    },
+    {
+      "type": "row",
+      "title": "Engagement",
+      "collapsed": false,
+      "panels": [],
+      "id": 903,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 54
+      }
     },
     {
       "type": "stat",
       "title": "Active today",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
-        "x": 0,
-        "y": 49,
+        "h": 5,
         "w": 4,
-        "h": 5
+        "x": 0,
+        "y": 55
       },
       "targets": [
         {
@@ -778,10 +1030,10 @@
       "title": "Active this week",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
-        "x": 4,
-        "y": 49,
+        "h": 5,
         "w": 4,
-        "h": 5
+        "x": 4,
+        "y": 55
       },
       "targets": [
         {
@@ -823,10 +1075,10 @@
       "title": "Active this month",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
-        "x": 8,
-        "y": 49,
+        "h": 5,
         "w": 4,
-        "h": 5
+        "x": 8,
+        "y": 55
       },
       "targets": [
         {
@@ -868,10 +1120,10 @@
       "title": "Stickiness",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
-        "x": 12,
-        "y": 49,
+        "h": 5,
         "w": 4,
-        "h": 5
+        "x": 12,
+        "y": 55
       },
       "targets": [
         {
@@ -914,10 +1166,10 @@
       "title": "MCP calls",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
-        "x": 16,
-        "y": 49,
+        "h": 5,
         "w": 4,
-        "h": 5
+        "x": 16,
+        "y": 55
       },
       "targets": [
         {
@@ -959,10 +1211,10 @@
       "title": "Distinct tools",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
-        "x": 20,
-        "y": 49,
+        "h": 5,
         "w": 4,
-        "h": 5
+        "x": 20,
+        "y": 55
       },
       "targets": [
         {
@@ -1000,48 +1252,39 @@
       "description": "File-editing tools seen. Skills, chat and search are called as tools too and are visible in the transcripts, but are not collected yet."
     },
     {
-      "type": "piechart",
-      "title": "Evidence strength",
+      "type": "table",
+      "title": "Session engagement",
+      "description": "How a session was actually worked, from counts only — no message text is ever recorded. 'Turns per prompt' is agent messages per human message: a high number means long autonomous runs, a low one means tight back-and-forth (NAV-55).",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
+        "h": 9,
+        "w": 24,
         "x": 0,
-        "y": 54,
-        "w": 10,
-        "h": 7
+        "y": 60
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true
       },
       "targets": [
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT CASE c.method\n         WHEN 'intersected' THEN 'intersected — the agent''s lines survived'\n         WHEN 'observed'    THEN 'observed — edited before committing'\n         WHEN 'declared'    THEN 'declared — stated, not measured'\n         WHEN 'inferred'    THEN 'inferred — from surrounding evidence'\n         ELSE 'undetermined — no evidence either way'\n       END AS `method`, COUNT(*) AS `commits`\nFROM whodunit_commits c JOIN whodunit_repos r ON r.repo_id=c.repo_id\nWHERE 1=1 AND ('${contributor:raw}'='__all__' OR r.contributor='${contributor:raw}') AND c.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nGROUP BY c.method ORDER BY `commits` DESC"
+          "rawSql": "SELECT LEFT(s.session,8) AS `Session`, FROM_UNIXTIME(s.first_seen/1000000000) AS `Started`, ROUND((s.last_seen-s.first_seen)/60000000000) AS `Minutes`, s.user_messages AS `Prompts`, s.agent_messages AS `Agent msgs`, ROUND(s.agent_messages/NULLIF(s.user_messages,0),1) AS `Turns per prompt`, s.tool_calls AS `Tool calls`, s.distinct_tools AS `Distinct tools`, s.mcp_calls AS `MCP calls` FROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id=s.repo_id WHERE ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}') AND s.first_seen BETWEEN $__unixEpochFrom()*1000000000 AND $__unixEpochTo()*1000000000 ORDER BY s.first_seen DESC"
         }
-      ],
-      "options": {
-        "legend": {
-          "displayMode": "table",
-          "placement": "right",
-          "values": [
-            "value"
-          ]
-        },
-        "pieType": "donut",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "values": true
-        }
-      },
-      "description": "'undetermined' means whodunit could not tell — never that no AI was used."
+      ]
     },
     {
       "type": "text",
       "title": "",
       "gridPos": {
-        "x": 10,
-        "y": 54,
-        "w": 14,
-        "h": 7
+        "h": 6,
+        "w": 24,
+        "x": 0,
+        "y": 69
       },
       "options": {
         "mode": "markdown",
