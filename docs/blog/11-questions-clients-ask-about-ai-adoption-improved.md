@@ -1,7 +1,7 @@
 ---
-title: "11 questions clients ask about AI adoption, and what I can actually answer"
+title: "Measuring AI adoption and productivity: what works, what doesn't"
 published: false
-description: "One question clients ask about AI coding tools can't be honestly answered from this data. The open-source tool I built, and why it refuses."
+description: "Eleven questions clients ask about AI adoption, which of them the evidence can answer, and the open-source tool I built to answer them."
 tags: ai, metrics, opensource, devops
 ---
 
@@ -63,21 +63,21 @@ Every rate on this screen refuses to render below a minimum cohort. The cycle-ti
 
 ---
 
-## Theme 1: Is it being adopted, and evenly? (Q1, Q11)
+## Theme 1: Is it being adopted, and evenly? (Q1)
 
-![Whodunit - Adoption](https://navjyotnishant.github.io/whodunit/img/dashboards/adoption.png)
+![Whodunit - Adoption](https://navjyotnishant.github.io/whodunit/img/dashboards/adoption.png?v=2)
 
 Start here, always. This is the denominator dashboard, and it answers the question you should ask before believing any figure on any other screen: is this resting on three sessions, or three hundred?
 
-Two panels do the work for Q1. **By contributor** shows per-person activity, and before you worry about the surveillance implications, note where the identity comes from: the git committer email that is already in every commit you have ever authored. Nothing new is being observed here. It is the same information, made easier to query.
+The top row is the denominators themselves: coverage, how many contributors and repositories, how many sessions, how many days had any activity at all. Read those before anything else on any screen.
 
-**Committed work by contributor** is the one I would actually put on the screen in a meeting, because it shows coverage right beside the penetration figure. That pairing matters more than it sounds. Without coverage, a penetration number tells you how much of *what we could see* was assisted, which is a different claim from how much of the work was.
+For Q1, drop to the **Who and what** row at the bottom. **By contributor** shows per-person activity, and before you worry about the surveillance implications, note where the identity comes from: the git committer email that is already in every commit you have ever authored. Nothing new is being observed here. It is the same information, made easier to query.
+
+**Committed work by contributor** sits beside it, and it is the one I would actually put on screen in a meeting, because it shows coverage right next to the penetration figure. That pairing matters more than it sounds. Without coverage, a penetration number tells you how much of *what we could see* was assisted, which is a different claim from how much of the work was.
 
 **That distinction is the whole answer to "is it consistent across everyone".** You get the spread, and you get the names with no assisted commits at all.
 
-Q11, how long adoption took, has its own panel: **Adoption over time**, split by which agent was active. It lives over on the delivery dashboard rather than this one. An agent gets credit for a commit when it recorded activity in that repository in the 24 hours before it. That is a heuristic, and I would rather label it than dress it up, so: a commit two agents touched shows up in both series, and the lines are not meant to sum to the overall rate.
-
-**Where it runs out.** Q11 really asks about models, and what you get is a curve per agent, not per model. There is a harder problem sitting underneath that one, though, and it is worth understanding before you install anything: the adoption curve begins when the hooks went in, not when your team started using AI. Everything before instrumentation is simply dark.
+**Where it runs out.** There is a harder problem sitting underneath all of this, and it is worth understanding before you install anything: every one of these numbers begins when the hooks went in, not when your team started using AI. Everything before instrumentation is simply dark.
 
 If you want the real curve, you have to capture a baseline *before* you start. `dun baseline capture` exists for exactly that reason, and the reason it is a separate command you run first is that this particular window closes permanently. Miss it and no amount of later cleverness gets it back.
 
@@ -109,13 +109,13 @@ So the last part of Q3 comes out clean. The "do they know compaction, model choi
 
 ![Whodunit - AI Productivity Funnel](https://navjyotnishant.github.io/whodunit/img/dashboards/productivity-funnel.png)
 
-Q4, supplement or write the whole thing, is what the trailer's `ratio` key is for: the fraction of the change attributable to the agent. Alongside it, `method` tells you how much to trust that number, and the *Evidence strength* panel breaks it down: `intersected` means agent-written lines survived into the commit, `observed` means the agent touched the file but the text changed afterwards.
+Q4, supplement or write the whole thing, is what the trailer's `ratio` key is for: the fraction of the change attributable to the agent. Alongside it, `method` tells you how much to trust that number, and the *Evidence strength* panel on the delivery dashboard breaks it down: `intersected` means agent-written lines survived into the commit, `observed` means the agent touched the file but the text changed afterwards.
 
 Q6, where it is being used, maps to the *AI-assisted work by purpose* panel, built from Conventional Commit prefixes and path heuristics. The caveat is printed on the panel itself, and it is worth reading twice: **purpose is a label, not an observation.** `feature` is only reachable through a literal `feat:` prefix. So a repository that doesn't use Conventional Commits will show almost no feature work, which tells you nothing whatsoever about the work.
 
 If your team doesn't use Conventional Commits, this panel is close to useless to you. I would much rather say that here than have you quote it in a board deck and find out later.
 
-Q7, autonomy, turned out to be the most interesting one to build, and the story of why is worth a paragraph. The *Autonomy granted* panel reports tool calls per session at each permission level. One metric, not two bars, and the reason is that sessions and total tool calls run in opposite directions. Look at the numbers: 64 sessions on Codex's `never` mode produced 506 calls, while 2 Claude Code sessions on `auto` produced 6,766. Chart both and you put a 13x range beside a 32x one, flattening whichever loses the axis. Divide them and you get the thing they were both circling: 8 calls per session on `never`, 3,383 on `auto`.
+Q7, autonomy, turned out to be the most interesting one to build, and the story of why is worth a paragraph. The *Autonomy and what it produced* panel, over on the delivery dashboard, reports sessions and tool calls at each permission level. One metric, not two bars, and the reason is that sessions and total tool calls run in opposite directions. Look at the numbers: 64 sessions on Codex's `never` mode produced 506 calls, while 2 Claude Code sessions on `auto` produced 6,766. Chart both and you put a 13x range beside a 32x one, flattening whichever loses the axis. Divide them and you get the thing they were both circling: 8 calls per session on `never`, 3,383 on `auto`.
 
 **The finding is that the ladder is monotonic across every mode measured, autonomy isn't how often it's granted, it's how much happens once it is.**
 
@@ -125,9 +125,11 @@ One deliberate non-decision, because it would have made a tidier dashboard: each
 
 ---
 
-## Theme 4: Did delivery actually change? (Q2, Q5, Q8, Q10)
+## Theme 4: Did delivery actually change? (Q2, Q5, Q8, Q10, Q11)
 
 ![Whodunit - AI Impact on Delivery](https://navjyotnishant.github.io/whodunit/img/dashboards/ai-impact-on-delivery.png)
+
+**Adoption over time** is on this screen, and it is where Q11 gets answered: how long adoption took, split by which agent was active. Worth knowing how it decides. An agent gets credit for a commit when it recorded activity in that repository in the 24 hours before it. That is a heuristic, and I would rather label it than dress it up, so: a commit two agents touched shows up in both series, and the lines are not meant to sum to the overall rate. Note also that this is per agent, not per model, which is what Q11 actually asked for.
 
 Q5 and Q8 come out of the data most directly.
 
@@ -146,6 +148,8 @@ This is the one. If you have read this far, you already know it is coming, and t
 What you get instead is *Change size, assisted vs not*: mean lines changed per assisted commit against unassisted, within purposes where both sides have at least 20 commits, so `feature` isn't being compared against `docs`. A positive number means assisted commits are larger. **Larger is not faster and not better:** it may mean the agent takes on bigger work, or that it writes more code for the same outcome. Both are consistent with the figure.
 
 That panel is deliberately not colour-coded, because green for positive would assert that larger commits are better, which is the claim the panel beside it exists to refuse.
+
+**There is a way to get much closer, and it needs one decision made early.** Capture a baseline over a window when your team was working without an agent, and you get the before and after of the same work that this comparison is missing: same repository, same people, self-selection gone by construction. `dun baseline capture --since 2026-01-01 --until 2026-06-30` measures exactly that period from git history. Read the result with the rest of the period in mind, though. Between your before and your after, the team also got more experienced, the codebase aged, and people joined or left. On my own data, monthly commit growth read +117% until I divided by the number of instrumented repositories, at which point it was +8%. The comparison is much stronger with a baseline than without one, and it is still a period, not an experiment.
 
 I know this is not what the client wanted. I have sat in that meeting and explained that the number they asked for cannot be honestly produced from this data, and I can tell you it is not a fun conversation to have. It is still the right one, and it is a better conversation than the one you have six months after someone acts on a made-up percentage.
 
