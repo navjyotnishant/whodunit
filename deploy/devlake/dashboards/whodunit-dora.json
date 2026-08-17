@@ -1644,14 +1644,14 @@
       "type": "text",
       "title": "",
       "gridPos": {
-        "h": 6,
+        "h": 3,
         "w": 24,
         "x": 0,
         "y": 53
       },
       "options": {
         "mode": "markdown",
-        "content": "## Whodunit — AI Impact on Delivery\n*Does AI assistance move delivery outcomes?* Adoption is measured from git history and the agent's own session records; delivery outcomes come from DevLake's DORA pipeline. Nothing here is self-reported.\n\n**Read the scope before the numbers.** Adoption covers every instrumented repository. Delivery outcomes currently come from **EngageHub only** — it is the one project with deployments. Correlation panels state their sample size and withhold a coefficient until there are enough overlapping weeks to support one."
+        "content": "*Does AI assistance move delivery outcomes?* Adoption comes from git history and agent session records; outcomes from DevLake's DORA pipeline — nothing self-reported. **Scope:** adoption covers every instrumented repo, delivery outcomes **EngageHub only** (the one project with deployments)."
       }
     },
     {
@@ -1659,14 +1659,14 @@
       "title": "Why this is not a productivity percentage",
       "type": "text",
       "gridPos": {
-        "h": 6,
+        "h": 4,
         "w": 24,
         "x": 0,
-        "y": 59
+        "y": 56
       },
       "options": {
         "mode": "markdown",
-        "content": "### The comparison this dashboard cannot make\n\nA productivity gain needs a **before** and an **after** of the same work. What exists here is assisted against unassisted commits *in the same period*, and the two are not the same population:\n\n- **Selection is not random.** An agent is reached for on some kinds of work and not others. Measured on this data, 48% of assisted commits are features against 38% of unassisted ones — so an unmatched comparison partly measures which work got assigned to the agent.\n- **Larger is not faster.** The only outcome here is change size. A bigger commit may be more work done or more code written for the same outcome.\n- **No pre-adoption baseline is synced.** `dun baseline capture` records one locally — commits, cadence, median diff size, revert rate over a fixed window — but nothing publishes it, so the before-and-after comparison has no *before* to read. That is the comparison worth having: same repository, before and after, with the selection problem above absent by construction. Tracked as NAV-107.\n\nThe panels to the left control for purpose and show both sample sizes. That is as far as this data honestly goes."
+        "content": "### The comparison this dashboard cannot make\n\nA gain needs a **before** and an **after** of the same work. This has assisted against unassisted commits *in the same period* — not the same population.\n\n- **Selection is not random** — 48% of assisted commits are features against 38% of unassisted, so an unmatched comparison partly measures which work got assigned to the agent\n- **Larger is not faster** — the only outcome here is change size\n- **Only one repository has a baseline.** `dun baseline capture` publishes to the sidecar, but a snapshot exists for one repo only, so the before-and-after comparison cannot be drawn for the rest"
       }
     },
     {
@@ -1674,14 +1674,14 @@
       "type": "text",
       "title": "",
       "gridPos": {
-        "h": 6,
+        "h": 3,
         "w": 24,
         "x": 0,
-        "y": 65
+        "y": 60
       },
       "options": {
         "mode": "markdown",
-        "content": "**How to read this section.** Each chart plots AI adoption against a delivery outcome over the same weeks. The `r` beside it is a correlation coefficient: `+1` means they rise together, `-1` means one rises as the other falls, `0` means no linear relationship.\n\n**`r` is withheld until there are 10 overlapping weeks.** Below that it is arithmetic, not evidence — three points can produce `r = 0.99` from coincidence. The paired series still plots, so you can watch the relationship form. **Correlation is not causation** even at high `n`: a release freeze, a hiring round or a quarter boundary moves these numbers too."
+        "content": "**Reading the correlations.** Each chart plots adoption against a delivery outcome over the same weeks; `r` is the correlation coefficient (`+1` rise together, `-1` opposite, `0` no linear relationship). **Withheld below 10 overlapping weeks** — three points can produce `r = 0.99` by coincidence. **Correlation is not causation** even at high `n`."
       }
     }
   ]

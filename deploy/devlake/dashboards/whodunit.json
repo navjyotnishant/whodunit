@@ -29,17 +29,16 @@
   },
   "panels": [
     {
-      "type": "text",
-      "title": "",
+      "type": "row",
+      "title": "Attribution",
+      "collapsed": false,
+      "panels": [],
+      "id": 1,
       "gridPos": {
-        "h": 4,
+        "h": 1,
         "w": 24,
         "x": 0,
         "y": 0
-      },
-      "options": {
-        "mode": "markdown",
-        "content": "**Coverage is the denominator for everything below it.** A penetration figure without it says how much of what we could see was AI-assisted, not how much of the work was. Read them together.\n\n`undetermined` means no determination was made — it never means \"no AI was used\"."
       }
     },
     {
@@ -51,10 +50,10 @@
         "uid": "${datasource}"
       },
       "gridPos": {
-        "h": 6,
+        "h": 5,
         "w": 6,
         "x": 0,
-        "y": 4
+        "y": 1
       },
       "fieldConfig": {
         "defaults": {
@@ -109,10 +108,10 @@
         "uid": "${datasource}"
       },
       "gridPos": {
-        "h": 6,
+        "h": 5,
         "w": 6,
         "x": 6,
-        "y": 4
+        "y": 1
       },
       "fieldConfig": {
         "defaults": {
@@ -159,10 +158,10 @@
         "uid": "${datasource}"
       },
       "gridPos": {
-        "h": 6,
+        "h": 5,
         "w": 6,
         "x": 12,
-        "y": 4
+        "y": 1
       },
       "fieldConfig": {
         "defaults": {
@@ -205,10 +204,10 @@
         "uid": "${datasource}"
       },
       "gridPos": {
-        "h": 6,
+        "h": 5,
         "w": 6,
         "x": 18,
-        "y": 4
+        "y": 1
       },
       "fieldConfig": {
         "defaults": {
@@ -246,6 +245,20 @@
       ]
     },
     {
+      "type": "text",
+      "title": "",
+      "gridPos": {
+        "h": 2,
+        "w": 24,
+        "x": 0,
+        "y": 6
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "**Coverage is the denominator for everything below.** A penetration figure without it says how much of *what we could see* was assisted, not how much of the work was. `undetermined` means no determination was made — never \"no AI was used\"."
+      }
+    },
+    {
       "type": "piechart",
       "title": "Method mix",
       "description": "How the attribution for each commit was determined, weakest to strongest: undetermined, declared, inferred, observed, intersected. This must accompany any penetration figure — a number resting on 'declared' is a different claim from one resting on 'intersected'.",
@@ -257,7 +270,7 @@
         "h": 9,
         "w": 12,
         "x": 0,
-        "y": 10
+        "y": 8
       },
       "fieldConfig": {
         "defaults": {
@@ -377,7 +390,7 @@
         "h": 9,
         "w": 12,
         "x": 12,
-        "y": 10
+        "y": 8
       },
       "fieldConfig": {
         "defaults": {
@@ -411,7 +424,7 @@
         "h": 9,
         "w": 24,
         "x": 0,
-        "y": 19
+        "y": 17
       },
       "fieldConfig": {
         "defaults": {
@@ -441,17 +454,30 @@
       ]
     },
     {
+      "type": "row",
+      "title": "Agent activity",
+      "collapsed": false,
+      "panels": [],
+      "id": 2,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 26
+      }
+    },
+    {
       "type": "text",
       "title": "",
       "gridPos": {
-        "h": 3,
+        "h": 2,
         "w": 24,
         "x": 0,
-        "y": 28
+        "y": 27
       },
       "options": {
         "mode": "markdown",
-        "content": "**Below is journal data, not commit data.** It records what an agent touched, including work that never reached a commit — so these numbers will not reconcile with the panels above, and are not meant to."
+        "content": "**Journal data, not commit data.** This records what an agent touched, including work that never reached a commit, so it will not reconcile with the panels above — and is not meant to."
       }
     },
     {
@@ -466,7 +492,7 @@
         "h": 10,
         "w": 12,
         "x": 0,
-        "y": 31
+        "y": 29
       },
       "options": {
         "showHeader": true
@@ -491,7 +517,7 @@
         "h": 10,
         "w": 12,
         "x": 12,
-        "y": 31
+        "y": 29
       },
       "options": {
         "showHeader": true

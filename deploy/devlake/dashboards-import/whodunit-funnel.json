@@ -58,14 +58,14 @@
       "title": "",
       "type": "text",
       "gridPos": {
-        "h": 3,
+        "h": 2,
         "w": 24,
         "x": 0,
         "y": 0
       },
       "options": {
         "mode": "markdown",
-        "content": "**The stages do not multiply.** 70% adoption × 80% engagement × 60% assisted work is not a productivity figure — it is arithmetic on unrelated denominators. Each stage answers its own question, measured on its own denominator."
+        "content": "**The stages do not multiply.** 70% adoption × 80% engagement × 60% assisted work is not a productivity figure — it is arithmetic on unrelated denominators. Each stage answers its own question on its own denominator."
       }
     },
     {
@@ -76,7 +76,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 3
+        "y": 2
       },
       "panels": []
     },
@@ -89,7 +89,7 @@
         "h": 5,
         "w": 12,
         "x": 0,
-        "y": 4
+        "y": 3
       },
       "targets": [
         {
@@ -143,7 +143,7 @@
         "h": 5,
         "w": 12,
         "x": 12,
-        "y": 4
+        "y": 3
       },
       "targets": [
         {
@@ -197,7 +197,7 @@
         "h": 4,
         "w": 12,
         "x": 0,
-        "y": 9
+        "y": 8
       },
       "targets": [
         {
@@ -249,7 +249,7 @@
         "h": 4,
         "w": 12,
         "x": 12,
-        "y": 9
+        "y": 8
       },
       "targets": [
         {
@@ -300,7 +300,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 13
+        "y": 12
       },
       "panels": []
     },
@@ -313,7 +313,7 @@
         "h": 5,
         "w": 12,
         "x": 0,
-        "y": 14
+        "y": 13
       },
       "targets": [
         {
@@ -367,7 +367,7 @@
         "h": 5,
         "w": 12,
         "x": 12,
-        "y": 14
+        "y": 13
       },
       "targets": [
         {
@@ -421,7 +421,7 @@
         "h": 5,
         "w": 8,
         "x": 0,
-        "y": 19
+        "y": 18
       },
       "targets": [
         {
@@ -472,7 +472,7 @@
         "h": 5,
         "w": 8,
         "x": 8,
-        "y": 19
+        "y": 18
       },
       "targets": [
         {
@@ -524,7 +524,7 @@
         "h": 5,
         "w": 8,
         "x": 16,
-        "y": 19
+        "y": 18
       },
       "targets": [
         {
@@ -570,29 +570,14 @@
       "title": "",
       "type": "text",
       "gridPos": {
-        "h": 6,
-        "w": 14,
+        "h": 5,
+        "w": 24,
         "x": 0,
-        "y": 24
+        "y": 23
       },
       "options": {
         "mode": "markdown",
-        "content": "### What stage 5 cannot say\n\nThe panels above measure **cost and rework, not gain** — a gain needs the same work done both ways, which this data does not contain.\n\n- **Selection is not random** — an agent is reached for on some work and not others, so the two cohorts are different populations\n- **The baseline is pre-instrumentation, not pre-AI** — earlier commits may have been assisted and simply unrecorded\n- **Change size is not output** — more lines is not more delivered"
-      }
-    },
-    {
-      "id": 25,
-      "title": "",
-      "type": "text",
-      "gridPos": {
-        "h": 6,
-        "w": 10,
-        "x": 14,
-        "y": 24
-      },
-      "options": {
-        "mode": "markdown",
-        "content": "### Stage 6 · Business value\n\n**Not measurable here, and not a gap to be closed.** Revenue, customer outcomes and time-to-market are what a business cares about; nothing in a git history or an agent transcript reaches them. The stage stays on the funnel because deleting it would imply stage 5 answers *was it worth it*. It does not."
+        "content": "### Where the funnel stops\n\n**Stage 5 measures cost and rework, not gain** — a gain needs the same work done both ways. Selection is not random (the cohorts are different populations), the baseline is pre-instrumentation rather than pre-AI, and change size is not output.\n\n**Stage 6 · Business value is not measurable here, and not a gap to close.** Revenue, customer outcomes and time-to-market are what a business cares about; nothing in a git history or agent transcript reaches them. The stage stays because deleting it would imply stage 5 answers *was it worth it*. It does not."
       }
     }
   ],
