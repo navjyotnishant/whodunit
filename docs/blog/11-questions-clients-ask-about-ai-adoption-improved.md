@@ -212,7 +212,7 @@ Maybe AI helped people finish bigger tasks. Maybe it encouraged larger diffs. Ma
 
 That is why the dashboard has a panel called "Why this is not a productivity percentage."
 
-It does not color positive deltas green, because "larger commits" is not automatically "better work." It does not call an assisted/unassisted comparison a gain, because the comparison is not causal.
+It labels the cycle-time card a *difference*, not a gain, and it prints both sample sizes beside it. The comparison is not causal, and the panel is not allowed to imply that it is. A "larger commits" figure gets the same treatment, because more lines is not automatically better work.
 
 This is the part clients least want to hear and most need to hear.
 
