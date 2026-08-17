@@ -56,10 +56,10 @@ Here is what each number is counting, and what you can honestly say from it:
 - **Session depth.** Sessions bucketed by what happened in them: `agentic` if the session used MCP or five-plus distinct tools or fifty-plus calls, `edits` if it called any tool at all, `chat only` otherwise. *Says: whether people are running workflows or just talking.* This is the closest thing here to answering "are they using it well", and it is a proxy.
 - **Acceptance.** Accepted edits over accepted plus rejected plus failed. *Says: how much of what the agent proposed a human kept.* Agents that report no accept/reject signal are excluded from the denominator rather than counted as accepted.
 - **Median cycle, assisted vs other.** Median lead time for issues whose commits carry an assisted trailer, against those that don't, on the same board. *Says: how long each cohort took.* Median rather than mean, because one two-week ticket drags an average and does not move a median.
-- **Assisted advantage.** The difference between those two medians. *Says: assisted issues closed faster in this window.* It does not say AI caused it, and the section on selection bias below is the reason.
+- **Assisted advantage.** The difference between those two medians. *Says: assisted issues closed faster in this window.* 
 - **Commits by month.** Assisted and unassisted stacked to the month's total, with assisted share on the right axis. *Says: when adoption actually happened.* Months before instrumentation are full unassisted bars, which is a measurement; a month with no commits is absent entirely, which is not the same thing.
 
-Every rate on this screen withholds itself below a minimum cohort. The cycle-time cards need ten issues on each side and render `n/a` below that, because a one-against-four comparison produces a confident number from nothing.
+Every rate on this screen refuses to render below a minimum cohort. The cycle-time cards need at least ten issues on each side of the comparison; below that they show `n/a` and say why, instead of dividing one ticket by four and printing it to one decimal place. An empty card is a worse slide and a better number.
 
 ---
 
