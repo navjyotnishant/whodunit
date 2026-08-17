@@ -5,6 +5,14 @@ description: "One question clients ask about AI coding tools can't be honestly a
 tags: ai, metrics, opensource, devops
 ---
 
+> **TL;DR.** Clients keep asking what their AI tooling bought them. I built [whodunit](https://github.com/navjyotnishant/whodunit), an open-source tool that stamps a git trailer on every commit recording which agent touched it and how strong the evidence is, then reads it back into seven Grafana dashboards.
+>
+> Of the eleven questions I get asked, most are answerable from commits and local agent transcripts: adoption per person, acceptance rate, model mix, autonomy, churn, where AI is used. Cycle time is answerable if your delivery data is wired up.
+>
+> **Two are not.** Whether your developers understand compaction is not measurable from a transcript. And the productivity percentage everyone wants cannot be derived honestly, because assisted and unassisted work are self-selected. The tool reports a difference and refuses to call it a gain.
+>
+> The metric definitions are the part I most want argued with. Skip to [What these numbers don't claim](#what-these-numbers-dont-claim) if that is what you came for.
+
 During my conversations with clients I have observed a generic pattern: most of the conversations are around AI productivity, AI investment and ROI, AI versus human throughput and accuracy, and most importantly, how do we measure it. Everyone has their own way of measuring it, and none of those feels solid. 
 
 This is my attempt at an answer: a lightweight tool I wrote over a weekend, called whodunit.
@@ -40,7 +48,16 @@ Plain git. Readable by anything that reads a commit message, and impossible to a
 
 ![Whodunit - Executive Summary](https://navjyotnishant.github.io/whodunit/img/dashboards/executive-summary.png)
 
-This dashboard exists for the person who will not open the other six: assisted commit count, attribution coverage, acceptance rate, active sessions, and the trend of each, on one screen. In practice that's the person asking the question in the first place.
+This dashboard exists for the person who will not open the other six. Six numbers, what each one is counting, and what you can honestly say from it:
+
+- **Adoption.** Assisted commits divided by all commits in the window. *Says: how much of what shipped had an agent involved.* It does not say how much of the work AI did; a commit is assisted if any of it was.
+- **Session depth.** Sessions bucketed by what happened in them: `agentic` if the session used MCP or five-plus distinct tools or fifty-plus calls, `edits` if it called any tool at all, `chat only` otherwise. *Says: whether people are running workflows or just talking.* This is the closest thing here to answering "are they using it well", and it is a proxy.
+- **Acceptance.** Accepted edits over accepted plus rejected plus failed. *Says: how much of what the agent proposed a human kept.* Agents that report no accept/reject signal are excluded from the denominator rather than counted as accepted.
+- **Median cycle, assisted vs other.** Median lead time for issues whose commits carry an assisted trailer, against those that don't, on the same board. *Says: how long each cohort took.* Median rather than mean, because one two-week ticket drags an average and does not move a median.
+- **Assisted advantage.** The difference between those two medians. *Says: assisted issues closed faster in this window.* It does not say AI caused it, and the section on selection bias below is the reason.
+- **Commits by month.** Assisted and unassisted stacked to the month's total, with assisted share on the right axis. *Says: when adoption actually happened.* Months before instrumentation are full unassisted bars, which is a measurement; a month with no commits is absent entirely, which is not the same thing.
+
+Every rate on this screen withholds itself below a minimum cohort. The cycle-time cards need ten issues on each side and render `n/a` below that, because a one-against-four comparison produces a confident number from nothing.
 
 ---
 
