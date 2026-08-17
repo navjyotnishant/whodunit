@@ -1,345 +1,212 @@
 ---
-title: "The AI Adoption Dashboard That Refuses to Lie"
+title: "11 questions clients ask about AI adoption, and what I can actually answer"
 published: false
-description: "Clients keep asking for an AI productivity number. whodunit answers the questions the evidence can support, and refuses the one it cannot."
+description: "One question clients ask about AI coding tools can't be honestly answered from this data. The open-source tool I built, and why it refuses."
 tags: ai, metrics, opensource, devops
 ---
 
-Six months after a company buys AI coding tools, the same meeting happens.
+During my conversations with clients I have observed a generic pattern: most of the conversations are around AI productivity, AI investment and ROI, AI versus human throughput and accuracy, and most importantly, how do we measure it. Everyone has their own way of doing it, but no one seems to have a confident, straightforward one. This is my attempt to help answer those questions, in the form of a very lightweight tool I wrote over a weekend and I call it whodunit.
 
-Finance wants to know what changed. Engineering leadership wants proof that adoption is real. Someone has a vendor dashboard open. Someone else has a survey. The numbers look tidy enough for a slide, but nobody in the room fully trusts them.
+First of all, let me summarise some of the common questions I have heard over time.
 
-That is the moment this project is built for.
+## Questions
 
-Over the last couple of years, clients have asked me the same set of questions about AI adoption. Not abstract strategy questions. Practical ones:
+1. What has the AI adoption been for my team: is it consistent across everyone, or can we identify inconsistencies so necessary training can be planned?
+2. Show me the productivity improvement after AI adoption: how many tickets did users close before and after, how many commits before and after?
+3. Is everyone in the team (or is every team) using AI efficiently, or just as a chatting tool? Do they know how to use it efficiently? When to choose which model? The importance of skills? Are they leveraging agents? Sub-agents? Do they understand the importance of regular compaction? Do they know what cache and memory are used for, and how those can help optimise cost? Can they translate day-to-day work into an efficient workflow? Who is not using the AI tools at all?
+4. How are the AI tools being used: to supplement code, or to write the whole thing?
+5. What has been the acceptance rate of code written by AI?
+6. Is there a view showing where AI is being used across design, bug fixes, features and tests?
+7. What kind of autonomy are users granting to AI while coding?
+8. Is there a way to see code churn over time for code written by AI?
+9. Which AI model is being used the most (if the org runs more than one)?
+10. Was there any improvement in PR cycle times?
+11. How long did adoption take for my team, and does that differ by model?
 
-- Who is using it?
-- What are they using it for?
-- Is it helping delivery?
-- Are people just chatting with it?
-- What did we actually get for the money?
 
-The uncomfortable truth is that some of those questions can be answered from evidence. Some can only be partially answered. And one of them, the most tempting one, cannot be answered honestly from the data most teams have.
+I built [whodunit](https://github.com/navjyotnishant/whodunit) to answer these from evidence. Some of them it answers well. This is an effort to answer most of them with the data already present in PM tools (Jira, Linear and the like) and AI agent logs.
 
-That question is:
+The mechanism is a git trailer on every commit:
 
-> Show me the productivity improvement after AI adoption.
-
-[whodunit](https://github.com/navjyotnishant/whodunit) exists because I would rather build the dashboard that says "we cannot prove that" than ship the dashboard that makes up a percentage.
-
-## The Problem With Most AI Adoption Dashboards
-
-The usual evidence is weak in two different ways.
-
-Surveys tell you how people feel about tools they were told to adopt. Seat dashboards tell you who has access. Chat logs tell you a tool was opened. None of those prove that AI-generated work reached the codebase, survived human editing, or changed delivery.
-
-The source of truth I care about is more boring and more useful: commits.
-
-Every commit can carry a plain git trailer:
-
-```text
+```plaintext
 AI-Attribution: v=1; status=assisted; method=intersected; agent=claude-code; agent_version=2.1.228; ratio=0.62; model=claude-opus-5; session=a3f9e21c
 ```
 
-That trailer says which agent touched the change, how strong the evidence is, and roughly how much of the committed diff came from the agent. It is readable by anything that can read a commit message. It travels with the repository. It cannot be quietly added later without rewriting history.
+Plain git. Readable by anything that reads a commit message, and impossible to add retroactively without rewriting history. `method` records how strong the evidence is, from `undetermined` up to `intersected`, which means the exact text the agent produced is what ended up staged.
 
-The important field is `method`.
+## The one-screen version
 
-At the strongest level, `intersected`, whodunit has evidence that text produced by the agent is the text that ended up staged. At weaker levels, it says so. When the evidence is missing, it records `undetermined` instead of pretending that "no evidence" means "no AI."
+![Whodunit - Executive Summary](https://navjyotnishant.github.io/whodunit/img/dashboards/executive-summary.png)
 
-That one distinction, between absence and zero, is the whole philosophy of the project.
+This dashboard exists for the person who will not open the other six: assisted commit count, attribution coverage, acceptance rate, active sessions, and the trend of each, on one screen. In practice that's the person asking the question in the first place.
 
-## The 11 Questions Clients Actually Ask
+---
 
-These are the questions I keep hearing, in the words clients actually use.
+## Theme 1: Is it being adopted, and evenly? (Q1, Q11)
 
-1. What has the AI adoption been for my team — is it consistent across everyone, or can we identify inconsistencies?
-2. Show me the productivity improvement after AI adoption.
-3. Is everyone using AI efficiently, or just as a chatting tool? Do they know compaction? Do they know when to choose which model? Do they know the importance of skill files, agents, sub-agents? Who is not using the AI tools at all?
-4. How are the AI tools being used — to supplement code, or to write the whole thing?
-5. What has been the acceptance rate of code written by AI?
-6. Is there a view showing where AI is being used — design, bug fixes, features, tests?
-7. What kind of autonomy are users granting to AI while coding?
-8. Is there a way to see code churn over time for code written by AI?
-9. Which AI model is being used the most, if the org runs more than one?
-10. Was there any improvement in PR cycle times?
-11. How long did adoption take for my team — and does it differ by model?
+![Whodunit - Adoption](https://navjyotnishant.github.io/whodunit/img/dashboards/adoption.png)
 
-The honest answer is not one dashboard. It is a separation exercise:
+This is the denominator dashboard. It is where you check whether a figure elsewhere rests on three sessions or three hundred.
 
-- What can commits prove?
-- What can local agent transcripts prove?
-- What requires delivery data from another system?
-- What sounds measurable but is actually inference dressed up as certainty?
+For Q1, the panels that matter are **By contributor** and **Committed work by contributor**. The first is per-person activity; identity comes from the git committer email already in every commit, so this makes existing information easier to query rather than observing anything new. The second shows what actually reached a commit per person, and it deliberately shows coverage alongside, because a penetration figure without coverage tells you how much of *what we could see* was assisted, not how much of the work was.
 
-whodunit answers the first three where it can, and puts a wall around the fourth.
+**That distinction is the whole answer to "is it consistent across everyone".** You can see the spread, and you can see who has no assisted commits at all.
 
-## What You Can See Right Away
+For Q11 there's **Adoption over time**, split by which agent was active. It lives on the AI Impact on Delivery dashboard rather than this one. An agent gets credit for a commit when it recorded activity in that repository within 24 hours before the commit. That's a heuristic and it's labelled as one: a commit worked on by two agents appears in both series, so the lines don't sum to the overall rate.
 
-![Whodunit Executive Summary](https://navjyotnishant.github.io/whodunit/img/dashboards/executive-summary.png)
+**The limit.** Q11 asks how long adoption took *by model*. What you get is a per-agent curve over time, not a per-model one. And there's a harder problem underneath: the adoption curve starts when the hooks were installed, not when people started using AI. Everything before instrumentation is invisible. If you want the real curve, you have to capture a baseline before you start. That command exists (`dun baseline capture`) precisely because that window closes permanently.
 
-*Every screenshot here comes from a demo dataset. Repository names, contributors and projects are anonymised, and the issue-to-commit links are seeded so the cycle-time panels have enough data on both sides to render. The numbers show what the panels do, not what any team achieved.*
+---
 
-The executive view is for the person who will never open the other dashboards: assisted commits, attribution coverage, acceptance rate, active sessions, trend lines, and cycle-time comparison in one place.
+## Theme 2: Are they using it well, or just chatting? (Q3, Q9)
 
-It does not try to win the argument by making the number bigger. It tries to make the denominator visible.
+![Whodunit - Cost & Efficiency](https://navjyotnishant.github.io/whodunit/img/dashboards/cost-efficiency.png)
 
-Coverage and adoption are deliberately separate:
+Q3 is the question I get asked most aggressively and the one I have to be most careful about, because it's really five questions wearing a trenchcoat.
 
-- **Coverage** means commits carry a valid AI attribution trailer.
-- **Adoption** means the trailer says `status=assisted`.
+**Let me be blunt about what this does not measure.** `dun` does not know whether a developer understands context compaction. It does not know whether they picked the right model for a task. It has no visibility into whether they've written skill files, or configured sub-agents, or thought about their workflow at all. There is no panel for "does this person know what they're doing", and I'm not going to build one from proxies and call it competence.
 
-A repository can have perfect coverage and no observed AI involvement. That is not a contradiction. It means the instrumentation is working and the evidence says what it says.
+**What's left is the honest half: the "just chatting" part is answered by proxy, and the proxy is a decent one.** Here is what that proxy is made of.
 
-## 1. Is AI Actually Being Adopted?
+**Session shape** carries most of the weight. The funnel's Stage 2 buckets sessions by what actually happened in them, from conversation-only up to agentic work using MCP or many tools. That's depth rather than count, deliberately, because ten sessions that produced nothing and one that rewrote a subsystem are not the same adoption.
 
-![Whodunit Adoption](https://navjyotnishant.github.io/whodunit/img/dashboards/adoption.png)
+**Compaction** gets you partway. There's a *Sessions that compacted* panel. Measured on my machine, 92% of turns ran above 150k context while a small fraction of sessions ever compacted. That's suggestive. It is not "they don't know about compaction". A short session has nothing to compact, which is exactly why the panel is deliberately not colour-coded.
 
-For adoption, the useful view is not a single percentage. It is the spread.
+**Which models, and what their tokens are made of**, answers Q9 directly and well. The *Token mix by model* panel stacks each model's tokens as a percentage rather than absolute counts, because cache reads were 88–99% of every model's total on my own data. An absolute stack would draw one long bar with three invisible slivers.
 
-The adoption dashboard shows activity by contributor and committed work by contributor. Identity comes from the git committer email already present in commits; whodunit is making existing commit metadata queryable, not inventing a new surveillance layer.
+**Who isn't using it at all** is answered too, via the contributor panels in Theme 1.
 
-This answers the practical management question:
+So the last part of Q3 is answered cleanly. The "do they know compaction / model choice / skill files" part is **not answered**, and if a vendor tells you their dashboard answers it, ask them which field in which transcript they're reading.
 
-> Is adoption evenly distributed, or are two people carrying the whole number?
+---
 
-You can see who has assisted commits, who has none, and whether the team-wide number is meaningful or resting on a thin slice of people.
+## Theme 3: Where and how is it being used? (Q4, Q6, Q7)
 
-For adoption over time, whodunit can show a per-agent curve. An agent gets credit for a commit when it recorded activity in the repository within the preceding 24 hours. That is a heuristic, and the dashboard treats it like one. If two agents touched the same commit, both series may move; the lines are not supposed to sum to the total.
+![Whodunit - AI Productivity Funnel](https://navjyotnishant.github.io/whodunit/img/dashboards/productivity-funnel.png)
 
-The harder part is historical adoption. If you install instrumentation today, everything before today is dark. That is why `dun baseline capture` exists: the real before-and-after window closes as soon as hooks start stamping commits.
+Q4, supplement or write the whole thing, is what the trailer's `ratio` key is for: the fraction of the change attributable to the agent. Alongside it, `method` tells you how much to trust that number, and the *Evidence strength* panel breaks it down: `intersected` means agent-written lines survived into the commit, `observed` means the agent touched the file but the text changed afterwards.
 
-## 2. Are People Using AI Well, Or Just Chatting?
+Q6, where is it being used, maps to the *AI-assisted work by purpose* panel, derived from Conventional Commit prefixes and path heuristics. And here's the caveat printed on the panel itself: **purpose is a label, not an observation**. `feature` is reachable only through a literal `feat:` prefix, so a repository not using Conventional Commits will show almost none, which says nothing about the work itself. If your team doesn't use Conventional Commits, this panel is close to useless and I'd rather tell you that up front than have you quote it in a board deck.
 
-This is the most politically loaded question because it sounds like a competence ranking.
+Q7, autonomy, turned out to be the most interesting one to build. The *Autonomy granted* panel reports tool calls per session at each permission level. The reason it's one metric instead of two bars: sessions and total tool calls run in opposite directions. Measured here, 64 sessions on Codex's `never` mode produced 506 calls, while 2 Claude Code sessions on `auto` produced 6,766. Charting both put a 13x range beside a 32x one and flattened whichever shared the axis. Dividing gives the thing both were circling: 8 calls per session on `never`, 3,383 on `auto`.
 
-whodunit does not know whether a developer understands compaction. It does not know whether they chose the best model. It does not know whether they wrote good skill files, configured sub-agents well, or built a thoughtful workflow.
+**The finding is that the ladder is monotonic across every mode measured, autonomy isn't how often it's granted, it's how much happens once it is.**
 
-I do not want a panel called "AI maturity" that is really a pile of proxies and vibes.
+One deliberate non-decision: each agent's own vocabulary is kept rather than mapped onto a shared enum. Codex says `never` and `on-request`; Claude Code says `acceptEdits`, `auto` and `default`. Asserting that `never` means the same thing as `default` would be a claim I can't support.
 
-What whodunit can measure is session shape:
+**The limit.** Sample sizes here are thin and the panels say so; a companion panel notes that `default` is 3 sessions and `auto` is 1 against 64 for `never`, and states plainly that a mode with one session tells you about that session. Also: tool calls are not shipped work. A mode that permits more actions produces more actions by construction.
 
-- Was the session conversation-only?
-- Did it call tools?
-- Did it edit files?
-- Did it use deeper agentic behavior such as multiple tools or MCP calls?
-- Which models were active?
-- What did the token mix look like?
-- Did sessions compact?
+---
 
-That gives a decent answer to the "just chatting" part. It does not answer the "does this person know what they are doing" part, and the dashboard should not pretend otherwise.
+## Theme 4: Did delivery actually change? (Q2, Q5, Q8, Q10)
 
-Model usage is more direct. The cost and efficiency dashboard shows token mix by model and separates cache reads, cache writes, and uncached input where agents report them. It reports tokens, not dollars, because a transcript does not know whether a user is on a subscription, an API bill, a team contract, or something else entirely.
+![Whodunit - AI Impact on Delivery](https://navjyotnishant.github.io/whodunit/img/dashboards/ai-impact-on-delivery.png)
 
-If you need currency, you can multiply by your own contract. The tool should not guess.
+Q5 and Q8 come out of the data most directly.
 
-## 3. Where Is AI Being Used?
+**Acceptance rate (Q5)** comes from accept/reject outcomes the agents record themselves, shown per tool so a low overall rate can be traced to which tool is being turned down, and always with its denominator on the same row. There's a better signal available for one agent: *Human edited the agent's output* is the difference between "the agent wrote this" and "the agent wrote this and it was kept". Only Claude Code reports it, out of the three agents supported. The denominator counts only calls that carried the signal, so agents without it don't dilute the rate.
 
-"Where is AI helping?" sounds simple until you ask what "where" means.
+**Code churn (Q8)** is a panel: lines written and removed by agents per day, from observed edits rather than commits. There's also churn by hour on the activity dashboard.
 
-whodunit uses purpose labels from Conventional Commit prefixes and path heuristics. That means the dashboard can distinguish things like feature work, tests, docs, and fixes when the repository gives it enough signal.
+**PR cycle time (Q10)** is there, median PR cycle time, open to merge, with the PR count sitting next to it and a note to check that count before reading much into it. The executive summary carries the comparison directly: median cycle for AI-assisted work against median cycle for the rest, with both sample sizes shown.
 
-It also means the panel has a real limit:
+And then **Q2. Show me the productivity improvement.**
 
-> Purpose is a label, not an observation.
+There is a panel on this dashboard whose entire content is an explanation of why that number is not there. It is titled *"Why this is not a productivity percentage"*. Its text says a productivity gain needs a before and an after of the same work, and what exists here is assisted against unassisted commits in the same period, two populations that are not the same. Measured on this data, 48% of assisted commits are features against 38% of unassisted ones, so an unmatched comparison partly measures which work got assigned to the agent.
 
-If a team does not use Conventional Commits, `feat:` will not magically appear. The dashboard will show little feature work even if the team shipped features all week. That is not a hidden AI insight. It is an input-quality problem.
+What you get instead is *Change size, assisted vs not*: mean lines changed per assisted commit against unassisted, within purposes where both sides have at least 20 commits, so `feature` isn't being compared against `docs`. A positive number means assisted commits are larger. **Larger is not faster and not better:** it may mean the agent takes on bigger work, or that it writes more code for the same outcome. Both are consistent with the figure.
 
-This is one of the places where I would rather have a less impressive dashboard and a more honest caption.
+That panel is deliberately not colour-coded, because green for positive would assert that larger commits are better, which is the claim the panel beside it exists to refuse.
 
-## 4. Is AI Supplementing Work, Or Writing The Whole Thing?
+I know this is not what the client wanted. I've had the conversation where I explain that the number they asked for cannot be honestly produced from this data, and it is not a fun conversation. It's still the right one.
 
-The trailer's `ratio` field exists for this question.
+---
 
-If a commit has `ratio=0.62`, whodunit is saying that roughly 62% of the change is attributable to the agent under the recorded method. The ratio is only as strong as the method beside it:
+## What these numbers don't claim
 
-- `intersected` means produced agent text survived into the staged diff.
-- `observed` means the agent touched relevant files, but the text changed afterward.
-- `inferred` and `declared` are weaker.
-- `undetermined` means the evidence is not there.
+Every figure here has a definition that can be got wrong, and several of them are wrong in a *flattering* direction, which is the dangerous kind, because nobody questions a number that looks good.
 
-That lets you distinguish "AI helped with a few lines" from "AI produced most of this change" without pretending every assisted commit is the same.
+**Empty is not zero.** This is the rule the rest of the tool is built on. A missing measurement is recorded as absent, never as zero. A `NULL` token count means the agent doesn't report tokens; a blank latency panel means nothing measured it. Zero is a *value*: averaged, charted or summed, it claims that an agent cost nothing or that no AI was involved. Absence makes no claim at all. This is why `status=undetermined` exists instead of a "no AI" value, and why Antigravity is excluded from cost panels rather than shown at 0. It records no tokens at all, so a 0 would make it look like the cheapest agent available. Reporting absence as "no AI was used" is the cardinal error with this data.
 
-It also keeps the argument anchored in code that landed, not prompts that sounded productive.
+**Tokens, never currency.** There is no dollar figure anywhere in the tool, and that's a decision rather than a gap. Under a subscription the marginal cost of a token is zero, someone on a fixed monthly plan spends the same whether a session burns 10k tokens or 10M. Multiplying their token count by an API rate would report money nobody spent. Nothing in any transcript says which billing model a user is on, so the tool would be guessing at the pricing model before it even reached the price.
 
-## 5. What Autonomy Are People Granting?
+**Cache writes belong in the denominator.** The cache read ratio is `cache_read / (uncached_input + cache_write + cache_read)`. A write arrives uncached and is billed *above* base rate, so leaving it out of the denominator flatters the result badly.
 
-The autonomy question turned out to be more interesting than I expected.
+I'll confess this one with my own data, because I made the mistake: the first version of my analysis reported a 99% hit rate and concluded caching needed no attention. Recomputed with writes included, the real figure was **47.6%**. A panel reporting 99% recommends nothing. The flattering error is also the one that makes the dashboard useless.
 
-Different agents use different permission vocabularies. Codex may report modes such as `never` or `on-request`; Claude Code may report modes such as `acceptEdits`, `auto`, or `default`. whodunit does not flatten those into one fake enum, because that would claim equivalence the data cannot support.
+**Write payback breaks even at 1.25x, not 1.0x.** A write costs about 1.25x base and a read about 0.1x, so a write needs roughly 1.25 reads to pay for itself. A series sitting at 1.10x lost money while looking fine against a 1.0 line. The dashboards draw break-even at 1.25 and use a log axis, because the measured spread ran from 0.73x to 21x, on a linear axis every sub-break-even series collapses onto the floor, which is the end of the range the panel exists to surface. On this project's data the aggregate write payback was a healthy 3.60x while one model sat at 0.73x, a loss entirely invisible in the total.
 
-Instead, the dashboard shows how much activity happened under each agent's own mode.
+**Coverage is not adoption.** Coverage is the share of commits carrying a valid trailer of any kind, including `undetermined`. A repository at 100% coverage may have had no agent involvement whatsoever. Adoption is the share carrying `status=assisted`. These get confused constantly. Coverage says the instrumentation is working; adoption says the agents are being used.
 
-The useful metric is tool calls per session. Sessions and total calls can move in opposite directions; a mode used rarely can produce a huge amount of activity once granted. Tool calls per session captures that shape better than a raw count.
+**A fix rate is not a defect rate.** The rework panel compares how often assisted and unassisted commits are fixes, but `purpose` comes from Conventional Commit prefixes and path heuristics, so it measures what commits were *labelled*, not what actually broke. It's a rework proxy. Useful, and not the same thing. Worth knowing: banding that panel by change size reversed its answer. Unbanded it read 28.4% assisted against 33.3% unassisted, which looks favourable; split by size it flips in the middle band to 42.1% against 24.7% at 50–300 lines. The aggregate was a size-mix artefact.
 
-The caveat matters: tool calls are not shipped work. A permissive mode permits more actions by design. The chart shows activity under autonomy, not value created by autonomy.
+**And the productivity section reports a difference, not a gain.** Selection bias between assisted and unassisted commits is uncontrolled, and it is not fixable with better maths.
 
-## 6. What Code Did Humans Accept?
+**This is my logic. Tell me where it's wrong.** I'd genuinely rather find out that the 1.25x break-even is off, or that my selection-bias argument has a fix I haven't seen, than keep shipping panels built on it. The metric definitions are the part of this project I'm least confident in and most interested in criticism of.
 
-Acceptance rate is one of the cleanest things the tool can report, when the agent records enough information.
+## How it's built
 
-Claude Code and Codex expose accepted and failed edit outcomes differently. `agy` can attribute edits, but does not expose a true accept/reject signal, so it cannot honestly contribute to the same acceptance-rate panel.
+Two independent components. **You can use the first without ever touching the second.**
 
-That is a boring implementation detail with a big dashboard consequence: agents without the signal should not dilute the denominator.
-
-The useful view is not just "overall acceptance." It is acceptance by tool and by agent, always with the count beside the percentage. A 90% rate over 10 calls and a 60% rate over 10,000 calls are not the same finding.
-
-There is also a stronger signal where available: whether a human edited the agent's output before it landed. That is closer to "how much survived" than a binary accept/reject label, but only agents that report enough edit detail can support it.
-
-## 7. Did Delivery Change?
-
-![Whodunit AI Impact on Delivery](https://navjyotnishant.github.io/whodunit/img/dashboards/ai-impact-on-delivery.png)
-
-This is where the conversation usually turns from interesting to dangerous.
-
-whodunit can show:
-
-- AI-written lines added and removed over time.
-- Assisted versus unassisted change size.
-- Rework proxies such as fix-labelled commits.
-- PR cycle time when DevLake delivery data is connected.
-- DORA-style delivery correlations when DevLake is configured correctly.
-
-Those are useful. They are not a productivity percentage.
-
-The difference is selection bias.
-
-Assisted and unassisted commits in the same period are not two randomized groups doing the same work. Developers choose when to use an agent. They may reach for it on larger changes, repetitive migrations, unfamiliar code, test generation, or tasks they already know how to delegate.
-
-So if assisted commits are larger, what did we learn?
-
-Maybe AI helped people finish bigger tasks. Maybe it encouraged larger diffs. Maybe it was used on work that was already different. All three are consistent with the same chart.
-
-That is why the dashboard has a panel called "Why this is not a productivity percentage."
-
-It labels the cycle-time card a *difference*, not a gain, and it prints both sample sizes beside it. The comparison is not causal, and the panel is not allowed to imply that it is. A "larger commits" figure gets the same treatment, because more lines is not automatically better work.
-
-This is the part clients least want to hear and most need to hear.
-
-## The Metric Traps That Make AI Look Better Than It Is
-
-The dangerous errors are usually flattering.
-
-### Empty Is Not Zero
-
-A missing value is not a measured zero.
-
-If an agent does not report tokens, showing `0` makes it look free. If a commit has no attribution evidence, treating it as "not AI" makes adoption look lower than it may be. If a dashboard panel has no delivery data, displaying a tidy zero turns missing instrumentation into a performance claim.
-
-whodunit records absence as absence. That makes some panels less satisfying, but it keeps them from lying.
-
-### Tokens Are Not Dollars
-
-The cost dashboard reports tokens and cache behavior, not money.
-
-Under a subscription, the marginal dollar cost of a token may be zero. Under API billing, it is not. A transcript does not know the commercial agreement behind it. Multiplying every token by a public API price would create a fictional cost model before the analysis even starts.
-
-### Cache Writes Belong In The Denominator
-
-Cache read ratio is easy to inflate.
-
-The correct denominator includes uncached input, cache writes, and cache reads:
-
-```text
-cache_read / (uncached_input + cache_write + cache_read)
-```
-
-A cache write arrives uncached and costs more than base input. Leaving writes out makes the number look wildly better. On this project's own data, that mistake turned a real figure around 48% into something that looked like 99%.
-
-A dashboard showing 99% says "nothing to fix." The corrected number says "look closer."
-
-### Cache Write Payback Is Not 1.0x
-
-A cache write has to be read enough times to pay for itself. With a write around 1.25x base and a read around 0.1x, break-even is roughly 1.25 reads, not 1.0.
-
-That is why the dashboard marks 1.25x as the threshold. A model sitting at 1.10x can look healthy against the wrong line while still losing money.
-
-### Rework Is Not Defect Rate
-
-A fix-labelled commit is not proof that AI caused a defect. It is a proxy for rework, shaped by commit conventions and path heuristics.
-
-Even that proxy can flip when you band by change size. In my own data, the aggregate looked favorable to assisted commits. Split by size, the middle band told a different story. The aggregate was partly a mix artifact.
-
-This is why I keep coming back to denominators. Without them, every chart is an invitation to overread.
-
-## How whodunit Works
-
-There are two pieces, and you can use the first without the second.
-
-### `dun`: The Local CLI
-
-`dun` runs on the developer's machine.
+**`dun`: a Go CLI that runs on the developer's machine.** Sixteen top-level commands, but the loop is short:
 
 ```bash
 cd your-repo
-dun init          # install git hooks
-git commit ...    # stamp the trailer automatically
-dun status        # inspect coverage and method mix
-dun report        # generate a self-contained local HTML report
+dun init          # installs prepare-commit-msg, commit-msg, pre-push hooks
+git commit ...    # trailer gets stamped automatically
+dun status        # coverage + method mix for recent commits
+dun report        # self-contained HTML report, opens in any browser
 ```
 
-`dun init` installs git hooks for one repository at a time and chains to any hooks already present. It does not enroll every repository on the machine. That is deliberate: adding AI-attribution trailers to commits is a disclosure decision, and disclosure belongs to the repository owner.
+`dun init` is once per repository, and it chains to any hook you already have rather than clobbering it. Instrumentation is always explicit. There is no flag to enrol every repository you've ever used an agent in, because that set includes client work, throwaway experiments, and clones of other people's projects. Stamping attribution trailers into those is a disclosure decision that belongs to you, one repo at a time.
 
-Attribution comes from local session stores the agents already write:
+Attribution comes from session transcripts the agents already write for their own purposes, `~/.claude/projects/**/*.jsonl` for Claude Code, `~/.codex/sessions/**/*.jsonl` for Codex, a local SQLite store for Antigravity. Matching is by content hash, never by commit SHA: a commit doesn't exist yet when the observation is recorded, and may later be amended, rebased or squashed. Hashing what changed rather than where it landed keeps attribution correct across all three.
 
-- Claude Code JSONL transcripts.
-- Codex CLI JSONL rollout files.
-- `agy` local SQLite conversations.
+`dun sync` is the only command that transmits anything. Worth saying loudly: **`dun report` renders a self-contained HTML file with no server and no network**. The entire dashboard layer below is optional.
 
-The journal does not store prompt text, message content, file contents, hostnames, or remote URLs. It stores the measurements needed for attribution: edited paths, counts, outcomes where available, model where reported, and line hashes.
+**The DevLake layer: docker compose, and optional.** One script builds the stack, a second imports the dashboards; they're separate because step 2 is re-run on every whodunit release and step 1 isn't.
 
-`dun report` renders locally. No server. No network.
+Seven Grafana dashboards, 140 panels: Adoption, Cost & Efficiency, AI Impact on Delivery, Executive Summary, AI Productivity Funnel, Agent Activity Hours, and the original AI attribution one.
 
-`dun sync` is the command that transmits data, and `dun sync --dry-run` prints the payload before sending it.
+### Why DevLake, when nothing here uses DevLake
 
-### The Optional DevLake Layer
+This is the design decision I get asked about most, and the honest answer isn't "it's a nice dashboard tool".
 
-The DevLake stack is for teams that want a shared view across people and repositories.
+**Nothing here uses DevLake's own collectors.** whodunit's data comes from git and the local journal, not from GitHub or Jira. A bare Postgres and Grafana would serve the same panels.
 
-It is optional. whodunit's own data lives in `whodunit_*` tables and does not write into DevLake's domain tables. That keeps it from depending on DevLake's internal schema and lets existing DevLake users add AI attribution without standing up a second analytics stack.
+DevLake is the target because a team that already runs it should be able to add whodunit without standing up a second stack. That only works if the tables coexist with theirs, which is why every table is prefixed `whodunit_` and nothing writes to DevLake's domain tables. Their schema shifts between minor versions, and writing into it would make every DevLake upgrade a potential data-loss event.
 
-The dashboards cover adoption, cost and efficiency, delivery impact, executive summary, productivity funnel, activity hours, and attribution detail. The DORA view can join whodunit data to DevLake delivery metrics when DevLake is configured with the right GitHub, project, and deployment settings.
+That's it. Coexistence with a stack the client already has. The upside is real: one dashboard, `whodunit-dora.json`, joins attribution data to DevLake's own delivery metrics, which is how Q10 gets answered against real deployment data rather than commit timestamps.
 
-That last phrase matters. DevLake can fail quietly. A misconfigured token, missing deployment pattern, or bad project mapping can produce empty panels that look like "nothing happened." whodunit's documentation calls those failure modes out because silent emptiness is another way metrics lie.
+## Privacy, stated plainly
 
-## Privacy, Without Handwaving
+I'd rather undersell this than oversell it, because a privacy page that omits the awkward part is worse than none: a reader who finds it later has reason to distrust everything else on the page.
 
-The collection path makes no network calls.
+**Collection makes no network calls.** The hooks, the daemon and `dun ingest` read git and local transcripts and write a local SQLite journal. The one exception is opt-out and unrelated to collection: `dun` checks once a day for a newer release, on bare `dun` only, never from a hook, disable with `dun config set version_check off`, or `DUN_NO_VERSION_CHECK` / `DO_NOT_TRACK`.
 
-Hooks, the daemon, and `dun ingest` read git plus local agent transcripts and write a local journal under `~/.whodunit`. Data leaves only when a user configures a sync target and runs `dun sync` or pushes with sync enabled.
+**The journal schema has no field that could hold prompt text, message content, file contents, hostnames or remote URLs.** This is a structural guarantee rather than a filtering step. There is nowhere to put them. Specific things considered and rejected: Claude Code's `toolUseResult` as a whole (it carries stdout, stderr, and the before/after text of every edit), Codex's `agent_message.message` and `unified_diff`, Antigravity's `CodeContent` and `ReplacementContent`. MCP tool-call arguments and web-search queries are countable but never stored, because they carry user intent verbatim.
 
-The awkward parts are stated plainly:
+**Now the part that does identify someone.** Two things:
 
-- File paths reveal what someone worked on.
-- Committer email identifies the contributor, just like git already does.
+**File paths.** The journal stores which files an agent edited. That reveals what someone worked on, not merely how much.
 
-Both are necessary for useful attribution. Both stay local unless the user syncs.
+**A contributor email.** `whodunit_repos` stores the git committer email for the repository, the same address already in every commit you author. A shared database needs it to attribute anything to anyone.
 
-The schema has no place to store prompt text or file contents. That is stronger than filtering. It means the most sensitive payloads are not merely discarded; they are not representable in the journal.
+Both stay local until you run `dun sync`, and `dun sync --dry-run` prints the exact payload before any target is contacted. Six tables are sent, enumerated in full in the docs so nobody has to take it on trust. Everything lives under `~/.whodunit`, owner-only, `0700` directories, `0600` files, repaired on open if they were ever created more permissively. Nothing is ever written into your repositories.
 
-## The Answer I Am Comfortable Giving
+The repository id is its root commit SHA, stable across clones and machines, and identifying the repository without revealing its name or remote.
 
-If a client asks "are people adopting AI tools?", I can answer.
+## The takeaway
 
-If they ask "which agents and models are being used?", I can answer where the tools report it.
+If you're being asked what your AI tooling bought you, don't go looking for the dashboard that produces the number. **Separate the questions evidence can answer from the ones it can't, and be willing to say which is which in the meeting.**
 
-If they ask "is AI reaching committed code?", I can answer with evidence strength.
+Of the eleven, most are answerable from commits and local transcripts. Acceptance rate, model mix, autonomy, churn, purpose, coverage, per-person spread, those are real measurements with real denominators. Cycle time is answerable if your delivery data is wired up. Whether your developers understand compaction is not answerable, and neither is the productivity percentage: assisted and unassisted work are self-selected, and no amount of arithmetic fixes that.
 
-If they ask "where is it being used?", I can answer within the limits of commit labels and paths.
+A dashboard that shows you a productivity gain from this data has made a decision you didn't see. I'd rather show the difference, print the denominators, and let you argue with it.
 
-If they ask "did PR cycle time move?", I can answer when delivery data is connected and the sample is large enough.
+Which is the actual ask here. **The metric logic is the part I want criticised**, the 1.25x break-even, putting cache writes in the denominator, banding the fix rate by change size, refusing to multiply the funnel stages. If one of those is wrong, or there's a defensible way to control for selection bias I've dismissed too fast, I want to know.
 
-If they ask "show me the productivity improvement," I will not give them a fake percentage.
-
-The best version of this project is not the one that makes AI look good. It is the one that makes the evidence hard to misuse.
-
-That is the real promise of whodunit: not certainty, but discipline. It separates what happened in the codebase from what we wish happened in the org chart. It prints the denominator. It leaves missing values empty. It refuses to convert correlation into causation because the slide would look better.
-
-And if any of the metric logic is wrong, I want the argument. The cache break-even, the productivity refusal, the treatment of missing data, the decision to keep purpose as a label rather than an observation: those are the parts I most want challenged.
-
-The goal is not to win the AI adoption narrative.
-
-The goal is to stop lying to ourselves with prettier charts.
-
-Code: [github.com/navjyotnishant/whodunit](https://github.com/navjyotnishant/whodunit)  
+Code: [github.com/navjyotnishant/whodunit](https://github.com/navjyotnishant/whodunit)
 Docs: [navjyotnishant.github.io/whodunit](https://navjyotnishant.github.io/whodunit/)
+
+Issues and arguments both welcome.
