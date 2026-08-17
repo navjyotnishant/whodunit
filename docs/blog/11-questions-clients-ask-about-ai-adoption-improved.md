@@ -63,7 +63,7 @@ Every rate on this screen refuses to render below a minimum cohort. The cycle-ti
 
 ---
 
-## Theme 1: Is it being adopted, and evenly? (Q1, Q11)
+## Theme 1: Is it being adopted, and evenly? (Q1)
 
 ![Whodunit - Adoption](https://navjyotnishant.github.io/whodunit/img/dashboards/adoption.png?v=2)
 
@@ -77,9 +77,7 @@ For Q1, drop to the **Who and what** row at the bottom. **By contributor** shows
 
 **That distinction is the whole answer to "is it consistent across everyone".** You get the spread, and you get the names with no assisted commits at all.
 
-Q11 asks how long adoption took, and that curve is not on this screen. **Adoption over time**, split by which agent was active, lives on the delivery dashboard further down this post. Worth knowing how it decides: an agent gets credit for a commit when it recorded activity in that repository in the 24 hours before it. That is a heuristic, and I would rather label it than dress it up, so: a commit two agents touched shows up in both series, and the lines are not meant to sum to the overall rate.
-
-**Where it runs out.** Q11 really asks about models, and what you get is a curve per agent, not per model. There is a harder problem sitting underneath that one, though, and it is worth understanding before you install anything: the adoption curve begins when the hooks went in, not when your team started using AI. Everything before instrumentation is simply dark.
+**Where it runs out.** There is a harder problem sitting underneath all of this, and it is worth understanding before you install anything: every one of these numbers begins when the hooks went in, not when your team started using AI. Everything before instrumentation is simply dark.
 
 If you want the real curve, you have to capture a baseline *before* you start. `dun baseline capture` exists for exactly that reason, and the reason it is a separate command you run first is that this particular window closes permanently. Miss it and no amount of later cleverness gets it back.
 
@@ -127,9 +125,11 @@ One deliberate non-decision, because it would have made a tidier dashboard: each
 
 ---
 
-## Theme 4: Did delivery actually change? (Q2, Q5, Q8, Q10)
+## Theme 4: Did delivery actually change? (Q2, Q5, Q8, Q10, Q11)
 
 ![Whodunit - AI Impact on Delivery](https://navjyotnishant.github.io/whodunit/img/dashboards/ai-impact-on-delivery.png)
+
+**Adoption over time** is on this screen, and it is where Q11 gets answered: how long adoption took, split by which agent was active. Worth knowing how it decides. An agent gets credit for a commit when it recorded activity in that repository in the 24 hours before it. That is a heuristic, and I would rather label it than dress it up, so: a commit two agents touched shows up in both series, and the lines are not meant to sum to the overall rate. Note also that this is per agent, not per model, which is what Q11 actually asked for.
 
 Q5 and Q8 come out of the data most directly.
 
