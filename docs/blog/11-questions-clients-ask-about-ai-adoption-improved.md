@@ -48,7 +48,9 @@ Plain git. Readable by anything that reads a commit message, and impossible to a
 
 ![Whodunit - Executive Summary](https://navjyotnishant.github.io/whodunit/img/dashboards/executive-summary.png)
 
-This dashboard exists for the person who will not open the other six. Six numbers, what each one is counting, and what you can honestly say from it:
+The executive dashboard gives you a quick eagle-eye view: how much AI is being adopted, how fast that adoption moved, where it is landing, and whether delivery looks any different alongside it. One screen, before anyone opens the other six.
+
+Here is what each number is counting, and what you can honestly say from it:
 
 - **Adoption.** Assisted commits divided by all commits in the window. *Says: how much of what shipped had an agent involved.* It does not say how much of the work AI did; a commit is assisted if any of it was.
 - **Session depth.** Sessions bucketed by what happened in them: `agentic` if the session used MCP or five-plus distinct tools or fifty-plus calls, `edits` if it called any tool at all, `chat only` otherwise. *Says: whether people are running workflows or just talking.* This is the closest thing here to answering "are they using it well", and it is a proxy.
