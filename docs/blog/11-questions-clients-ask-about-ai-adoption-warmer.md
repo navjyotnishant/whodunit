@@ -53,7 +53,7 @@ When the evidence is missing, whodunit records that too. It uses `undetermined` 
 
 ## The one-screen answer
 
-![Whodunit executive summary showing adoption, coverage, acceptance, active sessions, and delivery comparison](https://navjyotnishant.github.io/whodunit/img/dashboards/executive-summary.png)
+![Whodunit executive summary showing adoption, coverage, acceptance, active sessions, and delivery comparison](https://navjyotnishant.github.io/whodunit/img/dashboards/executive-summary-dark.png)
 
 The executive dashboard is the page for the person who will not open the rest. It shows assisted commits, coverage, acceptance rate, active sessions, and delivery comparison in one place.
 
@@ -67,7 +67,7 @@ A team can also have low coverage and a beautiful adoption number. That one shou
 
 ## Adoption is a spread, not a slogan
 
-![Whodunit adoption dashboard showing contributor spread and committed work by contributor](https://navjyotnishant.github.io/whodunit/img/dashboards/adoption.png?v=2)
+![Whodunit adoption dashboard showing contributor spread and committed work by contributor](https://navjyotnishant.github.io/whodunit/img/dashboards/adoption-dark.png)
 
 When someone asks "is the team adopting this?", the team average is not enough.
 
@@ -83,7 +83,7 @@ Miss that window and you can still learn a lot. You just have to be honest about
 
 ## "Are they using it well?" is only partly measurable
 
-![Whodunit cost and efficiency dashboard showing model mix, tokens, cache behavior, and compaction](https://navjyotnishant.github.io/whodunit/img/dashboards/cost-efficiency.png)
+![Whodunit cost and efficiency dashboard showing model mix, tokens, cache behavior, and compaction](https://navjyotnishant.github.io/whodunit/img/dashboards/cost-efficiency-dark.png)
 
 This is the question that can get uncomfortable fast.
 
@@ -99,7 +99,7 @@ I would rather leave that boundary visible than build a confidence score no one 
 
 ## Where AI shows up in the work
 
-![Whodunit productivity funnel showing adoption, engagement, assisted work, and later stages that need stronger evidence](https://navjyotnishant.github.io/whodunit/img/dashboards/productivity-funnel.png)
+![Whodunit productivity funnel showing adoption, engagement, assisted work, and later stages that need stronger evidence](https://navjyotnishant.github.io/whodunit/img/dashboards/productivity-funnel-dark.png)
 
 For questions like "is AI being used for features, tests, docs, or fixes?", whodunit leans on commit prefixes and path heuristics.
 
@@ -121,7 +121,7 @@ On my data, high-autonomy sessions were fewer, but much denser. Tool calls per s
 
 ## The productivity number everyone wants
 
-![Whodunit delivery impact dashboard showing assisted versus other delivery metrics and the productivity caveat](https://navjyotnishant.github.io/whodunit/img/dashboards/ai-impact-on-delivery.png)
+![Whodunit delivery impact dashboard showing assisted versus other delivery metrics and the productivity caveat](https://navjyotnishant.github.io/whodunit/img/dashboards/ai-impact-on-delivery-dark.png)
 
 This is the question that started the whole thing:
 
