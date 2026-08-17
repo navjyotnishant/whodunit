@@ -1,9 +1,22 @@
 name: Release
 
+# Two triggers, deliberately.
+#
+# A tag pushed by hand still releases, which is the escape hatch when
+# something needs cutting outside the normal flow. But a tag pushed by
+# tag-on-prd.yml cannot start this workflow: GitHub does not fire workflow
+# events for anything GITHUB_TOKEN created, to stop workflows looping. So
+# that job calls this one instead, and passes the tag it just created.
 on:
   push:
     tags:
       - "v*"
+  workflow_call:
+    inputs:
+      tag:
+        description: The tag to build and publish.
+        required: true
+        type: string
 
 jobs:
   release:
@@ -14,11 +27,22 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: ${{ inputs.tag || github.ref_name }}
 
+      # One name for the tag whichever way the workflow started.
+      - name: Resolve the tag
+        id: t
+        run: echo "tag=${{ inputs.tag || github.ref_name }}" >> "$GITHUB_OUTPUT"
+
+      # Resolve the tag rather than trusting GITHUB_SHA: on a workflow_call
+      # that is the caller's commit, not the commit being released.
       - name: Require tag to be on PRD
         run: |
-          if ! git merge-base --is-ancestor "${GITHUB_SHA}" origin/PRD; then
-            echo "::error::Tag ${GITHUB_REF_NAME} is not on PRD - releases are only cut from PRD."
+          tag='${{ steps.t.outputs.tag }}'
+          git fetch --quiet origin PRD
+          sha=$(git rev-list -n1 "$tag")
+          if ! git merge-base --is-ancestor "$sha" origin/PRD; then
+            echo "::error::Tag ${tag} is not on PRD - releases are only cut from PRD."
             exit 1
           fi
 
@@ -30,19 +54,19 @@ jobs:
           go-version-file: go.mod
 
       - name: Build release artifacts
-        run: ./scripts/release.sh "${GITHUB_REF_NAME}"
+        run: ./scripts/release.sh "${{ steps.t.outputs.tag }}"
 
       # Dashboards ship with the release so a team can import them without
       # cloning the repository or running the bundled DevLake stack.
       - name: Bundle dashboards
         run: |
           deploy/devlake/export-dashboards.py --check
-          tar -czf "dist/whodunit_dashboards_${GITHUB_REF_NAME}.tar.gz" \
+          tar -czf "dist/whodunit_dashboards_${{ steps.t.outputs.tag }}.tar.gz" \
             -C deploy/devlake/dashboards-import .
 
       - name: Publish GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "${GITHUB_REF_NAME}" dist/dun_* dist/whodunit_dashboards_* dist/checksums.txt \
-            --title "${GITHUB_REF_NAME}" --generate-notes
+          gh release create "${{ steps.t.outputs.tag }}" dist/dun_* dist/whodunit_dashboards_* dist/checksums.txt \
+            --title "${{ steps.t.outputs.tag }}" --generate-notes

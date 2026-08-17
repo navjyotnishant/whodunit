@@ -21,6 +21,9 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    outputs:
+      tag: ${{ steps.version.outputs.tag }}
+      tagged: ${{ steps.check.outputs.exists == 'false' }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -63,4 +66,19 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git tag -a "$tag" "${GITHUB_SHA}" -m "$tag"
           git push origin "$tag"
-          echo "::notice::Tagged ${tag} - the release workflow takes it from here."
+          echo "::notice::Tagged ${tag}."
+
+  # Calling the release rather than letting the tag push trigger it.
+  #
+  # GitHub does not fire workflow events for anything GITHUB_TOKEN created,
+  # which stops workflows looping and also means the tag above cannot start
+  # release.yml on its own. v0.3.1 was tagged and never built for exactly
+  # this reason. A PAT would also work and is one more secret to rotate.
+  release:
+    needs: tag
+    if: needs.tag.outputs.tagged == 'true'
+    uses: ./.github/workflows/release.yml
+    with:
+      tag: ${{ needs.tag.outputs.tag }}
+    permissions:
+      contents: write
