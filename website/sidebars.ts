@@ -36,6 +36,7 @@ const sidebars: SidebarsConfig = {
       collapsed: false,
       items: [
         'dashboards/datalake-setup',
+        'dashboards/connecting-your-data',
         'dashboards/the-dashboards',
       ],
     },
