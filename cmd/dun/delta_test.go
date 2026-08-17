@@ -90,7 +90,7 @@ func TestDeltaCommandWithBaselineShowsConfounders(t *testing.T) {
 
 	capture := newRootCmd()
 	capture.SetOut(&strings.Builder{})
-	capture.SetArgs([]string{"baseline", "capture", "--out", basePath})
+	capture.SetArgs([]string{"baseline", "capture", "--days", "90", "--out", basePath})
 	if err := capture.Execute(); err != nil {
 		t.Fatalf("baseline capture: %v", err)
 	}

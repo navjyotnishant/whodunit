@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-08-16
+
+### Added
+
+- `dun baseline capture` takes an explicit `--since` and `--until`, so you can name the period you were working without an agent and have the metrics computed from git history for exactly that range. The window is recorded on the snapshot and published to the datalake, because a panel comparing before against after has to name both windows, and a day count says how long a window was but not when it was.
+- `dun baseline capture --force` replaces an existing snapshot, printing the capture date, window and commit count of the one it is about to destroy. A baseline is still immutable without it: refusing to overwrite protects the only record of a window that cannot be recaptured, but it equally blocked correcting a capture made with the wrong range, which previously had to be deleted by hand. A forced recapture is stored as a new baseline rather than replacing the old row, so what was actually compared stays on record.
+
+### Changed
+
+- `dun baseline capture` now prints help instead of capturing when no window is given. It previously defaulted to the last 90 days ending today, which stops being a pre-adoption window the moment hooks are installed — so the no-argument path silently produced the one baseline nobody wants, with AI-assisted work recorded as the *before*. `--days 90` still does exactly what it did; it is now a deliberate choice rather than something you fall into.
+
 ## [0.3.0] - 2026-08-15
 
 ### Added
@@ -120,7 +131,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Initial release.
 
-[Unreleased]: https://github.com/navjyotnishant/whodunit/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/navjyotnishant/whodunit/compare/v0.3.1...HEAD
+[0.3.1]: https://github.com/navjyotnishant/whodunit/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/navjyotnishant/whodunit/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/navjyotnishant/whodunit/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/navjyotnishant/whodunit/releases/tag/v0.1.0

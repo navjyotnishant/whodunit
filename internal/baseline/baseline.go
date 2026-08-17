@@ -29,12 +29,40 @@ import (
 // under has to travel with it.
 const SchemaVersion = "1"
 
+// Window is the span of history a snapshot measures.
+//
+// A window anchored only to "the last N days" ends at the moment of capture,
+// which stops being pre-adoption the day hooks are installed — a late capture
+// then compares AI-assisted work against itself. Explicit bounds let the user
+// name the period they remember working without an agent, and make the
+// capture reproducible rather than dependent on the day it happened to run.
+type Window struct {
+	Since time.Time
+	Until time.Time
+}
+
+// WindowFromDays builds the legacy "last N days" window, ending now.
+func WindowFromDays(days int, now time.Time) Window {
+	return Window{Since: now.AddDate(0, 0, -days), Until: now}
+}
+
+// Days is the window's length, rounded to whole days. Kept on the snapshot
+// so everything downstream that reads window_days keeps working.
+func (w Window) Days() int {
+	return int(w.Until.Sub(w.Since).Hours() / 24)
+}
+
 // Snapshot is one immutable pre-adoption measurement of a repository.
 type Snapshot struct {
 	SchemaVersion string    `json:"schema_version"`
 	CapturedAt    time.Time `json:"captured_at"`
 	WindowDays    int       `json:"window_days"`
 	HeadSHA       string    `json:"head_sha"`
+
+	// The measured span. Older snapshots predate these fields and carry only
+	// WindowDays, so both stay populated.
+	WindowSince time.Time `json:"window_since"`
+	WindowUntil time.Time `json:"window_until"`
 
 	// Git-derived, computed automatically.
 	Git GitMetrics `json:"git"`
@@ -66,12 +94,24 @@ type ManualMetrics struct {
 	Note               string   `json:"note,omitempty"`
 }
 
-// Capture computes a snapshot over the last windowDays of history.
+// Capture computes a snapshot over the last windowDays of history, ending now.
 func Capture(windowDays int, manual *ManualMetrics, now time.Time) (Snapshot, error) {
+	return CaptureWindow(WindowFromDays(windowDays, now), manual, now)
+}
+
+// CaptureWindow computes a snapshot over an explicit span of history.
+func CaptureWindow(w Window, manual *ManualMetrics, now time.Time) (Snapshot, error) {
+	if !w.Until.After(w.Since) {
+		return Snapshot{}, fmt.Errorf("window ends before it starts: --since %s is not before --until %s",
+			w.Since.Format("2006-01-02"), w.Until.Format("2006-01-02"))
+	}
+
 	snap := Snapshot{
 		SchemaVersion: SchemaVersion,
 		CapturedAt:    now.UTC(),
-		WindowDays:    windowDays,
+		WindowDays:    w.Days(),
+		WindowSince:   w.Since.UTC(),
+		WindowUntil:   w.Until.UTC(),
 		Manual:        manual,
 		Git:           GitMetrics{PurposeDistribution: map[purpose.Purpose]int{}},
 	}
@@ -82,8 +122,9 @@ func Capture(windowDays int, manual *ManualMetrics, now time.Time) (Snapshot, er
 	}
 	snap.HeadSHA = strings.TrimSpace(string(head))
 
-	since := now.AddDate(0, 0, -windowDays).Format(time.RFC3339)
-	commits, err := collectCommits(since)
+	since := w.Since.Format(time.RFC3339)
+	until := w.Until.Format(time.RFC3339)
+	commits, err := collectCommits(since, until)
 	if err != nil {
 		return Snapshot{}, err
 	}
@@ -93,7 +134,7 @@ func Capture(windowDays int, manual *ManualMetrics, now time.Time) (Snapshot, er
 		return snap, nil
 	}
 
-	weeks := float64(windowDays) / 7
+	weeks := float64(w.Days()) / 7
 	if weeks > 0 {
 		snap.Git.CommitsPerWeek = float64(len(commits)) / weeks
 	}
@@ -124,15 +165,15 @@ type commitRecord struct {
 	isRevert  bool
 }
 
-func collectCommits(sinceRFC3339 string) ([]commitRecord, error) {
+func collectCommits(sinceRFC3339, untilRFC3339 string) ([]commitRecord, error) {
 	const sep = "\x1f"
-	out, err := exec.Command("git", "log", "--since="+sinceRFC3339,
+	out, err := exec.Command("git", "log", "--since="+sinceRFC3339, "--until="+untilRFC3339,
 		"--format=%H"+sep+"%aI"+sep+"%s", "--shortstat").Output()
 	if err != nil {
 		return nil, fmt.Errorf("read git log: %w", err)
 	}
 
-	filesBySHA, err := commitFiles(sinceRFC3339)
+	filesBySHA, err := commitFiles(sinceRFC3339, untilRFC3339)
 	if err != nil {
 		return nil, err
 	}
@@ -174,8 +215,8 @@ func collectCommits(sinceRFC3339 string) ([]commitRecord, error) {
 	return records, nil
 }
 
-func commitFiles(sinceRFC3339 string) (map[string][]string, error) {
-	out, err := exec.Command("git", "log", "--since="+sinceRFC3339,
+func commitFiles(sinceRFC3339, untilRFC3339 string) (map[string][]string, error) {
+	out, err := exec.Command("git", "log", "--since="+sinceRFC3339, "--until="+untilRFC3339,
 		"--format=COMMIT %H", "--name-only").Output()
 	if err != nil {
 		return nil, fmt.Errorf("read git log --name-only: %w", err)
@@ -277,8 +318,20 @@ func Load(path string) (*Snapshot, error) {
 // existing file: a baseline is immutable by definition, and silently
 // replacing one destroys the only copy of a window that cannot be recaptured.
 func Write(path string, snap Snapshot) error {
-	if _, err := os.Stat(path); err == nil {
-		return fmt.Errorf("refusing to overwrite existing baseline at %s: a baseline is immutable, and the window it measured cannot be recaptured", path)
+	return write(path, snap, false)
+}
+
+// WriteForce replaces an existing snapshot. Immutability protects a good
+// baseline from being destroyed, but it equally blocks fixing a wrong one —
+// a capture made with the wrong window is otherwise only removable by hand.
+// The caller is expected to show what is being replaced first.
+func WriteForce(path string, snap Snapshot) error {
+	return write(path, snap, true)
+}
+
+func write(path string, snap Snapshot, force bool) error {
+	if _, err := os.Stat(path); err == nil && !force {
+		return fmt.Errorf("refusing to overwrite existing baseline at %s: a baseline is immutable, and the window it measured cannot be recaptured (pass --force to replace it)", path)
 	}
 
 	data, err := json.MarshalIndent(snap, "", "  ")
