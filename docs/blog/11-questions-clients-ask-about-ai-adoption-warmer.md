@@ -2,7 +2,7 @@
 title: "Before You Claim AI Made Your Team Faster, Measure It"
 published: false
 description: "Eleven questions clients ask about AI adoption, the evidence whodunit can use, and the one productivity number I do not think we should fake."
-tags: ai, metrics, opensource, devops
+tags: ai, productivity, devops, opensource
 ---
 
 Every few months, I find myself in some version of the same conversation.
@@ -35,7 +35,7 @@ These are the questions I keep hearing from clients and engineering leaders.
 
 I like this list because it is honest. It is not a polished strategy deck. It is what people ask when they are trying to make sense of a real investment.
 
-Some of these questions are answerable. Some are partly answerable. One of them, the productivity percentage, is the one I am most careful with.
+Some of these questions are answerable. Some are partly answerable. **One of them, the productivity percentage, is the one I am most careful with.**
 
 ## The small thing whodunit adds
 
@@ -49,7 +49,7 @@ There is no magic in the format. That is the point. It is just git metadata, rea
 
 The trailer records whether a commit was AI-assisted, which agent was involved, which model was reported, and how strong the evidence is. The strongest method, `intersected`, means text the agent produced survived into what was staged.
 
-When the evidence is missing, whodunit records that too. It uses `undetermined` instead of quietly deciding "no AI was used." That distinction matters more than it sounds. A missing signal is not a zero. It is just missing.
+When the evidence is missing, whodunit records that too. It uses `undetermined` instead of quietly deciding "no AI was used." **That distinction between absence and zero is the rule the whole tool is built on.** That distinction matters more than it sounds. A missing signal is not a zero. It is just missing.
 
 ## The one-screen answer
 
@@ -63,7 +63,7 @@ Coverage tells you how much of the commit history has a valid attribution traile
 
 A team can have high coverage and low adoption. That is a valid finding. It means the instrumentation is working and the evidence says AI is not showing up much in committed work.
 
-A team can also have low coverage and a beautiful adoption number. That one should make you pause.
+**A team can also have low coverage and a beautiful adoption number. That one should make you pause.**
 
 ## Adoption is a spread, not a slogan
 
@@ -75,7 +75,7 @@ I want to know whether adoption is spread across the group or carried by two peo
 
 That is why the adoption view shows contributor spread beside coverage. The contributor identity comes from the git committer email that is already present in commits. whodunit is not watching developers. It is making existing commit metadata easier to read.
 
-There is one catch worth saying gently but clearly: the clock starts when instrumentation starts.
+**There is one catch worth saying gently but clearly: the clock starts when instrumentation starts.**
 
 If your team used AI for six months before installing hooks, those six months are not magically recoverable. whodunit can tell you what happened after the trailers started landing. For a real before-and-after story, capture a baseline before the rollout with `dun baseline capture`.
 
@@ -95,7 +95,7 @@ What whodunit can show is session shape. Did a session only involve conversation
 
 That gives you a useful proxy for "just chatting" versus "using the agent to do work." It does not tell you whether a developer is skilled with AI. That still needs human context: pairing, coaching, code review, and conversation.
 
-I would rather leave that boundary visible than build a confidence score no one should trust.
+**I would rather leave that boundary visible than build a confidence score no one should trust.**
 
 ## Where AI shows up in the work
 
@@ -107,7 +107,7 @@ That is useful, but only if your repository gives the tool something decent to w
 
 So I treat purpose as a label, not an observation.
 
-This is a recurring theme in the project: the chart should say what it knows, and just as importantly, what it does not know.
+**This is a recurring theme in the project: the chart should say what it knows, and just as importantly, what it does not know.**
 
 ## Autonomy changes the shape of a session
 
@@ -115,7 +115,7 @@ Autonomy was more interesting than I expected.
 
 Different tools have different permission vocabularies. Codex may report modes like `never` and `on-request`. Claude Code may report `acceptEdits`, `default`, or `auto`. whodunit keeps those names instead of pretending they all map neatly onto the same ladder.
 
-The useful question is not only "how often did people grant autonomy?" It is "what happened once they did?"
+The useful question is not only "how often did people grant autonomy?" **It is "what happened once they did?"**
 
 On my data, high-autonomy sessions were fewer, but much denser. Tool calls per session captured that better than raw session count. Still, I would be careful with the interpretation. A mode that allows more actions will naturally produce more actions. Tool calls are activity, not delivered value.
 
@@ -135,11 +135,11 @@ So if assisted commits are larger, what does that prove?
 
 Maybe AI helped people take on bigger work. Maybe it encouraged bigger diffs. Maybe people simply used it on a different kind of task. The same chart supports all three stories.
 
-That is why whodunit shows comparisons, not productivity gains. It can show change size, churn, acceptance, purpose, adoption, and cycle-time differences when delivery data is wired up. It should not turn those into a percentage and call it ROI.
+**That is why whodunit shows comparisons, not productivity gains.** It can show change size, churn, acceptance, purpose, adoption, and cycle-time differences when delivery data is wired up. It should not turn those into a percentage and call it ROI.
 
 A baseline helps. If you capture a pre-adoption window before installing hooks, `dun delta` can compare that period with a later one. That is much stronger than comparing assisted and unassisted commits inside the same period.
 
-It is still observational. Teams change, codebases change, projects change. The baseline gives you a better conversation, not a laboratory experiment.
+It is still observational. Teams change, codebases change, projects change. **The baseline gives you a better conversation, not a laboratory experiment.**
 
 That may sound unsatisfying. In practice, I think it is a relief. It lets you say, "Here is what moved, here is what did not, and here is what we cannot honestly claim."
 
@@ -194,7 +194,7 @@ There are two pieces of identifying information worth naming:
 
 Both already exist in or around the development workflow. Both stay local unless you configure sync.
 
-The journal has no field for prompt text, message content, file contents, hostnames, or remote URLs. That is not a filtering promise. It is a schema choice. There is nowhere for those values to go.
+The journal has no field for prompt text, message content, file contents, hostnames, or remote URLs. **That is not a filtering promise. It is a schema choice.** There is nowhere for those values to go.
 
 ## Where I landed
 
