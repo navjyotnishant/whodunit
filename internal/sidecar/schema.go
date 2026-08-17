@@ -208,6 +208,13 @@ CREATE TABLE IF NOT EXISTS whodunit_baselines (
 	head_sha            VARCHAR(64)  NOT NULL DEFAULT '',
 	schema_version      VARCHAR(16)  NOT NULL DEFAULT '',
 
+	-- The measured span. NULL on snapshots captured before these were
+	-- recorded, which carry only window_days. A panel comparing before
+	-- against after has to state which window it means, and "90 days
+	-- ending at some capture date" is not that.
+	window_since        BIGINT,
+	window_until        BIGINT,
+
 	commits             BIGINT       NOT NULL DEFAULT 0,
 	commits_per_week    REAL,
 	median_diff_lines   BIGINT,
@@ -299,6 +306,15 @@ var Migrations = []string{
 	// NAV-106. Compactions per session — NULL for agy, which has no
 	// equivalent signal.
 	`ALTER TABLE whodunit_sessions ADD COLUMN compactions BIGINT`,
+
+	// WHO-126. The window a baseline actually measured.
+	//
+	// NULL on snapshots captured before `--since/--until` existed: those
+	// carry only window_days, which says how long the window was but not
+	// when it was. A before/after panel has to name both windows, and a
+	// day count cannot do that.
+	`ALTER TABLE whodunit_baselines ADD COLUMN window_since BIGINT`,
+	`ALTER TABLE whodunit_baselines ADD COLUMN window_until BIGINT`,
 }
 
 var Indexes = []string{

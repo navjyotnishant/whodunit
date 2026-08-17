@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -267,5 +268,147 @@ func TestSnapshotIsOwnerOnly(t *testing.T) {
 		t.Errorf("snapshot mode is %04o, want 0600 — it records a repository's "+
 			"commit cadence and revert rate, which is nobody else's business "+
 			"on a shared machine", perm)
+	}
+}
+
+// initDatedRepo builds a repo with one commit per supplied date, so a
+// window can be asserted to include and exclude specific history.
+func initDatedRepo(t *testing.T, dates ...string) string {
+	t.Helper()
+	dir := t.TempDir()
+	run := func(env []string, args ...string) {
+		t.Helper()
+		cmd := exec.Command("git", args...)
+		cmd.Dir = dir
+		cmd.Env = append(append(os.Environ(),
+			"GIT_AUTHOR_NAME=test", "GIT_AUTHOR_EMAIL=test@test.local",
+			"GIT_COMMITTER_NAME=test", "GIT_COMMITTER_EMAIL=test@test.local",
+		), env...)
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v\n%s", args, err, out)
+		}
+	}
+	run(nil, "init", "-q")
+
+	for i, d := range dates {
+		name := "f" + strconv.Itoa(i) + ".go"
+		if err := os.WriteFile(filepath.Join(dir, name), []byte("package main\n"), 0o644); err != nil {
+			t.Fatalf("write %s: %v", name, err)
+		}
+		stamp := d + "T12:00:00+00:00"
+		run(nil, "add", name)
+		run([]string{"GIT_AUTHOR_DATE=" + stamp, "GIT_COMMITTER_DATE=" + stamp},
+			"commit", "-q", "-m", "feat: commit on "+d)
+	}
+
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("Getwd: %v", err)
+	}
+	t.Cleanup(func() { os.Chdir(cwd) })
+	if err := os.Chdir(dir); err != nil {
+		t.Fatalf("Chdir: %v", err)
+	}
+	return dir
+}
+
+func mustDay(t *testing.T, s string) time.Time {
+	t.Helper()
+	d, err := time.Parse("2006-01-02", s)
+	if err != nil {
+		t.Fatalf("parse %s: %v", s, err)
+	}
+	return d
+}
+
+// The point of the whole feature: a user names the period they worked
+// without an agent, and only that period is measured.
+func TestCaptureWindowMeasuresOnlyTheNamedRange(t *testing.T) {
+	initDatedRepo(t,
+		"2026-01-10", "2026-02-15", "2026-03-20", // inside
+		"2026-08-01", "2026-08-05", // after, must be excluded
+	)
+
+	w := Window{Since: mustDay(t, "2026-01-01"), Until: mustDay(t, "2026-06-30")}
+	snap, err := CaptureWindow(w, nil, time.Now())
+	if err != nil {
+		t.Fatalf("CaptureWindow: %v", err)
+	}
+
+	if snap.Git.Commits != 3 {
+		t.Errorf("commits inside window = %d, want 3 (the August commits must be excluded)", snap.Git.Commits)
+	}
+	if !snap.WindowSince.Equal(w.Since.UTC()) || !snap.WindowUntil.Equal(w.Until.UTC()) {
+		t.Errorf("snapshot bounds = %s..%s, want %s..%s",
+			snap.WindowSince, snap.WindowUntil, w.Since.UTC(), w.Until.UTC())
+	}
+	if snap.WindowDays != 180 {
+		t.Errorf("WindowDays = %d, want 180 (kept for downstream readers)", snap.WindowDays)
+	}
+}
+
+func TestCaptureWindowRejectsInvertedRange(t *testing.T) {
+	initDatedRepo(t, "2026-01-10")
+
+	w := Window{Since: mustDay(t, "2026-06-30"), Until: mustDay(t, "2026-01-01")}
+	if _, err := CaptureWindow(w, nil, time.Now()); err == nil {
+		t.Fatal("expected an error when the window ends before it starts")
+	}
+}
+
+// Capture stays equivalent to the window it describes, so the existing
+// --days path cannot drift from CaptureWindow.
+func TestCaptureDelegatesToWindow(t *testing.T) {
+	initRepo(t)
+	now := time.Now()
+
+	viaDays, err := Capture(90, nil, now)
+	if err != nil {
+		t.Fatalf("Capture: %v", err)
+	}
+	viaWindow, err := CaptureWindow(WindowFromDays(90, now), nil, now)
+	if err != nil {
+		t.Fatalf("CaptureWindow: %v", err)
+	}
+
+	if viaDays.Git.Commits != viaWindow.Git.Commits || viaDays.WindowDays != viaWindow.WindowDays {
+		t.Errorf("Capture(90) = %d commits/%dd, CaptureWindow = %d commits/%dd",
+			viaDays.Git.Commits, viaDays.WindowDays, viaWindow.Git.Commits, viaWindow.WindowDays)
+	}
+}
+
+func TestWriteForceReplacesExisting(t *testing.T) {
+	initRepo(t)
+	path := filepath.Join(t.TempDir(), "baseline.json")
+
+	first, err := Capture(90, nil, time.Now())
+	if err != nil {
+		t.Fatalf("Capture: %v", err)
+	}
+	if err := Write(path, first); err != nil {
+		t.Fatalf("Write: %v", err)
+	}
+
+	// Without --force the refusal stands.
+	if err := Write(path, first); err == nil {
+		t.Fatal("Write overwrote an existing baseline without force")
+	}
+
+	second, err := CaptureWindow(Window{
+		Since: mustDay(t, "2026-01-01"), Until: mustDay(t, "2026-03-31"),
+	}, nil, time.Now())
+	if err != nil {
+		t.Fatalf("CaptureWindow: %v", err)
+	}
+	if err := WriteForce(path, second); err != nil {
+		t.Fatalf("WriteForce: %v", err)
+	}
+
+	got, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if got.WindowDays != second.WindowDays {
+		t.Errorf("after force, WindowDays = %d, want %d", got.WindowDays, second.WindowDays)
 	}
 }

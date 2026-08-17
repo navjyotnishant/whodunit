@@ -192,7 +192,8 @@ func WriteProgress(db *Store, p Payload, onRow func(done, total int)) (Counts, e
 	if b := p.Baseline; b != nil {
 		if _, err := tx.Exec(upsertBaseline(mysql),
 			b.RepoID, b.CapturedAt.UnixNano(), b.WindowDays, b.HeadSHA,
-			b.SchemaVersion, b.Commits, b.CommitsPerWeek, b.MedianDiffLines,
+			b.SchemaVersion, nanosOrNil(b.WindowSince), nanosOrNil(b.WindowUntil),
+			b.Commits, b.CommitsPerWeek, b.MedianDiffLines,
 			b.MeanHoursBetween, b.Reverts, b.RevertRate,
 			b.SyncedAt.UnixNano()); err != nil {
 			return counts, fmt.Errorf("write baseline: %w", err)
@@ -362,6 +363,15 @@ func upsertSession(mysql bool) string {
 		compactions=COALESCE(excluded.compactions, whodunit_sessions.compactions)`
 }
 
+// nanosOrNil keeps an absent timestamp NULL rather than storing 0, which
+// would render as 1970 on a panel naming the window it compared (NAV-21).
+func nanosOrNil(t *time.Time) any {
+	if t == nil {
+		return nil
+	}
+	return t.UnixNano()
+}
+
 // upsertBaseline records a captured snapshot.
 //
 // Only synced_at is refreshed on conflict — every measured column is left
@@ -376,9 +386,10 @@ func upsertSession(mysql bool) string {
 func upsertBaseline(mysql bool) string {
 	cols := `INSERT INTO whodunit_baselines
 		(repo_id, captured_at, window_days, head_sha, schema_version,
+		 window_since, window_until,
 		 commits, commits_per_week, median_diff_lines, mean_hours_between,
 		 reverts, revert_rate, synced_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 	if mysql {
 		return cols + ` ON DUPLICATE KEY UPDATE synced_at=VALUES(synced_at)`
 	}
