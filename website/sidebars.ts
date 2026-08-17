@@ -24,6 +24,7 @@ const sidebars: SidebarsConfig = {
       label: 'Getting started',
       collapsed: false,
       items: [
+        'getting-started/quickstart',
         'getting-started/install',
         'getting-started/first-commit',
         'getting-started/the-trailer',
