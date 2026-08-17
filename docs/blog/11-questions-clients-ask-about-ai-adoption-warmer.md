@@ -2,7 +2,7 @@
 title: "Before You Claim AI Made Your Team Faster, Measure It"
 published: false
 description: "Eleven questions clients ask about AI adoption, the evidence whodunit can use, and the one productivity number I do not think we should fake."
-tags: ai, metrics, opensource, devops
+tags: ai, productivity, devops, opensource
 ---
 
 Every few months, I find myself in some version of the same conversation.
