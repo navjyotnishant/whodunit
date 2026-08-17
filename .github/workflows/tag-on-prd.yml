@@ -1,0 +1,66 @@
+name: Tag on PRD
+
+# Cuts the release tag when PRD moves, so a promotion to production is the
+# release rather than something you have to remember afterwards.
+#
+# v0.3.1 sat written in the CHANGELOG and untagged for 97 commits because
+# tagging was a separate manual step nobody was reminded to run. The release
+# workflow already refuses to build from a tag that is not on PRD, so the
+# policy was right and only the trigger was missing.
+#
+# The CHANGELOG is the source of truth for the version. That keeps one
+# decision in one place: if you did not write the section, you do not get the
+# release, and the notes are ready by construction.
+
+on:
+  push:
+    branches: [PRD]
+
+jobs:
+  tag:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Read the version from CHANGELOG
+        id: version
+        run: |
+          # The first released heading, skipping [Unreleased].
+          version=$(grep -m1 -oE '^## \[[0-9]+\.[0-9]+\.[0-9]+\]' CHANGELOG.md \
+                    | tr -d '#[] ' || true)
+          if [ -z "$version" ]; then
+            echo "::error::No released version heading in CHANGELOG.md."
+            exit 1
+          fi
+          echo "tag=v${version}" >> "$GITHUB_OUTPUT"
+          echo "Found v${version}"
+
+      - name: Skip if already released
+        id: check
+        run: |
+          tag='${{ steps.version.outputs.tag }}'
+          if git rev-parse "$tag" >/dev/null 2>&1; then
+            echo "::notice::${tag} already exists - nothing to release."
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Tag the commit rather than the branch tip resolved later: PRD can move
+      # again while this runs, and a release should describe the state that
+      # was actually promoted.
+      - name: Tag and push
+        if: steps.check.outputs.exists == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag='${{ steps.version.outputs.tag }}'
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a "$tag" "${GITHUB_SHA}" -m "$tag"
+          git push origin "$tag"
+          echo "::notice::Tagged ${tag} - the release workflow takes it from here."
