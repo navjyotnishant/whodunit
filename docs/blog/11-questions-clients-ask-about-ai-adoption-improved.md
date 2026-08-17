@@ -67,15 +67,19 @@ Every rate on this screen refuses to render below a minimum cohort. The cycle-ti
 
 ![Whodunit - Adoption](https://navjyotnishant.github.io/whodunit/img/dashboards/adoption.png)
 
-This is the denominator dashboard. It is where you check whether a figure elsewhere rests on three sessions or three hundred.
+Start here, always. This is the denominator dashboard, and it answers the question you should ask before believing any figure on any other screen: is this resting on three sessions, or three hundred?
 
-For Q1, the panels that matter are **By contributor** and **Committed work by contributor**. The first is per-person activity; identity comes from the git committer email already in every commit, so this makes existing information easier to query rather than observing anything new. The second shows what actually reached a commit per person, and it deliberately shows coverage alongside, because a penetration figure without coverage tells you how much of *what we could see* was assisted, not how much of the work was.
+Two panels do the work for Q1. **By contributor** shows per-person activity, and before you worry about the surveillance implications, note where the identity comes from: the git committer email that is already in every commit you have ever authored. Nothing new is being observed here. It is the same information, made easier to query.
 
-**That distinction is the whole answer to "is it consistent across everyone".** You can see the spread, and you can see who has no assisted commits at all.
+**Committed work by contributor** is the one I would actually put on the screen in a meeting, because it shows coverage right beside the penetration figure. That pairing matters more than it sounds. Without coverage, a penetration number tells you how much of *what we could see* was assisted, which is a different claim from how much of the work was.
 
-For Q11 there's **Adoption over time**, split by which agent was active. It lives on the AI Impact on Delivery dashboard rather than this one. An agent gets credit for a commit when it recorded activity in that repository within 24 hours before the commit. That's a heuristic and it's labelled as one: a commit worked on by two agents appears in both series, so the lines don't sum to the overall rate.
+**That distinction is the whole answer to "is it consistent across everyone".** You get the spread, and you get the names with no assisted commits at all.
 
-**The limit.** Q11 asks how long adoption took *by model*. What you get is a per-agent curve over time, not a per-model one. And there's a harder problem underneath: the adoption curve starts when the hooks were installed, not when people started using AI. Everything before instrumentation is invisible. If you want the real curve, you have to capture a baseline before you start. That command exists (`dun baseline capture`) precisely because that window closes permanently.
+Q11, how long adoption took, has its own panel: **Adoption over time**, split by which agent was active. It lives over on the delivery dashboard rather than this one. An agent gets credit for a commit when it recorded activity in that repository in the 24 hours before it. That is a heuristic, and I would rather label it than dress it up, so: a commit two agents touched shows up in both series, and the lines are not meant to sum to the overall rate.
+
+**Where it runs out.** Q11 really asks about models, and what you get is a curve per agent, not per model. There is a harder problem sitting underneath that one, though, and it is worth understanding before you install anything: the adoption curve begins when the hooks went in, not when your team started using AI. Everything before instrumentation is simply dark.
+
+If you want the real curve, you have to capture a baseline *before* you start. `dun baseline capture` exists for exactly that reason, and the reason it is a separate command you run first is that this particular window closes permanently. Miss it and no amount of later cleverness gets it back.
 
 ---
 
@@ -83,21 +87,21 @@ For Q11 there's **Adoption over time**, split by which agent was active. It live
 
 ![Whodunit - Cost & Efficiency](https://navjyotnishant.github.io/whodunit/img/dashboards/cost-efficiency.png)
 
-Q3 is the question I get asked most aggressively and the one I have to be most careful about, because it's really five questions wearing a trenchcoat.
+This is the question I get asked most aggressively, and the one I am most careful answering, because it is really five questions wearing a trenchcoat. Read Q3 again and count them.
 
-**Let me be blunt about what this does not measure.** `dun` does not know whether a developer understands context compaction. It does not know whether they picked the right model for a task. It has no visibility into whether they've written skill files, or configured sub-agents, or thought about their workflow at all. There is no panel for "does this person know what they're doing", and I'm not going to build one from proxies and call it competence.
+**So let me be blunt about what this cannot measure.** `dun` has no idea whether a developer understands context compaction. It cannot tell you whether they picked the right model. It has no visibility into skill files, sub-agents, or whether anyone has thought about their workflow at all. There is no panel called "does this person know what they're doing", and I am not going to assemble one out of proxies and let you present it as competence. If that is the number you need, this tool will disappoint you, and I would rather disappoint you here than in a performance review.
 
-**What's left is the honest half: the "just chatting" part is answered by proxy, and the proxy is a decent one.** Here is what that proxy is made of.
+**What is left is the honest half, and it is more useful than it sounds.** The "just chatting" part *is* answerable by proxy, and the proxy holds up. Here is what it is made of.
 
 **Session shape** carries most of the weight. The funnel's Stage 2 buckets sessions by what actually happened in them, from conversation-only up to agentic work using MCP or many tools. That's depth rather than count, deliberately, because ten sessions that produced nothing and one that rewrote a subsystem are not the same adoption.
 
-**Compaction** gets you partway. There's a *Sessions that compacted* panel. Measured on my machine, 92% of turns ran above 150k context while a small fraction of sessions ever compacted. That's suggestive. It is not "they don't know about compaction". A short session has nothing to compact, which is exactly why the panel is deliberately not colour-coded.
+**Compaction** gets you partway, and I want to show you how to read it carefully. There is a *Sessions that compacted* panel. On my own machine, 92% of turns ran above 150k context while only a small fraction of sessions ever compacted. Suggestive, isn't it? Resist the conclusion. A short session has nothing to compact, so a low number may mean people are working in tight bursts rather than that nobody knows the feature exists. That is precisely why the panel carries no red or green.
 
 **Which models, and what their tokens are made of**, answers Q9 directly and well. The *Token mix by model* panel stacks each model's tokens as a percentage rather than absolute counts, because cache reads were 88–99% of every model's total on my own data. An absolute stack would draw one long bar with three invisible slivers.
 
 **Who isn't using it at all** is answered too, via the contributor panels in Theme 1.
 
-So the last part of Q3 is answered cleanly. The "do they know compaction / model choice / skill files" part is **not answered**, and if a vendor tells you their dashboard answers it, ask them which field in which transcript they're reading.
+So the last part of Q3 comes out clean. The "do they know compaction, model choice, skill files" part does **not**, and here is the practical thing to take away: if a vendor tells you their dashboard answers it, ask them which field in which transcript they are reading. I have yet to hear an answer.
 
 ---
 
@@ -107,13 +111,15 @@ So the last part of Q3 is answered cleanly. The "do they know compaction / model
 
 Q4, supplement or write the whole thing, is what the trailer's `ratio` key is for: the fraction of the change attributable to the agent. Alongside it, `method` tells you how much to trust that number, and the *Evidence strength* panel breaks it down: `intersected` means agent-written lines survived into the commit, `observed` means the agent touched the file but the text changed afterwards.
 
-Q6, where is it being used, maps to the *AI-assisted work by purpose* panel, derived from Conventional Commit prefixes and path heuristics. And here's the caveat printed on the panel itself: **purpose is a label, not an observation**. `feature` is reachable only through a literal `feat:` prefix, so a repository not using Conventional Commits will show almost none, which says nothing about the work itself. If your team doesn't use Conventional Commits, this panel is close to useless and I'd rather tell you that up front than have you quote it in a board deck.
+Q6, where it is being used, maps to the *AI-assisted work by purpose* panel, built from Conventional Commit prefixes and path heuristics. The caveat is printed on the panel itself, and it is worth reading twice: **purpose is a label, not an observation.** `feature` is only reachable through a literal `feat:` prefix. So a repository that doesn't use Conventional Commits will show almost no feature work, which tells you nothing whatsoever about the work.
 
-Q7, autonomy, turned out to be the most interesting one to build. The *Autonomy granted* panel reports tool calls per session at each permission level. The reason it's one metric instead of two bars: sessions and total tool calls run in opposite directions. Measured here, 64 sessions on Codex's `never` mode produced 506 calls, while 2 Claude Code sessions on `auto` produced 6,766. Charting both put a 13x range beside a 32x one and flattened whichever shared the axis. Dividing gives the thing both were circling: 8 calls per session on `never`, 3,383 on `auto`.
+If your team doesn't use Conventional Commits, this panel is close to useless to you. I would much rather say that here than have you quote it in a board deck and find out later.
+
+Q7, autonomy, turned out to be the most interesting one to build, and the story of why is worth a paragraph. The *Autonomy granted* panel reports tool calls per session at each permission level. One metric, not two bars, and the reason is that sessions and total tool calls run in opposite directions. Look at the numbers: 64 sessions on Codex's `never` mode produced 506 calls, while 2 Claude Code sessions on `auto` produced 6,766. Chart both and you put a 13x range beside a 32x one, flattening whichever loses the axis. Divide them and you get the thing they were both circling: 8 calls per session on `never`, 3,383 on `auto`.
 
 **The finding is that the ladder is monotonic across every mode measured, autonomy isn't how often it's granted, it's how much happens once it is.**
 
-One deliberate non-decision: each agent's own vocabulary is kept rather than mapped onto a shared enum. Codex says `never` and `on-request`; Claude Code says `acceptEdits`, `auto` and `default`. Asserting that `never` means the same thing as `default` would be a claim I can't support.
+One deliberate non-decision, because it would have made a tidier dashboard: each agent keeps its own vocabulary rather than being mapped onto a shared enum. Codex says `never` and `on-request`. Claude Code says `acceptEdits`, `auto` and `default`. Flattening those into one scale would assert that `never` means the same thing as `default`, and I cannot support that claim, so the dashboard doesn't make it.
 
 **The limit.** Sample sizes here are thin and the panels say so; a companion panel notes that `default` is 3 sessions and `auto` is 1 against 64 for `never`, and states plainly that a mode with one session tells you about that session. Also: tool calls are not shipped work. A mode that permits more actions produces more actions by construction.
 
@@ -125,21 +131,23 @@ One deliberate non-decision: each agent's own vocabulary is kept rather than map
 
 Q5 and Q8 come out of the data most directly.
 
-**Acceptance rate (Q5)** comes from accept/reject outcomes the agents record themselves, shown per tool so a low overall rate can be traced to which tool is being turned down, and always with its denominator on the same row. There's a better signal available for one agent: *Human edited the agent's output* is the difference between "the agent wrote this" and "the agent wrote this and it was kept". Only Claude Code reports it, out of the three agents supported. The denominator counts only calls that carried the signal, so agents without it don't dilute the rate.
+**Acceptance rate (Q5)** comes from accept/reject outcomes the agents record about themselves, broken out per tool so that a poor overall rate can be traced to whichever tool is actually being turned down. The denominator always sits on the same row, because a rate without one is a rumour.
+
+There is a better signal hiding in here for one agent. *Human edited the agent's output* is the difference between "the agent wrote this" and "the agent wrote this and it survived", which is much closer to what you actually care about. Only Claude Code reports it, of the three agents supported, and the denominator counts only calls that carried the signal, so the agents that can't report it don't quietly dilute the rate.
 
 **Code churn (Q8)** is a panel: lines written and removed by agents per day, from observed edits rather than commits. There's also churn by hour on the activity dashboard.
 
 **PR cycle time (Q10)** is there, median PR cycle time, open to merge, with the PR count sitting next to it and a note to check that count before reading much into it. The executive summary carries the comparison directly: median cycle for AI-assisted work against median cycle for the rest, with both sample sizes shown.
 
-And then **Q2. Show me the productivity improvement.**
+And then there is **Q2. Show me the productivity improvement.**
 
-There is a panel on this dashboard whose entire content is an explanation of why that number is not there. It is titled *"Why this is not a productivity percentage"*. Its text says a productivity gain needs a before and an after of the same work, and what exists here is assisted against unassisted commits in the same period, two populations that are not the same. Measured on this data, 48% of assisted commits are features against 38% of unassisted ones, so an unmatched comparison partly measures which work got assigned to the agent.
+This is the one. If you have read this far, you already know it is coming, and there is a panel on this dashboard whose entire content is an explanation of why that number is not there. It is titled *"Why this is not a productivity percentage"*. Its text says a productivity gain needs a before and an after of the same work, and what exists here is assisted against unassisted commits in the same period, two populations that are not the same. Measured on this data, 48% of assisted commits are features against 38% of unassisted ones, so an unmatched comparison partly measures which work got assigned to the agent.
 
 What you get instead is *Change size, assisted vs not*: mean lines changed per assisted commit against unassisted, within purposes where both sides have at least 20 commits, so `feature` isn't being compared against `docs`. A positive number means assisted commits are larger. **Larger is not faster and not better:** it may mean the agent takes on bigger work, or that it writes more code for the same outcome. Both are consistent with the figure.
 
 That panel is deliberately not colour-coded, because green for positive would assert that larger commits are better, which is the claim the panel beside it exists to refuse.
 
-I know this is not what the client wanted. I've had the conversation where I explain that the number they asked for cannot be honestly produced from this data, and it is not a fun conversation. It's still the right one.
+I know this is not what the client wanted. I have sat in that meeting and explained that the number they asked for cannot be honestly produced from this data, and I can tell you it is not a fun conversation to have. It is still the right one, and it is a better conversation than the one you have six months after someone acts on a made-up percentage.
 
 ---
 
