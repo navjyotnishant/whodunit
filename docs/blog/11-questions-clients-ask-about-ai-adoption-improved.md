@@ -5,7 +5,9 @@ description: "One question clients ask about AI coding tools can't be honestly a
 tags: ai, metrics, opensource, devops
 ---
 
-During my conversations with clients I have observed a generic pattern: most of the conversations are around AI productivity, AI investment and ROI, AI versus human throughput and accuracy, and most importantly, how do we measure it. Everyone has their own way of doing it, but no one seems to have a confident, straightforward one. This is my attempt to help answer those questions, in the form of a very lightweight tool I wrote over a weekend and I call it whodunit.
+During my conversations with clients I have observed a generic pattern: most of the conversations are around AI productivity, AI investment and ROI, AI versus human throughput and accuracy, and most importantly, how do we measure it. Everyone has their own way of measuring it, and none of those feels solid. 
+
+This is my attempt at an answer: a lightweight tool I wrote over a weekend, called whodunit.
 
 First of all, let me summarise some of the common questions I have heard over time.
 
@@ -24,7 +26,7 @@ First of all, let me summarise some of the common questions I have heard over ti
 11. How long did adoption take for my team, and does that differ by model?
 
 
-I built [whodunit](https://github.com/navjyotnishant/whodunit) to answer these from evidence. Some of them it answers well. This is an effort to answer most of them with the data already present in PM tools (Jira, Linear and the like) and AI agent logs.
+I built [whodunit](https://github.com/navjyotnishant/whodunit) to answer these from evidence. This is an effort to answer most of them with the data already present in PM tools (Jira, Linear and the like) and the AI agent logs already sitting on everyone's machine.
 
 The mechanism is a git trailer on every commit:
 
