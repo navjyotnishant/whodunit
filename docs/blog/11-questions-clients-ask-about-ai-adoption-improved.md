@@ -149,6 +149,8 @@ What you get instead is *Change size, assisted vs not*: mean lines changed per a
 
 That panel is deliberately not colour-coded, because green for positive would assert that larger commits are better, which is the claim the panel beside it exists to refuse.
 
+**There is a way to get much closer, and it needs one decision made early.** Capture a baseline over a window when your team was working without an agent, and you get the before and after of the same work that this comparison is missing: same repository, same people, self-selection gone by construction. `dun baseline capture --since 2026-01-01 --until 2026-06-30` measures exactly that period from git history. Read the result with the rest of the period in mind, though. Between your before and your after, the team also got more experienced, the codebase aged, and people joined or left. On my own data, monthly commit growth read +117% until I divided by the number of instrumented repositories, at which point it was +8%. The comparison is much stronger with a baseline than without one, and it is still a period, not an experiment.
+
 I know this is not what the client wanted. I have sat in that meeting and explained that the number they asked for cannot be honestly produced from this data, and I can tell you it is not a fun conversation to have. It is still the right one, and it is a better conversation than the one you have six months after someone acts on a made-up percentage.
 
 ---
