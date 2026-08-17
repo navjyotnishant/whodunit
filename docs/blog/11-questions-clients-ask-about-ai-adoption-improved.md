@@ -1,7 +1,7 @@
 ---
 title: "Measuring AI adoption and productivity: what works, what doesn't"
 published: false
-description: "One question clients ask about AI coding tools can't be honestly answered from this data. The open-source tool I built, and why it refuses."
+description: "Eleven questions clients ask about AI adoption, which of them the evidence can answer, and the open-source tool I built to answer them."
 tags: ai, metrics, opensource, devops
 ---
 
