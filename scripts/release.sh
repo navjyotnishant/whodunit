@@ -15,22 +15,23 @@
 # gh on PATH — no goreleaser, no network calls beyond git/gh, nothing
 # AI-assisted required to build or ship a binary.
 #
-# ## After publishing: update both package managers
+# ## After publishing: the package managers
 #
-# Neither is automatic. Publishing to a second repository from CI needs a
-# cross-repo token, which is a larger decision than this needs — so both are
-# a manual step, and both are listed here so neither is the one that gets
-# forgotten.
+# Both are updated by the publish-packages job in release.yml, from the
+# checksums the release actually published. Nothing to do by hand.
 #
-#   Homebrew (macOS, Linux) — in the navjyotnishant/homebrew-tap repository,
-#   point the formula's url/sha256 at the new release.
+# That job needs PACKAGING_TOKEN — a fine-grained PAT with contents:write on
+# homebrew-tap and scoop-bucket. Without it the job warns and skips, and the
+# release still publishes; the tap then lags, which is exactly how v0.3.1
+# shipped while `brew upgrade dun` reported 0.3.0 as current.
 #
-#   Scoop (Windows) — regenerate the manifest from the artifacts just built:
+# To publish by hand when that job could not:
 #
+#       scripts/brew-formula.sh   <version> > ../homebrew-tap/Formula/dun.rb
 #       scripts/scoop-manifest.sh <version> > ../scoop-bucket/bucket/dun.json
 #
-#   It reads the checksums from dist/checksums.txt and the shim name from
-#   inside the archive, so it cannot disagree with what was published.
+#   Both read the checksums from dist/checksums.txt, so neither can disagree
+#   with what was published.
 set -eu
 
 VERSION="${1:?usage: $0 <version> [--publish]}"
