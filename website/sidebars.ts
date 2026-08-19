@@ -28,6 +28,7 @@ const sidebars: SidebarsConfig = {
         'getting-started/install',
         'getting-started/first-commit',
         'getting-started/the-trailer',
+        'getting-started/upgrading',
       ],
     },
     {
