@@ -9,10 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- The README documents upgrading, which it did not: the commands, that hooks repair themselves, and the `brew upgrade` message that reads as a bug.
 - An [Upgrading](website/docs/getting-started/upgrading.md) page, covering the three things an install consists of and which of them need you to do anything. Only the binary does: hooks repair themselves on the next `dun` command in a repository, and the dashboards are one re-import. It also names the `brew upgrade` case that reads as a bug — "0.3.0 already installed" means Homebrew has no newer version *in its tap*, which is not the same as no newer version existing.
 
 ### Fixed
 
+- The README and the commands reference now describe baseline capture as it actually works. Both still said a baseline records "the last 90 days" and "cannot be recaptured afterwards" — true before v0.3.1, and wrong since: the window is named with `--since`/`--until`, a bare capture prints help rather than measuring the wrong period, and a baseline *can* be captured after hooks are installed, because it reads history git already has. What closes permanently is the availability of an untouched window, not the chance to capture one. A reader following the old text would have concluded the comparison was lost to them.
 - Homebrew and Scoop are now published by the release workflow rather than by hand, so an upgrade is available the moment a release is. Both were manual because pushing to a second repository needs a token `GITHUB_TOKEN` cannot provide — a reasonable trade while releases were also manual, and a silent failure once they were not: v0.3.1 shipped and the tap stayed on 0.3.0, so `brew upgrade dun` correctly reported nothing to do while a newer release existed. The formula is now generated from the checksums the release actually published, by `scripts/brew-formula.sh`, the counterpart to the Scoop manifest generator that already worked this way. With no packaging token configured the job warns and skips, and the release still publishes.
 
 ## [0.3.1] - 2026-08-16
