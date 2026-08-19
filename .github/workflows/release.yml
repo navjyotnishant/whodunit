@@ -95,17 +95,52 @@ jobs:
         id: t
         run: echo "tag=${{ inputs.tag || github.ref_name }}" >> "$GITHUB_OUTPUT"
 
+      # Absent and expired are different failures and must not look the same.
+      #
+      # No token is a choice - a fork, or an install that does not publish -
+      # so it warns and skips. An expired or under-scoped token is a broken
+      # setup someone meant to work, and skipping quietly would let the tap
+      # lag for months with only a warning nobody reads. A fine-grained PAT
+      # expires within a year by construction, so this is on a timer rather
+      # than hypothetical.
+      #
+      # Probing both repositories rather than one: repository access is
+      # granted per repository, so a token can be valid for the tap and
+      # missing the bucket entirely.
       - name: Check for the packaging token
         id: tok
         env:
           PACKAGING_TOKEN: ${{ secrets.PACKAGING_TOKEN }}
         run: |
-          if [ -n "$PACKAGING_TOKEN" ]; then
-            echo "present=true" >> "$GITHUB_OUTPUT"
-          else
+          if [ -z "$PACKAGING_TOKEN" ]; then
             echo "::warning::PACKAGING_TOKEN not set - Homebrew and Scoop not updated for ${{ steps.t.outputs.tag }}. Publish by hand with scripts/brew-formula.sh and scripts/scoop-manifest.sh."
             echo "present=false" >> "$GITHUB_OUTPUT"
+            exit 0
           fi
+
+          fail=0
+          for repo in navjyotnishant/homebrew-tap navjyotnishant/scoop-bucket; do
+            # gh prints the error body to stdout and still exits non-zero,
+            # so the call is captured separately from the fallback: an
+            # inline `|| echo` appends to the JSON rather than replacing it,
+            # and every failure then reads as "no write access".
+            if ! push=$(GH_TOKEN="$PACKAGING_TOKEN" gh api "repos/$repo" \
+                          --jq .permissions.push 2>/dev/null); then
+              push=unreachable
+            fi
+            case "$push" in
+              true) ;;
+              unreachable)
+                echo "::error::PACKAGING_TOKEN cannot read $repo - expired, revoked, or the repository is not in its access list."
+                fail=1 ;;
+              *)
+                echo "::error::PACKAGING_TOKEN has no write access to $repo - grant Contents: Read and write."
+                fail=1 ;;
+            esac
+          done
+          [ "$fail" -eq 0 ] || exit 1
+
+          echo "present=true" >> "$GITHUB_OUTPUT"
 
       # From the published release rather than a rebuild: the manifests must
       # describe what was actually published, and a rebuild could differ.
