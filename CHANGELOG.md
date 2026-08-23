@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- A `LICENSE` file, Apache-2.0, covering the collector and the trailer grammar alike. The Homebrew formula has been declaring `license "Apache-2.0"` since packaging began while the repository carried no licence at all, so the claim reached every installer with nothing behind it and the code was all-rights-reserved by default. That also contradicted the project's own description of the trailer as a standard "meant to outlive any one implementation of it" — nobody could legally write a second implementation of a grammar nobody may copy.
 - The README documents upgrading, which it did not: the commands, that hooks repair themselves, and the `brew upgrade` message that reads as a bug.
 - An [Upgrading](website/docs/getting-started/upgrading.md) page, covering the three things an install consists of and which of them need you to do anything. Only the binary does: hooks repair themselves on the next `dun` command in a repository, and the dashboards are one re-import. It also names the `brew upgrade` case that reads as a bug — "0.3.0 already installed" means Homebrew has no newer version *in its tap*, which is not the same as no newer version existing.
 

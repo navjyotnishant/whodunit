@@ -16,3 +16,10 @@ website/node_modules/
 website/build/
 website/.docusaurus/
 .playwright-mcp/
+
+# Competitive and market analysis. Kept local: it is working material about
+# other people's products, sourced partly from vendor marketing, and it goes
+# stale the moment any of them ship. Publishing a ranked critique of four
+# named competitors from the repository they compete with is also a
+# different act than keeping notes.
+docs/competitive-gaps.md

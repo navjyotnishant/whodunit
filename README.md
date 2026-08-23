@@ -409,3 +409,11 @@ reach for an agent on some kinds of work and not others — so a throughput
 difference between them may be measuring which work was chosen. `dun delta`
 reports both cuts and names that limit rather than resolving it into a
 percentage.
+
+## Licence
+
+[Apache-2.0](LICENSE).
+
+The trailer grammar is covered by the same licence, which is deliberate: a
+format described as a standard has to be one anybody can implement,
+including in a tool that has nothing to do with this one.
