@@ -94,6 +94,15 @@
           "color": {
             "mode": "fixed",
             "fixedColor": "text"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
           }
         },
         "overrides": []
@@ -137,6 +146,15 @@
           "color": {
             "mode": "fixed",
             "fixedColor": "text"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
           }
         },
         "overrides": []
@@ -180,6 +198,15 @@
           "color": {
             "mode": "fixed",
             "fixedColor": "text"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
           }
         },
         "overrides": []
@@ -223,6 +250,15 @@
           "color": {
             "mode": "fixed",
             "fixedColor": "text"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
           }
         },
         "overrides": []
@@ -390,6 +426,15 @@
           "color": {
             "mode": "fixed",
             "fixedColor": "text"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
           }
         },
         "overrides": []
@@ -489,6 +534,15 @@
           "color": {
             "mode": "fixed",
             "fixedColor": "text"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
           }
         },
         "overrides": []
@@ -532,6 +586,15 @@
           "color": {
             "mode": "fixed",
             "fixedColor": "text"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
           }
         },
         "overrides": []
@@ -630,6 +693,15 @@
           "color": {
             "mode": "fixed",
             "fixedColor": "text"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
           }
         },
         "overrides": []

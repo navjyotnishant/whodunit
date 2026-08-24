@@ -1051,7 +1051,16 @@
         "defaults": {
           "unit": "short",
           "decimals": 0,
-          "noValue": "no session reported tokens in this range"
+          "noValue": "no session reported tokens in this range",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
         },
         "overrides": []
       },
