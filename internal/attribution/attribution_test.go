@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/navjyotnishant/whodunit/internal/declared"
 	"github.com/navjyotnishant/whodunit/internal/journal"
 	"github.com/navjyotnishant/whodunit/internal/linehash"
 	"github.com/navjyotnishant/whodunit/internal/spec"
@@ -298,5 +299,63 @@ func TestNoModelLeavesTheFieldEmpty(t *testing.T) {
 	}
 	if strings.Contains(tr.Format(), "model") {
 		t.Errorf("trailer mentions a model it does not have: %s", tr.Format())
+	}
+}
+
+func TestFromDeclarationCarriesNoLineLevelEvidence(t *testing.T) {
+	got := FromDeclaration(&declared.Declaration{Agent: "copilot", Signal: "agent-logs-url"})
+
+	if got.Status != spec.StatusAssisted || got.Method != spec.MethodDeclared {
+		t.Fatalf("got %s/%s, want assisted/declared", got.Status, got.Method)
+	}
+	if got.Agent != "copilot" {
+		t.Errorf("agent = %q, want copilot", got.Agent)
+	}
+	// A trailer says an agent was involved and nothing about which lines.
+	// Rendering 0.00 would assert it contributed nothing, which is the
+	// opposite of what a declaration means (NAV-21).
+	if got.Ratio != nil {
+		t.Errorf("ratio must be omitted on a declaration, got %v", *got.Ratio)
+	}
+	if got.Session != "" {
+		t.Errorf("session must be empty on a declaration, got %q", got.Session)
+	}
+	if got.Model != "" {
+		t.Errorf("model must be empty on a declaration, got %q", got.Model)
+	}
+	if s := got.Format(); strings.Contains(s, "ratio=") ||
+		strings.Contains(s, "session=") || strings.Contains(s, "model=") {
+		t.Errorf("formatted trailer leaked an absent field: %s", s)
+	}
+}
+
+func TestFromDeclarationWithNoDeclarationIsUndetermined(t *testing.T) {
+	if got := FromDeclaration(nil); got.Status != spec.StatusUndetermined {
+		t.Errorf("no declaration must stay undetermined, got %s", got.Status)
+	}
+}
+
+func TestBestPrefersStrongerEvidence(t *testing.T) {
+	declaration := FromDeclaration(&declared.Declaration{Agent: "cursor"})
+	observed := spec.Trailer{
+		Status: spec.StatusAssisted, Method: spec.MethodObserved, Agent: "claude-code",
+	}
+
+	// Transcript evidence wins in both argument orders: the rule is the
+	// ladder, not which one was computed first.
+	if got := Best(observed, declaration); got.Method != spec.MethodObserved {
+		t.Errorf("observed should win, got %s", got.Method)
+	}
+	if got := Best(declaration, observed); got.Method != spec.MethodObserved {
+		t.Errorf("observed should win regardless of order, got %s", got.Method)
+	}
+	// And the agent travels with the winning determination, so a commit is
+	// never reported as one agent's work with another's method.
+	if got := Best(declaration, observed); got.Agent != "claude-code" {
+		t.Errorf("agent = %q, want the winner's agent", got.Agent)
+	}
+	// A declaration still beats no evidence at all.
+	if got := Best(spec.Undetermined(), declaration); got.Method != spec.MethodDeclared {
+		t.Errorf("declared should beat undetermined, got %s", got.Method)
 	}
 }

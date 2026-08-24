@@ -15,6 +15,7 @@ import (
 	_ "github.com/navjyotnishant/whodunit/internal/adapter/claudecode"
 	_ "github.com/navjyotnishant/whodunit/internal/adapter/codex"
 	"github.com/navjyotnishant/whodunit/internal/attribution"
+	"github.com/navjyotnishant/whodunit/internal/declared"
 	"github.com/navjyotnishant/whodunit/internal/hooklog"
 	"github.com/navjyotnishant/whodunit/internal/journal"
 	"github.com/navjyotnishant/whodunit/internal/spec"
@@ -91,7 +92,12 @@ func runPrepareCommitMsg(args []string) error {
 	}
 	msgFile := args[0]
 
-	trailer := determineTrailer()
+	// The message is read as well as written: an agent that leaves no
+	// local transcript may still have declared itself in a trailer of its
+	// own, and that is the only evidence such a commit carries.
+	existing, _ := os.ReadFile(msgFile)
+
+	trailer := determineTrailer(string(existing))
 
 	f, err := os.OpenFile(msgFile, os.O_APPEND|os.O_WRONLY, 0o644)
 	if err != nil {
@@ -106,26 +112,32 @@ func runPrepareCommitMsg(args []string) error {
 // staged files against the Claude Code session transcript for this repo.
 // Any failure along the way (git not available, no transcript found, no
 // coverage) degrades to undetermined rather than guessing (NAV-21).
-func determineTrailer() spec.Trailer {
+func determineTrailer(message string) spec.Trailer {
 	now := time.Now()
+
+	// Read first so it survives every early return below. A repository
+	// with no transcript, no staged files or no journal still has whatever
+	// the agent wrote into the message, and losing that to an early exit
+	// would report undetermined on a commit that plainly said otherwise.
+	fromDeclaration := attribution.FromDeclaration(declared.Parse(message))
 
 	staged, err := stagedFiles()
 	if err != nil {
 		logHook(hookPrepare, hooklog.LevelWarn, "determine",
-			"undetermined: cannot list staged files: "+err.Error())
-		return spec.Undetermined()
+			"cannot list staged files: "+err.Error())
+		return fromDeclaration
 	}
 	if len(staged) == 0 {
 		logHook(hookPrepare, hooklog.LevelInfo, "determine",
-			"undetermined: no staged files")
-		return spec.Undetermined()
+			"no staged files")
+		return fromDeclaration
 	}
 
 	cwd, err := os.Getwd()
 	if err != nil {
 		logHook(hookPrepare, hooklog.LevelWarn, "determine",
-			"undetermined: cannot resolve the working directory: "+err.Error())
-		return spec.Undetermined()
+			"cannot resolve the working directory: "+err.Error())
+		return fromDeclaration
 	}
 	// Journal entries carry absolute paths; git gives repo-relative ones.
 	//
@@ -200,8 +212,8 @@ func determineTrailer() spec.Trailer {
 	}
 	if len(entries) == 0 {
 		logHook(hookPrepare, hooklog.LevelInfo, "determine",
-			fmt.Sprintf("undetermined: no agent activity found in the last %d days", lookbackDays))
-		return spec.Undetermined()
+			fmt.Sprintf("no agent activity found in the last %d days", lookbackDays))
+		return fromDeclaration
 	}
 
 	// Line hashes come from two places, and both matter.
@@ -227,11 +239,18 @@ func determineTrailer() spec.Trailer {
 	lines, _ := attribution.StagedLines()
 	added, removed, _ := attribution.StagedLineCounts()
 
-	trailer := attribution.Determine(entries, staged, agentLines,
-		attribution.StagedEvidence{
-			Lines:  lines,
-			Commit: attribution.CommitLines{Added: added, Removed: removed},
-		}, now)
+	// Both candidates, resolved by which rests on stronger evidence
+	// rather than by which was computed first. Transcript evidence wins
+	// because observed and intersected outrank declared on the ladder, not
+	// because it is checked first - so a future producer yielding
+	// something stronger needs no change here.
+	trailer := attribution.Best(
+		attribution.Determine(entries, staged, agentLines,
+			attribution.StagedEvidence{
+				Lines:  lines,
+				Commit: attribution.CommitLines{Added: added, Removed: removed},
+			}, now),
+		fromDeclaration)
 
 	// The commit carries a derived token, never the agent's own session id.
 	//

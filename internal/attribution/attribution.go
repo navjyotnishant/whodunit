@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/navjyotnishant/whodunit/internal/declared"
 	"github.com/navjyotnishant/whodunit/internal/journal"
 	"github.com/navjyotnishant/whodunit/internal/spec"
 )
@@ -163,4 +164,54 @@ func Determine(entries []journal.Entry, stagedFiles []string, agentLineHashes ma
 	}
 
 	return trailer
+}
+
+// FromDeclaration builds a trailer from an agent's own claim in the commit
+// message.
+//
+// This is the weakest rung the spec defines, and deliberately so: a trailer
+// is the author's own assertion, verified by nothing.
+//
+// WHO-91 specified `inferred` for this and it is reversed here. `inferred`
+// is for evidence surrounding a change that the author did not write -
+// something deduced from context. A self-applied trailer is not context; it
+// is the author's own claim about their own commit, which is precisely what
+// `declared` is reserved for ("weakest - the author declared it, nothing
+// verified it", spec/trailer.go). Grading a self-assertion as `inferred`
+// would rank it above the rung that exists for exactly this case.
+//
+// The VS Code 1.118 episode is the argument made concrete: the editor added
+// a Copilot co-author line by default and reverted it a month later, in
+// part because the line appeared on commits made with Copilot disabled. A
+// self-applied label is evidence, and it is the least of it. No ratio, no session
+// and no model, because a declaration says an agent was involved and
+// nothing about which lines it produced — a zero there would assert it
+// contributed nothing (NAV-21).
+func FromDeclaration(d *declared.Declaration) spec.Trailer {
+	if d == nil {
+		return spec.Undetermined()
+	}
+	return spec.Trailer{
+		Status: spec.StatusAssisted,
+		Method: spec.MethodDeclared,
+		Agent:  d.Agent,
+		Extra:  map[string]string{},
+	}
+}
+
+// Best returns whichever determination rests on stronger evidence.
+//
+// It exists so the precedence rule is one comparison rather than a branch
+// at every site that has to choose. Transcript evidence wins over a
+// declaration not because it comes first but because `observed` and
+// `intersected` outrank `declared` on the ladder — and if a future producer
+// yields something stronger, this needs no edit to prefer it.
+//
+// Ties keep the first argument, so the caller's ordering decides between
+// two determinations of equal strength rather than this function guessing.
+func Best(a, b spec.Trailer) spec.Trailer {
+	if b.Method.StrongerThan(a.Method) {
+		return b
+	}
+	return a
 }

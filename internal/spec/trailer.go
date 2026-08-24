@@ -18,6 +18,30 @@ const (
 	MethodIntersected  Method = "intersected"
 )
 
+// confidence ranks the methods so two candidate determinations can be
+// compared rather than resolved by whichever branch happened to run first.
+//
+// The numbers are ordinal and carry no meaning beyond their order: they
+// exist so a new rung can be added between two existing ones without
+// renumbering, and so the comparison lives in one place instead of being
+// re-expressed as an if-chain at every site that has to choose.
+var confidence = map[Method]int{
+	MethodUndetermined: 0,
+	MethodDeclared:     1,
+	MethodInferred:     2,
+	MethodObserved:     3,
+	MethodIntersected:  4,
+}
+
+// StrongerThan reports whether m rests on better evidence than other.
+//
+// An unrecognised method ranks below every known one. A future value
+// arriving from a newer writer is not evidence this code can weigh, and
+// treating it as strong would let an unknown claim outrank a measured one.
+func (m Method) StrongerThan(other Method) bool {
+	return confidence[m] > confidence[other]
+}
+
 var validMethods = map[Method]bool{
 	MethodUndetermined: true,
 	MethodDeclared:     true,

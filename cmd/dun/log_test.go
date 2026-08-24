@@ -162,7 +162,7 @@ func TestTheLogHoldsNoMessageContent(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	determineTrailer()
+	determineTrailer("")
 
 	entries, err := hooklog.Read(home, 0)
 	if err != nil {

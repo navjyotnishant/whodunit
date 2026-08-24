@@ -132,7 +132,7 @@ func TestDetermineTrailerDegradesToUndeterminedWithNothingStaged(t *testing.T) {
 	defer os.Chdir(cwd)
 	os.Chdir(dir)
 
-	trailer := determineTrailer()
+	trailer := determineTrailer("")
 	if !strings.Contains(trailer.Format(), "status=undetermined") {
 		t.Errorf("determineTrailer() = %q, want undetermined with nothing staged", trailer.Format())
 	}
@@ -172,5 +172,58 @@ func TestRunPrepareCommitMsgNeverFailsOnMissingFile(t *testing.T) {
 	// Per spec: stamping errors must never fail the commit.
 	if err := runPrepareCommitMsg([]string{"/does/not/exist/msg.txt"}); err != nil {
 		t.Errorf("runPrepareCommitMsg() = %v, want nil even when the msg file can't be opened", err)
+	}
+}
+
+// An agent that leaves no local transcript still declares itself in the
+// commit message, and that is the only evidence such a commit carries.
+// Before this path existed, a whole Copilot team's every commit came back
+// undetermined - correct, and useless.
+func TestPrepareCommitMsgStampsADeclaration(t *testing.T) {
+	dir := t.TempDir()
+	msg := filepath.Join(dir, "COMMIT_EDITMSG")
+	if err := os.WriteFile(msg,
+		[]byte("Fix the thing\n\nCo-authored-by: Copilot <copilot@github.com>\n"),
+		0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := runPrepareCommitMsg([]string{msg}); err != nil {
+		t.Fatalf("runPrepareCommitMsg: %v", err)
+	}
+	out, err := os.ReadFile(msg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := string(out)
+	if !strings.Contains(got, "method=declared") {
+		t.Errorf("declaration not stamped: %s", got)
+	}
+	if !strings.Contains(got, "agent=copilot") {
+		t.Errorf("agent not carried: %s", got)
+	}
+	// The weakest rung says an agent was involved, not how much of the
+	// commit it wrote. A ratio here would be invented (NAV-21).
+	if strings.Contains(got, "ratio=") {
+		t.Errorf("a declaration must carry no ratio: %s", got)
+	}
+}
+
+// The trailer this reads is a decade-old convention written by people
+// about people. Matching it without checking who it names would attribute
+// an enormous amount of ordinary collaboration to an agent.
+func TestPrepareCommitMsgIgnoresAHumanCoAuthor(t *testing.T) {
+	dir := t.TempDir()
+	msg := filepath.Join(dir, "COMMIT_EDITMSG")
+	if err := os.WriteFile(msg,
+		[]byte("Fix the thing\n\nCo-authored-by: Alice <alice@example.com>\n"),
+		0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := runPrepareCommitMsg([]string{msg}); err != nil {
+		t.Fatalf("runPrepareCommitMsg: %v", err)
+	}
+	out, _ := os.ReadFile(msg)
+	if strings.Contains(string(out), "status=assisted") {
+		t.Errorf("a human co-author is not an agent: %s", out)
 	}
 }

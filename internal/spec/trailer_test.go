@@ -209,3 +209,37 @@ func TestAnAbsentModelIsOmitted(t *testing.T) {
 		t.Errorf("a trailer with no model mentions one: %s", out)
 	}
 }
+
+func TestMethodStrongerThanOrdersTheLadder(t *testing.T) {
+	// The order the spec documents, asserted as one chain rather than
+	// scattered across the call sites that depend on it.
+	ladder := []Method{
+		MethodUndetermined, MethodDeclared, MethodInferred,
+		MethodObserved, MethodIntersected,
+	}
+	for i := 1; i < len(ladder); i++ {
+		if !ladder[i].StrongerThan(ladder[i-1]) {
+			t.Errorf("%s should outrank %s", ladder[i], ladder[i-1])
+		}
+		if ladder[i-1].StrongerThan(ladder[i]) {
+			t.Errorf("%s must not outrank %s", ladder[i-1], ladder[i])
+		}
+	}
+	for _, m := range ladder {
+		if m.StrongerThan(m) {
+			t.Errorf("%s should not outrank itself", m)
+		}
+	}
+}
+
+func TestUnknownMethodRanksBelowEverything(t *testing.T) {
+	// A value from a newer writer is not evidence this code can weigh.
+	// Ranking it high would let an unrecognised claim beat a measured one.
+	future := Method("quantum-verified")
+	if future.StrongerThan(MethodUndetermined) {
+		t.Error("an unknown method must not outrank undetermined")
+	}
+	if !MethodDeclared.StrongerThan(future) {
+		t.Error("declared should outrank an unknown method")
+	}
+}
