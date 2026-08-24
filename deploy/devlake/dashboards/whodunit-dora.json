@@ -782,7 +782,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT CONCAT(\n  SUM(c.status='assisted'), ' vs ', SUM(c.status='undetermined')) AS v\nFROM whodunit_commits c JOIN whodunit_repos r ON r.repo_id = c.repo_id\nWHERE ('${evidence:raw}' = '__all__' OR c.method = '${evidence:raw}')\n  AND  ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}') AND c.purpose IN (\n  SELECT purpose FROM (\n    SELECT c2.purpose FROM whodunit_commits c2 JOIN whodunit_repos r2 ON r2.repo_id = c2.repo_id\n    WHERE ('${contributor:raw}' = '__all__' OR r2.contributor = '${contributor:raw}')\n    GROUP BY c2.purpose\n    HAVING SUM(c2.status='assisted') >= 20 AND SUM(c2.status='undetermined') >= 20\n  ) eligible)"
+          "rawSql": "SELECT SUM(c.status='assisted') AS `assisted`,\n       SUM(c.status='undetermined') AS `unassisted`\nFROM whodunit_commits c JOIN whodunit_repos r ON r.repo_id = c.repo_id\nWHERE ('${evidence:raw}' = '__all__' OR c.method = '${evidence:raw}')\n  AND ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}')\n  AND c.purpose IN (\n  SELECT purpose FROM (\n    SELECT c2.purpose FROM whodunit_commits c2 JOIN whodunit_repos r2 ON r2.repo_id = c2.repo_id\n    WHERE ('${contributor:raw}' = '__all__' OR r2.contributor = '${contributor:raw}')\n    GROUP BY c2.purpose\n    HAVING SUM(c2.status='assisted') >= 20 AND SUM(c2.status='undetermined') >= 20\n  ) eligible)"
         }
       ],
       "fieldConfig": {
@@ -806,7 +806,7 @@
       },
       "options": {
         "graphMode": "none",
-        "textMode": "value",
+        "textMode": "value_and_name",
         "reduceOptions": {
           "calcs": [
             "lastNotNull"
