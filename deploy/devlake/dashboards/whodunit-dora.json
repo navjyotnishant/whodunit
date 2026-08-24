@@ -1433,7 +1433,7 @@
           "values": true
         }
       },
-      "description": "Pearson correlation between weekly adoption and weekly deployment frequency.\n\n**Correlation, not causation, and on very few weeks.** The overlapping-weeks count beside it is the number that decides whether this means anything — below about ten weeks it is noise wearing a decimal point."
+      "description": "Pearson correlation between weekly adoption and weekly deployment frequency, with the weeks it rests on.\n\n**Withheld below 10 weeks** — three points can produce r = 0.99 by coincidence. Correlation is not causation even at high n.\n\nAdoption covers every instrumented repository; outcomes only the project with deployments."
     },
     {
       "id": 24,
@@ -1502,7 +1502,7 @@
           "values": true
         }
       },
-      "description": "Pearson correlation between weekly adoption and weekly change failure rate.\n\nA negative r would mean failures fall as adoption rises. It would not mean adoption caused that — teams adopting AI are also doing other things — and the overlapping-weeks count beside it usually rules out reading it at all."
+      "description": "Pearson correlation between weekly adoption and weekly change failure rate, with the weeks it rests on.\n\n**Withheld below 10 weeks** — three points can produce r = 0.99 by coincidence. Correlation is not causation even at high n.\n\nAdoption covers every instrumented repository; outcomes only the project with deployments."
     },
     {
       "id": 27,
@@ -1571,52 +1571,7 @@
           "values": true
         }
       },
-      "description": "Pearson correlation between weekly adoption and median PR cycle time.\n\nRead the overlapping-weeks count first. With few weeks this number is unstable enough that its sign can flip on one week of data."
-    },
-    {
-      "id": 1,
-      "type": "text",
-      "title": "What this row compares",
-      "gridPos": {
-        "h": 4,
-        "w": 24,
-        "x": 0,
-        "y": 53
-      },
-      "options": {
-        "mode": "markdown",
-        "content": "*Does AI assistance move delivery outcomes?* Adoption comes from git history and agent session records; outcomes from DevLake's DORA pipeline — nothing self-reported. **Scope:** adoption covers every instrumented repo, delivery outcomes **EngageHub only** (the one project with deployments)."
-      }
-    },
-    {
-      "id": 202,
-      "title": "Why this is not a productivity percentage",
-      "type": "text",
-      "gridPos": {
-        "h": 7,
-        "w": 24,
-        "x": 0,
-        "y": 57
-      },
-      "options": {
-        "mode": "markdown",
-        "content": "### The comparison this dashboard cannot make\n\nA gain needs a **before** and an **after** of the same work. This has assisted against unassisted commits *in the same period* — not the same population.\n\n- **Selection is not random** — 48% of assisted commits are features against 38% of unassisted, so an unmatched comparison partly measures which work got assigned to the agent\n- **Larger is not faster** — the only outcome here is change size\n- **Only one repository has a baseline.** `dun baseline capture` publishes to the sidecar, but a snapshot exists for one repo only, so the before-and-after comparison cannot be drawn for the rest"
-      }
-    },
-    {
-      "id": 19,
-      "type": "text",
-      "title": "Reading the correlations",
-      "gridPos": {
-        "h": 5,
-        "w": 24,
-        "x": 0,
-        "y": 64
-      },
-      "options": {
-        "mode": "markdown",
-        "content": "Each chart plots adoption against a delivery outcome over the same weeks; `r` is the correlation coefficient (`+1` rise together, `-1` opposite, `0` no linear relationship). **Withheld below 10 overlapping weeks** — three points can produce `r = 0.99` by coincidence. **Correlation is not causation** even at high `n`."
-      }
+      "description": "Pearson correlation between weekly adoption and weekly PR cycle time, with the weeks it rests on.\n\n**Withheld below 10 weeks** — three points can produce r = 0.99 by coincidence. Correlation is not causation even at high n.\n\nAdoption covers every instrumented repository; outcomes only the project with deployments."
     }
   ]
 }
