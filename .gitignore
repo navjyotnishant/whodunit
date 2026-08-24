@@ -23,3 +23,5 @@ website/.docusaurus/
 # named competitors from the repository they compete with is also a
 # different act than keeping notes.
 docs/competitive-gaps.md
+__pycache__/
+dora-daily-full.png
