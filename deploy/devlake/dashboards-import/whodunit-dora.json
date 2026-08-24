@@ -155,17 +155,15 @@
           "min": 0,
           "max": 100,
           "custom": {
-            "drawStyle": "line",
-            "lineWidth": 2,
-            "fillOpacity": 0,
-            "spanNulls": false,
-            "pointSize": 6,
-            "showPoints": "always",
-            "insertNulls": 129600000
+            "drawStyle": "bars",
+            "lineWidth": 0,
+            "fillOpacity": 80,
+            "showPoints": "never",
+            "barAlignment": 0
           }
         }
       },
-      "description": "Share of commits carrying agent attribution, by agent. Each point is a day that agent was active; the line connects consecutive days only, so a break means the agent was not used rather than that data is missing. Before a repository's first attributed commit the series is absent entirely: whodunit was not installed, so AI use then is unknown, not zero. A zero after that point is a real zero."
+      "description": "Share of commits carrying agent attribution, by agent, per day. A day with no bar is a day that agent produced nothing - not a zero. Nothing appears before a repository's first attributed commit: whodunit was not installed then, so AI use in that period is unknown rather than absent. A bar at zero after that point is a real zero."
     },
     {
       "id": 5,
