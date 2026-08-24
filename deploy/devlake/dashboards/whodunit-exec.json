@@ -45,28 +45,28 @@
       {
         "name": "grain",
         "type": "custom",
-        "query": "Daily : day, Weekly : week, Monthly : month",
+        "query": "Daily : %Y-%m-%d,Weekly : %x-W%v,Monthly : %Y-%m",
         "options": [
           {
-            "selected": false,
             "text": "Daily",
-            "value": "day"
+            "value": "%Y-%m-%d",
+            "selected": false
           },
           {
-            "selected": false,
             "text": "Weekly",
-            "value": "week"
+            "value": "%x-W%v",
+            "selected": true
           },
           {
-            "selected": true,
             "text": "Monthly",
-            "value": "month"
+            "value": "%Y-%m",
+            "selected": false
           }
         ],
         "current": {
           "selected": true,
-          "text": "Monthly",
-          "value": "month"
+          "text": "Weekly",
+          "value": "%x-W%v"
         },
         "refresh": 0,
         "hide": 0,

@@ -27,7 +27,7 @@
         "name": "grain",
         "type": "custom",
         "label": "Granularity",
-        "query": "%Y-%m-%d : Daily, %x-W%v : Weekly, %Y-%m : Monthly",
+        "query": "Daily : %Y-%m-%d,Weekly : %x-W%v,Monthly : %Y-%m",
         "options": [
           {
             "text": "Daily",

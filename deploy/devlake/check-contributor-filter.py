@@ -76,6 +76,16 @@ def check_custom_variable(uid, var, problems):
             problems.append(
                 f"{uid}: {name} option {option.strip()!r} has an empty value; "
                 f"the dropdown would send nothing to the SQL")
+        # A strftime format on the label side is the reversed form. This
+        # is how `grain` shipped backwards: "%Y-%m-%d : Daily" has no
+        # spaces in either half, so a prose heuristic alone misses it.
+        if "%" in label and "%" not in value:
+            problems.append(
+                f"{uid}: {name} option {option.strip()!r} is reversed - the "
+                f"label carries a format string and the value carries the "
+                f"human name, so the dropdown shows the format and the SQL "
+                f"receives the word")
+
         # A value that reads like prose is the reversed form: values are
         # tokens the SQL compares against, labels are for humans.
         if " " in value:
@@ -129,7 +139,12 @@ def main():
                             f"selection")
 
         for v in d.get("templating", {}).get("list", []):
-            if v.get("type") == "custom" and v.get("name") in ("evidence",):
+            # Every custom variable, not a named few. `grain` shipped
+            # reversed - "%Y-%m-%d : Daily" - and survived because the
+            # check was scoped to the variable being added at the time.
+            # A guard that only looks at what somebody remembered to list
+            # is a guard for that one thing.
+            if v.get("type") == "custom":
                 check_custom_variable(d["uid"], v, problems)
                 if v.get("includeAll") and v.get("multi") is not False:
                     problems.append(
