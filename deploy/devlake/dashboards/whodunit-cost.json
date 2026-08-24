@@ -43,6 +43,22 @@
         "allValue": "__all__",
         "refresh": 1,
         "hide": 0
+      },
+      {
+        "name": "evidence",
+        "type": "custom",
+        "label": "Evidence",
+        "query": "intersected — agent lines survived : intersected,observed — agent edited the files : observed,inferred — from surrounding evidence : inferred,declared — stated only : declared,undetermined — no evidence either way : undetermined",
+        "options": [],
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "__all__"
+        },
+        "includeAll": true,
+        "allValue": "__all__",
+        "multi": false,
+        "hide": 0
       }
     ]
   },
