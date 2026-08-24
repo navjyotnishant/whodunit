@@ -161,7 +161,7 @@
       "targets": [
         {
           "refId": "A",
-          "format": "time_series",
+          "format": "table",
           "rawSql": "SELECT DATE_FORMAT(FROM_UNIXTIME(c.committed_at/1000000000), '$grain') AS `period`,\n       ROUND(COUNT(DISTINCT CASE WHEN c.status='assisted' AND e.agent='claude-code'\n                                 THEN c.commit_sha END)*100.0\n             /NULLIF(COUNT(DISTINCT CASE WHEN c.committed_at >= b.first_attributed\n                                         AND e.agent='claude-code'\n                                         THEN c.commit_sha END),0),1) AS `claude-code`,\n       ROUND(COUNT(DISTINCT CASE WHEN c.status='assisted' AND e.agent='codex'\n                                 THEN c.commit_sha END)*100.0\n             /NULLIF(COUNT(DISTINCT CASE WHEN c.committed_at >= b.first_attributed\n                                         AND e.agent='codex'\n                                         THEN c.commit_sha END),0),1) AS `codex`\nFROM whodunit_commits c\nJOIN whodunit_repos r ON r.repo_id=c.repo_id\nJOIN (SELECT repo_id,\n             MIN(CASE WHEN method <> 'undetermined' THEN committed_at END)\n               AS first_attributed\n      FROM whodunit_commits GROUP BY repo_id) b ON b.repo_id=c.repo_id\nJOIN whodunit_events e ON e.repo_id=c.repo_id\n AND e.observed_at BETWEEN c.committed_at - 86400000000000 AND c.committed_at\nWHERE ('${evidence:raw}' = '__all__' OR c.method = '${evidence:raw}')\n  AND ('${contributor:raw}'='__all__' OR r.contributor='${contributor:raw}')\n  AND c.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nGROUP BY `period` ORDER BY `period`"
         }
       ],
@@ -618,7 +618,7 @@
       "targets": [
         {
           "refId": "A",
-          "format": "time_series",
+          "format": "table",
           "rawSql": "SELECT DATE_FORMAT(cdc.finished_date, '$grain') AS `period`,\n       COUNT(DISTINCT cdc.cicd_deployment_id) AS `deployments`\nFROM cicd_deployment_commits cdc\nJOIN project_mapping pm ON cdc.cicd_scope_id = pm.row_id AND pm.`table` = 'cicd_scopes'\nWHERE cdc.result='SUCCESS' AND cdc.environment='PRODUCTION'\n  AND $__timeFilter(cdc.finished_date)\nGROUP BY `period` ORDER BY `period`"
         }
       ],
@@ -652,7 +652,7 @@
       "targets": [
         {
           "refId": "A",
-          "format": "time_series",
+          "format": "table",
           "rawSql": "SELECT DATE_FORMAT(cdc.finished_date, '$grain') AS `period`,\n       SUM(cdc.result='SUCCESS') AS `succeeded`,\n       SUM(cdc.result='FAILURE') AS `failed`\nFROM cicd_deployment_commits cdc\nJOIN project_mapping pm ON cdc.cicd_scope_id = pm.row_id AND pm.`table` = 'cicd_scopes'\nWHERE cdc.environment='PRODUCTION' AND $__timeFilter(cdc.finished_date)\nGROUP BY `period` ORDER BY `period`"
         }
       ],
@@ -972,7 +972,7 @@
       "targets": [
         {
           "refId": "A",
-          "format": "time_series",
+          "format": "table",
           "rawSql": "SELECT DATE_FORMAT(FROM_UNIXTIME(c.committed_at/1000000000), '$grain') AS `period`,\n       ROUND(AVG(CASE WHEN c.status='assisted' THEN c.lines_added+c.lines_removed END),0) AS `assisted`,\n       ROUND(AVG(CASE WHEN c.status<>'assisted' THEN c.lines_added+c.lines_removed END),0) AS `undetermined`\nFROM whodunit_commits c JOIN whodunit_repos r ON r.repo_id=c.repo_id\nWHERE ('${evidence:raw}' = '__all__' OR c.method = '${evidence:raw}')\n  AND  ('${contributor:raw}'='__all__' OR r.contributor='${contributor:raw}') AND c.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nGROUP BY `period` ORDER BY `period`"
         }
       ],
