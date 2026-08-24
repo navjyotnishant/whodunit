@@ -180,7 +180,9 @@
       "options": {
         "xField": "period",
         "showValue": "never",
-        "stacking": "none"
+        "stacking": "none",
+        "xTickLabelRotation": -45,
+        "xTickLabelSpacing": 100
       }
     },
     {
@@ -635,7 +637,9 @@
       "options": {
         "xField": "period",
         "showValue": "never",
-        "stacking": "none"
+        "stacking": "none",
+        "xTickLabelRotation": -45,
+        "xTickLabelSpacing": 100
       }
     },
     {
@@ -704,7 +708,9 @@
       "options": {
         "xField": "period",
         "showValue": "never",
-        "stacking": "normal"
+        "stacking": "normal",
+        "xTickLabelRotation": -45,
+        "xTickLabelSpacing": 100
       }
     },
     {
@@ -989,7 +995,9 @@
       "options": {
         "xField": "period",
         "showValue": "never",
-        "stacking": "none"
+        "stacking": "none",
+        "xTickLabelRotation": -45,
+        "xTickLabelSpacing": 100
       }
     },
     {
