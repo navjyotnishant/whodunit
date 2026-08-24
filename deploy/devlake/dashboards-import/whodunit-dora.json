@@ -1362,7 +1362,7 @@
     {
       "id": 21,
       "type": "stat",
-      "title": "r — adoption vs deployment frequency",
+      "title": "r — vs deployment frequency",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
         "h": 4,
@@ -1408,7 +1408,7 @@
     {
       "id": 22,
       "type": "stat",
-      "title": "overlapping weeks (n)",
+      "title": "weeks compared — deployment frequency",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
         "h": 4,
@@ -1458,7 +1458,7 @@
     {
       "id": 24,
       "type": "stat",
-      "title": "r — adoption vs change failure rate",
+      "title": "r — vs change failure rate",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
         "h": 4,
@@ -1504,7 +1504,7 @@
     {
       "id": 25,
       "type": "stat",
-      "title": "overlapping weeks (n)",
+      "title": "weeks compared — change failure rate",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
         "h": 4,
@@ -1554,7 +1554,7 @@
     {
       "id": 27,
       "type": "stat",
-      "title": "r — adoption vs pr cycle time",
+      "title": "r — vs PR cycle time",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
         "h": 4,
@@ -1600,7 +1600,7 @@
     {
       "id": 28,
       "type": "stat",
-      "title": "overlapping weeks (n)",
+      "title": "weeks compared — PR cycle time",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
         "h": 4,
