@@ -156,7 +156,7 @@
     },
     {
       "id": 4,
-      "type": "timeseries",
+      "type": "barchart",
       "title": "Adoption over time",
       "datasource": "${datasource}",
       "gridPos": {
@@ -169,7 +169,7 @@
         {
           "refId": "A",
           "format": "time_series",
-          "rawSql": "SELECT DATE(FROM_UNIXTIME(c.committed_at/1000000000)) AS `time`,\n       e.agent AS `metric`,\n       ROUND(COUNT(DISTINCT CASE WHEN c.status='assisted' THEN c.commit_sha END)*100.0\n             /NULLIF(COUNT(DISTINCT CASE WHEN c.committed_at >= b.first_attributed\n                            THEN c.commit_sha END),0),1) AS `value`\nFROM whodunit_commits c\nJOIN whodunit_repos r ON r.repo_id=c.repo_id\nJOIN (SELECT repo_id,\n             MIN(CASE WHEN method <> 'undetermined' THEN committed_at END)\n               AS first_attributed\n      FROM whodunit_commits GROUP BY repo_id) b ON b.repo_id=c.repo_id\nJOIN whodunit_events e ON e.repo_id=c.repo_id\n AND e.observed_at BETWEEN c.committed_at - 86400000000000 AND c.committed_at\nWHERE ('${evidence:raw}' = '__all__' OR c.method = '${evidence:raw}')\n  AND  ('${contributor:raw}'='__all__' OR r.contributor='${contributor:raw}')\n  AND c.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nGROUP BY `time`, `metric` ORDER BY `time`"
+          "rawSql": "SELECT DATE_FORMAT(FROM_UNIXTIME(c.committed_at/1000000000), '$grain') AS `period`,\n       e.agent AS `metric`,\n       ROUND(COUNT(DISTINCT CASE WHEN c.status='assisted' THEN c.commit_sha END)*100.0\n             /NULLIF(COUNT(DISTINCT CASE WHEN c.committed_at >= b.first_attributed\n                            THEN c.commit_sha END),0),1) AS `value`\nFROM whodunit_commits c\nJOIN whodunit_repos r ON r.repo_id=c.repo_id\nJOIN (SELECT repo_id,\n             MIN(CASE WHEN method <> 'undetermined' THEN committed_at END)\n               AS first_attributed\n      FROM whodunit_commits GROUP BY repo_id) b ON b.repo_id=c.repo_id\nJOIN whodunit_events e ON e.repo_id=c.repo_id\n AND e.observed_at BETWEEN c.committed_at - 86400000000000 AND c.committed_at\nWHERE ('${evidence:raw}' = '__all__' OR c.method = '${evidence:raw}')\n  AND  ('${contributor:raw}'='__all__' OR r.contributor='${contributor:raw}')\n  AND c.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nGROUP BY `period`, `metric` ORDER BY `period`"
         }
       ],
       "fieldConfig": {
@@ -186,7 +186,12 @@
           }
         }
       },
-      "description": "Share of commits carrying agent attribution, by agent, per day. A day with no bar is a day that agent produced nothing - not a zero. Nothing appears before a repository's first attributed commit: whodunit was not installed then, so AI use in that period is unknown rather than absent. A bar at zero after that point is a real zero."
+      "description": "Share of commits carrying agent attribution, by agent, per day. A day with no bar is a day that agent produced nothing - not a zero. Nothing appears before a repository's first attributed commit: whodunit was not installed then, so AI use in that period is unknown rather than absent. A bar at zero after that point is a real zero.",
+      "options": {
+        "xField": "period",
+        "showValue": "never",
+        "stacking": "none"
+      }
     },
     {
       "id": 5,
@@ -955,7 +960,7 @@
     },
     {
       "id": 7,
-      "type": "timeseries",
+      "type": "barchart",
       "title": "Output volume — assisted vs undetermined",
       "datasource": "${datasource}",
       "gridPos": {
@@ -968,7 +973,7 @@
         {
           "refId": "A",
           "format": "time_series",
-          "rawSql": "SELECT DATE(FROM_UNIXTIME(c.committed_at/1000000000)) AS `time`,\n       ROUND(AVG(CASE WHEN c.status='assisted' THEN c.lines_added+c.lines_removed END),0) AS `assisted`,\n       ROUND(AVG(CASE WHEN c.status<>'assisted' THEN c.lines_added+c.lines_removed END),0) AS `undetermined`\nFROM whodunit_commits c JOIN whodunit_repos r ON r.repo_id=c.repo_id\nWHERE ('${evidence:raw}' = '__all__' OR c.method = '${evidence:raw}')\n  AND  ('${contributor:raw}'='__all__' OR r.contributor='${contributor:raw}') AND c.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nGROUP BY `time` ORDER BY `time`"
+          "rawSql": "SELECT DATE_FORMAT(FROM_UNIXTIME(c.committed_at/1000000000), '$grain') AS `period`,\n       ROUND(AVG(CASE WHEN c.status='assisted' THEN c.lines_added+c.lines_removed END),0) AS `assisted`,\n       ROUND(AVG(CASE WHEN c.status<>'assisted' THEN c.lines_added+c.lines_removed END),0) AS `undetermined`\nFROM whodunit_commits c JOIN whodunit_repos r ON r.repo_id=c.repo_id\nWHERE ('${evidence:raw}' = '__all__' OR c.method = '${evidence:raw}')\n  AND  ('${contributor:raw}'='__all__' OR r.contributor='${contributor:raw}') AND c.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nGROUP BY `period` ORDER BY `period`"
         }
       ],
       "fieldConfig": {
@@ -982,7 +987,12 @@
           }
         }
       },
-      "description": "Mean lines changed per commit over time, assisted against unassisted.\n\n**Volume, not productivity.** A rising line means commits are getting larger, which is not the same as work getting faster."
+      "description": "Mean lines changed per commit over time, assisted against unassisted.\n\n**Volume, not productivity.** A rising line means commits are getting larger, which is not the same as work getting faster.",
+      "options": {
+        "xField": "period",
+        "showValue": "never",
+        "stacking": "none"
+      }
     },
     {
       "id": 211,
