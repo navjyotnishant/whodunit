@@ -1395,7 +1395,25 @@
               }
             ]
           }
-        }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "weeks"
+            },
+            "properties": [
+              {
+                "id": "decimals",
+                "value": 0
+              },
+              {
+                "id": "unit",
+                "value": "none"
+              }
+            ]
+          }
+        ]
       },
       "options": {
         "graphMode": "none",
@@ -1405,7 +1423,7 @@
             "lastNotNull"
           ],
           "fields": "",
-          "values": false
+          "values": true
         }
       },
       "description": "Pearson correlation between weekly adoption and weekly deployment frequency.\n\n**Correlation, not causation, and on very few weeks.** The overlapping-weeks count beside it is the number that decides whether this means anything — below about ten weeks it is noise wearing a decimal point."
@@ -1446,7 +1464,25 @@
               }
             ]
           }
-        }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "weeks"
+            },
+            "properties": [
+              {
+                "id": "decimals",
+                "value": 0
+              },
+              {
+                "id": "unit",
+                "value": "none"
+              }
+            ]
+          }
+        ]
       },
       "options": {
         "graphMode": "none",
@@ -1456,7 +1492,7 @@
             "lastNotNull"
           ],
           "fields": "",
-          "values": false
+          "values": true
         }
       },
       "description": "Pearson correlation between weekly adoption and weekly change failure rate.\n\nA negative r would mean failures fall as adoption rises. It would not mean adoption caused that — teams adopting AI are also doing other things — and the overlapping-weeks count beside it usually rules out reading it at all."
@@ -1497,7 +1533,25 @@
               }
             ]
           }
-        }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "weeks"
+            },
+            "properties": [
+              {
+                "id": "decimals",
+                "value": 0
+              },
+              {
+                "id": "unit",
+                "value": "none"
+              }
+            ]
+          }
+        ]
       },
       "options": {
         "graphMode": "none",
@@ -1507,7 +1561,7 @@
             "lastNotNull"
           ],
           "fields": "",
-          "values": false
+          "values": true
         }
       },
       "description": "Pearson correlation between weekly adoption and median PR cycle time.\n\nRead the overlapping-weeks count first. With few weeks this number is unstable enough that its sign can flip on one week of data."
@@ -1515,9 +1569,9 @@
     {
       "id": 1,
       "type": "text",
-      "title": "",
+      "title": "What this row compares",
       "gridPos": {
-        "h": 3,
+        "h": 2,
         "w": 24,
         "x": 0,
         "y": 53
@@ -1532,7 +1586,7 @@
       "title": "Why this is not a productivity percentage",
       "type": "text",
       "gridPos": {
-        "h": 4,
+        "h": 3,
         "w": 24,
         "x": 0,
         "y": 56
@@ -1545,9 +1599,9 @@
     {
       "id": 19,
       "type": "text",
-      "title": "",
+      "title": "Reading the correlations",
       "gridPos": {
-        "h": 3,
+        "h": 2,
         "w": 24,
         "x": 0,
         "y": 60
