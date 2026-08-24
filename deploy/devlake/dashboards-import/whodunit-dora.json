@@ -157,7 +157,7 @@
           "custom": {
             "drawStyle": "line",
             "lineWidth": 2,
-            "fillOpacity": 15,
+            "fillOpacity": 0,
             "spanNulls": false,
             "pointSize": 6,
             "showPoints": "always"
