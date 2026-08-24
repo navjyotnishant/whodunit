@@ -207,7 +207,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT CASE c.method\n         WHEN 'intersected' THEN 'intersected'\n         WHEN 'observed'    THEN 'observed'\n         WHEN 'declared'    THEN 'declared'\n         WHEN 'inferred'    THEN 'inferred'\n         ELSE 'undetermined'\n       END AS `method`,\n       COUNT(*) AS `commits`\nFROM whodunit_commits c JOIN whodunit_repos r ON r.repo_id=c.repo_id\nWHERE ('${evidence:raw}' = '__all__' OR c.method = '${evidence:raw}')\n  AND  ('${contributor:raw}'='__all__' OR r.contributor='${contributor:raw}') AND c.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nGROUP BY c.method ORDER BY commits DESC"
+          "rawSql": "SELECT CASE c.method\n         WHEN 'intersected' THEN 'intersected'\n         WHEN 'observed'    THEN 'observed'\n         WHEN 'declared'    THEN 'declared'\n         WHEN 'inferred'    THEN 'inferred'\n         ELSE COALESCE(c.reason, 'undetermined')\n       END AS `method`,\n       COUNT(*) AS `commits`\nFROM whodunit_commits c JOIN whodunit_repos r ON r.repo_id=c.repo_id\nWHERE ('${evidence:raw}' = '__all__' OR c.method = '${evidence:raw}')\n  AND  ('${contributor:raw}'='__all__' OR r.contributor='${contributor:raw}') AND c.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nGROUP BY CASE c.method\n         WHEN 'intersected' THEN 'intersected'\n         WHEN 'observed'    THEN 'observed'\n         WHEN 'declared'    THEN 'declared'\n         WHEN 'inferred'    THEN 'inferred'\n         ELSE COALESCE(c.reason, 'undetermined')\n       END ORDER BY commits DESC"
         }
       ],
       "options": {
@@ -226,7 +226,7 @@
           "values": true
         }
       },
-      "description": "How each commit's attribution was established, from strongest evidence to none.\n\n- **intersected** — agent-written lines survived into the commit. The strongest claim: the text the agent produced is in the diff.\n- **observed** — the agent touched the file, but the text changed afterwards. It worked here; what shipped may not be its work.\n- **inferred** — established from surrounding evidence rather than line-level matching.\n- **declared** — stated in the trailer, not measured.\n- **undetermined** — no evidence either way. **Not a claim that no agent was used** — a commit made before the hooks were installed, or on a machine without them, lands here regardless of how it was written (NAV-21).\n\nColours run cool to warm by strength of evidence, with undetermined grey because it is an absence rather than a tier. Warm is not 'good': strong evidence that an agent wrote the code is a confident measurement, not a desirable outcome.",
+      "description": "How each commit's attribution was established, strongest first: **intersected** (the agent's lines are in the diff), **observed** (it touched the file, text changed after), **declared** (stated, not measured).\n\nThe rest are reasons there is no evidence: **unassisted** a human wrote it, **unmatched** an agent was active elsewhere, **uninstrumented** predates the hooks so AI use is unknown rather than absent, **degraded** attribution failed.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -306,6 +306,66 @@
                 "value": {
                   "mode": "fixed",
                   "fixedColor": "#B877D9"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "uninstrumented"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#5a5a5a"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "unassisted"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#8ab8ff"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "unmatched"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#b0b0b0"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "degraded"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#E02F44"
                 }
               }
             ]

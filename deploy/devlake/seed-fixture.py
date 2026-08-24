@@ -55,12 +55,35 @@ REPO_SOLO = "b" * 40
 
 
 def schema() -> str:
-    """The DDL, read from Go so it cannot drift from what sync writes."""
+    """The DDL, read from Go so it cannot drift from what sync writes.
+
+    Both the base tables AND the migrations, because a real database has
+    had both applied. Reading only the Schema literal built a fixture
+    missing every migrated column, so a panel using one failed here while
+    working perfectly against the live data - the guard reporting a fault
+    in the panel rather than in itself.
+    """
     src = SCHEMA_GO.read_text()
     m = re.search(r"const Schema = `(.*?)`", src, re.S)
     if not m:
         sys.exit(f"no Schema literal found in {SCHEMA_GO}")
-    return m.group(1)
+    ddl = m.group(1)
+
+    mig = re.search(r"var Migrations = \[\]string\{(.*?)\n\}", src, re.S)
+    if not mig:
+        sys.exit(f"no Migrations literal found in {SCHEMA_GO}")
+
+    # Only the columns Schema does not already declare. Most migrations
+    # were long ago folded into the base tables, so replaying them all
+    # aborts on the first duplicate and leaves a half-built fixture. Go
+    # applies these best-effort for the same reason; here the check is
+    # explicit because one failed statement stops the whole seed.
+    extra = []
+    for stmt in re.findall(r"`(ALTER TABLE .*?)`", mig.group(1), re.S):
+        col = re.search(r"ADD COLUMN (\w+)", stmt)
+        if col and not re.search(rf"^\s*{col.group(1)}\s+\w", ddl, re.M):
+            extra.append(stmt)
+    return ddl + "".join(";\n" + s for s in extra)
 
 
 def rows():
