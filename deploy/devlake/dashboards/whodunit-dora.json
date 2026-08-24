@@ -169,7 +169,7 @@
         {
           "refId": "A",
           "format": "time_series",
-          "rawSql": "SELECT DATE_FORMAT(FROM_UNIXTIME(c.committed_at/1000000000), '$grain') AS `period`,\n       e.agent AS `metric`,\n       ROUND(COUNT(DISTINCT CASE WHEN c.status='assisted' THEN c.commit_sha END)*100.0\n             /NULLIF(COUNT(DISTINCT CASE WHEN c.committed_at >= b.first_attributed\n                            THEN c.commit_sha END),0),1) AS `value`\nFROM whodunit_commits c\nJOIN whodunit_repos r ON r.repo_id=c.repo_id\nJOIN (SELECT repo_id,\n             MIN(CASE WHEN method <> 'undetermined' THEN committed_at END)\n               AS first_attributed\n      FROM whodunit_commits GROUP BY repo_id) b ON b.repo_id=c.repo_id\nJOIN whodunit_events e ON e.repo_id=c.repo_id\n AND e.observed_at BETWEEN c.committed_at - 86400000000000 AND c.committed_at\nWHERE ('${evidence:raw}' = '__all__' OR c.method = '${evidence:raw}')\n  AND  ('${contributor:raw}'='__all__' OR r.contributor='${contributor:raw}')\n  AND c.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nGROUP BY `period`, `metric` ORDER BY `period`"
+          "rawSql": "SELECT DATE_FORMAT(FROM_UNIXTIME(c.committed_at/1000000000), '$grain') AS `period`,\n       ROUND(COUNT(DISTINCT CASE WHEN c.status='assisted' AND e.agent='claude-code'\n                                 THEN c.commit_sha END)*100.0\n             /NULLIF(COUNT(DISTINCT CASE WHEN c.committed_at >= b.first_attributed\n                                         AND e.agent='claude-code'\n                                         THEN c.commit_sha END),0),1) AS `claude-code`,\n       ROUND(COUNT(DISTINCT CASE WHEN c.status='assisted' AND e.agent='codex'\n                                 THEN c.commit_sha END)*100.0\n             /NULLIF(COUNT(DISTINCT CASE WHEN c.committed_at >= b.first_attributed\n                                         AND e.agent='codex'\n                                         THEN c.commit_sha END),0),1) AS `codex`\nFROM whodunit_commits c\nJOIN whodunit_repos r ON r.repo_id=c.repo_id\nJOIN (SELECT repo_id,\n             MIN(CASE WHEN method <> 'undetermined' THEN committed_at END)\n               AS first_attributed\n      FROM whodunit_commits GROUP BY repo_id) b ON b.repo_id=c.repo_id\nJOIN whodunit_events e ON e.repo_id=c.repo_id\n AND e.observed_at BETWEEN c.committed_at - 86400000000000 AND c.committed_at\nWHERE ('${evidence:raw}' = '__all__' OR c.method = '${evidence:raw}')\n  AND ('${contributor:raw}'='__all__' OR r.contributor='${contributor:raw}')\n  AND c.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nGROUP BY `period` ORDER BY `period`"
         }
       ],
       "fieldConfig": {
@@ -178,11 +178,8 @@
           "min": 0,
           "max": 100,
           "custom": {
-            "drawStyle": "bars",
-            "lineWidth": 0,
             "fillOpacity": 80,
-            "showPoints": "never",
-            "barAlignment": 0
+            "lineWidth": 1
           }
         }
       },
@@ -616,7 +613,7 @@
     },
     {
       "id": 16,
-      "type": "timeseries",
+      "type": "barchart",
       "title": "Deployment frequency",
       "datasource": "${datasource}",
       "gridPos": {
@@ -629,23 +626,28 @@
         {
           "refId": "A",
           "format": "time_series",
-          "rawSql": "SELECT DATE(cdc.finished_date) AS `time`,\n       COUNT(DISTINCT cdc.cicd_deployment_id) AS `deployments`\nFROM cicd_deployment_commits cdc\nJOIN project_mapping pm ON cdc.cicd_scope_id = pm.row_id AND pm.`table` = 'cicd_scopes'\nWHERE cdc.result='SUCCESS' AND cdc.environment='PRODUCTION'\n  AND $__timeFilter(cdc.finished_date)\nGROUP BY `time` ORDER BY `time`"
+          "rawSql": "SELECT DATE_FORMAT(cdc.finished_date, '$grain') AS `period`,\n       COUNT(DISTINCT cdc.cicd_deployment_id) AS `deployments`\nFROM cicd_deployment_commits cdc\nJOIN project_mapping pm ON cdc.cicd_scope_id = pm.row_id AND pm.`table` = 'cicd_scopes'\nWHERE cdc.result='SUCCESS' AND cdc.environment='PRODUCTION'\n  AND $__timeFilter(cdc.finished_date)\nGROUP BY `period` ORDER BY `period`"
         }
       ],
       "fieldConfig": {
         "defaults": {
           "unit": "short",
           "custom": {
-            "drawStyle": "bars",
-            "fillOpacity": 70
+            "fillOpacity": 80,
+            "lineWidth": 1
           }
         }
       },
-      "description": "Deployments per day, from DevLake's CI collection.\n\nRequires a deployment pattern on the scope config — without one, `cicd_deployment_commits` stays empty and every DORA panel on this page reads blank while collection reports success."
+      "description": "Deployments per day, from DevLake's CI collection.\n\nRequires a deployment pattern on the scope config — without one, `cicd_deployment_commits` stays empty and every DORA panel on this page reads blank while collection reports success.",
+      "options": {
+        "xField": "period",
+        "showValue": "never",
+        "stacking": "none"
+      }
     },
     {
       "id": 17,
-      "type": "timeseries",
+      "type": "barchart",
       "title": "Deployment outcomes",
       "datasource": "${datasource}",
       "gridPos": {
@@ -658,18 +660,18 @@
         {
           "refId": "A",
           "format": "time_series",
-          "rawSql": "SELECT DATE(cdc.finished_date) AS `time`,\n       SUM(cdc.result='SUCCESS') AS `succeeded`,\n       SUM(cdc.result='FAILURE') AS `failed`\nFROM cicd_deployment_commits cdc\nJOIN project_mapping pm ON cdc.cicd_scope_id = pm.row_id AND pm.`table` = 'cicd_scopes'\nWHERE cdc.environment='PRODUCTION' AND $__timeFilter(cdc.finished_date)\nGROUP BY `time` ORDER BY `time`"
+          "rawSql": "SELECT DATE_FORMAT(cdc.finished_date, '$grain') AS `period`,\n       SUM(cdc.result='SUCCESS') AS `succeeded`,\n       SUM(cdc.result='FAILURE') AS `failed`\nFROM cicd_deployment_commits cdc\nJOIN project_mapping pm ON cdc.cicd_scope_id = pm.row_id AND pm.`table` = 'cicd_scopes'\nWHERE cdc.environment='PRODUCTION' AND $__timeFilter(cdc.finished_date)\nGROUP BY `period` ORDER BY `period`"
         }
       ],
       "fieldConfig": {
         "defaults": {
           "unit": "short",
           "custom": {
-            "drawStyle": "bars",
-            "fillOpacity": 70,
+            "fillOpacity": 80,
             "stacking": {
               "mode": "normal"
-            }
+            },
+            "lineWidth": 1
           }
         },
         "overrides": [
@@ -705,7 +707,12 @@
           }
         ]
       },
-      "description": "The failure rate's two components, so a rising rate can be read as more failures or fewer deployments."
+      "description": "The failure rate's two components, so a rising rate can be read as more failures or fewer deployments.",
+      "options": {
+        "xField": "period",
+        "showValue": "never",
+        "stacking": "normal"
+      }
     },
     {
       "type": "row",
@@ -980,10 +987,8 @@
         "defaults": {
           "unit": "short",
           "custom": {
-            "drawStyle": "line",
-            "lineWidth": 2,
-            "fillOpacity": 10,
-            "spanNulls": true
+            "fillOpacity": 80,
+            "lineWidth": 1
           }
         }
       },
