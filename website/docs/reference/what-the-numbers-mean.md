@@ -28,6 +28,35 @@ This is why `status=undetermined` exists instead of a "no AI" value, why
 Antigravity is excluded from cost panels rather than shown at 0, and why
 `model=` is omitted rather than emitted as `unknown`.
 
+## Zero before you installed is not zero
+
+A repository's commits are recorded from the moment `dun init` runs, but
+attribution only begins when an agent's transcript is first matched against
+a commit. Between those two points every commit is `undetermined` — which
+means *no evidence*, and is correct.
+
+The danger is what a chart does with that. Plotted as a rate, "no assisted
+commits" becomes **0%**, and 0% reads as "no AI was used." It is the same
+error as [empty is not zero](#empty-is-not-zero), committed by the renderer
+rather than the schema, and it is the flattering direction: it manufactures
+an adoption ramp from nothing.
+
+Measured on one install, four repositories showed 0, 4, 26 and **76 days**
+between first tracked commit and first attributed commit. That is up to two
+and a half months of history a chart would have drawn as a flat zero line.
+
+So the series is **absent before that boundary, not zero** — a gap, per
+repository, because different repositories are instrumented on different
+days. Commit volume, cycle time and revert rate stay plotted across it:
+those are read from git and are just as true before instrumentation as
+after. Only the attribution is unknown.
+
+**A before-and-after comparison anchored in that window measures
+instrumentation, not adoption.** This is why `dun baseline capture` takes
+an explicit `--since` and `--until` rather than defaulting to a window
+ending today: you are being asked to name a period you know was
+agent-free, because the tool cannot work it out for you.
+
 ## Cost is in tokens, never currency
 
 There is no dollar figure anywhere in this tool, and that is a decision

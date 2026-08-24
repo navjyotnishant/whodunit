@@ -146,7 +146,7 @@
         {
           "refId": "A",
           "format": "time_series",
-          "rawSql": "SELECT DATE(FROM_UNIXTIME(c.committed_at/1000000000)) AS `time`,\n       e.agent AS `metric`,\n       ROUND(COUNT(DISTINCT CASE WHEN c.status='assisted' THEN c.commit_sha END)*100.0\n             /NULLIF(COUNT(DISTINCT c.commit_sha),0),1) AS `value`\nFROM whodunit_commits c\nJOIN whodunit_repos r ON r.repo_id=c.repo_id\nJOIN whodunit_events e ON e.repo_id=c.repo_id\n AND e.observed_at BETWEEN c.committed_at - 86400000000000 AND c.committed_at\nWHERE ('${contributor:raw}'='__all__' OR r.contributor='${contributor:raw}')\n  AND c.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nGROUP BY `time`, `metric` ORDER BY `time`"
+          "rawSql": "SELECT DATE(FROM_UNIXTIME(c.committed_at/1000000000)) AS `time`,\n       e.agent AS `metric`,\n       ROUND(COUNT(DISTINCT CASE WHEN c.status='assisted' THEN c.commit_sha END)*100.0\n             /NULLIF(COUNT(DISTINCT CASE WHEN c.committed_at >= b.first_attributed\n                            THEN c.commit_sha END),0),1) AS `value`\nFROM whodunit_commits c\nJOIN whodunit_repos r ON r.repo_id=c.repo_id\nJOIN (SELECT repo_id,\n             MIN(CASE WHEN method <> 'undetermined' THEN committed_at END)\n               AS first_attributed\n      FROM whodunit_commits GROUP BY repo_id) b ON b.repo_id=c.repo_id\nJOIN whodunit_events e ON e.repo_id=c.repo_id\n AND e.observed_at BETWEEN c.committed_at - 86400000000000 AND c.committed_at\nWHERE ('${contributor:raw}'='__all__' OR r.contributor='${contributor:raw}')\n  AND c.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nGROUP BY `time`, `metric` ORDER BY `time`"
         }
       ],
       "fieldConfig": {
@@ -164,7 +164,7 @@
           }
         }
       },
-      "description": "Share of commits carrying agent attribution, split by which agent was active.\n\nAn agent is credited for a commit when it recorded activity in that repository within 24 hours before the commit. That window is a heuristic, not a claim: a commit worked on by two agents appears in both series, so the lines do not sum to the overall rate.\n\nAn agent with no line recorded no activity in the range — not zero adoption, no data (NAV-21)."
+      "description": "Share of commits carrying agent attribution, by agent. Before a repository's first attributed commit the series is absent, not zero: whodunit was not installed, so AI use in that period is unknown rather than absent. A zero after that boundary is a real zero."
     },
     {
       "id": 5,
@@ -1079,7 +1079,7 @@
       "targets": [
         {
           "refId": "A",
-          "rawSql": "WITH a AS (SELECT DATE_FORMAT(FROM_UNIXTIME(committed_at/1000000000), '%x-W%v') AS wk,\n       SUM(status='assisted')*100.0/NULLIF(COUNT(*),0) AS adoption\nFROM whodunit_commits GROUP BY wk),\n     m AS (SELECT DATE_FORMAT(cdc.finished_date, '%x-W%v') AS wk,\n       COUNT(DISTINCT cdc.cicd_deployment_id) AS metric\nFROM cicd_deployment_commits cdc\nJOIN project_mapping pm ON cdc.cicd_scope_id = pm.row_id AND pm.`table` = 'cicd_scopes'\nWHERE cdc.result='SUCCESS' AND cdc.environment='PRODUCTION' GROUP BY wk)\nSELECT a.wk AS `week`, ROUND(a.adoption,1) AS `adoption %`, ROUND(m.metric,1) AS `deployments/wk`\nFROM a JOIN m ON a.wk = m.wk ORDER BY a.wk",
+          "rawSql": "WITH b AS (SELECT repo_id,\n       MIN(CASE WHEN method <> 'undetermined' THEN committed_at END) AS first_attributed\nFROM whodunit_commits GROUP BY repo_id),\n     a AS (SELECT DATE_FORMAT(FROM_UNIXTIME(c.committed_at/1000000000), '%x-W%v') AS wk,\n       SUM(c.status='assisted')*100.0\n         /NULLIF(SUM(c.committed_at >= b.first_attributed),0) AS adoption\nFROM whodunit_commits c JOIN b ON b.repo_id=c.repo_id GROUP BY wk),\n     m AS (SELECT DATE_FORMAT(cdc.finished_date, '%x-W%v') AS wk,\n       COUNT(DISTINCT cdc.cicd_deployment_id) AS metric\nFROM cicd_deployment_commits cdc\nJOIN project_mapping pm ON cdc.cicd_scope_id = pm.row_id AND pm.`table` = 'cicd_scopes'\nWHERE cdc.result='SUCCESS' AND cdc.environment='PRODUCTION' GROUP BY wk)\nSELECT a.wk AS `week`, ROUND(a.adoption,1) AS `adoption %`, ROUND(m.metric,1) AS `deployments/wk`\nFROM a JOIN m ON a.wk = m.wk ORDER BY a.wk",
           "format": "table"
         }
       ],
@@ -1172,7 +1172,7 @@
       "targets": [
         {
           "refId": "A",
-          "rawSql": "WITH a AS (SELECT DATE_FORMAT(FROM_UNIXTIME(committed_at/1000000000), '%x-W%v') AS wk,\n       SUM(status='assisted')*100.0/NULLIF(COUNT(*),0) AS adoption\nFROM whodunit_commits GROUP BY wk),\n     m AS (SELECT DATE_FORMAT(cdc.finished_date, '%x-W%v') AS wk,\n       SUM(cdc.result='FAILURE')*100.0/NULLIF(COUNT(*),0) AS metric\nFROM cicd_deployment_commits cdc\nJOIN project_mapping pm ON cdc.cicd_scope_id = pm.row_id AND pm.`table` = 'cicd_scopes'\nWHERE cdc.environment='PRODUCTION' GROUP BY wk)\nSELECT a.wk AS `week`, ROUND(a.adoption,1) AS `adoption %`, ROUND(m.metric,1) AS `failure rate %`\nFROM a JOIN m ON a.wk = m.wk ORDER BY a.wk",
+          "rawSql": "WITH b AS (SELECT repo_id,\n       MIN(CASE WHEN method <> 'undetermined' THEN committed_at END) AS first_attributed\nFROM whodunit_commits GROUP BY repo_id),\n     a AS (SELECT DATE_FORMAT(FROM_UNIXTIME(c.committed_at/1000000000), '%x-W%v') AS wk,\n       SUM(c.status='assisted')*100.0\n         /NULLIF(SUM(c.committed_at >= b.first_attributed),0) AS adoption\nFROM whodunit_commits c JOIN b ON b.repo_id=c.repo_id GROUP BY wk),\n     m AS (SELECT DATE_FORMAT(cdc.finished_date, '%x-W%v') AS wk,\n       SUM(cdc.result='FAILURE')*100.0/NULLIF(COUNT(*),0) AS metric\nFROM cicd_deployment_commits cdc\nJOIN project_mapping pm ON cdc.cicd_scope_id = pm.row_id AND pm.`table` = 'cicd_scopes'\nWHERE cdc.environment='PRODUCTION' GROUP BY wk)\nSELECT a.wk AS `week`, ROUND(a.adoption,1) AS `adoption %`, ROUND(m.metric,1) AS `failure rate %`\nFROM a JOIN m ON a.wk = m.wk ORDER BY a.wk",
           "format": "table"
         }
       ],
@@ -1265,7 +1265,7 @@
       "targets": [
         {
           "refId": "A",
-          "rawSql": "WITH a AS (SELECT DATE_FORMAT(FROM_UNIXTIME(committed_at/1000000000), '%x-W%v') AS wk,\n       SUM(status='assisted')*100.0/NULLIF(COUNT(*),0) AS adoption\nFROM whodunit_commits GROUP BY wk),\n     m AS (SELECT DATE_FORMAT(pr_merged_date, '%x-W%v') AS wk,\n       AVG(pr_cycle_time)/60.0 AS metric\nFROM project_pr_metrics WHERE pr_cycle_time IS NOT NULL GROUP BY wk)\nSELECT a.wk AS `week`, ROUND(a.adoption,1) AS `adoption %`, ROUND(m.metric,1) AS `cycle time hrs`\nFROM a JOIN m ON a.wk = m.wk ORDER BY a.wk",
+          "rawSql": "WITH b AS (SELECT repo_id,\n       MIN(CASE WHEN method <> 'undetermined' THEN committed_at END) AS first_attributed\nFROM whodunit_commits GROUP BY repo_id),\n     a AS (SELECT DATE_FORMAT(FROM_UNIXTIME(c.committed_at/1000000000), '%x-W%v') AS wk,\n       SUM(c.status='assisted')*100.0\n         /NULLIF(SUM(c.committed_at >= b.first_attributed),0) AS adoption\nFROM whodunit_commits c JOIN b ON b.repo_id=c.repo_id GROUP BY wk),\n     m AS (SELECT DATE_FORMAT(pr_merged_date, '%x-W%v') AS wk,\n       AVG(pr_cycle_time)/60.0 AS metric\nFROM project_pr_metrics WHERE pr_cycle_time IS NOT NULL GROUP BY wk)\nSELECT a.wk AS `week`, ROUND(a.adoption,1) AS `adoption %`, ROUND(m.metric,1) AS `cycle time hrs`\nFROM a JOIN m ON a.wk = m.wk ORDER BY a.wk",
           "format": "table"
         }
       ],
@@ -1359,7 +1359,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "WITH a AS (SELECT DATE_FORMAT(FROM_UNIXTIME(committed_at/1000000000), '%x-W%v') AS wk,\n       SUM(status='assisted')*100.0/NULLIF(COUNT(*),0) AS adoption\nFROM whodunit_commits GROUP BY wk),\n     m AS (SELECT DATE_FORMAT(cdc.finished_date, '%x-W%v') AS wk,\n       COUNT(DISTINCT cdc.cicd_deployment_id) AS metric\nFROM cicd_deployment_commits cdc\nJOIN project_mapping pm ON cdc.cicd_scope_id = pm.row_id AND pm.`table` = 'cicd_scopes'\nWHERE cdc.result='SUCCESS' AND cdc.environment='PRODUCTION' GROUP BY wk),\n     p AS (SELECT a.adoption x, m.metric y FROM a JOIN m ON a.wk = m.wk)\nSELECT CASE WHEN COUNT(*) < 10 THEN NULL\n            ELSE ROUND((COUNT(*)*SUM(x*y) - SUM(x)*SUM(y)) /\n                 NULLIF(SQRT((COUNT(*)*SUM(x*x) - POW(SUM(x),2)) *\n                             (COUNT(*)*SUM(y*y) - POW(SUM(y),2))), 0), 2)\n       END AS v\nFROM p"
+          "rawSql": "WITH b AS (SELECT repo_id,\n       MIN(CASE WHEN method <> 'undetermined' THEN committed_at END) AS first_attributed\nFROM whodunit_commits GROUP BY repo_id),\n     a AS (SELECT DATE_FORMAT(FROM_UNIXTIME(c.committed_at/1000000000), '%x-W%v') AS wk,\n       SUM(c.status='assisted')*100.0\n         /NULLIF(SUM(c.committed_at >= b.first_attributed),0) AS adoption\nFROM whodunit_commits c JOIN b ON b.repo_id=c.repo_id GROUP BY wk),\n     m AS (SELECT DATE_FORMAT(cdc.finished_date, '%x-W%v') AS wk,\n       COUNT(DISTINCT cdc.cicd_deployment_id) AS metric\nFROM cicd_deployment_commits cdc\nJOIN project_mapping pm ON cdc.cicd_scope_id = pm.row_id AND pm.`table` = 'cicd_scopes'\nWHERE cdc.result='SUCCESS' AND cdc.environment='PRODUCTION' GROUP BY wk),\n     p AS (SELECT a.adoption x, m.metric y FROM a JOIN m ON a.wk = m.wk)\nSELECT CASE WHEN COUNT(*) < 10 THEN NULL\n            ELSE ROUND((COUNT(*)*SUM(x*y) - SUM(x)*SUM(y)) /\n                 NULLIF(SQRT((COUNT(*)*SUM(x*x) - POW(SUM(x),2)) *\n                             (COUNT(*)*SUM(y*y) - POW(SUM(y),2))), 0), 2)\n       END AS v\nFROM p"
         }
       ],
       "fieldConfig": {
@@ -1405,7 +1405,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "WITH a AS (SELECT DATE_FORMAT(FROM_UNIXTIME(committed_at/1000000000), '%x-W%v') AS wk,\n       SUM(status='assisted')*100.0/NULLIF(COUNT(*),0) AS adoption\nFROM whodunit_commits GROUP BY wk),\n     m AS (SELECT DATE_FORMAT(cdc.finished_date, '%x-W%v') AS wk,\n       COUNT(DISTINCT cdc.cicd_deployment_id) AS metric\nFROM cicd_deployment_commits cdc\nJOIN project_mapping pm ON cdc.cicd_scope_id = pm.row_id AND pm.`table` = 'cicd_scopes'\nWHERE cdc.result='SUCCESS' AND cdc.environment='PRODUCTION' GROUP BY wk)\nSELECT COUNT(*) AS v FROM a JOIN m ON a.wk = m.wk"
+          "rawSql": "WITH b AS (SELECT repo_id,\n       MIN(CASE WHEN method <> 'undetermined' THEN committed_at END) AS first_attributed\nFROM whodunit_commits GROUP BY repo_id),\n     a AS (SELECT DATE_FORMAT(FROM_UNIXTIME(c.committed_at/1000000000), '%x-W%v') AS wk,\n       SUM(c.status='assisted')*100.0\n         /NULLIF(SUM(c.committed_at >= b.first_attributed),0) AS adoption\nFROM whodunit_commits c JOIN b ON b.repo_id=c.repo_id GROUP BY wk),\n     m AS (SELECT DATE_FORMAT(cdc.finished_date, '%x-W%v') AS wk,\n       COUNT(DISTINCT cdc.cicd_deployment_id) AS metric\nFROM cicd_deployment_commits cdc\nJOIN project_mapping pm ON cdc.cicd_scope_id = pm.row_id AND pm.`table` = 'cicd_scopes'\nWHERE cdc.result='SUCCESS' AND cdc.environment='PRODUCTION' GROUP BY wk)\nSELECT COUNT(*) AS v FROM a JOIN m ON a.wk = m.wk"
         }
       ],
       "fieldConfig": {
@@ -1455,7 +1455,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "WITH a AS (SELECT DATE_FORMAT(FROM_UNIXTIME(committed_at/1000000000), '%x-W%v') AS wk,\n       SUM(status='assisted')*100.0/NULLIF(COUNT(*),0) AS adoption\nFROM whodunit_commits GROUP BY wk),\n     m AS (SELECT DATE_FORMAT(cdc.finished_date, '%x-W%v') AS wk,\n       SUM(cdc.result='FAILURE')*100.0/NULLIF(COUNT(*),0) AS metric\nFROM cicd_deployment_commits cdc\nJOIN project_mapping pm ON cdc.cicd_scope_id = pm.row_id AND pm.`table` = 'cicd_scopes'\nWHERE cdc.environment='PRODUCTION' GROUP BY wk),\n     p AS (SELECT a.adoption x, m.metric y FROM a JOIN m ON a.wk = m.wk)\nSELECT CASE WHEN COUNT(*) < 10 THEN NULL\n            ELSE ROUND((COUNT(*)*SUM(x*y) - SUM(x)*SUM(y)) /\n                 NULLIF(SQRT((COUNT(*)*SUM(x*x) - POW(SUM(x),2)) *\n                             (COUNT(*)*SUM(y*y) - POW(SUM(y),2))), 0), 2)\n       END AS v\nFROM p"
+          "rawSql": "WITH b AS (SELECT repo_id,\n       MIN(CASE WHEN method <> 'undetermined' THEN committed_at END) AS first_attributed\nFROM whodunit_commits GROUP BY repo_id),\n     a AS (SELECT DATE_FORMAT(FROM_UNIXTIME(c.committed_at/1000000000), '%x-W%v') AS wk,\n       SUM(c.status='assisted')*100.0\n         /NULLIF(SUM(c.committed_at >= b.first_attributed),0) AS adoption\nFROM whodunit_commits c JOIN b ON b.repo_id=c.repo_id GROUP BY wk),\n     m AS (SELECT DATE_FORMAT(cdc.finished_date, '%x-W%v') AS wk,\n       SUM(cdc.result='FAILURE')*100.0/NULLIF(COUNT(*),0) AS metric\nFROM cicd_deployment_commits cdc\nJOIN project_mapping pm ON cdc.cicd_scope_id = pm.row_id AND pm.`table` = 'cicd_scopes'\nWHERE cdc.environment='PRODUCTION' GROUP BY wk),\n     p AS (SELECT a.adoption x, m.metric y FROM a JOIN m ON a.wk = m.wk)\nSELECT CASE WHEN COUNT(*) < 10 THEN NULL\n            ELSE ROUND((COUNT(*)*SUM(x*y) - SUM(x)*SUM(y)) /\n                 NULLIF(SQRT((COUNT(*)*SUM(x*x) - POW(SUM(x),2)) *\n                             (COUNT(*)*SUM(y*y) - POW(SUM(y),2))), 0), 2)\n       END AS v\nFROM p"
         }
       ],
       "fieldConfig": {
@@ -1501,7 +1501,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "WITH a AS (SELECT DATE_FORMAT(FROM_UNIXTIME(committed_at/1000000000), '%x-W%v') AS wk,\n       SUM(status='assisted')*100.0/NULLIF(COUNT(*),0) AS adoption\nFROM whodunit_commits GROUP BY wk),\n     m AS (SELECT DATE_FORMAT(cdc.finished_date, '%x-W%v') AS wk,\n       SUM(cdc.result='FAILURE')*100.0/NULLIF(COUNT(*),0) AS metric\nFROM cicd_deployment_commits cdc\nJOIN project_mapping pm ON cdc.cicd_scope_id = pm.row_id AND pm.`table` = 'cicd_scopes'\nWHERE cdc.environment='PRODUCTION' GROUP BY wk)\nSELECT COUNT(*) AS v FROM a JOIN m ON a.wk = m.wk"
+          "rawSql": "WITH b AS (SELECT repo_id,\n       MIN(CASE WHEN method <> 'undetermined' THEN committed_at END) AS first_attributed\nFROM whodunit_commits GROUP BY repo_id),\n     a AS (SELECT DATE_FORMAT(FROM_UNIXTIME(c.committed_at/1000000000), '%x-W%v') AS wk,\n       SUM(c.status='assisted')*100.0\n         /NULLIF(SUM(c.committed_at >= b.first_attributed),0) AS adoption\nFROM whodunit_commits c JOIN b ON b.repo_id=c.repo_id GROUP BY wk),\n     m AS (SELECT DATE_FORMAT(cdc.finished_date, '%x-W%v') AS wk,\n       SUM(cdc.result='FAILURE')*100.0/NULLIF(COUNT(*),0) AS metric\nFROM cicd_deployment_commits cdc\nJOIN project_mapping pm ON cdc.cicd_scope_id = pm.row_id AND pm.`table` = 'cicd_scopes'\nWHERE cdc.environment='PRODUCTION' GROUP BY wk)\nSELECT COUNT(*) AS v FROM a JOIN m ON a.wk = m.wk"
         }
       ],
       "fieldConfig": {
@@ -1551,7 +1551,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "WITH a AS (SELECT DATE_FORMAT(FROM_UNIXTIME(committed_at/1000000000), '%x-W%v') AS wk,\n       SUM(status='assisted')*100.0/NULLIF(COUNT(*),0) AS adoption\nFROM whodunit_commits GROUP BY wk),\n     m AS (SELECT DATE_FORMAT(pr_merged_date, '%x-W%v') AS wk,\n       AVG(pr_cycle_time)/60.0 AS metric\nFROM project_pr_metrics WHERE pr_cycle_time IS NOT NULL GROUP BY wk),\n     p AS (SELECT a.adoption x, m.metric y FROM a JOIN m ON a.wk = m.wk)\nSELECT CASE WHEN COUNT(*) < 10 THEN NULL\n            ELSE ROUND((COUNT(*)*SUM(x*y) - SUM(x)*SUM(y)) /\n                 NULLIF(SQRT((COUNT(*)*SUM(x*x) - POW(SUM(x),2)) *\n                             (COUNT(*)*SUM(y*y) - POW(SUM(y),2))), 0), 2)\n       END AS v\nFROM p"
+          "rawSql": "WITH b AS (SELECT repo_id,\n       MIN(CASE WHEN method <> 'undetermined' THEN committed_at END) AS first_attributed\nFROM whodunit_commits GROUP BY repo_id),\n     a AS (SELECT DATE_FORMAT(FROM_UNIXTIME(c.committed_at/1000000000), '%x-W%v') AS wk,\n       SUM(c.status='assisted')*100.0\n         /NULLIF(SUM(c.committed_at >= b.first_attributed),0) AS adoption\nFROM whodunit_commits c JOIN b ON b.repo_id=c.repo_id GROUP BY wk),\n     m AS (SELECT DATE_FORMAT(pr_merged_date, '%x-W%v') AS wk,\n       AVG(pr_cycle_time)/60.0 AS metric\nFROM project_pr_metrics WHERE pr_cycle_time IS NOT NULL GROUP BY wk),\n     p AS (SELECT a.adoption x, m.metric y FROM a JOIN m ON a.wk = m.wk)\nSELECT CASE WHEN COUNT(*) < 10 THEN NULL\n            ELSE ROUND((COUNT(*)*SUM(x*y) - SUM(x)*SUM(y)) /\n                 NULLIF(SQRT((COUNT(*)*SUM(x*x) - POW(SUM(x),2)) *\n                             (COUNT(*)*SUM(y*y) - POW(SUM(y),2))), 0), 2)\n       END AS v\nFROM p"
         }
       ],
       "fieldConfig": {
@@ -1597,7 +1597,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "WITH a AS (SELECT DATE_FORMAT(FROM_UNIXTIME(committed_at/1000000000), '%x-W%v') AS wk,\n       SUM(status='assisted')*100.0/NULLIF(COUNT(*),0) AS adoption\nFROM whodunit_commits GROUP BY wk),\n     m AS (SELECT DATE_FORMAT(pr_merged_date, '%x-W%v') AS wk,\n       AVG(pr_cycle_time)/60.0 AS metric\nFROM project_pr_metrics WHERE pr_cycle_time IS NOT NULL GROUP BY wk)\nSELECT COUNT(*) AS v FROM a JOIN m ON a.wk = m.wk"
+          "rawSql": "WITH b AS (SELECT repo_id,\n       MIN(CASE WHEN method <> 'undetermined' THEN committed_at END) AS first_attributed\nFROM whodunit_commits GROUP BY repo_id),\n     a AS (SELECT DATE_FORMAT(FROM_UNIXTIME(c.committed_at/1000000000), '%x-W%v') AS wk,\n       SUM(c.status='assisted')*100.0\n         /NULLIF(SUM(c.committed_at >= b.first_attributed),0) AS adoption\nFROM whodunit_commits c JOIN b ON b.repo_id=c.repo_id GROUP BY wk),\n     m AS (SELECT DATE_FORMAT(pr_merged_date, '%x-W%v') AS wk,\n       AVG(pr_cycle_time)/60.0 AS metric\nFROM project_pr_metrics WHERE pr_cycle_time IS NOT NULL GROUP BY wk)\nSELECT COUNT(*) AS v FROM a JOIN m ON a.wk = m.wk"
         }
       ],
       "fieldConfig": {
