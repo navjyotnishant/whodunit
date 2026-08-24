@@ -400,7 +400,7 @@
       ],
       "fieldConfig": {
         "defaults": {
-          "noValue": "no PRs with both states in range",
+          "noValue": "no commits cite this board’s issue keys",
           "color": {
             "mode": "continuous-GrYlRd"
           },

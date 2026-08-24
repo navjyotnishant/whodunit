@@ -1571,7 +1571,7 @@
       "type": "text",
       "title": "What this row compares",
       "gridPos": {
-        "h": 2,
+        "h": 4,
         "w": 24,
         "x": 0,
         "y": 53
@@ -1586,10 +1586,10 @@
       "title": "Why this is not a productivity percentage",
       "type": "text",
       "gridPos": {
-        "h": 3,
+        "h": 7,
         "w": 24,
         "x": 0,
-        "y": 56
+        "y": 57
       },
       "options": {
         "mode": "markdown",
@@ -1601,14 +1601,14 @@
       "type": "text",
       "title": "Reading the correlations",
       "gridPos": {
-        "h": 2,
+        "h": 5,
         "w": 24,
         "x": 0,
-        "y": 60
+        "y": 64
       },
       "options": {
         "mode": "markdown",
-        "content": "**Reading the correlations.** Each chart plots adoption against a delivery outcome over the same weeks; `r` is the correlation coefficient (`+1` rise together, `-1` opposite, `0` no linear relationship). **Withheld below 10 overlapping weeks** — three points can produce `r = 0.99` by coincidence. **Correlation is not causation** even at high `n`."
+        "content": "Each chart plots adoption against a delivery outcome over the same weeks; `r` is the correlation coefficient (`+1` rise together, `-1` opposite, `0` no linear relationship). **Withheld below 10 overlapping weeks** — three points can produce `r = 0.99` by coincidence. **Correlation is not causation** even at high `n`."
       }
     }
   ],

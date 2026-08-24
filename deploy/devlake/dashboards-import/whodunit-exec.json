@@ -371,7 +371,7 @@
               }
             ]
           },
-          "noValue": "n/a — under 10 issues either side",
+          "noValue": "no commits cite this board’s issue keys",
           "decimals": 1
         }
       },
@@ -422,7 +422,7 @@
               }
             ]
           },
-          "noValue": "n/a — under 10 issues either side",
+          "noValue": "no commits cite this board’s issue keys",
           "decimals": 1
         }
       },
@@ -481,7 +481,7 @@
               }
             ]
           },
-          "noValue": "n/a — under 10 issues either side",
+          "noValue": "no commits cite this board’s issue keys",
           "decimals": 1
         }
       },
@@ -731,7 +731,7 @@
             "mode": "fixed",
             "fixedColor": "#25c2a0"
           },
-          "noValue": "No issues closed on this board in the selected range"
+          "noValue": "no commits cite this board’s issue keys"
         },
         "overrides": [
           {
@@ -902,7 +902,8 @@
               "mode": "normal"
             },
             "axisLabel": ""
-          }
+          },
+          "noValue": "no commits cite this board’s issue keys"
         }
       },
       "description": "Issues resolved per period, split by whether a linked commit carried agent attribution. The AI-assisted series is absent, not zero, for periods with none: before whodunit was installed no issue can link to an assisted commit, and a zero there would read as evidence AI was not used.",
