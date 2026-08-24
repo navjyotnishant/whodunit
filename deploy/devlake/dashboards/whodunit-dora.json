@@ -166,12 +166,12 @@
             "lineWidth": 2,
             "fillOpacity": 15,
             "spanNulls": false,
-            "pointSize": 5,
+            "pointSize": 6,
             "showPoints": "always"
           }
         }
       },
-      "description": "Share of commits carrying agent attribution, by agent. Before a repository's first attributed commit the series is absent, not zero: whodunit was not installed, so AI use in that period is unknown rather than absent. A zero after that boundary is a real zero."
+      "description": "Share of commits carrying agent attribution, by agent. Each point is a day that agent was active; the line connects consecutive days only, so a break means the agent was not used rather than that data is missing. Before a repository's first attributed commit the series is absent entirely: whodunit was not installed, so AI use then is unknown, not zero. A zero after that point is a real zero."
     },
     {
       "id": 5,
