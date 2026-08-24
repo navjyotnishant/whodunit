@@ -34,8 +34,12 @@ difference between the two groups may be measuring which work was chosen,
 not what the agent did.
 
 The tool reports cost and cycle time per delivered unit of work, with the
-denominators visible, and refuses to collapse that into a percentage. See
-[What the numbers mean](reference/what-the-numbers-mean).
+denominators visible, and refuses to collapse that into a percentage.
+
+How that is computed — the formula, what each term resolves to, and what it
+deliberately will not claim — is on
+[How this measures AI's effect](measuring-ai-impact). The shorter list of
+things people misread is [What the numbers mean](reference/what-the-numbers-mean).
 
 **It is not surveillance.** It answers "which agent touched this code", not
 "who wrote this line". No prompt text, no keystrokes, no file contents are

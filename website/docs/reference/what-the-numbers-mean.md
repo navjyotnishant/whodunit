@@ -116,6 +116,12 @@ total.
 
 ## The productivity section reports a difference, not a gain
 
+> The full method — the formula, what each term resolves to, and why hours
+> and story points are excluded — is on
+> [How this measures AI's effect](../measuring-ai-impact). This section is
+> the short version.
+
+
 The delivery dashboard compares assisted against unassisted commits. It
 reports a **change-size difference** and refuses to call it a productivity
 gain.
