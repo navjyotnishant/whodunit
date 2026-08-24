@@ -117,6 +117,19 @@ func statusFor(w io.Writer, dir, label string) error {
 			c.S(termcolor.Muted, m.Explain()))
 	}
 
+	// Said here rather than left to the coverage figure, because the
+	// coverage figure cannot say it. Commits older than the first trailer
+	// were made before whodunit could observe anything, so they are not
+	// evidence that no agent was used - they are evidence of nothing
+	// (NAV-21). Someone reading 40% coverage would otherwise reasonably
+	// conclude the other 60% was written by hand.
+	if s.Unattributed > 0 {
+		fmt.Fprintf(w, "%s\n", c.S(termcolor.Muted, fmt.Sprintf(
+			"attribution began %s - %d older commit(s) predate it, "+
+				"so AI use before then is unknown, not absent",
+			s.FirstAttributed.Format("2006-01-02"), s.Unattributed)))
+	}
+
 	printSyncStatus(w, dir)
 	return nil
 }
@@ -516,6 +529,19 @@ type coverageStats struct {
 	Total       int
 	Covered     int
 	MethodCount map[spec.Method]int
+
+	// FirstAttributed is the date of the oldest commit in the scanned
+	// window that carries a trailer, and Unattributed counts the commits
+	// older than it.
+	//
+	// Both exist to answer a question the coverage figure cannot: a
+	// repository instrumented last week has months of commits that
+	// predate attribution, and those are not evidence that no agent was
+	// used. They are evidence of nothing, which is a different claim
+	// (NAV-21). Reporting the span makes the gap visible rather than
+	// leaving someone to read 40% coverage as 60% human-written.
+	FirstAttributed time.Time
+	Unattributed    int
 }
 
 func (s coverageStats) CoveragePct() float64 {
@@ -550,7 +576,10 @@ func methodSummary(s coverageStats) string {
 func scanRepo(dir string) (coverageStats, error) {
 	s := coverageStats{MethodCount: map[spec.Method]int{}}
 
-	cmd := exec.Command("git", "log", "-n", "100", "--format=%B%x00")
+	// Author date alongside the message: the boundary between "before
+	// attribution existed" and "after" is a date, and without it the
+	// unattributed span cannot be distinguished from genuine non-use.
+	cmd := exec.Command("git", "log", "-n", "100", "--format=%aI%x01%B%x00")
 	cmd.Dir = dir
 	out, err := cmd.Output()
 	if err != nil {
@@ -564,11 +593,16 @@ func scanRepo(dir string) (coverageStats, error) {
 	}
 
 	prefix := spec.TrailerKey + ":"
-	for _, commitMsg := range strings.Split(string(out), "\x00") {
-		commitMsg = strings.TrimSpace(commitMsg)
-		if commitMsg == "" {
+	for _, record := range strings.Split(string(out), "\x00") {
+		record = strings.TrimSpace(record)
+		if record == "" {
 			continue
 		}
+		when, commitMsg, ok := strings.Cut(record, "\x01")
+		if !ok {
+			continue
+		}
+		at, _ := time.Parse(time.RFC3339, strings.TrimSpace(when))
 		s.Total++
 
 		scanner := bufio.NewScanner(strings.NewReader(commitMsg))
@@ -583,7 +617,27 @@ func scanRepo(dir string) (coverageStats, error) {
 			}
 			s.Covered++
 			s.MethodCount[t.Method]++
+			// git log is newest-first, so the last trailer seen is the
+			// oldest one, which is where attribution began.
+			if !at.IsZero() {
+				s.FirstAttributed = at
+			}
 			break
+		}
+	}
+
+	// Counted after the scan rather than during it: the boundary is only
+	// known once the oldest trailer has been seen.
+	if !s.FirstAttributed.IsZero() {
+		for _, record := range strings.Split(string(out), "\x00") {
+			when, _, ok := strings.Cut(strings.TrimSpace(record), "\x01")
+			if !ok {
+				continue
+			}
+			if at, err := time.Parse(time.RFC3339, strings.TrimSpace(when)); err == nil &&
+				at.Before(s.FirstAttributed) {
+				s.Unattributed++
+			}
 		}
 	}
 	return s, nil
