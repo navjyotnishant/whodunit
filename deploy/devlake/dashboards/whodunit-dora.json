@@ -167,7 +167,8 @@
             "fillOpacity": 0,
             "spanNulls": false,
             "pointSize": 6,
-            "showPoints": "always"
+            "showPoints": "always",
+            "insertNulls": 129600000
           }
         }
       },
