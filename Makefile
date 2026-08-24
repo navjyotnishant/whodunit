@@ -74,6 +74,8 @@ dashboards:
 	@deploy/devlake/check-dashboard-list.py
 	@deploy/devlake/check-contributor-filter.py
 	@deploy/devlake/check-panel-descriptions.py
+	@deploy/devlake/check-issue-key-guard.py
+	@deploy/devlake/check-panel-results.py --if-available
 
 clean:
 	@rm -rf dist
