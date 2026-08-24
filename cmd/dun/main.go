@@ -47,6 +47,7 @@ func newRootCmd() *cobra.Command {
 	root.AddCommand(newBaselineCmd())
 	root.AddCommand(newDeltaCmd())
 	root.AddCommand(newReposCmd())
+	root.AddCommand(newIdentitiesCmd())
 	root.AddCommand(newSyncCmd())
 	root.AddCommand(newConfigCmd())
 	root.AddCommand(newVerifyCmd())
