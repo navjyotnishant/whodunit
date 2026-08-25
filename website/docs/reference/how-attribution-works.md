@@ -43,6 +43,11 @@ in between.
 reserved for agents whose stores cannot support file-level or line-level
 evidence.
 
+That tree decides *which* state a commit gets. What each state entitles you
+to claim — and the four distinct reasons a commit can end up with no state
+at all — is
+[What the numbers mean](what-the-numbers-mean#six-states-and-only-one-of-them-is-a-problem).
+
 ## Why hashes rather than commit SHAs
 
 Attribution is matched by **content hash, never by commit SHA**.
@@ -74,6 +79,10 @@ would silently turn an `intersected` commit into an `observed` one, so
 **Hooks never fail a commit.** A hook that blocks work because it could not
 attribute it would be uninstalled within a day, so every failure path exits
 zero and stamps `undetermined`.
+
+Which is why `undetermined` alone cannot tell you whether anything went
+wrong: a genuine failure and a commit nobody used an agent on both land
+there. `dun status` separates them under **why undetermined**.
 
 That silence is deliberate but not total — the errors are recorded:
 
