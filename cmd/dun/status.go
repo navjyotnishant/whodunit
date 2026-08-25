@@ -592,9 +592,9 @@ var methodDisplayOrder = []spec.Method{
 // to whatever follows. Not a confidence ladder: these are four unrelated
 // answers, and ordering them by severity is the only ordering that means
 // anything.
-var reasonDisplayOrder = []spec.Reason{
-	spec.ReasonUnassisted, spec.ReasonUnmatched,
-	spec.ReasonUninstrumented, spec.ReasonDegraded,
+var reasonDisplayOrder = []spec.Status{
+	spec.StatusUnassisted, spec.StatusUnmatched,
+	spec.StatusUninstrumented, spec.StatusDegraded,
 }
 
 // methodSummary renders the mix compactly, strongest evidence first, for a
@@ -746,13 +746,13 @@ func shortRepoName(path string) string {
 // A repository with no readable log returns nothing, and the caller
 // reports every commit as unclassified — which is honest, and visibly
 // different from claiming they were all human-written.
-func reasonCounts(dir string, s coverageStats) map[spec.Reason]int {
-	out := map[spec.Reason]int{}
+func reasonCounts(dir string, s coverageStats) map[spec.Status]int {
+	out := map[spec.Status]int{}
 
 	// Everything before the first trailer. Needs no log: whodunit was not
 	// installed, so its silence says nothing either way (NAV-21).
 	if s.Unattributed > 0 {
-		out[spec.ReasonUninstrumented] = s.Unattributed
+		out[spec.StatusUninstrumented] = s.Unattributed
 	}
 
 	home, err := config.Dir()
@@ -780,7 +780,7 @@ func reasonCounts(dir string, s coverageStats) map[spec.Reason]int {
 			continue
 		}
 		if e.Level == hooklog.LevelWarn {
-			out[spec.ReasonDegraded]++
+			out[spec.StatusDegraded]++
 			continue
 		}
 		if !strings.HasPrefix(e.Detail, "undetermined") {
@@ -788,9 +788,9 @@ func reasonCounts(dir string, s coverageStats) map[spec.Reason]int {
 		}
 		switch {
 		case strings.Contains(e.Detail, "no agent activity"):
-			out[spec.ReasonUnassisted]++
+			out[spec.StatusUnassisted]++
 		case agentLinesPresent(e.Detail):
-			out[spec.ReasonUnmatched]++
+			out[spec.StatusUnmatched]++
 		}
 	}
 
@@ -814,7 +814,7 @@ func agentLinesPresent(detail string) bool {
 	return err == nil && n > 0
 }
 
-func total(counts map[spec.Reason]int) int {
+func total(counts map[spec.Status]int) int {
 	n := 0
 	for _, v := range counts {
 		n += v

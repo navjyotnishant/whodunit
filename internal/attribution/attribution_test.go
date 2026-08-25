@@ -15,11 +15,47 @@ import (
 // ratio cannot be computed.
 var noStagedEvidence = StagedEvidence{}
 
-func TestDetermineUndeterminedWhenNoCoverage(t *testing.T) {
+// No journal at all, so nothing was watching these files and no agent
+// line exists anywhere: a human wrote it, and WHO-211 says so rather than
+// shrugging.
+func TestDetermineUnassistedWhenNothingWasSeen(t *testing.T) {
 	now := time.Now()
 	got := Determine(nil, []string{"main.go"}, nil, noStagedEvidence, now)
-	if got.Status != spec.StatusUndetermined {
-		t.Errorf("Determine() = %+v, want undetermined", got)
+	if got.Status != spec.StatusUnassisted {
+		t.Errorf("Determine() = %+v, want unassisted", got)
+	}
+	if got.Method != spec.MethodUndetermined {
+		t.Errorf("method = %s, want undetermined - there is no evidence to grade", got.Method)
+	}
+}
+
+// The distinction WHO-211 exists to draw. Same empty result, but an agent
+// WAS producing lines - just not in these files, which is what a
+// generated file looks like. Calling that "a human wrote it" would be
+// wrong in the direction that flatters nobody.
+func TestDetermineUnmatchedWhenAgentWorkedElsewhere(t *testing.T) {
+	now := time.Now()
+	agentLines := map[uint64]struct{}{linehash.Of("other.go", "x := 1"): {}}
+	got := Determine(nil, []string{"main.go"}, agentLines, noStagedEvidence, now)
+	if got.Status != spec.StatusUnmatched {
+		t.Errorf("Determine() = %+v, want unmatched", got)
+	}
+}
+
+// Neither of the two says an agent was attributed. This is the question
+// every coverage figure asks, and the negation it used to be written as
+// counted both of these as attributed the moment they existed.
+func TestNeitherUnassistedNorUnmatchedIsAttributed(t *testing.T) {
+	now := time.Now()
+	for _, got := range []spec.Trailer{
+		Determine(nil, []string{"main.go"}, nil, noStagedEvidence, now),
+		Determine(nil, []string{"main.go"},
+			map[uint64]struct{}{linehash.Of("other.go", "x := 1"): {}},
+			noStagedEvidence, now),
+	} {
+		if got.Status.Attributed() {
+			t.Errorf("%s must not count as attributed", got.Status)
+		}
 	}
 }
 

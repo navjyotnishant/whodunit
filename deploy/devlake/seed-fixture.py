@@ -96,8 +96,8 @@ def rows():
             f"VALUES ('{repo}', '{contributor}', '0.2', {T0})"
         )
 
-    # Repository A, all attributed: 6 commits, 4 assisted.
-    # Expected assisted share: 4/6 = 66.7%.
+    # Repository A: 7 commits, 4 assisted, 1 unassisted.
+    # Expected assisted share: 4/7.
     for i, (status, method, purpose, files) in enumerate([
         ("assisted", "intersected", "feature", 5),
         ("assisted", "intersected", "feature", 6),
@@ -105,6 +105,12 @@ def rows():
         ("assisted", "declared", "docs", 1),
         ("undetermined", "undetermined", "fix", 1),
         ("undetermined", "undetermined", "chore", 1),
+        # WHO-211. A commit the hooks watched and found no agent in - a
+        # human wrote it. Present so a query that computes "attributed"
+        # as "not undetermined" is caught: this row is neither, and
+        # counting it as attributed inflates coverage in the flattering
+        # direction on the two panels most likely to be shown to someone.
+        ("unassisted", "undetermined", "docs", 1),
     ]):
         stmts.append(
             "INSERT INTO whodunit_commits (commit_sha, repo_id, committed_at, status, "

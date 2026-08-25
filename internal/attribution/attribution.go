@@ -92,7 +92,26 @@ func Determine(entries []journal.Entry, stagedFiles []string, agentLineHashes ma
 	}
 
 	if len(relevant) == 0 {
-		return spec.Undetermined()
+		// No journal entry touched a staged file - but WHY decides which
+		// status this is, and the two answers demand opposite responses
+		// (WHO-211).
+		//
+		// Agent lines present means an agent was working, just not on
+		// these files: a generated file leaves no tool call naming it,
+		// and the honest answer is that nothing here is attributable to
+		// it. Nothing present means the tooling was watching and there
+		// was no agent at all, which is a positive finding - a human
+		// wrote this.
+		//
+		// The claim only holds because we got this far: entries were
+		// read, so the journal was readable. A caller that could not
+		// read it stamps Degraded instead and never reaches here, which
+		// is what keeps `unassisted` from being asserted on the mere
+		// absence of evidence (NAV-21).
+		if len(agentLineHashes) > 0 {
+			return spec.WithStatus(spec.StatusUnmatched)
+		}
+		return spec.WithStatus(spec.StatusUnassisted)
 	}
 
 	agent, version, session := relevant[0].Agent, relevant[0].AgentVersion, relevant[0].Session

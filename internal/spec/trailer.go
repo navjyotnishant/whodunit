@@ -18,72 +18,6 @@ const (
 	MethodIntersected  Method = "intersected"
 )
 
-// Reason says why a commit has no attribution method.
-//
-// A different axis from Method, not another rung on it. Method grades how
-// strongly the evidence supports a claim that an agent wrote something;
-// Reason explains why there is no such claim to grade. Every Reason
-// belongs to MethodUndetermined, and a commit with any other method has
-// none.
-//
-// The distinction is worth the extra type because the four answers demand
-// opposite responses. ReasonUnassisted is a finding: the tooling watched
-// and a human wrote the code. ReasonDegraded is a fault to fix.
-// ReasonUninstrumented is a gap in coverage. ReasonUnmatched is usually
-// correct behaviour - a generated file, or an agent working elsewhere.
-// Collapsing them into one word, as this project did until WHO-210, means
-// a fault and a finding are indistinguishable.
-type Reason string
-
-const (
-	// ReasonUninstrumented - the commit predates the hooks in this
-	// repository. Says nothing about whether an agent was involved
-	// (NAV-21): whodunit was not there to see.
-	ReasonUninstrumented Reason = "uninstrumented"
-
-	// ReasonUnmatched - an agent was active, but no journal entry touched
-	// any staged file. Often correct: a script that writes a file leaves
-	// no tool call naming it, and claiming those lines for the agent that
-	// ran the script would be a lie about who wrote them.
-	ReasonUnmatched Reason = "unmatched"
-
-	// ReasonDegraded - attribution itself failed: an unreadable journal,
-	// a failed ingest, unloadable config. The only reason here that is a
-	// fault, and the only one worth replaying.
-	ReasonDegraded Reason = "degraded"
-
-	// ReasonUnassisted - the hooks ran, the journal was readable, and no
-	// agent had been near this work. A human wrote it.
-	//
-	// The only positive claim in this type, and the one that must never
-	// be asserted loosely: it requires proof the tooling was watching,
-	// not merely the absence of evidence. Asserting it wrongly is the
-	// NAV-21 error in the direction that flatters the tool.
-	ReasonUnassisted Reason = "unassisted"
-)
-
-// Explain returns a plain-English gloss for a reason, on the same terms as
-// Method.Explain: written from the reader's side, saying what may be
-// concluded rather than what the collector did.
-//
-// Each gloss says whether the reason is a finding, a fault or a gap,
-// because the words alone do not. "unmatched" and "degraded" read as
-// equally wrong; one is usually correct behaviour and the other is a bug.
-func (r Reason) Explain() string {
-	switch r {
-	case ReasonUnassisted:
-		return "a human wrote this — the hooks were watching and saw no agent"
-	case ReasonUnmatched:
-		return "an agent was active, but touched none of these files"
-	case ReasonUninstrumented:
-		return "committed before the hooks existed, so AI use is unknown, not absent"
-	case ReasonDegraded:
-		return "attribution failed here — this is a fault, not a finding"
-	default:
-		return ""
-	}
-}
-
 // confidence ranks the methods so two candidate determinations can be
 // compared rather than resolved by whichever branch happened to run first.
 //
@@ -120,13 +54,83 @@ var validMethods = map[Method]bool{
 type Status string
 
 const (
-	StatusAssisted     Status = "assisted"
+	StatusAssisted Status = "assisted"
+
+	// StatusUndetermined is what v=1 stamped whenever no determination
+	// could be made, and it meant four different things at once. Kept
+	// because it is written into every commit made before v=2 and those
+	// trailers cannot be rewritten - but nothing emits it now.
 	StatusUndetermined Status = "undetermined"
+
+	// The four situations undetermined used to conflate (WHO-211). They
+	// demand opposite responses, which is the whole reason for splitting
+	// them: one is a finding, one is a fault, two are neither.
+
+	// StatusUnassisted - the hooks ran, the journal was readable, and no
+	// agent had been near this work. A human wrote it.
+	//
+	// The only positive claim here, and the only one that can be wrong in
+	// the direction that flatters the tool. It requires proof the tooling
+	// was watching, never merely the absence of evidence (NAV-21).
+	StatusUnassisted Status = "unassisted"
+
+	// StatusUnmatched - an agent was active, but no journal entry touched
+	// any staged file. Usually correct: a generated file has no tool call
+	// naming it, and claiming those lines for the agent that ran the
+	// generator would be a lie about who wrote them.
+	StatusUnmatched Status = "unmatched"
+
+	// StatusDegraded - attribution itself failed. The only status here
+	// that is a fault, and the only one worth replaying.
+	StatusDegraded Status = "degraded"
+
+	// StatusUninstrumented - the commit predates the hooks in this
+	// repository. Never stamped on a commit, since stamping requires the
+	// hooks that were absent; it exists so a reader can name the state.
+	StatusUninstrumented Status = "uninstrumented"
 )
 
 var validStatuses = map[Status]bool{
-	StatusAssisted:     true,
-	StatusUndetermined: true,
+	StatusAssisted:       true,
+	StatusUndetermined:   true,
+	StatusUnassisted:     true,
+	StatusUnmatched:      true,
+	StatusDegraded:       true,
+	StatusUninstrumented: true,
+}
+
+// Attributed reports whether this status means an agent was attributed.
+//
+// Written as a positive test rather than `!= StatusUndetermined`, which is
+// how the dashboards asked the same question until WHO-211. That negation
+// silently absorbed every status added after it: an unassisted commit
+// stopped being undetermined and started counting as attributed, inflating
+// coverage while rendering perfectly.
+func (s Status) Attributed() bool { return s == StatusAssisted }
+
+// Explain returns a plain-English gloss for a status, on the same terms as
+// Method.Explain: what a reader may conclude, not what the collector did.
+//
+// Each gloss says whether the status is a finding, a fault or a gap,
+// because the words do not. "unmatched" and "degraded" read as equally
+// wrong; one is usually correct behaviour and the other is a bug.
+func (s Status) Explain() string {
+	switch s {
+	case StatusAssisted:
+		return "an agent contributed to this commit"
+	case StatusUnassisted:
+		return "a human wrote this — the hooks were watching and saw no agent"
+	case StatusUnmatched:
+		return "an agent was active, but touched none of these files"
+	case StatusUninstrumented:
+		return "committed before the hooks existed, so AI use is unknown, not absent"
+	case StatusDegraded:
+		return "attribution failed here — this is a fault, not a finding"
+	case StatusUndetermined:
+		return "no evidence either way (pre-v2: reason not recorded)"
+	default:
+		return ""
+	}
 }
 
 // TrailerKey is the git trailer key this spec owns.
@@ -158,7 +162,19 @@ const TrailerKey = "AI-Attribution"
 // key does not — a parser that does not know `model=` keeps it in Extra
 // and is otherwise unaffected — and bumping for additions would make the
 // version uninformative about the thing it exists to signal.
-const Version = 1
+//
+// v=2 (WHO-211): `status=undetermined` changed meaning. In v=1 it covered
+// four unrelated situations — nobody used an agent, an agent was active
+// elsewhere, the hooks predated the commit, attribution failed — and a
+// reader could not tell which. v=2 names them, so a v=2 trailer that says
+// `undetermined` means the reason genuinely could not be determined,
+// while a v=1 trailer saying it means only that nothing was recorded.
+//
+// That is a change in meaning rather than an addition, which is exactly
+// what this constant exists to signal. Commits stamped under v=1 keep
+// their trailers; the version is how a reader knows which vocabulary it
+// is holding.
+const Version = 2
 
 // VersionKey is short deliberately. Trailers are read by humans on a
 // GitHub commit page and the line is already long; `v=1` costs four
@@ -214,8 +230,22 @@ func (t Trailer) SpecVersion() int {
 
 // Undetermined is the trailer stamped when no determination could be made.
 // Absence must never mean none (NAV-21): every commit gets a trailer.
+//
+// Deprecated for emission by WHO-211: it says nothing about why, which was
+// the whole problem. Use WithStatus with the status that fits. Kept for
+// readers of v=1 trailers, which carry this and cannot be rewritten.
 func Undetermined() Trailer {
 	return Trailer{Status: StatusUndetermined, Method: MethodUndetermined}
+}
+
+// WithStatus is the trailer stamped when no agent was attributed, carrying
+// the reason it was not.
+//
+// Method stays undetermined throughout: these statuses say why there is no
+// evidence, and grading the strength of evidence that does not exist would
+// be a category error.
+func WithStatus(s Status) Trailer {
+	return Trailer{Status: s, Method: MethodUndetermined}
 }
 
 // Format renders a Trailer as "AI-Attribution: key=value; key=value".

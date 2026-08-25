@@ -244,20 +244,39 @@ func TestUnknownMethodRanksBelowEverything(t *testing.T) {
 	}
 }
 
-// Every reason has to explain itself, for the same argument that applies
+// Every status has to explain itself, for the same argument that applies
 // to Method.Explain: the word alone is the thing the reader does not
-// understand. A reason with an empty gloss renders as a bare token in
-// `dun status`, which is the state WHO-210 set out to fix.
-func TestEveryReasonExplainsItself(t *testing.T) {
-	for _, r := range []Reason{
-		ReasonUnassisted, ReasonUnmatched, ReasonUninstrumented, ReasonDegraded,
+// understand. A status with an empty gloss renders as a bare token in
+// `dun status`, which is the state WHO-211 set out to fix.
+func TestEveryStatusExplainsItself(t *testing.T) {
+	for _, st := range []Status{
+		StatusAssisted, StatusUnassisted, StatusUnmatched,
+		StatusUninstrumented, StatusDegraded, StatusUndetermined,
 	} {
-		if Reason(r).Explain() == "" {
-			t.Errorf("%s has no explanation", r)
+		if st.Explain() == "" {
+			t.Errorf("%s has no explanation", st)
 		}
 	}
-	if Reason("something-new").Explain() != "" {
-		t.Error("an unknown reason must not borrow another's explanation")
+	if Status("something-new").Explain() != "" {
+		t.Error("an unknown status must not borrow another's explanation")
+	}
+}
+
+// The question every coverage figure asks. Answered positively, because
+// the negation - anything that is not undetermined - counted unassisted
+// commits as attributed the moment the status existed, and did it while
+// rendering a plausible number.
+func TestOnlyAssistedCountsAsAttributed(t *testing.T) {
+	if !StatusAssisted.Attributed() {
+		t.Error("assisted must count as attributed")
+	}
+	for _, st := range []Status{
+		StatusUnassisted, StatusUnmatched, StatusUninstrumented,
+		StatusDegraded, StatusUndetermined,
+	} {
+		if st.Attributed() {
+			t.Errorf("%s must not count as attributed", st)
+		}
 	}
 }
 
@@ -265,8 +284,8 @@ func TestEveryReasonExplainsItself(t *testing.T) {
 // someone should fix and a finding they should trust are the pair most
 // costly to confuse, and this project confused them for twelve days.
 func TestFaultAndFindingReadDifferently(t *testing.T) {
-	fault := ReasonDegraded.Explain()
-	finding := ReasonUnassisted.Explain()
+	fault := StatusDegraded.Explain()
+	finding := StatusUnassisted.Explain()
 	if !strings.Contains(fault, "fault") {
 		t.Errorf("degraded must say it is a fault, got %q", fault)
 	}
@@ -278,7 +297,7 @@ func TestFaultAndFindingReadDifferently(t *testing.T) {
 // uninstrumented is the NAV-21 case: it must never read as "no AI was
 // used", only as "we were not there to see".
 func TestUninstrumentedDoesNotClaimAbsence(t *testing.T) {
-	e := ReasonUninstrumented.Explain()
+	e := StatusUninstrumented.Explain()
 	if !strings.Contains(e, "unknown") {
 		t.Errorf("uninstrumented must say unknown rather than absent, got %q", e)
 	}

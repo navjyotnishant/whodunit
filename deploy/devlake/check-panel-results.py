@@ -47,8 +47,8 @@ BOB = "bob@example.com"
 # broke rather than only that a number changed. seed-fixture.py is the
 # source of these; if the two disagree the fixture has drifted.
 EXPECTED = {
-    "commits_total": 11,
-    "commits_shared_repo": 6,
+    "commits_total": 12,
+    "commits_shared_repo": 7,
     "assisted_shared_repo": 4,
     "contributors": 2,
 }
@@ -100,6 +100,29 @@ def substitute(sql: str, contributor: str) -> str:
     return sql
 
 
+def unattributed_set_violations() -> list[str]:
+    """Panels that ask "was this attributed" by negating one status.
+
+    `status <> 'undetermined'` was correct while undetermined was the only
+    unattributed status. WHO-211 adds three more, and a negation silently
+    absorbs every one of them - an `unassisted` commit stops being
+    undetermined and starts counting as attributed, which inflates
+    coverage and renders perfectly.
+
+    The failure is invisible in the panel and flattering in direction, so
+    it is caught here in the source rather than by anyone noticing.
+    """
+    bad = []
+    for path in sorted(Path(__file__).parent.glob("dashboards/*.json")):
+        panels = json.loads(path.read_text()).get("panels", [])
+        for p in panels:
+            for t in p.get("targets") or []:
+                sql = t.get("rawSql", "")
+                if re.search(r"status\s*(<>|!=|=)\s*'undetermined'", sql):
+                    bad.append(f"{path.name} :: {p.get('title','?')}")
+    return bad
+
+
 def contributor_filter_cases() -> list[tuple[str, str, callable]]:
     """The assertions that encode what has actually gone wrong before."""
     return [
@@ -132,7 +155,22 @@ def contributor_filter_cases() -> list[tuple[str, str, callable]]:
             "JOIN (SELECT repo_id, MIN(CASE WHEN method<>'undetermined' "
             "THEN committed_at END) AS fa FROM whodunit_commits GROUP BY repo_id) b "
             "ON b.repo_id=c.repo_id WHERE c.committed_at >= b.fa",
-            lambda r: int(r[0][0]) == 8,  # 11 total minus 3 pre-attribution
+            lambda r: int(r[0][0]) == 9,  # 12 total minus 3 pre-attribution
+        ),
+        (
+            # WHO-211. Coverage and Penetration compute "attributed" as
+            # `status <> 'undetermined'`, which silently absorbs any new
+            # status. An `unassisted` commit is NOT attributed - nothing
+            # was attributed to an agent - so counting it as such inflates
+            # coverage, renders fine, and errs in the flattering direction.
+            #
+            # Written against the intended set rather than the negation,
+            # so it stays correct as statuses are added.
+            "unassisted is not counted as attributed",
+            "SELECT SUM(status='assisted'), SUM(status NOT IN "
+            "('undetermined','unassisted','unmatched','degraded')) "
+            "FROM whodunit_commits",
+            lambda r: int(r[0][0]) == int(r[0][1]),
         ),
         (
             # NAV-21 at the query layer: a session with no tokens must not
@@ -231,6 +269,14 @@ def main() -> int:
                     failures.append(msg)
                     print(f"  FAIL  {msg}")
     print(f"  {checked} panel queries, {errors} error(s)")
+
+    print("\nchecking how panels ask whether a commit was attributed")
+    violations = unattributed_set_violations()
+    for v in violations:
+        failures.append(f"{v}: compares status against 'undetermined' directly")
+        print(f"  FAIL  {v} - use the unattributed set, not a single status")
+    if not violations:
+        print("  ok    no panel negates a single status")
 
     if failures:
         print(f"\n{len(failures)} failure(s)")

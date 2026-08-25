@@ -206,7 +206,16 @@ func CommitRowsFrom(commits []report.Commit, repoID string, syncedAt time.Time) 
 			CommitSHA:     c.SHA,
 			RepoID:        repoID,
 			CommittedAt:   c.Timestamp,
-			Status:        string(spec.StatusUndetermined),
+			// No trailer at all, which means the hooks were not
+			// running when this was committed - the commit predates
+			// instrumentation, or was made somewhere without it
+			// (WHO-211). That is uninstrumented, not undetermined:
+			// undetermined would claim we looked and found nothing,
+			// when in fact nothing looked.
+			//
+			// Overwritten below whenever a trailer exists, so this
+			// default only ever describes commits that carry none.
+			Status:        string(spec.StatusUninstrumented),
 			Method:        string(spec.MethodUndetermined),
 			Purpose:       string(c.Purpose),
 			LinesAdded:    c.LinesAdded,
