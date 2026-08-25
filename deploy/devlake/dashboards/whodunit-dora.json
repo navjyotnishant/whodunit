@@ -524,12 +524,12 @@
         "w": 8,
         "h": 6
       },
-      "description": "The denominator behind the figure beside this: assisted against unassisted commits, counted only where **both** sides reach 20 — today `feature`, `fix` and `docs`.\n\n**A subset.** `chore`, `other`, `refactor`, `test` and `config` are excluded, so this is smaller than Evidence strength, which counts every commit.",
+      "description": "The denominator behind the figure beside this: assisted against unassisted commits, counted only where **both** sides reach 20 — today `feature`, `fix` and `docs`.\n\n**A subset.** `chore`, `other`, `refactor`, `test` and `config` are excluded, so this is smaller than Evidence strength, which counts every commit. The share is of these cohorts, not of all work.",
       "targets": [
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT SUM(c.status IN ('undetermined','unassisted','unmatched','degraded')) AS `unassisted commits`,\n       SUM(c.status='assisted') AS `assisted commits`\nFROM whodunit_commits c JOIN whodunit_repos r ON r.repo_id = c.repo_id\nWHERE c.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  AND ('${evidence:raw}' = '__all__' OR c.method = '${evidence:raw}')\n  AND ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}')\n  AND c.purpose IN (\n  SELECT purpose FROM (\n    SELECT c2.purpose FROM whodunit_commits c2 JOIN whodunit_repos r2 ON r2.repo_id = c2.repo_id\n    WHERE c2.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n      AND ('${contributor:raw}' = '__all__' OR r2.contributor = '${contributor:raw}')\n    GROUP BY c2.purpose\n    HAVING SUM(c2.status='assisted') >= 20 AND SUM(c2.status IN ('undetermined','unassisted','unmatched','degraded')) >= 20\n  ) eligible)"
+          "rawSql": "SELECT SUM(c.status IN ('undetermined','unassisted','unmatched','degraded')) AS `unassisted commits`,\n       SUM(c.status='assisted') AS `assisted commits`,\n       ROUND(100.0 * SUM(c.status='assisted')\n             / NULLIF(SUM(c.status='assisted') + SUM(c.status IN ('undetermined','unassisted','unmatched','degraded')), 0), 1)\n         AS `assisted share`\nFROM whodunit_commits c JOIN whodunit_repos r ON r.repo_id = c.repo_id\nWHERE c.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  AND ('${evidence:raw}' = '__all__' OR c.method = '${evidence:raw}')\n  AND ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}')\n  AND c.purpose IN (\n  SELECT purpose FROM (\n    SELECT c2.purpose FROM whodunit_commits c2 JOIN whodunit_repos r2 ON r2.repo_id = c2.repo_id\n    WHERE c2.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n      AND ('${contributor:raw}' = '__all__' OR r2.contributor = '${contributor:raw}')\n    GROUP BY c2.purpose\n    HAVING SUM(c2.status='assisted') >= 20 AND SUM(c2.status IN ('undetermined','unassisted','unmatched','degraded')) >= 20\n  ) eligible)"
         }
       ],
       "fieldConfig": {
@@ -549,7 +549,24 @@
             ]
           }
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "assisted share"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percent"
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              }
+            ]
+          }
+        ]
       },
       "options": {
         "graphMode": "none",
