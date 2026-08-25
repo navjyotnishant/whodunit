@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-08-25
+
 ### Added
 
 - **`dun replay` and a durable record of attributions that failed.** A determination that broke — an unreadable journal, a failed ingest — left nothing behind that a later run could act on. Failures now append to `~/.whodunit/log/replay.log`, which nothing rotates away, carrying the staged files and agent-line count a retry needs. `dun replay` lists what is outstanding; `--apply` re-runs each one against the journal as it stands now, which is the case worth retrying, since a transcript ingested after the commit was made carries hashes that were not available at the time. Commits keep their original trailers either way — git history is never rewritten — and a resolved failure is cancelled by appending, so the record of what went wrong survives being fixed.
@@ -154,7 +156,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Initial release.
 
-[Unreleased]: https://github.com/navjyotnishant/whodunit/compare/v0.3.1...HEAD
+[Unreleased]: https://github.com/navjyotnishant/whodunit/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/navjyotnishant/whodunit/compare/v0.3.1...v0.4.0
 [0.3.1]: https://github.com/navjyotnishant/whodunit/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/navjyotnishant/whodunit/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/navjyotnishant/whodunit/compare/v0.1.0...v0.2.0

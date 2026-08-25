@@ -404,7 +404,7 @@
     },
     {
       "id": 200,
-      "title": "Output volume, assisted vs not",
+      "title": "Commit size, assisted vs unassisted",
       "type": "stat",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
@@ -413,19 +413,18 @@
         "w": 8,
         "h": 6
       },
-      "description": "Mean lines changed per assisted commit against unassisted ones, within purposes where both sides have 20+ commits — so `feature` is not measured against `docs`. See the cohort sizes beside this.\n\n**Volume, not productivity.** Larger may mean more work delivered, or more code for the same result. Not colour-coded: green for positive would assert that bigger is better.",
+      "description": "Mean lines changed per assisted commit divided by the same for unassisted ones, within purposes where both sides have 20+ commits — so `feature` is not measured against `docs`. **1.3x means assisted commits are about a third larger**; the two averages it came from are beside it.\n\n**Size, not productivity.** Larger may mean more work delivered, or more code for the same result. Not colour-coded: green for bigger would assert an answer nobody has earned.",
       "targets": [
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT ROUND(\n  100.0 * (\n    AVG(CASE WHEN c.status='assisted' THEN c.lines_added + c.lines_removed END)\n    - AVG(CASE WHEN c.status IN ('undetermined','unassisted','unmatched','degraded') THEN c.lines_added + c.lines_removed END)\n  ) / NULLIF(AVG(CASE WHEN c.status IN ('undetermined','unassisted','unmatched','degraded')\n                      THEN c.lines_added + c.lines_removed END), 0)\n, 0) AS v\nFROM whodunit_commits c JOIN whodunit_repos r ON r.repo_id = c.repo_id\nWHERE c.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  AND ('${evidence:raw}' = '__all__' OR c.method = '${evidence:raw}')\n  AND  ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}') AND c.purpose IN (\n  SELECT purpose FROM (\n    SELECT c2.purpose\n    FROM whodunit_commits c2 JOIN whodunit_repos r2 ON r2.repo_id = c2.repo_id\n    WHERE c2.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n      AND ('${contributor:raw}' = '__all__' OR r2.contributor = '${contributor:raw}')\n    GROUP BY c2.purpose\n    HAVING SUM(c2.status='assisted') >= 20\n       AND SUM(c2.status IN ('undetermined','unassisted','unmatched','degraded')) >= 20\n  ) eligible\n)"
+          "rawSql": "SELECT ROUND(\n  AVG(CASE WHEN c.status='assisted' THEN c.lines_added + c.lines_removed END)\n  / NULLIF(AVG(CASE WHEN c.status IN ('undetermined','unassisted','unmatched','degraded')\n                    THEN c.lines_added + c.lines_removed END), 0)\n, 2) AS `ratio`,\n       ROUND(AVG(CASE WHEN c.status='assisted'\n                      THEN c.lines_added + c.lines_removed END), 0) AS `assisted`,\n       ROUND(AVG(CASE WHEN c.status IN ('undetermined','unassisted','unmatched','degraded')\n                      THEN c.lines_added + c.lines_removed END), 0) AS `unassisted`\nFROM whodunit_commits c JOIN whodunit_repos r ON r.repo_id = c.repo_id\nWHERE c.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  AND ('${evidence:raw}' = '__all__' OR c.method = '${evidence:raw}')\n  AND  ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}') AND c.purpose IN (\n  SELECT purpose FROM (\n    SELECT c2.purpose\n    FROM whodunit_commits c2 JOIN whodunit_repos r2 ON r2.repo_id = c2.repo_id\n    WHERE c2.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n      AND ('${contributor:raw}' = '__all__' OR r2.contributor = '${contributor:raw}')\n    GROUP BY c2.purpose\n    HAVING SUM(c2.status='assisted') >= 20\n       AND SUM(c2.status IN ('undetermined','unassisted','unmatched','degraded')) >= 20\n  ) eligible\n)"
         }
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "percent",
-          "decimals": 0,
-          "noValue": "no purpose has 20+ commits on both sides",
+          "decimals": 2,
+          "noValue": "n/a",
           "color": {
             "mode": "fixed",
             "fixedColor": "text"
@@ -440,11 +439,64 @@
             ]
           }
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "assisted"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "short"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "unassisted"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "short"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "ratio"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "none"
+              },
+              {
+                "id": "decimals",
+                "value": 2
+              },
+              {
+                "id": "displayName",
+                "value": "times larger"
+              }
+            ]
+          }
+        ]
       },
       "options": {
         "graphMode": "none",
-        "textMode": "value",
+        "textMode": "value_and_name",
         "reduceOptions": {
           "calcs": [
             "lastNotNull"
