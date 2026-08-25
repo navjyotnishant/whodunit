@@ -213,6 +213,16 @@ func determineTrailer(message string) spec.Trailer {
 	if len(entries) == 0 {
 		logHook(hookPrepare, hooklog.LevelInfo, "determine",
 			fmt.Sprintf("no agent activity found in the last %d days", lookbackDays))
+		// No transcript from any agent, and the adapters were readable -
+		// the warns above fire when they are not. So the tooling was
+		// watching and there was nothing to see: a human wrote this
+		// (WHO-211).
+		//
+		// Only when nothing declared itself either. A declaration is
+		// evidence an agent was involved, and it outranks this.
+		if fromDeclaration.Status == spec.StatusUndetermined {
+			return spec.WithStatus(spec.StatusUnassisted)
+		}
 		return fromDeclaration
 	}
 

@@ -139,8 +139,29 @@ func statusFor(w io.Writer, dir, label string) error {
 	// worth fixing. The four reasons demand opposite responses, so the
 	// summary is useless without them.
 	if n := s.MethodCount[spec.MethodUndetermined]; n > 0 {
-		counts := reasonCounts(dir, s)
-		fmt.Fprintln(w, "why undetermined (estimated from the hook log):")
+		// v=2 trailers say why in the status itself. Only the v=1 ones,
+		// which recorded nothing, still need the hook-log estimate - so
+		// the heading says which of the two a reader is looking at.
+		// A v=2 trailer names its own reason; a v=1 one cannot, and the
+		// hook log is the only thing that can speak for it. Both kinds
+		// coexist in any repository instrumented before the change, so
+		// report what each can actually support rather than letting the
+		// weaker source decide for both.
+		counts := map[spec.Status]int{}
+		for _, st := range reasonDisplayOrder {
+			counts[st] = s.StatusCount[st]
+		}
+		heading := "why undetermined:"
+		if legacy := s.StatusCount[spec.StatusUndetermined]; legacy > 0 {
+			// Estimated only for the ones that carry no answer.
+			for st, n := range reasonCounts(dir, s) {
+				if counts[st] == 0 {
+					counts[st] = n
+				}
+			}
+			heading = "why undetermined (older commits estimated from the hook log):"
+		}
+		fmt.Fprintln(w, heading)
 		for _, r := range reasonDisplayOrder {
 			if counts[r] == 0 {
 				continue
@@ -561,6 +582,11 @@ type coverageStats struct {
 	Covered     int
 	MethodCount map[spec.Method]int
 
+	// StatusCount is what a v=2 trailer says about itself. Method grades
+	// evidence; status says whether there is any and why not, and since
+	// WHO-211 the reason is recorded rather than estimated afterwards.
+	StatusCount map[spec.Status]int
+
 	// FirstAttributed is the date of the oldest commit in the scanned
 	// window that carries a trailer, and Unattributed counts the commits
 	// older than it.
@@ -615,7 +641,7 @@ func methodSummary(s coverageStats) string {
 // scanRepo reads trailer coverage from a repository's recent commits. An
 // empty dir means the current working directory.
 func scanRepo(dir string) (coverageStats, error) {
-	s := coverageStats{MethodCount: map[spec.Method]int{}}
+	s := coverageStats{MethodCount: map[spec.Method]int{}, StatusCount: map[spec.Status]int{}}
 
 	// Author date alongside the message: the boundary between "before
 	// attribution existed" and "after" is a date, and without it the
@@ -658,6 +684,7 @@ func scanRepo(dir string) (coverageStats, error) {
 			}
 			s.Covered++
 			s.MethodCount[t.Method]++
+			s.StatusCount[t.Status]++
 			// git log is newest-first, so the last trailer seen is the
 			// oldest one, which is where attribution began.
 			if !at.IsZero() {

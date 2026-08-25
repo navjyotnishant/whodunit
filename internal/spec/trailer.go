@@ -245,7 +245,12 @@ func Undetermined() Trailer {
 // evidence, and grading the strength of evidence that does not exist would
 // be a category error.
 func WithStatus(s Status) Trailer {
-	return Trailer{Status: s, Method: MethodUndetermined}
+	// Stamped with the version being written, not left to
+	// SpecVersion's default. That default reads an absent version as 1,
+	// which is right for old trailers and wrong for new ones: a v=2
+	// vocabulary announcing itself as v=1 is exactly the ambiguity the
+	// version exists to prevent.
+	return Trailer{Status: s, Method: MethodUndetermined, SpecVer: Version}
 }
 
 // Format renders a Trailer as "AI-Attribution: key=value; key=value".

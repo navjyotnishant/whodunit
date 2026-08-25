@@ -169,6 +169,7 @@ func Determine(entries []journal.Entry, stagedFiles []string, agentLineHashes ma
 	}
 
 	trailer := spec.Trailer{
+		SpecVer: spec.Version,
 		Status:  spec.StatusAssisted,
 		Method:  method,
 		Agent:   agent,
@@ -211,10 +212,11 @@ func FromDeclaration(d *declared.Declaration) spec.Trailer {
 		return spec.Undetermined()
 	}
 	return spec.Trailer{
-		Status: spec.StatusAssisted,
-		Method: spec.MethodDeclared,
-		Agent:  d.Agent,
-		Extra:  map[string]string{},
+		SpecVer: spec.Version,
+		Status:  spec.StatusAssisted,
+		Method:  spec.MethodDeclared,
+		Agent:   d.Agent,
+		Extra:   map[string]string{},
 	}
 }
 
