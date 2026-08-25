@@ -27,6 +27,9 @@ sidebar_label: How attribution works
 
 ## How the confidence level is decided
 
+![Three stages: as the agent writes, each substantive line is hashed with SHA-256 together with its file path; at commit time the staged diff is hashed the same way; the two sets of hashes are intersected, and the overlap decides the method and the ratio.](/img/architecture/hashing-and-intersection.png)
+
+
 ```
 staged files match a recent session?
 ├── no  → was the agent producing lines at all?
@@ -40,6 +43,19 @@ staged files match a recent session?
 `observed` means the agent edited these files recently. `intersected` means
 the exact text it produced is what got staged — the text was not rewritten
 in between.
+
+### What happens when a line is edited
+
+One surviving line is enough for `intersected`. Editing some of the agent's
+lines lowers the ratio rather than changing the method, and only editing
+*every* line drops a commit to `observed`:
+
+![Four steps in sequence: the agent writes two lines and both match, giving intersected 2 of 2; a human edits one line, leaving intersected 1 of 2; a human edits both lines, leaving observed with no ratio; the agent rewrites them, returning to intersected 2 of 2.](/img/architecture/attribution-states-sequence.png)
+
+A line's hash covers its whole content after trimming whitespace, so
+reindenting keeps attribution while adding a word to the line does not. And
+when the agent rewrites a line a human changed, the new text is the agent's
+own, so the line counts again.
 
 The left branch is the part worth reading twice. Both outcomes produce no
 attribution, and they are not the same thing: `unassisted` is a finding —
