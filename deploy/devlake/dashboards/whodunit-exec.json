@@ -148,7 +148,7 @@
       "datasource": "${datasource}",
       "gridPos": {
         "h": 6,
-        "w": 4,
+        "w": 3,
         "x": 0,
         "y": 1
       },
@@ -201,103 +201,56 @@
     {
       "id": 904,
       "title": "Session depth · $repo",
-      "type": "piechart",
+      "type": "stat",
       "datasource": "${datasource}",
       "gridPos": {
         "h": 6,
-        "w": 4,
-        "x": 4,
+        "w": 7,
+        "x": 3,
         "y": 1
       },
       "targets": [
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT CASE\n         WHEN s.mcp_calls > 0 OR s.distinct_tools >= 5 OR s.tool_calls >= 50\n              THEN 'agentic'\n         WHEN s.tool_calls > 0 THEN 'edits'\n         ELSE 'chat only'\n       END AS `depth`,\n       COUNT(*) AS `sessions`\nFROM whodunit_sessions s\nJOIN whodunit_repos r ON r.repo_id = s.repo_id\nWHERE s.last_seen BETWEEN $__unixEpochFrom() * 1000000000\n                      AND $__unixEpochTo()   * 1000000000\n  AND ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}')\n  AND ('${repo:raw}' = '__all__' OR s.repo_id = '${repo:raw}')\nGROUP BY `depth`\nORDER BY `sessions` DESC"
+          "rawSql": "SELECT\n  SUM(s.tool_calls = 0) AS `chat only`,\n  SUM(s.tool_calls > 0 AND NOT (s.mcp_calls > 0 OR s.distinct_tools >= 5\n      OR s.tool_calls >= 50)) AS `edits`,\n  SUM(s.mcp_calls > 0 OR s.distinct_tools >= 5 OR s.tool_calls >= 50) AS `agentic`\nFROM whodunit_sessions s\nJOIN whodunit_repos r ON r.repo_id = s.repo_id\nWHERE s.last_seen BETWEEN $__unixEpochFrom() * 1000000000\n                      AND $__unixEpochTo()   * 1000000000\n  AND ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}')\n  AND ('${repo:raw}' = '__all__' OR s.repo_id = '${repo:raw}')"
         }
       ],
       "fieldConfig": {
         "defaults": {
           "unit": "short",
-          "noValue": "No sessions in range",
-          "custom": {
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            }
-          }
-        },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "agentic"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "#25c2a0"
-                }
-              }
-            ]
+          "decimals": 0,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
           },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "edits"
-            },
-            "properties": [
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
               {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "#7aa2f7"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "chat only"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "#8b95a5"
-                }
+                "color": "text",
+                "value": null
               }
             ]
           }
-        ]
+        },
+        "overrides": []
       },
-      "description": "Share of sessions by depth: **agentic** used MCP or many tools, **edits** changed files, **chat only** produced no edits at all.\n\nDepth rather than count — ten sessions that produced nothing and one that rewrote a subsystem are not the same adoption. A large grey slice means the tool is open but not doing the work.",
+      "description": "Sessions by how far they went: **chat only** made no tool calls, **edits** made some, **agentic** used MCP or ran 5+ distinct tools or 50+ calls.\n\nDepth is not value. A long agentic session and a one-question chat can both be exactly what the work needed.",
       "options": {
         "reduceOptions": {
           "calcs": [
             "lastNotNull"
           ],
           "fields": "",
-          "values": true
+          "values": false
         },
-        "pieType": "pie",
-        "displayLabels": [
-          "percent"
-        ],
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "mode": "single",
-          "sort": "none"
-        }
+        "orientation": "horizontal",
+        "textMode": "value_and_name",
+        "colorMode": "none",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "wideLayout": false
       }
     },
     {
@@ -307,8 +260,8 @@
       "datasource": "${datasource}",
       "gridPos": {
         "h": 6,
-        "w": 4,
-        "x": 8,
+        "w": 3,
+        "x": 10,
         "y": 1
       },
       "targets": [
@@ -850,7 +803,7 @@
       "title": "Median cycle · assisted issues",
       "datasource": "${datasource}",
       "gridPos": {
-        "x": 12,
+        "x": 13,
         "y": 1,
         "w": 4,
         "h": 6
@@ -901,7 +854,7 @@
       "title": "Median cycle · other issues",
       "datasource": "${datasource}",
       "gridPos": {
-        "x": 16,
+        "x": 17,
         "y": 1,
         "w": 4,
         "h": 6
@@ -952,9 +905,9 @@
       "title": "Cycle-time difference, assisted vs other",
       "datasource": "${datasource}",
       "gridPos": {
-        "x": 20,
+        "x": 21,
         "y": 1,
-        "w": 4,
+        "w": 3,
         "h": 6
       },
       "targets": [
