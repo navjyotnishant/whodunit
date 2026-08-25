@@ -517,7 +517,7 @@
         "w": 8,
         "h": 6
       },
-      "description": "The denominator behind the figure beside this: assisted against unassisted commits, counted only where **both** sides reach 20 — today `feature`, `fix` and `docs`.\n\n**A subset.** `chore`, `other`, `refactor`, `test` and `config` are excluded, so this is smaller than Evidence strength, which counts every commit. The share is of these cohorts, not of all work.",
+      "description": "The denominator behind the figure beside this: AI-assisted against not-AI-assisted commits, counted only where **both** sides reach 20 — today `feature`, `fix` and `docs`.\n\n**A subset, two ways.** Some types are excluded, and so are the four states meaning no evidence was available. Smaller than Evidence strength, which counts every commit.",
       "targets": [
         {
           "refId": "A",

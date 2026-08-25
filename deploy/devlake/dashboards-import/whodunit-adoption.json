@@ -308,7 +308,7 @@
     {
       "id": 907,
       "type": "stat",
-      "title": "Commits · assisted / total",
+      "title": "Commits · AI-assisted / total",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
         "h": 5,
@@ -625,7 +625,7 @@
     {
       "id": 905,
       "type": "stat",
-      "title": "Issues compared · assisted",
+      "title": "Issues compared · AI-assisted",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
         "h": 5,
@@ -675,7 +675,7 @@
     {
       "id": 906,
       "type": "stat",
-      "title": "Issues compared · not assisted",
+      "title": "Issues compared · not AI-assisted",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
         "h": 5,

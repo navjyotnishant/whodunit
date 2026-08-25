@@ -838,7 +838,7 @@
     {
       "id": 8,
       "type": "stat",
-      "title": "Median cycle · assisted issues",
+      "title": "Median cycle · AI-assisted issues",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
         "x": 13,
@@ -889,7 +889,7 @@
     {
       "id": 9,
       "type": "stat",
-      "title": "Median cycle · other issues",
+      "title": "Median cycle · not AI-assisted issues",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
         "x": 17,
@@ -940,7 +940,7 @@
     {
       "id": 12,
       "type": "stat",
-      "title": "Cycle-time difference, assisted vs other",
+      "title": "Cycle-time difference, AI-assisted vs not",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
         "x": 21,
