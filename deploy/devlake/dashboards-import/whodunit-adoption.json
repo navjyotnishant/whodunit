@@ -936,7 +936,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT r.contributor, COUNT(*) AS commits, SUM(c.status = 'assisted') AS assisted, ROUND(100.0 * SUM(c.status NOT IN ('undetermined','unassisted','unmatched','degraded')) / COUNT(*), 0) AS coverage_pct, ROUND(AVG(c.ratio), 2) AS avg_share, SUM(c.lines_added) AS lines_added FROM whodunit_commits c JOIN whodunit_repos r ON r.repo_id = c.repo_id WHERE ('${evidence:raw}' = '__all__' OR c.method = '${evidence:raw}')\n  AND  r.contributor <> '' AND c.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000 GROUP BY r.contributor ORDER BY commits DESC"
+          "rawSql": "SELECT r.contributor, COUNT(*) AS commits, SUM(c.status = 'assisted') AS assisted, ROUND(100.0 * SUM(c.status NOT IN ('undetermined','unassisted','unmatched','degraded','uninstrumented')) / COUNT(*), 0) AS coverage_pct, ROUND(AVG(c.ratio), 2) AS avg_share, SUM(c.lines_added) AS lines_added FROM whodunit_commits c JOIN whodunit_repos r ON r.repo_id = c.repo_id WHERE ('${evidence:raw}' = '__all__' OR c.method = '${evidence:raw}')\n  AND  r.contributor <> '' AND c.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000 GROUP BY r.contributor ORDER BY commits DESC"
         }
       ]
     },

@@ -60,7 +60,7 @@
     {
       "type": "stat",
       "title": "Coverage",
-      "description": "Share of commits carrying a valid AI-Attribution trailer. Everything else on this dashboard is computed over these commits only, so a low number here weakens every other panel.",
+      "description": "Share of commits in instrumented repositories that carry an AI-Attribution trailer of any kind, including the states meaning no evidence was available. **Coverage is not adoption** — a repository at 100% may have had no agent involvement at all. It says the instrumentation is working, nothing more.",
       "datasource": {
         "type": "mysql",
         "uid": "${datasource}"
@@ -111,14 +111,14 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT 100.0 * SUM(status NOT IN ('undetermined','unassisted','unmatched','degraded')) / NULLIF(COUNT(*), 0) AS coverage FROM whodunit_commits WHERE committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000"
+          "rawSql": "SELECT ROUND(100.0 * COUNT(DISTINCT w.commit_sha)\n                    / NULLIF(COUNT(DISTINCT c.sha), 0), 1) AS coverage\nFROM commits c\nJOIN repo_commits rc  ON rc.commit_sha  = c.sha\nJOIN repo_commits rc2 ON rc2.repo_id    = rc.repo_id\nJOIN whodunit_commits seen ON seen.commit_sha = rc2.commit_sha\nLEFT JOIN whodunit_commits w ON w.commit_sha = c.sha\nWHERE c.authored_date BETWEEN FROM_UNIXTIME($__unixEpochFrom())\n                          AND FROM_UNIXTIME($__unixEpochTo())"
         }
       ]
     },
     {
       "type": "stat",
       "title": "Penetration",
-      "description": "Share of DETERMINED commits that are AI-assisted. Undetermined commits are excluded from the denominator on purpose — including them would understate it, and reporting this without coverage overstates confidence.",
+      "description": "Share of commits with a real verdict that are AI-assisted. The denominator is `assisted` + `unassisted` + `unmatched` — all three mean the tool looked and reached an answer. `uninstrumented` and `undetermined` are excluded: it never looked, so counting them would understate this. Read it beside Coverage.",
       "datasource": {
         "type": "mysql",
         "uid": "${datasource}"
@@ -161,7 +161,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT 100.0 * SUM(status = 'assisted') / NULLIF(SUM(status NOT IN ('undetermined','unassisted','unmatched','degraded')), 0) AS penetration FROM whodunit_commits WHERE committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000"
+          "rawSql": "SELECT 100.0 * SUM(status = 'assisted')\n     / NULLIF(SUM(status IN ('assisted','unassisted','unmatched')), 0) AS penetration\n-- status-set-excludes: undetermined, uninstrumented, degraded\n--   the tool never reached a verdict on these, so counting them\n--   would understate the rate rather than complete it\nFROM whodunit_commits\nWHERE committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000"
         }
       ]
     },

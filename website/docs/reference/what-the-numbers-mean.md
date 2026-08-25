@@ -201,11 +201,26 @@ one or two of them.
 including `undetermined`. A repository at 100% coverage may have had no
 agent involvement whatsoever.
 
+The denominator is every commit in an instrumented repository, not every
+row in `whodunit_commits` — that table only exists for commits that were
+already trailered, so a ratio taken over it is always 100% and says
+nothing. A commit with no trailer is precisely what coverage is looking
+for, so it has to be counted from `commits`.
+
 **Adoption** is the share carrying `status=assisted`.
+
+**Penetration** is narrower than either: the share of commits *with a real
+verdict* that are assisted. `assisted`, `unassisted` and `unmatched` all
+mean the tool looked and reached an answer, so all three are in the
+denominator. `uninstrumented` and `undetermined` are not — it never
+looked, and counting a commit it never saw would understate the rate
+rather than complete it.
 
 They are different questions and the first is often mistaken for the
 second. Coverage says the instrumentation is working; adoption says the
-agents are being used.
+agents are being used; penetration says how much of what we could judge
+was assisted. A penetration figure quoted without its coverage overstates
+confidence, which is why the two sit side by side on the dashboard.
 
 ## A fix rate is not a defect rate
 
