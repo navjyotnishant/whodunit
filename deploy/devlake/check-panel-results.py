@@ -123,6 +123,48 @@ def unattributed_set_violations() -> list[str]:
     return bad
 
 
+def ambiguous_label_violations() -> list[str]:
+    """Series labels that mean different things in the same dashboard row.
+
+    Every labelling bug found on this dashboard was the same shape: two
+    panels side by side, both saying "assisted", one counting commits and
+    the other averaging lines per commit. Each read correctly alone and
+    contradicted its neighbour at a glance - 177 looked smaller than 307
+    until someone worked out they were different units.
+
+    Checked per row rather than per dashboard, because adjacency is what
+    makes it misleading. Parallel panels showing the SAME measure against
+    different outcomes share labels legitimately, so a clash only counts
+    when the panels' titles differ in what they measure.
+    """
+    bad = []
+    for path in sorted(Path(__file__).parent.glob("dashboards/*.json")):
+        dash = json.loads(path.read_text())
+        rows: dict = {}
+        for p in dash.get("panels", []):
+            if p.get("type") in ("row", "text"):
+                continue
+            labels = set()
+            for t in p.get("targets") or []:
+                labels |= set(re.findall(r'AS [`"]([^`"]+)[`"]', t.get("rawSql", "")))
+            rows.setdefault(p["gridPos"]["y"], []).append((p.get("title", "?"), labels))
+
+        for y, panels in rows.items():
+            if len(panels) < 2:
+                continue
+            seen: dict = {}
+            for title, labels in panels:
+                for l in labels:
+                    seen.setdefault(l.lower(), set()).add(title)
+            for label, titles in seen.items():
+                # A bare cohort word with no unit, in two panels that do
+                # not measure the same thing.
+                if label in ("assisted", "unassisted", "not assisted") and len(titles) > 1:
+                    bad.append(f"{path.name} row y={y}: '{label}' in "
+                               f"{sorted(titles)} - name the unit")
+    return bad
+
+
 def grain_comparison_violations() -> list[str]:
     """SQL that compares $grain against a value the variable cannot hold.
 
@@ -316,6 +358,14 @@ def main() -> int:
         print(f"  FAIL  {v}")
     if not grain_bad:
         print("  ok    every $grain comparison uses a real option value")
+
+    print("\nchecking that side-by-side panels do not reuse a bare cohort label")
+    label_bad = ambiguous_label_violations()
+    for v in label_bad:
+        failures.append(v)
+        print(f"  FAIL  {v}")
+    if not label_bad:
+        print("  ok    no row reuses 'assisted' across panels with different units")
 
     if failures:
         print(f"\n{len(failures)} failure(s)")

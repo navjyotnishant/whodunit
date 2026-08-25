@@ -764,7 +764,7 @@
     },
     {
       "id": 212,
-      "title": "Autonomy and what it produced",
+      "title": "Tool calls by permission mode",
       "type": "piechart",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
