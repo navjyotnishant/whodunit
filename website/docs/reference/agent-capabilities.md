@@ -87,6 +87,12 @@ spec has.
 | GitHub Copilot | `Agent-Logs-Url`, `Co-authored-by: Copilot` | `declared` |
 | Cursor | `Made-with: Cursor` | `declared` |
 
+The ceiling is the strongest state that agent can ever reach. A transcript
+agent can reach `intersected`; a declaring agent cannot, because there is no
+transcript to intersect against. The full ladder, and the four reasons a
+commit carries no state at all, are in
+[What the numbers mean](what-the-numbers-mean#six-states-and-only-one-of-them-is-a-problem).
+
 **What a declared-only agent cannot report**, and why an empty panel is not
 a zero:
 

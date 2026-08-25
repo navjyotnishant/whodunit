@@ -226,7 +226,7 @@
           "values": true
         }
       },
-      "description": "How each commit's attribution was established, strongest first: **intersected** (the agent's lines are in the diff), **observed** (it touched the file, text changed after), **declared** (stated, not measured).\n\nThe rest are reasons there is no evidence: **unassisted** a human wrote it, **unmatched** an agent was active elsewhere, **uninstrumented** predates the hooks so AI use is unknown rather than absent, **degraded** attribution failed.",
+      "description": "How each commit's attribution was established, strongest first: **intersected** (the agent's lines are in the diff), **observed** (touched the file, text changed after), **declared** (stated, not measured).\n\nThe rest say why there is no evidence — **unassisted** means a human wrote it, **uninstrumented** predates the hooks so AI use is unknown rather than absent, and **degraded** is a fault.\n\nFull definitions: docs → What the numbers mean.",
       "fieldConfig": {
         "defaults": {
           "color": {

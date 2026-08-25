@@ -28,6 +28,55 @@ This is why `status=undetermined` exists instead of a "no AI" value, why
 Antigravity is excluded from cost panels rather than shown at 0, and why
 `model=` is omitted rather than emitted as `unknown`.
 
+## Six states, and only one of them is a problem
+
+Every commit lands in exactly one of six states. Three say an agent wrote
+something and how well that is evidenced; three say why there is no such
+claim; one is a fault.
+
+The distinction people get wrong is treating the last four as a single grey
+"we don't know". They demand opposite responses.
+
+### The evidence, strongest first
+
+| State | What it means | What you may conclude |
+|---|---|---|
+| `intersected` | The agent's own lines are in the commit. Its produced lines were hashed as it wrote them, the staged diff was hashed the same way, and the two sets overlap. | The agent wrote this text. Not inference. |
+| `observed` | The agent edited these files, but its exact text is not what got committed. | It worked here. What shipped may be someone's rewrite of its output. |
+| `declared` | The trailer says so, and nothing verified it. Emitted by agents that announce themselves in the commit message rather than in a readable transcript. | An agent claimed this. Treat it as a claim. |
+
+`inferred` sits between `observed` and `declared` in the ladder and is
+currently emitted by nothing.
+
+**Why `declared` is the weakest rung** rather than the strongest: a
+self-applied trailer is a tool asserting something about itself. When VS
+Code made `Co-authored-by: Copilot` a default in 1.118, it appeared on
+commits where Copilot was disabled entirely, and the change was reverted
+within a month. A competitor grades that same signal as high confidence.
+
+### The reasons there is no evidence
+
+| State | What it means | What to do |
+|---|---|---|
+| `unassisted` | The hooks ran, the journal was readable, and no agent had been near this work. | Nothing. **A human wrote it** — this is a finding, not a gap. |
+| `unmatched` | An agent was active, but no journal entry touched any staged file. | Usually nothing. A generated file has no tool call naming it, and claiming those lines for the agent that ran the generator would be a lie about who wrote them. |
+| `uninstrumented` | The commit predates the hooks in this repository. | Nothing available. AI use here is **unknown, not absent**. |
+| `degraded` | Attribution itself failed — an unreadable journal, a failed ingest, unloadable config. | **Fix it.** The only state here that is a fault. |
+
+**`unassisted` is the claim no competitor can make.** A tool that infers
+authorship from coding style, or reads which developers hold a licence,
+cannot separate "no AI was used" from "we did not see it" — it has no
+ground truth to compare against. whodunit does, but only where it was
+demonstrably watching, which is why `unassisted` is asserted from proof the
+tooling was running rather than from the mere absence of evidence.
+
+Collapsing these four into one word means a fault and a finding look
+identical. On this project's own data, 760 commits read as a single
+`undetermined` bucket for twelve days; split, they were 658 uninstrumented,
+87 unmatched, 5 unassisted and 10 the record could not settle.
+
+`dun status` reports the split per repository under **why undetermined**.
+
 ## Zero before you installed is not zero
 
 A repository's commits are recorded from the moment `dun init` runs, but
