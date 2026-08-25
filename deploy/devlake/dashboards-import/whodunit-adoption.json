@@ -14,14 +14,6 @@
   "templating": {
     "list": [
       {
-        "name": "datasource",
-        "type": "datasource",
-        "query": "mysql",
-        "current": {},
-        "hide": 0,
-        "label": "Database"
-      },
-      {
         "name": "contributor",
         "type": "query",
         "datasource": "${DS_WHODUNIT}",

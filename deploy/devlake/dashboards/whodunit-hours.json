@@ -16,18 +16,6 @@
   "templating": {
     "list": [
       {
-        "name": "datasource",
-        "type": "datasource",
-        "query": "mysql",
-        "current": {
-          "selected": true,
-          "text": "mysql",
-          "value": "mysql"
-        },
-        "hide": 0,
-        "label": "Data source"
-      },
-      {
         "name": "agent",
         "type": "query",
         "datasource": "${datasource}",

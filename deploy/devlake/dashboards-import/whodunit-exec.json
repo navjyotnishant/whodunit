@@ -15,14 +15,6 @@
   "templating": {
     "list": [
       {
-        "name": "datasource",
-        "type": "datasource",
-        "query": "mysql",
-        "current": {},
-        "hide": 0,
-        "label": "Data source"
-      },
-      {
         "name": "board",
         "type": "query",
         "datasource": "${DS_WHODUNIT}",
