@@ -390,7 +390,7 @@
           "titleSize": 11
         }
       },
-      "description": "**Median hours from issue open to issue close**, for issues whose linked commits carry an AI-attribution trailer.\n\n**The median, not the mean** — half the issues closed faster than this, half slower. Cycle times have a long tail, and the two diverge sharply: measured on this data the mean is 3.47 days against a median of 0.17. The mean describes neither the typical issue nor the slow one, so it is the wrong summary for this shape of distribution.\n\nRead it as a description, not a verdict. Harder work tends to get handed to an agent, so a longer assisted cycle usually reflects **which issues were chosen**, not the agent slowing them down. Nothing here establishes cause.\n\n**How an issue is classified.** Its key is matched against commit messages (`WHO-12` in a commit subject links that commit to that issue). If any linked commit carries `status=assisted`, the issue counts as AI-assisted; otherwise it counts as not. An issue whose key appears in no commit message is in neither cohort — it is absent, not counted as unassisted.\n\n**Scope.** Issues closed within the dashboard time range, on the selected issue board. The Repository filter does not apply: an issue's commits can span repositories, so filtering by one would drop genuinely assisted issues and understate the comparison.\n\n**Withheld below 10 issues either side.** A median over a handful moves hours on one of them, and same-minute tickets — opened and closed in one action — would otherwise set it to zero. Issues with no measurable duration are excluded entirely."
+      "description": "Median time from issue creation to resolution, for issues whose commits carry AI attribution.\n\nMedian rather than mean: measured here 3.47 days against 0.17: a few long-running issues drag an average.\n\n**Withheld below 10 issues per side** — a median over a handful is one issue moving. Full method: docs → What the numbers mean."
     },
     {
       "id": 9,
@@ -441,7 +441,7 @@
           "titleSize": 11
         }
       },
-      "description": "**Median hours from issue open to issue close**, for issues whose linked commits carry **no** AI-attribution trailer — the control group for the comparison beside it.\n\n**The median, not the mean** — half the issues closed faster than this, half slower. Cycle times have a long tail, and the two diverge sharply: measured on this data the mean is 3.47 days against a median of 0.17. The mean describes neither the typical issue nor the slow one, so it is the wrong summary for this shape of distribution.\n\nRead it as a description, not a verdict. Harder work tends to get handed to an agent, so a longer assisted cycle usually reflects **which issues were chosen**, not the agent slowing them down. Nothing here establishes cause.\n\n**How an issue is classified.** Its key is matched against commit messages (`WHO-12` in a commit subject links that commit to that issue). If any linked commit carries `status=assisted`, the issue counts as AI-assisted; otherwise it counts as not. An issue whose key appears in no commit message is in neither cohort — it is absent, not counted as unassisted.\n\n**Scope.** Issues closed within the dashboard time range, on the selected issue board. The Repository filter does not apply: an issue's commits can span repositories, so filtering by one would drop genuinely assisted issues and understate the comparison.\n\n**Withheld below 10 issues either side.** A median over a handful moves hours on one of them, and same-minute tickets — opened and closed in one action — would otherwise set it to zero. Issues with no measurable duration are excluded entirely."
+      "description": "The same measure for issues with no AI-attributed commits — the comparison the panel beside it needs.\n\n**Not a controlled comparison.** The two cohorts are self-selected: people reach for an agent on some kinds of work and not others, so a difference may be measuring which issues were chosen. Full method: docs → What the numbers mean."
     },
     {
       "id": 12,
@@ -618,7 +618,7 @@
           }
         ]
       },
-      "description": "The amber line is the **share of commits that were AI-assisted**, on the right axis. Exact values per period are on hover — Grafana's timeseries panel has no per-point labels, and a bar chart that could print them cannot draw the line.\n\nA period still in progress is marked **·** after its label — its bar is lower because the period is not over, not because activity dropped.\n\nStacked, so bar height is total commit volume and the coloured share is adoption. A period with no assisted commits is a full bar of manual work, not an empty one — zero assisted is a measurement. A period with no commits at all is absent.\n\nBuckets follow the dashboard time range: a short range shows a bar per day, a long one aggregates. Commit volume over this window tracks instrumentation as much as output — commits rose 29 to 418 across four months while instrumented repositories went 1 to 3, so per repository the figure is nearly flat (29, 124, 134.5, 139.3). Read volume alongside the repository count before concluding anything about throughput.",
+      "description": "Commits per period, split by whether an agent contributed, with the assisted share on the right axis.\n\nBuckets follow the Granularity control. A period with no commits is absent rather than zero, and nothing appears before a repository's first attributed commit: AI use before then is unknown, not absent.",
       "options": {
         "legend": {
           "displayMode": "list",
@@ -784,7 +784,7 @@
         "xTickLabelRotation": -45,
         "xTickLabelSpacing": 200
       },
-      "description": "Average time from an issue being opened to being closed, for issues that closed in each period.\n\nAn issue counts in the period it **closed**, but its cycle time is measured from when it was **opened** — so an issue opened in March and closed in August contributes its full five months. The dashboard time range filters which closures are counted; it does not truncate how far back their clocks started.\n\nRead it with the issue count beside it: an average over a handful of closures moves several hours on one or two of them. And roughly half the issues here close within an hour of being filed, which is a recording habit rather than a delivery time — where that dominates a period, this measures how tickets are filed more than how work flows.\n\nNot split by AI attribution deliberately. Assisted issues take longer here (72.4h against 62.8h in the one month with both), which almost certainly reflects harder work being handed to an agent rather than the agent slowing anything down — a split would invite a causal reading the data cannot support."
+      "description": "Mean issue cycle time per period, with the number of issues each point rests on.\n\n**Read the count before the trend.** A period closing three issues moves this line more than a period closing thirty, and the two look identical here. Buckets follow the Granularity control."
     },
     {
       "id": 20,
