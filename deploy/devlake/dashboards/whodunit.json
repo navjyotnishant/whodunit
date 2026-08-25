@@ -256,7 +256,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT AVG(ratio) AS median_share FROM whodunit_commits WHERE ratio IS NOT NULL AND committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000"
+          "rawSql": "SELECT AVG(t.ratio) AS median_share FROM (\n  SELECT c.ratio,\n         ROW_NUMBER() OVER (ORDER BY c.ratio) AS rn,\n         COUNT(*) OVER () AS n\n  FROM whodunit_commits c\n  WHERE c.ratio IS NOT NULL\n    AND c.committed_at BETWEEN $__unixEpochFrom() * 1000000000\n                           AND $__unixEpochTo() * 1000000000\n) t\nWHERE t.rn IN (FLOOR((t.n + 1) / 2), CEIL((t.n + 1) / 2))"
         }
       ]
     },

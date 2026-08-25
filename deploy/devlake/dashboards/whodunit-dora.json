@@ -995,7 +995,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT ROUND(AVG(pr_cycle_time)/60.0, 1) v\nFROM project_pr_metrics\nWHERE pr_cycle_time IS NOT NULL AND $__timeFilter(pr_merged_date)"
+          "rawSql": "SELECT ROUND(AVG(t.pr_cycle_time)/60.0, 1) AS v FROM (\n  SELECT m.pr_cycle_time,\n         ROW_NUMBER() OVER (ORDER BY m.pr_cycle_time) AS rn,\n         COUNT(*) OVER () AS n\n  FROM project_pr_metrics m\n  WHERE m.pr_cycle_time IS NOT NULL AND $__timeFilter(m.pr_merged_date)\n) t\nWHERE t.rn IN (FLOOR((t.n + 1) / 2), CEIL((t.n + 1) / 2))"
         }
       ],
       "fieldConfig": {
@@ -1025,7 +1025,7 @@
           "values": false
         }
       },
-      "description": "Open to merge. Check the PR count beside it before reading much into this."
+      "description": "Open to merge, across every merged PR — median rather than mean, since a few long PRs drag an average that a median ignores (measured here: 14.4h mean against a 1.3h median).\n\n**Not comparable to anything yet.** Every collected PR is assisted and all of them fall in one month, so neither an assisted-vs-unassisted split nor a before-and-after window has a second side to compare with. Check the PR count beside it: a median over a handful is one PR moving."
     },
     {
       "id": 14,

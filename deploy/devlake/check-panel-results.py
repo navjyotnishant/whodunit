@@ -123,6 +123,35 @@ def unattributed_set_violations() -> list[str]:
     return bad
 
 
+def median_computed_as_mean() -> list[str]:
+    """Panels that say median and compute an average.
+
+    Fixed once before (e0b3054) and back again in two panels. It survives
+    because nothing looks wrong: the number renders, it is the right
+    order of magnitude, and only the distribution gives it away. Measured
+    on this data the PR panel reported 14.4 hours as its "median" when
+    the median was 1.3 - eleven times out, because three PRs out of
+    fourteen ran long, which is precisely what a median exists to ignore.
+
+    A panel may still use AVG legitimately while computing a median: the
+    middle-row idiom averages the two central values on an even count.
+    So the test is AVG with no ranking, not AVG at all.
+    """
+    bad = []
+    for path in sorted(Path(__file__).parent.glob("dashboards/*.json")):
+        dash = json.loads(path.read_text())
+        for p in dash.get("panels", []):
+            title = p.get("title", "")
+            if "edian" not in title:
+                continue
+            for t in p.get("targets") or []:
+                sql = t.get("rawSql", "")
+                ranked = "ROW_NUMBER" in sql or "PERCENTILE" in sql or "NTILE" in sql
+                if "AVG(" in sql and not ranked:
+                    bad.append(f"{path.name} :: {title}: says median, computes AVG")
+    return bad
+
+
 def ambiguous_label_violations() -> list[str]:
     """Series labels that mean different things in the same dashboard row.
 
@@ -366,6 +395,14 @@ def main() -> int:
         print(f"  FAIL  {v}")
     if not label_bad:
         print("  ok    no row reuses 'assisted' across panels with different units")
+
+    print("\nchecking that panels claiming a median compute one")
+    med_bad = median_computed_as_mean()
+    for v in med_bad:
+        failures.append(v)
+        print(f"  FAIL  {v}")
+    if not med_bad:
+        print("  ok    every median panel ranks rather than averages")
 
     if failures:
         print(f"\n{len(failures)} failure(s)")
