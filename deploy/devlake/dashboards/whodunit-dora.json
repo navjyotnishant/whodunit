@@ -226,7 +226,7 @@
           "values": true
         }
       },
-      "description": "How each commit's attribution was established, strongest first: **intersected** (the agent's lines are in the diff), **observed** (touched the file, text changed after), **declared** (stated, not measured).\n\nThe rest say why there is no evidence — **unassisted** means a human wrote it, **uninstrumented** predates the hooks so AI use is unknown rather than absent, and **degraded** is a fault.\n\nFull definitions: docs → What the numbers mean.",
+      "description": "How each commit's attribution was established, strongest first: **intersected** (the agent's lines are in the diff), **observed** (touched the file, text changed after), **declared** (stated, not measured).\n\nThe rest say why there is none: **unassisted** a human wrote it, **uninstrumented** predates the hooks, **degraded** is a fault.\n\nCounts every commit — the cohort panels below count only matched purposes.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -420,7 +420,7 @@
         "w": 8,
         "h": 6
       },
-      "description": "Mean lines changed per assisted commit against unassisted ones, within purposes where both sides have 20+ commits — so `feature` is not measured against `docs`.\n\n**Volume, not productivity.** Larger may mean more work delivered, or more code for the same result. Not colour-coded: green for positive would assert that bigger is better.",
+      "description": "Mean lines changed per assisted commit against unassisted ones, within purposes where both sides have 20+ commits — so `feature` is not measured against `docs`. See the cohort sizes beside this.\n\n**Volume, not productivity.** Larger may mean more work delivered, or more code for the same result. Not colour-coded: green for positive would assert that bigger is better.",
       "targets": [
         {
           "refId": "A",
@@ -472,7 +472,7 @@
         "w": 8,
         "h": 6
       },
-      "description": "The denominator behind the figure beside this — assisted against unassisted commits in the matched purposes.\n\nShown because a percentage without its sample size is not a measurement. Both sides must reach 20 before a purpose is included.",
+      "description": "The denominator behind the figure beside this: assisted against unassisted commits, counted only where **both** sides reach 20 — today `feature`, `fix` and `docs`.\n\n**A subset.** `chore`, `other`, `refactor`, `test` and `config` are excluded, so this is smaller than Evidence strength, which counts every commit.",
       "targets": [
         {
           "refId": "A",
