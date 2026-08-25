@@ -17,7 +17,7 @@ configure `dun sync` and run it yourself (see [Privacy](#privacy)).
 Every commit gets a plain git trailer:
 
 ```
-AI-Attribution: v=1; status=assisted; method=intersected; agent=claude-code; agent_version=2.1.228; ratio=0.62; model=claude-opus-5; session=a3f9e21c
+AI-Attribution: v=2; status=assisted; method=intersected; agent=claude-code; agent_version=2.1.228; ratio=0.62; model=claude-opus-5; session=a3f9e21c
 ```
 
 - **v** — the trailer format version, first so it is read before the

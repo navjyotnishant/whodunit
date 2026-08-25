@@ -7,7 +7,7 @@ sidebar_label: Reading the trailer
 # Reading the trailer
 
 ```
-AI-Attribution: v=1; status=assisted; method=intersected; agent=claude-code; agent_version=2.1.228; ratio=0.62; model=claude-opus-5; session=a3f9e21c
+AI-Attribution: v=2; status=assisted; method=intersected; agent=claude-code; agent_version=2.1.228; ratio=0.62; model=claude-opus-5; session=a3f9e21c
 ```
 
 A plain git trailer. Readable by `git log`, by `git interpret-trailers`, and
@@ -33,15 +33,31 @@ The version is bumped only when the **meaning** of a value changes, never
 when a key is added. A parser that meets an unknown key keeps it and
 re-emits it unchanged, so additions are backward compatible on their own.
 
-### `status` — assisted, or no evidence
+### `status` — whether an agent contributed, and if not, why not
 
 | Value | Meaning |
 |---|---|
 | `assisted` | There is evidence an agent contributed |
-| `undetermined` | No evidence either way |
+| `unassisted` | The hooks were watching and saw no agent — a human wrote it |
+| `unmatched` | An agent was active, but touched none of these files |
+| `uninstrumented` | The commit predates the hooks, so AI use is unknown |
+| `degraded` | Attribution itself failed — a fault, not a finding |
+| `undetermined` | v=1 only: one of the four above, unrecorded |
 
-There is deliberately no value meaning "written without AI". See
-[Empty is not zero](../reference/what-the-numbers-mean#empty-is-not-zero).
+Only `assisted` means an agent contributed. The rest say why there is no
+such claim, and they are not interchangeable: `unassisted` is a finding,
+`degraded` is a bug, and `uninstrumented` is neither.
+
+**`unassisted` is a positive claim** and the only one here that can be
+wrong in a flattering direction, so it is stamped only where the journal
+was actually read. Absence of evidence is `uninstrumented`, never
+`unassisted` — see
+[Empty is not zero](../reference/what-the-numbers-mean#empty-is-not-zero)
+and the [six states](../reference/what-the-numbers-mean#six-states-and-only-one-of-them-is-a-problem).
+
+`undetermined` was the only one of these in v=1, where it covered all four
+situations at once. It is still read, because it is written into every
+commit stamped before v=2 and those trailers cannot be rewritten.
 
 ### `method` — how much to trust it
 

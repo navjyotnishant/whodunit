@@ -33,6 +33,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **The trailer is now `v=2`, and `status=undetermined` has been replaced by four values that say why.** In v=1 that one word covered four unrelated situations — nobody used an agent, an agent was active but touched none of the staged files, the hooks predated the commit, or attribution itself failed — and a reader could not tell which. Three of those are fine and one is a bug. Commits now carry `unassisted` (the hooks were watching and saw no agent — a human wrote it), `unmatched`, `uninstrumented` or `degraded`. `unassisted` is the only positive claim among them and the only one that could be wrong in a flattering direction, so it is stamped only where the journal was genuinely read; absence of evidence is `uninstrumented`. Commits stamped under v=1 keep `undetermined` — their trailers cannot be rewritten — and the version field is how a reader knows which vocabulary a trailer holds.
+- **Anything asking "was this attributed" must now name the statuses it means.** Two panels computed it as `status <> 'undetermined'`, which silently absorbs every status added afterwards: an `unassisted` commit stops being undetermined and starts counting as attributed, inflating coverage while rendering a perfectly plausible number. Every such query now lists the unattributed statuses explicitly, and a guard fails the build on any panel that negates a single status.
+
 - `dun baseline capture` now prints help instead of capturing when no window is given. It previously defaulted to the last 90 days ending today, which stops being a pre-adoption window the moment hooks are installed — so the no-argument path silently produced the one baseline nobody wants, with AI-assisted work recorded as the *before*. `--days 90` still does exactly what it did; it is now a deliberate choice rather than something you fall into.
 
 ## [0.3.0] - 2026-08-15

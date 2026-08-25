@@ -12,7 +12,7 @@ whodunit records **which AI agent touched which code**, as a plain git
 trailer on every commit:
 
 ```
-AI-Attribution: v=1; status=assisted; method=intersected; agent=claude-code; agent_version=2.1.228; ratio=0.62; model=claude-opus-5; session=a3f9e21c
+AI-Attribution: v=2; status=assisted; method=intersected; agent=claude-code; agent_version=2.1.228; ratio=0.62; model=claude-opus-5; session=a3f9e21c
 ```
 
 It exists because the interesting claims about AI-assisted development —
