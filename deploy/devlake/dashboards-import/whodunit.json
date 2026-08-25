@@ -252,8 +252,8 @@
     },
     {
       "type": "piechart",
-      "title": "Method mix",
-      "description": "How the attribution for each commit was determined, weakest to strongest: undetermined, declared, inferred, observed, intersected. This must accompany any penetration figure — a number resting on 'declared' is a different claim from one resting on 'intersected'.",
+      "title": "Evidence mix",
+      "description": "How much evidence stands behind each commit, strongest first: intersected, observed, declared, inferred — then the states meaning there is none. Read it beside any penetration figure: a number resting on `declared` is a different claim from one resting on `intersected`.",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
         "h": 9,
@@ -329,6 +329,66 @@
           {
             "matcher": {
               "id": "byName",
+              "options": "unassisted"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "blue"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "unmatched"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "semi-dark-blue"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "uninstrumented"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#6b7280"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "degraded"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
               "options": "undetermined"
             },
             "properties": [
@@ -363,7 +423,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT method, COUNT(*) AS commits FROM whodunit_commits WHERE committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000 GROUP BY method ORDER BY commits DESC"
+          "rawSql": "-- status-set-excludes: undetermined\n--   the COALESCE fallback already labels it; naming it here\n--   would shadow that with the raw status\nSELECT CASE\n         WHEN c.method <> 'undetermined' THEN c.method\n         ELSE COALESCE(c.reason,\n              CASE WHEN c.status IN ('uninstrumented','unmatched','unassisted','degraded')\n                   THEN c.status END,\n              'undetermined')\n       END AS state,\n       COUNT(*) AS commits\nFROM whodunit_commits c\nWHERE c.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nGROUP BY CASE\n         WHEN c.method <> 'undetermined' THEN c.method\n         ELSE COALESCE(c.reason,\n              CASE WHEN c.status IN ('uninstrumented','unmatched','unassisted','degraded')\n                   THEN c.status END,\n              'undetermined')\n       END\nORDER BY commits DESC"
         }
       ]
     },
@@ -400,8 +460,8 @@
     },
     {
       "type": "timeseries",
-      "title": "Method mix over time",
-      "description": "Commits per week by determination method. A drop in the stronger methods without a drop in commit volume usually means an adapter stopped recognising its agent's format, not that people stopped using agents.",
+      "title": "Evidence mix over time",
+      "description": "Commits per day by evidence state. A drop in the stronger states without a drop in commit volume usually means an adapter stopped recognising its agent's format, not that people stopped using agents.",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
         "h": 9,
@@ -420,7 +480,144 @@
             "fillOpacity": 80,
             "lineWidth": 0
           }
-        }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "intersected"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "green"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "observed"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "semi-dark-green"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "inferred"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "yellow"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "declared"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "orange"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "unassisted"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "blue"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "unmatched"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "semi-dark-blue"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "uninstrumented"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#6b7280"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "degraded"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "undetermined"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "text"
+                }
+              }
+            ]
+          }
+        ]
       },
       "options": {
         "legend": {
@@ -432,7 +629,7 @@
         {
           "refId": "A",
           "format": "time_series",
-          "rawSql": "SELECT FROM_UNIXTIME(FLOOR(committed_at / 1000000000 / 86400) * 86400) AS time, method AS metric, COUNT(*) AS value FROM whodunit_commits WHERE committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000 GROUP BY time, metric ORDER BY time"
+          "rawSql": "-- status-set-excludes: undetermined\n--   the COALESCE fallback already labels it; naming it here\n--   would shadow that with the raw status\nSELECT FROM_UNIXTIME(FLOOR(c.committed_at / 1000000000 / 86400) * 86400) AS time,\n       CASE\n         WHEN c.method <> 'undetermined' THEN c.method\n         ELSE COALESCE(c.reason,\n              CASE WHEN c.status IN ('uninstrumented','unmatched','unassisted','degraded')\n                   THEN c.status END,\n              'undetermined')\n       END AS metric,\n       COUNT(*) AS value\nFROM whodunit_commits c\nWHERE c.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nGROUP BY time, CASE\n         WHEN c.method <> 'undetermined' THEN c.method\n         ELSE COALESCE(c.reason,\n              CASE WHEN c.status IN ('uninstrumented','unmatched','unassisted','degraded')\n                   THEN c.status END,\n              'undetermined')\n       END\nORDER BY time"
         }
       ]
     },
