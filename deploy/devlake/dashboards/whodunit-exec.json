@@ -201,7 +201,7 @@
     {
       "id": 904,
       "title": "Session depth · $repo",
-      "type": "stat",
+      "type": "bargauge",
       "datasource": "${datasource}",
       "gridPos": {
         "h": 6,
@@ -213,22 +213,23 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT\n  SUM(s.tool_calls = 0) AS `chat only`,\n  SUM(s.tool_calls > 0 AND NOT (s.mcp_calls > 0 OR s.distinct_tools >= 5\n      OR s.tool_calls >= 50)) AS `edits`,\n  SUM(s.mcp_calls > 0 OR s.distinct_tools >= 5 OR s.tool_calls >= 50) AS `agentic`\nFROM whodunit_sessions s\nJOIN whodunit_repos r ON r.repo_id = s.repo_id\nWHERE s.last_seen BETWEEN $__unixEpochFrom() * 1000000000\n                      AND $__unixEpochTo()   * 1000000000\n  AND ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}')\n  AND ('${repo:raw}' = '__all__' OR s.repo_id = '${repo:raw}')"
+          "rawSql": "SELECT CASE\n         WHEN s.mcp_calls > 0 OR s.distinct_tools >= 5 OR s.tool_calls >= 50\n              THEN 'agentic'\n         WHEN s.tool_calls > 0 THEN 'edits'\n         ELSE 'chat only'\n       END AS `depth`,\n       COUNT(*) AS `sessions`\nFROM whodunit_sessions s\nJOIN whodunit_repos r ON r.repo_id = s.repo_id\nWHERE s.last_seen BETWEEN $__unixEpochFrom() * 1000000000\n                      AND $__unixEpochTo()   * 1000000000\n  AND ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}')\n  AND ('${repo:raw}' = '__all__' OR s.repo_id = '${repo:raw}')\nGROUP BY `depth`\nORDER BY FIELD(`depth`, 'chat only', 'edits', 'agentic')"
         }
       ],
       "fieldConfig": {
         "defaults": {
           "unit": "short",
           "decimals": 0,
+          "min": 0,
           "color": {
             "mode": "fixed",
-            "fixedColor": "text"
+            "fixedColor": "blue"
           },
           "thresholds": {
             "mode": "absolute",
             "steps": [
               {
-                "color": "text",
+                "color": "blue",
                 "value": null
               }
             ]
@@ -243,14 +244,20 @@
             "lastNotNull"
           ],
           "fields": "",
-          "values": false
+          "values": true
         },
         "orientation": "horizontal",
-        "textMode": "value_and_name",
-        "colorMode": "none",
-        "graphMode": "none",
-        "justifyMode": "auto",
-        "wideLayout": false
+        "displayMode": "gradient",
+        "valueMode": "text",
+        "showUnfilled": true,
+        "namePlacement": "left",
+        "minVizWidth": 8,
+        "minVizHeight": 16,
+        "maxVizHeight": 300,
+        "sizing": "auto",
+        "legend": {
+          "showLegend": false
+        }
       }
     },
     {
@@ -719,7 +726,7 @@
     {
       "id": 16,
       "type": "timeseries",
-      "title": "Edits & lines · $repo",
+      "title": "Agent activity · edits vs lines",
       "datasource": "${datasource}",
       "gridPos": {
         "h": 9,
