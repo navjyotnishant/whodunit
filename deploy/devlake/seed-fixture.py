@@ -183,7 +183,8 @@ def rows():
 # second fixture for somebody else's schema.
 DEVLAKE_TABLES = [
     "board_issues", "cicd_deployment_commits", "commits", "incidents",
-    "issues", "project_mapping", "project_pr_metrics", "repo_commits",
+    "issue_commits", "issues", "project_mapping", "project_pr_metrics",
+    "repo_commits",
 ]
 
 

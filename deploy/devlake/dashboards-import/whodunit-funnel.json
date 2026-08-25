@@ -389,7 +389,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT CASE WHEN ai = 1 THEN 'AI-assisted' ELSE 'not assisted' END AS `group`,\n       ROUND(AVG(ltm)/60, 1) AS `hours`\nFROM (\n  SELECT i.issue_key, i.lead_time_minutes AS ltm,\n         COALESCE(MAX(w.status = 'assisted'), 0) AS ai\n  FROM issues i\n  JOIN board_issues bi ON bi.issue_id = i.id\n  LEFT JOIN commits gc\n         ON gc.message REGEXP CONCAT('(^|[^A-Za-z0-9])', i.issue_key, '([^0-9]|$)')\n  LEFT JOIN whodunit_commits w ON w.commit_sha = gc.sha\n  WHERE w.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  AND  ('${evidence:raw}' = '__all__' OR w.method = '${evidence:raw}')\n  AND  bi.board_id = '$board'\n    AND i.lead_time_minutes IS NOT NULL\n    AND i.issue_key REGEXP '^[A-Z][A-Z0-9]+-[0-9]+$'\n  GROUP BY i.issue_key, i.lead_time_minutes\n) t GROUP BY ai"
+          "rawSql": "SELECT CASE WHEN ai = 1 THEN 'AI-assisted' ELSE 'not assisted' END AS `group`,\n       ROUND(AVG(ltm)/60, 1) AS `hours`\nFROM (\n  SELECT i.issue_key, i.lead_time_minutes AS ltm,\n         COALESCE(MAX(w.status = 'assisted'), 0) AS ai\n  FROM issues i\n  JOIN board_issues bi ON bi.issue_id = i.id\n  LEFT JOIN issue_commits gc ON gc.issue_id = i.id\n  LEFT JOIN whodunit_commits w ON w.commit_sha = gc.commit_sha\n  WHERE w.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  AND  ('${evidence:raw}' = '__all__' OR w.method = '${evidence:raw}')\n  AND  bi.board_id = '$board'\n    AND i.lead_time_minutes IS NOT NULL\n    AND i.issue_key REGEXP '^[A-Z][A-Z0-9]+-[0-9]+$'\n  GROUP BY i.issue_key, i.lead_time_minutes\n) t GROUP BY ai"
         }
       ],
       "fieldConfig": {
