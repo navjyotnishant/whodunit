@@ -10,7 +10,7 @@
   "version": 1,
   "refresh": "",
   "time": {
-    "from": "now-90d",
+    "from": "now-30d",
     "to": "now"
   },
   "templating": {
@@ -1527,7 +1527,7 @@
         "x": 0,
         "y": 68,
         "w": 24,
-        "h": 4
+        "h": 6
       },
       "targets": [
         {
@@ -1579,7 +1579,7 @@
       },
       "options": {
         "showHeader": true,
-        "cellHeight": "sm",
+        "cellHeight": "md",
         "footer": {
           "show": false,
           "reducer": [
