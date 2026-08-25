@@ -153,7 +153,8 @@ func WriteProgress(db *Store, p Payload, onRow func(done, total int)) (Counts, e
 		if _, err := tx.Exec(upsertCommit(mysql),
 			c.CommitSHA, c.RepoID, c.CommittedAt.UnixNano(), c.Status, c.Method,
 			c.Agent, c.AgentVersion, c.Purpose, c.Ratio, c.LinesAdded, c.LinesRemoved,
-			c.FilesChanged, c.SpecVersion, c.SchemaVersion, c.SyncedAt.UnixNano()); err != nil {
+			c.FilesChanged, c.SpecVersion, c.SchemaVersion, c.SyncedAt.UnixNano(),
+			nullString(c.ChangedBy)); err != nil {
 			return counts, fmt.Errorf("write commit %s: %w", c.CommitSHA, err)
 		}
 		counts.Commits++
@@ -242,8 +243,8 @@ func upsertCommit(mysql bool) string {
 	cols := `INSERT INTO whodunit_commits
 		(commit_sha, repo_id, committed_at, status, method, agent, agent_version,
 		 purpose, ratio, lines_added, lines_removed, files_changed, spec_version,
-		 schema_version, synced_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+		 schema_version, synced_at, changed_by)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 	if mysql {
 		return cols + ` ON DUPLICATE KEY UPDATE
 			status=VALUES(status), method=VALUES(method), agent=VALUES(agent),
@@ -251,7 +252,7 @@ func upsertCommit(mysql bool) string {
 			ratio=VALUES(ratio), lines_added=VALUES(lines_added),
 			lines_removed=VALUES(lines_removed), files_changed=VALUES(files_changed),
 			spec_version=VALUES(spec_version), schema_version=VALUES(schema_version),
-			synced_at=VALUES(synced_at)`
+			synced_at=VALUES(synced_at), changed_by=VALUES(changed_by)`
 	}
 	return cols + ` ON CONFLICT(commit_sha, repo_id) DO UPDATE SET
 		status=excluded.status, method=excluded.method, agent=excluded.agent,
@@ -259,7 +260,7 @@ func upsertCommit(mysql bool) string {
 		ratio=excluded.ratio, lines_added=excluded.lines_added,
 		lines_removed=excluded.lines_removed, files_changed=excluded.files_changed,
 		spec_version=excluded.spec_version, schema_version=excluded.schema_version,
-		synced_at=excluded.synced_at`
+		synced_at=excluded.synced_at, changed_by=excluded.changed_by`
 }
 
 func upsertEvent(mysql bool) string {

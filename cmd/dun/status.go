@@ -119,6 +119,25 @@ func statusFor(w io.Writer, dir, label string) error {
 			c.S(termcolor.Muted, m.Explain()))
 	}
 
+	// What became of the agent's text on the observed commits (WHO-213).
+	// `observed 22` says the text did not survive and stops there; these
+	// lines say whether a person revised it or the agent replaced its own
+	// work, which are different facts about the same number.
+	//
+	// Silent when nothing reported it - two agents out of three never do,
+	// and printing "unknown 22" would dress a permanent property of the
+	// agent up as a gap.
+	if len(s.ChangedByCount) > 0 {
+		fmt.Fprintln(w, "of those observed:")
+		for _, cb := range []spec.ChangedBy{spec.ChangedByHuman, spec.ChangedByAgent} {
+			if n := s.ChangedByCount[cb]; n > 0 {
+				fmt.Fprintf(w, "  %s %4d   %s\n",
+					c.S(termcolor.Muted, fmt.Sprintf("%-13s", cb)), n,
+					c.S(termcolor.Muted, cb.Explain()))
+			}
+		}
+	}
+
 	// Said here rather than left to the coverage figure, because the
 	// coverage figure cannot say it. Commits older than the first trailer
 	// were made before whodunit could observe anything, so they are not
@@ -582,6 +601,11 @@ type coverageStats struct {
 	Covered     int
 	MethodCount map[spec.Method]int
 
+	// ChangedByCount is what happened to the agent's text on observed
+	// commits. Absent for agents that do not report it, which is why it
+	// is counted separately rather than assumed zero.
+	ChangedByCount map[spec.ChangedBy]int
+
 	// StatusCount is what a v=2 trailer says about itself. Method grades
 	// evidence; status says whether there is any and why not, and since
 	// WHO-211 the reason is recorded rather than estimated afterwards.
@@ -641,7 +665,11 @@ func methodSummary(s coverageStats) string {
 // scanRepo reads trailer coverage from a repository's recent commits. An
 // empty dir means the current working directory.
 func scanRepo(dir string) (coverageStats, error) {
-	s := coverageStats{MethodCount: map[spec.Method]int{}, StatusCount: map[spec.Status]int{}}
+	s := coverageStats{
+		MethodCount:    map[spec.Method]int{},
+		StatusCount:    map[spec.Status]int{},
+		ChangedByCount: map[spec.ChangedBy]int{},
+	}
 
 	// Author date alongside the message: the boundary between "before
 	// attribution existed" and "after" is a date, and without it the
@@ -685,6 +713,9 @@ func scanRepo(dir string) (coverageStats, error) {
 			s.Covered++
 			s.MethodCount[t.Method]++
 			s.StatusCount[t.Status]++
+			if t.ChangedBy != "" {
+				s.ChangedByCount[t.ChangedBy]++
+			}
 			// git log is newest-first, so the last trailer seen is the
 			// oldest one, which is where attribution began.
 			if !at.IsZero() {

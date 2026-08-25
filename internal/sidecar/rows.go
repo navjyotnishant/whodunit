@@ -26,6 +26,7 @@ type CommitRow struct {
 	RepoID        string
 	CommittedAt   time.Time
 	Status        string
+	ChangedBy     string
 	Method        string
 	Agent         string
 	AgentVersion  string
@@ -227,6 +228,7 @@ func CommitRowsFrom(commits []report.Commit, repoID string, syncedAt time.Time) 
 		if t := c.Trailer; t != nil {
 			row.Status = string(t.Status)
 			row.Method = string(t.Method)
+			row.ChangedBy = string(t.ChangedBy)
 			row.Agent = t.Agent
 			row.AgentVersion = t.Version
 			row.Ratio = t.Ratio

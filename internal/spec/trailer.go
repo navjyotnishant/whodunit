@@ -50,6 +50,49 @@ var validMethods = map[Method]bool{
 	MethodIntersected:  true,
 }
 
+// ChangedBy says what happened to an agent's text when it did not survive
+// into the commit.
+//
+// Only meaningful on MethodObserved, which means the agent edited the file
+// and its exact lines are not what got staged. Observed alone does not say
+// why, and the answers are not equivalent: a human revising the agent's
+// output is a different fact from a formatter rewriting it, and both are
+// different from the agent having rewritten its own work in a later turn.
+//
+// Absent when nothing recorded it. Only Claude Code reports whether a
+// human edited its output; Codex and agy have no equivalent signal, so on
+// those agents this is permanently absent rather than pending (NAV-21).
+type ChangedBy string
+
+const (
+	// ChangedByHuman - a human edited the agent's output before it was
+	// committed. The agent's contribution is real and was revised.
+	ChangedByHuman ChangedBy = "human"
+
+	// ChangedByAgent - the agent itself replaced the lines in a later
+	// turn, so the text in the commit is still its own work, just not the
+	// text this event produced.
+	ChangedByAgent ChangedBy = "agent"
+)
+
+var validChangedBy = map[ChangedBy]bool{
+	ChangedByHuman: true,
+	ChangedByAgent: true,
+}
+
+// Explain returns a plain-English gloss, on the same terms as the rest of
+// this package: what a reader may conclude.
+func (c ChangedBy) Explain() string {
+	switch c {
+	case ChangedByHuman:
+		return "a human revised the agent's output before committing"
+	case ChangedByAgent:
+		return "the agent replaced its own earlier lines"
+	default:
+		return ""
+	}
+}
+
 // Status is the top-level attribution status.
 type Status string
 
@@ -212,6 +255,10 @@ type Trailer struct {
 	// trailer written before NAV-118; see SpecVersion.
 	SpecVer int
 
+	// ChangedBy qualifies MethodObserved. Empty means unrecorded, which
+	// is the permanent state for agents that do not report it.
+	ChangedBy ChangedBy
+
 	Extra map[string]string // unknown keys, preserved verbatim per spec
 }
 
@@ -284,6 +331,9 @@ func (t Trailer) Format() string {
 	if t.Session != "" {
 		fmt.Fprintf(&b, "; session=%s", t.Session)
 	}
+	if t.ChangedBy != "" {
+		fmt.Fprintf(&b, "; changed_by=%s", t.ChangedBy)
+	}
 	for k, v := range t.Extra {
 		fmt.Fprintf(&b, "; %s=%s", k, v)
 	}
@@ -325,6 +375,14 @@ func Parse(value string) (Trailer, error) {
 			t.Agent = val
 		case "agent_version":
 			t.Version = val
+		case "changed_by":
+			// An unrecognised value is dropped rather than rejected: this
+			// key only qualifies observed, and a trailer is still
+			// perfectly readable without it. Failing the whole parse over
+			// a future value would make an optional key mandatory.
+			if validChangedBy[ChangedBy(val)] {
+				t.ChangedBy = ChangedBy(val)
+			}
 		case "model":
 			t.Model = val
 		case "session":

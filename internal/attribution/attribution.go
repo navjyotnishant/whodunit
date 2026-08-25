@@ -168,15 +168,30 @@ func Determine(entries []journal.Entry, stagedFiles []string, agentLineHashes ma
 		method = spec.MethodIntersected
 	}
 
+	// Observed means the agent's text is not what got staged, and the
+	// reason is often knowable (WHO-213). A human revising the output is
+	// a different fact from the agent rewriting its own work, and the
+	// difference matters to anyone reading how much of the agent's
+	// contribution actually survived.
+	//
+	// Only asked on observed. On intersected the text DID survive, so
+	// there is nothing to explain, and on the unattributed statuses there
+	// is no agent contribution to have changed.
+	var changedBy spec.ChangedBy
+	if method == spec.MethodObserved {
+		changedBy = whatChangedIt(relevant)
+	}
+
 	trailer := spec.Trailer{
-		SpecVer: spec.Version,
-		Status:  spec.StatusAssisted,
-		Method:  method,
-		Agent:   agent,
-		Version: version,
-		Model:   model,
-		Session: session,
-		Extra:   map[string]string{},
+		SpecVer:   spec.Version,
+		Status:    spec.StatusAssisted,
+		Method:    method,
+		ChangedBy: changedBy,
+		Agent:     agent,
+		Version:   version,
+		Model:     model,
+		Session:   session,
+		Extra:     map[string]string{},
 	}
 
 	if r, ok := computeRatio(agentLines, staged.Commit.Added, staged.Commit.Removed); ok {
@@ -235,4 +250,33 @@ func Best(a, b spec.Trailer) spec.Trailer {
 		return b
 	}
 	return a
+}
+
+// whatChangedIt reads the journal entries for a signal about why the
+// agent's text is not what got staged.
+//
+// Reports human only when an entry says so outright. The alternative -
+// inferring it from the mere absence of a line match - is the same
+// absence-as-evidence mistake the rest of this package exists to avoid:
+// a formatter, a later agent turn and a human edit all leave no match,
+// and only one of them is a person.
+//
+// The last relevant entry wins, for the same reason the model does: a
+// commit can hold several edits to the same file, and what happened to
+// the text last is what describes the state that got committed.
+func whatChangedIt(entries []journal.Entry) spec.ChangedBy {
+	for i := len(entries) - 1; i >= 0; i-- {
+		if m := entries[i].UserModified; m != nil {
+			if *m {
+				return spec.ChangedByHuman
+			}
+			// Explicitly not modified by a human, yet the text still did
+			// not survive - so something else replaced it, and within a
+			// single agent's entries that is the agent itself.
+			return spec.ChangedByAgent
+		}
+	}
+	// No entry carried the signal. Absent rather than guessed: Codex and
+	// agy never report it, and on those agents this is permanent.
+	return ""
 }

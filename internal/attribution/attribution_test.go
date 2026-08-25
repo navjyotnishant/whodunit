@@ -395,3 +395,82 @@ func TestBestPrefersStrongerEvidence(t *testing.T) {
 		t.Errorf("declared should beat undetermined, got %s", got.Method)
 	}
 }
+
+// WHO-213. Observed says the agent's text did not survive; changed_by says
+// what happened to it. The two answers are not equivalent and neither may
+// be guessed.
+func TestObservedSaysWhatChangedTheText(t *testing.T) {
+	now := time.Now()
+	yes, no := true, false
+
+	cases := []struct {
+		name     string
+		modified *bool
+		want     spec.ChangedBy
+	}{
+		{"a human revised it", &yes, spec.ChangedByHuman},
+		{"the agent replaced its own lines", &no, spec.ChangedByAgent},
+		// The case that matters most: an agent that cannot report this
+		// must not have an answer invented for it.
+		{"the agent does not report it", nil, ""},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			entries := []journal.Entry{{
+				Timestamp: now.Add(-time.Hour), Agent: "claude-code",
+				Session: "s1", Event: "tool_use", Tool: "Edit", File: "main.go",
+				UserModified: c.modified,
+			}}
+			got := Determine(entries, []string{"main.go"}, nil, noStagedEvidence, now)
+			if got.Method != spec.MethodObserved {
+				t.Fatalf("want observed, got %s", got.Method)
+			}
+			if got.ChangedBy != c.want {
+				t.Errorf("changed_by = %q, want %q", got.ChangedBy, c.want)
+			}
+		})
+	}
+}
+
+// Nothing to explain when the text DID survive: intersected means the
+// agent's lines are in the commit, so a changed_by there would describe a
+// change that did not happen.
+func TestIntersectedCarriesNoChangedBy(t *testing.T) {
+	now := time.Now()
+	yes := true
+	line := "x := 1"
+	h := linehash.Of("main.go", line)
+	entries := []journal.Entry{{
+		Timestamp: now.Add(-time.Hour), Agent: "claude-code", Session: "s1",
+		Event: "tool_use", Tool: "Edit", File: "main.go",
+		LineHashes: []uint64{h}, UserModified: &yes,
+	}}
+	got := Determine(entries, []string{"main.go"},
+		map[uint64]struct{}{h: {}},
+		StagedEvidence{Lines: []uint64{h}, Commit: CommitLines{Added: 1}}, now)
+	if got.Method != spec.MethodIntersected {
+		t.Fatalf("want intersected, got %s", got.Method)
+	}
+	if got.ChangedBy != "" {
+		t.Errorf("intersected carries changed_by=%q, but the text survived", got.ChangedBy)
+	}
+}
+
+// The signal survives the trailer, which is the point of putting it there
+// rather than leaving it in the journal.
+func TestChangedByRoundTripsThroughTheTrailer(t *testing.T) {
+	now := time.Now()
+	yes := true
+	entries := []journal.Entry{{
+		Timestamp: now.Add(-time.Hour), Agent: "claude-code", Session: "s1",
+		Event: "tool_use", Tool: "Edit", File: "main.go", UserModified: &yes,
+	}}
+	got := Determine(entries, []string{"main.go"}, nil, noStagedEvidence, now)
+	parsed, err := spec.Parse(got.Format())
+	if err != nil {
+		t.Fatalf("parse: %v (%s)", err, got.Format())
+	}
+	if parsed.ChangedBy != spec.ChangedByHuman {
+		t.Errorf("changed_by lost in the round trip: %q", parsed.ChangedBy)
+	}
+}
