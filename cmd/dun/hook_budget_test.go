@@ -65,7 +65,7 @@ func TestHookStaysWithinBudget(t *testing.T) {
 	}
 
 	start := time.Now()
-	_ = determineTrailer()
+	_ = determineTrailer("")
 	elapsed := time.Since(start)
 
 	// Not under -race, where the detector's overhead is what gets measured

@@ -208,8 +208,15 @@ func TestCommitRowsFromKeepsUntrailedCommits(t *testing.T) {
 	if len(rows) != 2 {
 		t.Fatalf("want 2 rows, got %d", len(rows))
 	}
-	if rows[0].Status != string(spec.StatusUndetermined) {
-		t.Errorf("untrailed commit got status %q, want undetermined", rows[0].Status)
+	// uninstrumented rather than undetermined (WHO-211): no trailer means
+	// nothing was watching, which is different from having looked and
+	// found nothing. Either way it must not count as attributed, which is
+	// what this test is really protecting.
+	if rows[0].Status != string(spec.StatusUninstrumented) {
+		t.Errorf("untrailed commit got status %q, want uninstrumented", rows[0].Status)
+	}
+	if spec.Status(rows[0].Status).Attributed() {
+		t.Error("an untrailed commit must never count as attributed")
 	}
 	if rows[1].Agent != "claude-code" {
 		t.Errorf("trailered commit lost its agent: %+v", rows[1])

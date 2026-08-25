@@ -95,6 +95,27 @@ CREATE TABLE IF NOT EXISTS whodunit_commits (
 	spec_version  VARCHAR(16)  NOT NULL DEFAULT '',
 	schema_version BIGINT      NOT NULL,
 	synced_at     BIGINT       NOT NULL,
+
+	-- Why a commit carries no attribution (WHO-210). NULLable, and NULL
+	-- means "not classified" rather than "no reason" (NAV-21).
+	--
+	-- method=undetermined answers four different questions at once: the
+	-- hooks were not installed yet, an agent was active but touched none
+	-- of these files, nobody used an agent at all, or attribution itself
+	-- failed. Only the last two are worth acting on, and a reader cannot
+	-- currently tell which one they are looking at.
+	--
+	-- Reconstructed, not measured: derived from the hook log after the
+	-- fact, never written at determination time. WHO-211 does that, where
+	-- the answer is actually known rather than inferred.
+	reason        VARCHAR(32),
+
+	-- Why an observed commit's agent text is not what got staged
+	-- (WHO-213): 'human' if someone revised it, 'agent' if a later turn
+	-- replaced it. NULL where the agent does not report it, which is
+	-- permanent for Codex and agy rather than pending.
+	changed_by    VARCHAR(16),
+
 	PRIMARY KEY (commit_sha, repo_id)
 );
 
@@ -315,6 +336,36 @@ var Migrations = []string{
 	// day count cannot do that.
 	`ALTER TABLE whodunit_baselines ADD COLUMN window_since BIGINT`,
 	`ALTER TABLE whodunit_baselines ADD COLUMN window_until BIGINT`,
+
+	// WHO-210. Why a commit carries no attribution.
+	//
+	// `undetermined` currently means four different things at once: nobody
+	// used an agent, an agent was active but touched none of the staged
+	// files, attribution itself failed, or the hooks were not installed
+	// yet. A reader cannot tell those apart, and only two of them are
+	// worth acting on.
+	//
+	// RECONSTRUCTED, NOT MEASURED — and the distinction matters. This is
+	// derived after the fact from the hook log and from each repository's
+	// first attributed commit, never from the commit itself. A value
+	// written at determination time (WHO-211) would be evidence; this is
+	// an inference about evidence, and a reader weighing the two should
+	// know which one they have.
+	//
+	// NULL where the hook log does not reach. It covers only commits made
+	// after it started being written, so an older commit gets a reason
+	// only where the instrumentation boundary settles it. NULL means "not
+	// classified", never "no reason" (NAV-21).
+	`ALTER TABLE whodunit_commits ADD COLUMN reason VARCHAR(32)`,
+
+	// WHO-213. What happened to an agent's text when it did not survive
+	// into the commit.
+	//
+	// NULLable, and NULL is the permanent state for two agents out of
+	// three: only Claude Code reports whether a human edited its output.
+	// A panel reading this must render NULL as "not reported by this
+	// agent", never as "nobody edited it" (NAV-21).
+	`ALTER TABLE whodunit_commits ADD COLUMN changed_by VARCHAR(16)`,
 }
 
 var Indexes = []string{

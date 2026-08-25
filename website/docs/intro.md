@@ -12,38 +12,66 @@ whodunit records **which AI agent touched which code**, as a plain git
 trailer on every commit:
 
 ```
-AI-Attribution: v=1; status=assisted; method=intersected; agent=claude-code; agent_version=2.1.228; ratio=0.62; model=claude-opus-5; session=a3f9e21c
+AI-Attribution: v=2; status=assisted; method=intersected; agent=claude-code; agent_version=2.1.228; ratio=0.62; model=claude-opus-5; session=a3f9e21c
 ```
 
-It exists because the interesting claims about AI-assisted development —
-how much of the codebase it wrote, what it cost, whether the work came back
-as rework — are made without evidence. A trailer is evidence: attached to a
-specific commit, checkable by anyone with the repository, and impossible to
-add retroactively without rewriting history.
+Once that trailer is on your commits you can answer, from evidence rather
+than estimate: how much of this codebase an agent actually wrote, which
+agent and which model, what it cost in tokens, and whether that work came
+back as rework. Every answer is attached to a specific commit, checkable by
+anyone with the repository, and impossible to add after the fact without
+rewriting history.
 
-## What it is not
+`method=intersected` in that trailer is the strongest thing whodunit can
+say, and it is the one word worth understanding before anything else:
 
-**It is not a productivity measurement.** This is the most important
-sentence on the site, so it is near the top rather than in a footnote.
+![Two overlapping circles. The left holds the lines the agent produced, the right holds the lines in the commit, and the lit overlap between them holds the lines that are in both - which is what `intersected` means.](/img/architecture/the-intersection.png)
 
-whodunit can tell you that 143 commits carry agent attribution and that
-they consumed 7.5 billion tokens. It cannot tell you those commits were
-faster, because assisted and unassisted work are self-selected: people
-reach for an agent on some kinds of task and not others. A throughput
-difference between the two groups may be measuring which work was chosen,
-not what the agent did.
+Every substantive line an agent writes is hashed as it writes it — blank
+lines and lone braces are skipped, because a `}` proves nothing about who
+wrote it. At commit time the staged diff is hashed the same way, and the
+two sets are intersected. If the overlap is non-empty, the agent's own
+text is demonstrably in the commit — not guessed from coding style, not
+assumed from a licence someone holds.
 
-The tool reports cost and cycle time per delivered unit of work, with the
-denominators visible, and refuses to collapse that into a percentage. See
-[What the numbers mean](reference/what-the-numbers-mean).
+## What you get
 
-**It is not surveillance.** It answers "which agent touched this code", not
-"who wrote this line". No prompt text, no keystrokes, no file contents are
-recorded — the journal schema has no field that could hold them. Collection
-is entirely local and makes no network calls; data leaves your machine only
-if you configure `dun sync` and run it. See [Privacy](reference/privacy).
+**Adoption you can defend.** Seven Grafana dashboards read the trailers:
+adoption over time by agent and by model, cost per delivered line, cycle
+time, DORA metrics beside the AI figures rather than instead of them. Every
+rate is shown with the denominator it was computed over.
+
+**Numbers that survive being questioned.** Each figure states the evidence
+behind it. `intersected` means the agent's own lines are in the diff;
+`unassisted` means the hooks were watching and a human wrote it. Where the
+tool cannot know, it says which kind of not-knowing — the commit predated
+instrumentation, or an agent was working elsewhere, or attribution itself
+failed. Six states, so a fault and a finding never look alike.
+
+**Cost in the unit you actually pay.** Tokens per delivered line, not a
+dollar figure derived from a rate you may not be on. Multiply by your own
+contract when you need currency.
+
+**Nothing leaves your machine unless you send it.** Collection is local and
+makes no network calls. The journal records which agent touched which file
+— no prompt text, no keystrokes, no file contents, and no schema field that
+could hold them. `dun sync` publishes to your own database when you
+configure it. See [Privacy](reference/privacy).
+
+**A change-size difference, not a productivity percentage.** whodunit
+reports what assisted and unassisted work look like side by side, with the
+cohorts visible, and stops short of a single "AI made us X% faster" number
+— because assisted work is self-selected, and that percentage would be
+measuring which tasks people chose to hand over. The full method is on
+[How this measures AI's effect](measuring-ai-impact); the shorter list of
+things people misread is [What the numbers mean](reference/what-the-numbers-mean).
 
 ## How it works, in three parts
+
+![How attribution is established: agent transcripts are read by an adapter into a local journal and a set of line hashes; at commit time those hashes are intersected with the staged diff to decide one of five methods, or one of four reasons there is no method; the result is stamped as a git trailer and optionally synced to DevLake and Grafana.](/img/architecture/attribution-flow.png)
+
+The middle of that diagram is the whole product. Everything else moves data
+around; the intersection is where a claim gets made or withheld.
 
 **The trailer** is a specification, not an implementation. It is plain git,
 readable by anything that reads a commit message, and it outlives any one

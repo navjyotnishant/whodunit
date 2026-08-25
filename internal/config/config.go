@@ -87,6 +87,28 @@ type Config struct {
 	// the CLI all work, and nothing leaves the machine.
 	Sync *SyncConfig `json:"sync,omitempty"`
 
+	// Identities maps a git committer email onto the person who owns it,
+	// so one human working from several machines is counted once.
+	//
+	// The need is not hypothetical and not confined to teams. A single
+	// developer picks up a second identity the moment one machine is
+	// configured with a GitHub noreply address and another with their real
+	// one, and nothing announces it: both are valid, both commit, and the
+	// dashboards show two contributors. Measured on one install, 153 of
+	// 985 commits sat under a second address, so filtering to either
+	// identity silently dropped a sixth of the work.
+	//
+	// Keyed by the address as git wrote it, valued by the canonical
+	// address. The literal committer email stays in the journal, in the
+	// sidecar and in every commit object: this resolves at read time, so a
+	// wrong entry is corrected by editing one line rather than by
+	// re-syncing history.
+	//
+	// An address with no entry is its own identity. Absent never means
+	// merged, and dun will not merge two identities on its own - see
+	// `dun identities` for the suggestion path.
+	Identities map[string]string `json:"identities,omitempty"`
+
 	// VersionCheck is whether dun may ask GitHub, at most once a day,
 	// whether a newer release exists (NAV-76, criteria 10-12).
 	//

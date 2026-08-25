@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/navjyotnishant/whodunit/internal/declared"
 	"github.com/navjyotnishant/whodunit/internal/journal"
 	"github.com/navjyotnishant/whodunit/internal/linehash"
 	"github.com/navjyotnishant/whodunit/internal/spec"
@@ -14,11 +15,47 @@ import (
 // ratio cannot be computed.
 var noStagedEvidence = StagedEvidence{}
 
-func TestDetermineUndeterminedWhenNoCoverage(t *testing.T) {
+// No journal at all, so nothing was watching these files and no agent
+// line exists anywhere: a human wrote it, and WHO-211 says so rather than
+// shrugging.
+func TestDetermineUnassistedWhenNothingWasSeen(t *testing.T) {
 	now := time.Now()
 	got := Determine(nil, []string{"main.go"}, nil, noStagedEvidence, now)
-	if got.Status != spec.StatusUndetermined {
-		t.Errorf("Determine() = %+v, want undetermined", got)
+	if got.Status != spec.StatusUnassisted {
+		t.Errorf("Determine() = %+v, want unassisted", got)
+	}
+	if got.Method != spec.MethodUndetermined {
+		t.Errorf("method = %s, want undetermined - there is no evidence to grade", got.Method)
+	}
+}
+
+// The distinction WHO-211 exists to draw. Same empty result, but an agent
+// WAS producing lines - just not in these files, which is what a
+// generated file looks like. Calling that "a human wrote it" would be
+// wrong in the direction that flatters nobody.
+func TestDetermineUnmatchedWhenAgentWorkedElsewhere(t *testing.T) {
+	now := time.Now()
+	agentLines := map[uint64]struct{}{linehash.Of("other.go", "x := 1"): {}}
+	got := Determine(nil, []string{"main.go"}, agentLines, noStagedEvidence, now)
+	if got.Status != spec.StatusUnmatched {
+		t.Errorf("Determine() = %+v, want unmatched", got)
+	}
+}
+
+// Neither of the two says an agent was attributed. This is the question
+// every coverage figure asks, and the negation it used to be written as
+// counted both of these as attributed the moment they existed.
+func TestNeitherUnassistedNorUnmatchedIsAttributed(t *testing.T) {
+	now := time.Now()
+	for _, got := range []spec.Trailer{
+		Determine(nil, []string{"main.go"}, nil, noStagedEvidence, now),
+		Determine(nil, []string{"main.go"},
+			map[uint64]struct{}{linehash.Of("other.go", "x := 1"): {}},
+			noStagedEvidence, now),
+	} {
+		if got.Status.Attributed() {
+			t.Errorf("%s must not count as attributed", got.Status)
+		}
 	}
 }
 
@@ -298,5 +335,142 @@ func TestNoModelLeavesTheFieldEmpty(t *testing.T) {
 	}
 	if strings.Contains(tr.Format(), "model") {
 		t.Errorf("trailer mentions a model it does not have: %s", tr.Format())
+	}
+}
+
+func TestFromDeclarationCarriesNoLineLevelEvidence(t *testing.T) {
+	got := FromDeclaration(&declared.Declaration{Agent: "copilot", Signal: "agent-logs-url"})
+
+	if got.Status != spec.StatusAssisted || got.Method != spec.MethodDeclared {
+		t.Fatalf("got %s/%s, want assisted/declared", got.Status, got.Method)
+	}
+	if got.Agent != "copilot" {
+		t.Errorf("agent = %q, want copilot", got.Agent)
+	}
+	// A trailer says an agent was involved and nothing about which lines.
+	// Rendering 0.00 would assert it contributed nothing, which is the
+	// opposite of what a declaration means (NAV-21).
+	if got.Ratio != nil {
+		t.Errorf("ratio must be omitted on a declaration, got %v", *got.Ratio)
+	}
+	if got.Session != "" {
+		t.Errorf("session must be empty on a declaration, got %q", got.Session)
+	}
+	if got.Model != "" {
+		t.Errorf("model must be empty on a declaration, got %q", got.Model)
+	}
+	if s := got.Format(); strings.Contains(s, "ratio=") ||
+		strings.Contains(s, "session=") || strings.Contains(s, "model=") {
+		t.Errorf("formatted trailer leaked an absent field: %s", s)
+	}
+}
+
+func TestFromDeclarationWithNoDeclarationIsUndetermined(t *testing.T) {
+	if got := FromDeclaration(nil); got.Status != spec.StatusUndetermined {
+		t.Errorf("no declaration must stay undetermined, got %s", got.Status)
+	}
+}
+
+func TestBestPrefersStrongerEvidence(t *testing.T) {
+	declaration := FromDeclaration(&declared.Declaration{Agent: "cursor"})
+	observed := spec.Trailer{
+		Status: spec.StatusAssisted, Method: spec.MethodObserved, Agent: "claude-code",
+	}
+
+	// Transcript evidence wins in both argument orders: the rule is the
+	// ladder, not which one was computed first.
+	if got := Best(observed, declaration); got.Method != spec.MethodObserved {
+		t.Errorf("observed should win, got %s", got.Method)
+	}
+	if got := Best(declaration, observed); got.Method != spec.MethodObserved {
+		t.Errorf("observed should win regardless of order, got %s", got.Method)
+	}
+	// And the agent travels with the winning determination, so a commit is
+	// never reported as one agent's work with another's method.
+	if got := Best(declaration, observed); got.Agent != "claude-code" {
+		t.Errorf("agent = %q, want the winner's agent", got.Agent)
+	}
+	// A declaration still beats no evidence at all.
+	if got := Best(spec.Undetermined(), declaration); got.Method != spec.MethodDeclared {
+		t.Errorf("declared should beat undetermined, got %s", got.Method)
+	}
+}
+
+// WHO-213. Observed says the agent's text did not survive; changed_by says
+// what happened to it. The two answers are not equivalent and neither may
+// be guessed.
+func TestObservedSaysWhatChangedTheText(t *testing.T) {
+	now := time.Now()
+	yes, no := true, false
+
+	cases := []struct {
+		name     string
+		modified *bool
+		want     spec.ChangedBy
+	}{
+		{"a human revised it", &yes, spec.ChangedByHuman},
+		{"the agent replaced its own lines", &no, spec.ChangedByAgent},
+		// The case that matters most: an agent that cannot report this
+		// must not have an answer invented for it.
+		{"the agent does not report it", nil, ""},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			entries := []journal.Entry{{
+				Timestamp: now.Add(-time.Hour), Agent: "claude-code",
+				Session: "s1", Event: "tool_use", Tool: "Edit", File: "main.go",
+				UserModified: c.modified,
+			}}
+			got := Determine(entries, []string{"main.go"}, nil, noStagedEvidence, now)
+			if got.Method != spec.MethodObserved {
+				t.Fatalf("want observed, got %s", got.Method)
+			}
+			if got.ChangedBy != c.want {
+				t.Errorf("changed_by = %q, want %q", got.ChangedBy, c.want)
+			}
+		})
+	}
+}
+
+// Nothing to explain when the text DID survive: intersected means the
+// agent's lines are in the commit, so a changed_by there would describe a
+// change that did not happen.
+func TestIntersectedCarriesNoChangedBy(t *testing.T) {
+	now := time.Now()
+	yes := true
+	line := "x := 1"
+	h := linehash.Of("main.go", line)
+	entries := []journal.Entry{{
+		Timestamp: now.Add(-time.Hour), Agent: "claude-code", Session: "s1",
+		Event: "tool_use", Tool: "Edit", File: "main.go",
+		LineHashes: []uint64{h}, UserModified: &yes,
+	}}
+	got := Determine(entries, []string{"main.go"},
+		map[uint64]struct{}{h: {}},
+		StagedEvidence{Lines: []uint64{h}, Commit: CommitLines{Added: 1}}, now)
+	if got.Method != spec.MethodIntersected {
+		t.Fatalf("want intersected, got %s", got.Method)
+	}
+	if got.ChangedBy != "" {
+		t.Errorf("intersected carries changed_by=%q, but the text survived", got.ChangedBy)
+	}
+}
+
+// The signal survives the trailer, which is the point of putting it there
+// rather than leaving it in the journal.
+func TestChangedByRoundTripsThroughTheTrailer(t *testing.T) {
+	now := time.Now()
+	yes := true
+	entries := []journal.Entry{{
+		Timestamp: now.Add(-time.Hour), Agent: "claude-code", Session: "s1",
+		Event: "tool_use", Tool: "Edit", File: "main.go", UserModified: &yes,
+	}}
+	got := Determine(entries, []string{"main.go"}, nil, noStagedEvidence, now)
+	parsed, err := spec.Parse(got.Format())
+	if err != nil {
+		t.Fatalf("parse: %v (%s)", err, got.Format())
+	}
+	if parsed.ChangedBy != spec.ChangedByHuman {
+		t.Errorf("changed_by lost in the round trip: %q", parsed.ChangedBy)
 	}
 }

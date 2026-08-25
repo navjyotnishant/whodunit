@@ -17,7 +17,7 @@ configure `dun sync` and run it yourself (see [Privacy](#privacy)).
 Every commit gets a plain git trailer:
 
 ```
-AI-Attribution: v=1; status=assisted; method=intersected; agent=claude-code; agent_version=2.1.228; ratio=0.62; model=claude-opus-5; session=a3f9e21c
+AI-Attribution: v=2; status=assisted; method=intersected; agent=claude-code; agent_version=2.1.228; ratio=0.62; model=claude-opus-5; session=a3f9e21c
 ```
 
 - **v** — the trailer format version, first so it is read before the
@@ -91,6 +91,28 @@ when you ran `dun init` — and once that file moves, every commit is stamped
 than "the tool went missing". `dun init` warns when it detects this, and the
 package managers above avoid it entirely.
 
+### Upgrading
+
+```sh
+brew update && brew upgrade dun     # macOS, Linux
+scoop update dun                    # Windows
+```
+
+Only the binary needs upgrading. Hooks resolve `dun` from `PATH` at run
+time, so they pick up the new binary for free — and where a hook's own
+shape changed, it is repaired on the next `dun` command in that repository.
+`dun repos update` does every repository at once if you would rather not
+wait. Dashboards are a separate re-import.
+
+`dun` tells you once a day when a newer release exists, on a bare `dun`
+only — never from a git hook, because a version check that can hang a
+commit is worse than an out-of-date binary.
+
+If `brew upgrade` reports a version you already have while the releases page
+shows a newer one, Homebrew has no newer version *in its tap* — run
+`brew update` first. Full path, including the dashboards:
+[Upgrading](https://navjyotnishant.github.io/whodunit/getting-started/upgrading).
+
 ## Use
 
 ```sh
@@ -110,7 +132,7 @@ target; without a target it does nothing.
 
 | Command | What it does |
 |---|---|
-| `dun baseline capture` | Snapshot delivery metrics **before** installing hooks — see below |
+| `dun baseline capture` | Snapshot delivery metrics over a named pre-adoption window — see below |
 | `dun init [--repo <path>]` | Install the git hooks into a repository |
 | `dun repos list` / `candidates` / `remove` | See what's instrumented, and what isn't |
 | `dun status` | Trailer coverage and method mix for recent commits |
@@ -152,17 +174,34 @@ opt-in list for anything that later works across repositories.
 
 ### Capture a baseline first
 
-If you ever want to answer "did this change how we ship?", run this
-*before* `dun init`:
+If you ever want to answer "did this change how we ship?", capture the
+period you were working without an agent:
 
 ```sh
-dun baseline capture
+dun baseline capture --since 2026-01-01 --until 2026-06-30
 ```
 
 It records commit volume, median diff size, revert rate, commit cadence,
-and purpose distribution over the last 90 days, as a dated immutable
-snapshot. The pre-adoption window closes the moment hooks start stamping
-trailers, and it cannot be recaptured afterwards.
+and purpose distribution over that window, as a dated immutable snapshot.
+
+**Name the window explicitly.** A bare `dun baseline capture` prints help
+rather than capturing, because the useful default does not exist: a window
+ending today stops being pre-adoption the moment hooks are installed, so it
+would measure AI-assisted work and record it as the *before*. `--days 90`
+still does exactly that, and is correct only before `dun init`.
+
+Because the window is yours to name, **a baseline can be captured after
+hooks are already installed** — you are reading history git already has, not
+observing the present. What closes permanently is the *chance to pick a
+window that has not been touched by an agent*, not the capture itself. Pick
+a range that ended before your first assisted commit and the snapshot is as
+good as one taken that day.
+
+A snapshot is immutable, so recapturing over the wrong window needs
+`--force`, which prints the capture date, window, and commit count of the
+one it is about to destroy. The forced capture is stored as a new baseline
+rather than replacing the old row, so what was actually compared stays on
+record.
 
 PR throughput, cycle time, and change-failure rate can't be read from git,
 so they're optional flags you supply from GitHub Insights or your CI
@@ -370,3 +409,11 @@ reach for an agent on some kinds of work and not others — so a throughput
 difference between them may be measuring which work was chosen. `dun delta`
 reports both cuts and names that limit rather than resolving it into a
 percentage.
+
+## Licence
+
+[Apache-2.0](LICENSE).
+
+The trailer grammar is covered by the same licence, which is deliberate: a
+format described as a standard has to be one anybody can implement,
+including in a tool that has nothing to do with this one.

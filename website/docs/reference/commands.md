@@ -34,7 +34,7 @@ Every command's own `--help` is authoritative; this is the map.
 
 | Command | What it does |
 |---|---|
-| `dun baseline capture` | Snapshot delivery metrics **before** installing hooks |
+| `dun baseline capture` | Snapshot delivery metrics over a named pre-adoption window |
 | `dun delta` | Compare delivery before and after adoption |
 | `dun ingest [--since <time>]` | Read agent transcripts into the journal |
 | `dun daemon run` | Foreground watcher; re-ingests as sessions change |
@@ -61,22 +61,36 @@ Every command's own `--help` is authoritative; this is the map.
 | `dun update` | Upgrade through Homebrew, then refresh every repository's hooks |
 | `dun version` | The installed version |
 
-## Capture a baseline before you start
+## Capture a baseline
 
-If you ever want to answer "did this change how we ship?", this has to run
-**before** `dun init`:
+If you ever want to answer "did this change how we ship?", capture the
+period you were working without an agent:
 
 ```sh
-dun baseline capture
+dun baseline capture --since 2026-01-01 --until 2026-06-30
 ```
 
 It records commit volume, median diff size, revert rate, cadence and
-purpose distribution over the last 90 days as a dated, immutable snapshot.
+purpose distribution over that window as a dated, immutable snapshot.
 
-The pre-adoption window closes the moment hooks start stamping trailers,
-and it cannot be recaptured afterwards. That is why baselines live outside
-`data/` — everything else in the journal can be rebuilt by re-ingesting;
-this cannot.
+**Name the window explicitly.** A bare `dun baseline capture` prints help
+rather than capturing: a window ending today stops being pre-adoption the
+moment hooks are installed, so the convenient default would measure
+AI-assisted work and record it as the *before*. `--days 90` still does
+that, and is correct only before `dun init`.
+
+**It does not have to run before `dun init`.** The window is one you name,
+and it is read from history git already has — so a baseline can be captured
+afterwards, as long as the range you pick ended before your first assisted
+commit. What closes permanently is the availability of an untouched window,
+not the opportunity to capture one.
+
+Baselines live outside `data/` because a snapshot is not rebuildable:
+everything else in the journal can be recovered by re-ingesting transcripts,
+and this cannot. Recapturing over the wrong window needs `--force`, which
+prints the capture date, window and commit count of the snapshot it is about
+to destroy, and stores the new one as a separate baseline rather than
+overwriting the old row.
 
 PR throughput, cycle time and change-failure rate cannot be read from git,
 so they are optional flags you supply from your own dashboard

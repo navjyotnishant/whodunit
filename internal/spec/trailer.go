@@ -18,6 +18,30 @@ const (
 	MethodIntersected  Method = "intersected"
 )
 
+// confidence ranks the methods so two candidate determinations can be
+// compared rather than resolved by whichever branch happened to run first.
+//
+// The numbers are ordinal and carry no meaning beyond their order: they
+// exist so a new rung can be added between two existing ones without
+// renumbering, and so the comparison lives in one place instead of being
+// re-expressed as an if-chain at every site that has to choose.
+var confidence = map[Method]int{
+	MethodUndetermined: 0,
+	MethodDeclared:     1,
+	MethodInferred:     2,
+	MethodObserved:     3,
+	MethodIntersected:  4,
+}
+
+// StrongerThan reports whether m rests on better evidence than other.
+//
+// An unrecognised method ranks below every known one. A future value
+// arriving from a newer writer is not evidence this code can weigh, and
+// treating it as strong would let an unknown claim outrank a measured one.
+func (m Method) StrongerThan(other Method) bool {
+	return confidence[m] > confidence[other]
+}
+
 var validMethods = map[Method]bool{
 	MethodUndetermined: true,
 	MethodDeclared:     true,
@@ -26,17 +50,130 @@ var validMethods = map[Method]bool{
 	MethodIntersected:  true,
 }
 
+// ChangedBy says what happened to an agent's text when it did not survive
+// into the commit.
+//
+// Only meaningful on MethodObserved, which means the agent edited the file
+// and its exact lines are not what got staged. Observed alone does not say
+// why, and the answers are not equivalent: a human revising the agent's
+// output is a different fact from a formatter rewriting it, and both are
+// different from the agent having rewritten its own work in a later turn.
+//
+// Absent when nothing recorded it. Only Claude Code reports whether a
+// human edited its output; Codex and agy have no equivalent signal, so on
+// those agents this is permanently absent rather than pending (NAV-21).
+type ChangedBy string
+
+const (
+	// ChangedByHuman - a human edited the agent's output before it was
+	// committed. The agent's contribution is real and was revised.
+	ChangedByHuman ChangedBy = "human"
+
+	// ChangedByAgent - the agent itself replaced the lines in a later
+	// turn, so the text in the commit is still its own work, just not the
+	// text this event produced.
+	ChangedByAgent ChangedBy = "agent"
+)
+
+var validChangedBy = map[ChangedBy]bool{
+	ChangedByHuman: true,
+	ChangedByAgent: true,
+}
+
+// Explain returns a plain-English gloss, on the same terms as the rest of
+// this package: what a reader may conclude.
+func (c ChangedBy) Explain() string {
+	switch c {
+	case ChangedByHuman:
+		return "a human revised the agent's output before committing"
+	case ChangedByAgent:
+		return "the agent replaced its own earlier lines"
+	default:
+		return ""
+	}
+}
+
 // Status is the top-level attribution status.
 type Status string
 
 const (
-	StatusAssisted     Status = "assisted"
+	StatusAssisted Status = "assisted"
+
+	// StatusUndetermined is what v=1 stamped whenever no determination
+	// could be made, and it meant four different things at once. Kept
+	// because it is written into every commit made before v=2 and those
+	// trailers cannot be rewritten - but nothing emits it now.
 	StatusUndetermined Status = "undetermined"
+
+	// The four situations undetermined used to conflate (WHO-211). They
+	// demand opposite responses, which is the whole reason for splitting
+	// them: one is a finding, one is a fault, two are neither.
+
+	// StatusUnassisted - the hooks ran, the journal was readable, and no
+	// agent had been near this work. A human wrote it.
+	//
+	// The only positive claim here, and the only one that can be wrong in
+	// the direction that flatters the tool. It requires proof the tooling
+	// was watching, never merely the absence of evidence (NAV-21).
+	StatusUnassisted Status = "unassisted"
+
+	// StatusUnmatched - an agent was active, but no journal entry touched
+	// any staged file. Usually correct: a generated file has no tool call
+	// naming it, and claiming those lines for the agent that ran the
+	// generator would be a lie about who wrote them.
+	StatusUnmatched Status = "unmatched"
+
+	// StatusDegraded - attribution itself failed. The only status here
+	// that is a fault, and the only one worth replaying.
+	StatusDegraded Status = "degraded"
+
+	// StatusUninstrumented - the commit predates the hooks in this
+	// repository. Never stamped on a commit, since stamping requires the
+	// hooks that were absent; it exists so a reader can name the state.
+	StatusUninstrumented Status = "uninstrumented"
 )
 
 var validStatuses = map[Status]bool{
-	StatusAssisted:     true,
-	StatusUndetermined: true,
+	StatusAssisted:       true,
+	StatusUndetermined:   true,
+	StatusUnassisted:     true,
+	StatusUnmatched:      true,
+	StatusDegraded:       true,
+	StatusUninstrumented: true,
+}
+
+// Attributed reports whether this status means an agent was attributed.
+//
+// Written as a positive test rather than `!= StatusUndetermined`, which is
+// how the dashboards asked the same question until WHO-211. That negation
+// silently absorbed every status added after it: an unassisted commit
+// stopped being undetermined and started counting as attributed, inflating
+// coverage while rendering perfectly.
+func (s Status) Attributed() bool { return s == StatusAssisted }
+
+// Explain returns a plain-English gloss for a status, on the same terms as
+// Method.Explain: what a reader may conclude, not what the collector did.
+//
+// Each gloss says whether the status is a finding, a fault or a gap,
+// because the words do not. "unmatched" and "degraded" read as equally
+// wrong; one is usually correct behaviour and the other is a bug.
+func (s Status) Explain() string {
+	switch s {
+	case StatusAssisted:
+		return "an agent contributed to this commit"
+	case StatusUnassisted:
+		return "a human wrote this — the hooks were watching and saw no agent"
+	case StatusUnmatched:
+		return "an agent was active, but touched none of these files"
+	case StatusUninstrumented:
+		return "committed before the hooks existed, so AI use is unknown, not absent"
+	case StatusDegraded:
+		return "attribution failed here — this is a fault, not a finding"
+	case StatusUndetermined:
+		return "no evidence either way (pre-v2: reason not recorded)"
+	default:
+		return ""
+	}
 }
 
 // TrailerKey is the git trailer key this spec owns.
@@ -68,7 +205,19 @@ const TrailerKey = "AI-Attribution"
 // key does not — a parser that does not know `model=` keeps it in Extra
 // and is otherwise unaffected — and bumping for additions would make the
 // version uninformative about the thing it exists to signal.
-const Version = 1
+//
+// v=2 (WHO-211): `status=undetermined` changed meaning. In v=1 it covered
+// four unrelated situations — nobody used an agent, an agent was active
+// elsewhere, the hooks predated the commit, attribution failed — and a
+// reader could not tell which. v=2 names them, so a v=2 trailer that says
+// `undetermined` means the reason genuinely could not be determined,
+// while a v=1 trailer saying it means only that nothing was recorded.
+//
+// That is a change in meaning rather than an addition, which is exactly
+// what this constant exists to signal. Commits stamped under v=1 keep
+// their trailers; the version is how a reader knows which vocabulary it
+// is holding.
+const Version = 2
 
 // VersionKey is short deliberately. Trailers are read by humans on a
 // GitHub commit page and the line is already long; `v=1` costs four
@@ -106,6 +255,10 @@ type Trailer struct {
 	// trailer written before NAV-118; see SpecVersion.
 	SpecVer int
 
+	// ChangedBy qualifies MethodObserved. Empty means unrecorded, which
+	// is the permanent state for agents that do not report it.
+	ChangedBy ChangedBy
+
 	Extra map[string]string // unknown keys, preserved verbatim per spec
 }
 
@@ -124,8 +277,27 @@ func (t Trailer) SpecVersion() int {
 
 // Undetermined is the trailer stamped when no determination could be made.
 // Absence must never mean none (NAV-21): every commit gets a trailer.
+//
+// Deprecated for emission by WHO-211: it says nothing about why, which was
+// the whole problem. Use WithStatus with the status that fits. Kept for
+// readers of v=1 trailers, which carry this and cannot be rewritten.
 func Undetermined() Trailer {
 	return Trailer{Status: StatusUndetermined, Method: MethodUndetermined}
+}
+
+// WithStatus is the trailer stamped when no agent was attributed, carrying
+// the reason it was not.
+//
+// Method stays undetermined throughout: these statuses say why there is no
+// evidence, and grading the strength of evidence that does not exist would
+// be a category error.
+func WithStatus(s Status) Trailer {
+	// Stamped with the version being written, not left to
+	// SpecVersion's default. That default reads an absent version as 1,
+	// which is right for old trailers and wrong for new ones: a v=2
+	// vocabulary announcing itself as v=1 is exactly the ambiguity the
+	// version exists to prevent.
+	return Trailer{Status: s, Method: MethodUndetermined, SpecVer: Version}
 }
 
 // Format renders a Trailer as "AI-Attribution: key=value; key=value".
@@ -158,6 +330,9 @@ func (t Trailer) Format() string {
 	}
 	if t.Session != "" {
 		fmt.Fprintf(&b, "; session=%s", t.Session)
+	}
+	if t.ChangedBy != "" {
+		fmt.Fprintf(&b, "; changed_by=%s", t.ChangedBy)
 	}
 	for k, v := range t.Extra {
 		fmt.Fprintf(&b, "; %s=%s", k, v)
@@ -200,6 +375,14 @@ func Parse(value string) (Trailer, error) {
 			t.Agent = val
 		case "agent_version":
 			t.Version = val
+		case "changed_by":
+			// An unrecognised value is dropped rather than rejected: this
+			// key only qualifies observed, and a trailer is still
+			// perfectly readable without it. Failing the whole parse over
+			// a future value would make an optional key mandatory.
+			if validChangedBy[ChangedBy(val)] {
+				t.ChangedBy = ChangedBy(val)
+			}
 		case "model":
 			t.Model = val
 		case "session":

@@ -6,11 +6,13 @@ import (
 	"io"
 	"os/exec"
 	"sort"
+	"strconv"
 	"strings"
 
 	"time"
 
 	"github.com/navjyotnishant/whodunit/internal/config"
+	"github.com/navjyotnishant/whodunit/internal/hooklog"
 	"github.com/navjyotnishant/whodunit/internal/journal"
 	"github.com/navjyotnishant/whodunit/internal/registry"
 	"github.com/navjyotnishant/whodunit/internal/repoid"
@@ -115,6 +117,88 @@ func statusFor(w io.Writer, dir, label string) error {
 		fmt.Fprintf(w, "  %s %4d   %s\n",
 			c.S(termcolor.MethodStyle(string(m)), label), n,
 			c.S(termcolor.Muted, m.Explain()))
+	}
+
+	// What became of the agent's text on the observed commits (WHO-213).
+	// `observed 22` says the text did not survive and stops there; these
+	// lines say whether a person revised it or the agent replaced its own
+	// work, which are different facts about the same number.
+	//
+	// Silent when nothing reported it - two agents out of three never do,
+	// and printing "unknown 22" would dress a permanent property of the
+	// agent up as a gap.
+	if len(s.ChangedByCount) > 0 {
+		fmt.Fprintln(w, "of those observed:")
+		for _, cb := range []spec.ChangedBy{spec.ChangedByHuman, spec.ChangedByAgent} {
+			if n := s.ChangedByCount[cb]; n > 0 {
+				fmt.Fprintf(w, "  %s %4d   %s\n",
+					c.S(termcolor.Muted, fmt.Sprintf("%-13s", cb)), n,
+					c.S(termcolor.Muted, cb.Explain()))
+			}
+		}
+	}
+
+	// Said here rather than left to the coverage figure, because the
+	// coverage figure cannot say it. Commits older than the first trailer
+	// were made before whodunit could observe anything, so they are not
+	// evidence that no agent was used - they are evidence of nothing
+	// (NAV-21). Someone reading 40% coverage would otherwise reasonably
+	// conclude the other 60% was written by hand.
+	if s.Unattributed > 0 {
+		fmt.Fprintf(w, "%s\n", c.S(termcolor.Muted, fmt.Sprintf(
+			"attribution began %s - %d older commit(s) predate it, "+
+				"so AI use before then is unknown, not absent",
+			s.FirstAttributed.Format("2006-01-02"), s.Unattributed)))
+	}
+
+	// Why the undetermined commits carry no method (WHO-210). The count
+	// alone invites the wrong conclusion: someone reading "undetermined
+	// 760" reasonably assumes 760 commits nobody used an agent on, when
+	// most of them predate the hooks entirely and a handful are a fault
+	// worth fixing. The four reasons demand opposite responses, so the
+	// summary is useless without them.
+	if n := s.MethodCount[spec.MethodUndetermined]; n > 0 {
+		// v=2 trailers say why in the status itself. Only the v=1 ones,
+		// which recorded nothing, still need the hook-log estimate - so
+		// the heading says which of the two a reader is looking at.
+		// A v=2 trailer names its own reason; a v=1 one cannot, and the
+		// hook log is the only thing that can speak for it. Both kinds
+		// coexist in any repository instrumented before the change, so
+		// report what each can actually support rather than letting the
+		// weaker source decide for both.
+		counts := map[spec.Status]int{}
+		for _, st := range reasonDisplayOrder {
+			counts[st] = s.StatusCount[st]
+		}
+		heading := "why undetermined:"
+		if legacy := s.StatusCount[spec.StatusUndetermined]; legacy > 0 {
+			// Estimated only for the ones that carry no answer.
+			for st, n := range reasonCounts(dir, s) {
+				if counts[st] == 0 {
+					counts[st] = n
+				}
+			}
+			heading = "why undetermined (older commits estimated from the hook log):"
+		}
+		fmt.Fprintln(w, heading)
+		for _, r := range reasonDisplayOrder {
+			if counts[r] == 0 {
+				continue
+			}
+			fmt.Fprintf(w, "  %s %4d   %s\n",
+				c.S(termcolor.Muted, fmt.Sprintf("%-13s", r)), counts[r],
+				c.S(termcolor.Muted, r.Explain()))
+		}
+		// The remainder the hook log cannot account for. Reported rather
+		// than folded into a neighbouring reason: a commit whose reason
+		// is unknown is not evidence for any particular one, and quietly
+		// rounding it into "uninstrumented" would be the same
+		// absence-as-evidence mistake one level down.
+		if rest := n - total(counts); rest > 0 && len(counts) > 0 {
+			fmt.Fprintf(w, "  %s %4d   %s\n",
+				c.S(termcolor.Muted, fmt.Sprintf("%-13s", "unclassified")), rest,
+				c.S(termcolor.Muted, "the hook log does not reach these commits"))
+		}
 	}
 
 	printSyncStatus(w, dir)
@@ -516,6 +600,29 @@ type coverageStats struct {
 	Total       int
 	Covered     int
 	MethodCount map[spec.Method]int
+
+	// ChangedByCount is what happened to the agent's text on observed
+	// commits. Absent for agents that do not report it, which is why it
+	// is counted separately rather than assumed zero.
+	ChangedByCount map[spec.ChangedBy]int
+
+	// StatusCount is what a v=2 trailer says about itself. Method grades
+	// evidence; status says whether there is any and why not, and since
+	// WHO-211 the reason is recorded rather than estimated afterwards.
+	StatusCount map[spec.Status]int
+
+	// FirstAttributed is the date of the oldest commit in the scanned
+	// window that carries a trailer, and Unattributed counts the commits
+	// older than it.
+	//
+	// Both exist to answer a question the coverage figure cannot: a
+	// repository instrumented last week has months of commits that
+	// predate attribution, and those are not evidence that no agent was
+	// used. They are evidence of nothing, which is a different claim
+	// (NAV-21). Reporting the span makes the gap visible rather than
+	// leaving someone to read 40% coverage as 60% human-written.
+	FirstAttributed time.Time
+	Unattributed    int
 }
 
 func (s coverageStats) CoveragePct() float64 {
@@ -528,6 +635,16 @@ func (s coverageStats) CoveragePct() float64 {
 var methodDisplayOrder = []spec.Method{
 	spec.MethodIntersected, spec.MethodObserved, spec.MethodInferred,
 	spec.MethodDeclared, spec.MethodUndetermined,
+}
+
+// reasonDisplayOrder runs finding, then usually-fine, then gap, then
+// fault - so the line a reader most needs to act on is last and closest
+// to whatever follows. Not a confidence ladder: these are four unrelated
+// answers, and ordering them by severity is the only ordering that means
+// anything.
+var reasonDisplayOrder = []spec.Status{
+	spec.StatusUnassisted, spec.StatusUnmatched,
+	spec.StatusUninstrumented, spec.StatusDegraded,
 }
 
 // methodSummary renders the mix compactly, strongest evidence first, for a
@@ -548,9 +665,16 @@ func methodSummary(s coverageStats) string {
 // scanRepo reads trailer coverage from a repository's recent commits. An
 // empty dir means the current working directory.
 func scanRepo(dir string) (coverageStats, error) {
-	s := coverageStats{MethodCount: map[spec.Method]int{}}
+	s := coverageStats{
+		MethodCount:    map[spec.Method]int{},
+		StatusCount:    map[spec.Status]int{},
+		ChangedByCount: map[spec.ChangedBy]int{},
+	}
 
-	cmd := exec.Command("git", "log", "-n", "100", "--format=%B%x00")
+	// Author date alongside the message: the boundary between "before
+	// attribution existed" and "after" is a date, and without it the
+	// unattributed span cannot be distinguished from genuine non-use.
+	cmd := exec.Command("git", "log", "-n", "100", "--format=%aI%x01%B%x00")
 	cmd.Dir = dir
 	out, err := cmd.Output()
 	if err != nil {
@@ -564,11 +688,16 @@ func scanRepo(dir string) (coverageStats, error) {
 	}
 
 	prefix := spec.TrailerKey + ":"
-	for _, commitMsg := range strings.Split(string(out), "\x00") {
-		commitMsg = strings.TrimSpace(commitMsg)
-		if commitMsg == "" {
+	for _, record := range strings.Split(string(out), "\x00") {
+		record = strings.TrimSpace(record)
+		if record == "" {
 			continue
 		}
+		when, commitMsg, ok := strings.Cut(record, "\x01")
+		if !ok {
+			continue
+		}
+		at, _ := time.Parse(time.RFC3339, strings.TrimSpace(when))
 		s.Total++
 
 		scanner := bufio.NewScanner(strings.NewReader(commitMsg))
@@ -583,7 +712,31 @@ func scanRepo(dir string) (coverageStats, error) {
 			}
 			s.Covered++
 			s.MethodCount[t.Method]++
+			s.StatusCount[t.Status]++
+			if t.ChangedBy != "" {
+				s.ChangedByCount[t.ChangedBy]++
+			}
+			// git log is newest-first, so the last trailer seen is the
+			// oldest one, which is where attribution began.
+			if !at.IsZero() {
+				s.FirstAttributed = at
+			}
 			break
+		}
+	}
+
+	// Counted after the scan rather than during it: the boundary is only
+	// known once the oldest trailer has been seen.
+	if !s.FirstAttributed.IsZero() {
+		for _, record := range strings.Split(string(out), "\x00") {
+			when, _, ok := strings.Cut(strings.TrimSpace(record), "\x01")
+			if !ok {
+				continue
+			}
+			if at, err := time.Parse(time.RFC3339, strings.TrimSpace(when)); err == nil &&
+				at.Before(s.FirstAttributed) {
+				s.Unattributed++
+			}
 		}
 	}
 	return s, nil
@@ -629,4 +782,100 @@ func shortRepoName(path string) string {
 		return path
 	}
 	return strings.Join(parts[len(parts)-2:], "/")
+}
+
+// reasonCounts classifies this repository's unattributed commits by why
+// they carry no method, reading the hook log the hooks already write.
+//
+// RECONSTRUCTED, AND APPROXIMATE. The log records what each determination
+// concluded but not which commit it belonged to, so there is no SHA to
+// join on and these are counts of determinations, not of commits. They
+// differ: an amend re-runs the hook, so one commit can produce several
+// entries, and a determination made before the window under examination
+// is excluded by time rather than by identity.
+//
+// So the proportions are reliable and the totals are not. That is worth
+// having - "these are mostly pre-install, and two are a fault" is the
+// question people actually ask - but it is not a measurement, and the
+// caller labels it as an estimate rather than implying otherwise.
+// WHO-211 records the reason at determination time, where the commit is
+// known and no reconstruction is needed.
+//
+// A repository with no readable log returns nothing, and the caller
+// reports every commit as unclassified — which is honest, and visibly
+// different from claiming they were all human-written.
+func reasonCounts(dir string, s coverageStats) map[spec.Status]int {
+	out := map[spec.Status]int{}
+
+	// Everything before the first trailer. Needs no log: whodunit was not
+	// installed, so its silence says nothing either way (NAV-21).
+	if s.Unattributed > 0 {
+		out[spec.StatusUninstrumented] = s.Unattributed
+	}
+
+	home, err := config.Dir()
+	if err != nil {
+		return out
+	}
+	entries, err := hooklog.Read(home, 0)
+	if err != nil {
+		return out
+	}
+
+	repoID, err := repoid.ForRepo(dir)
+	if err != nil {
+		return out
+	}
+	// Bounded to the window the caller examined. The log spans every
+	// determination ever made in this repository, while the coverage
+	// figures cover the last N commits, so counting the whole log against
+	// them reported more reasons than there were commits.
+	for _, e := range entries {
+		if e.RepoID != repoID || e.Event != "determine" {
+			continue
+		}
+		if !s.FirstAttributed.IsZero() && e.Time.Before(s.FirstAttributed) {
+			continue
+		}
+		if e.Level == hooklog.LevelWarn {
+			out[spec.StatusDegraded]++
+			continue
+		}
+		if !strings.HasPrefix(e.Detail, "undetermined") {
+			continue
+		}
+		switch {
+		case strings.Contains(e.Detail, "no agent activity"):
+			out[spec.StatusUnassisted]++
+		case agentLinesPresent(e.Detail):
+			out[spec.StatusUnmatched]++
+		}
+	}
+
+	return out
+}
+
+// agentLinesPresent reports whether a determination had agent lines to
+// match against. That is the whole distinction between "an agent was
+// working elsewhere" and "no agent was anywhere near this": both end in
+// undetermined, and only this number separates them.
+func agentLinesPresent(detail string) bool {
+	i := strings.Index(detail, " agent line(s)")
+	if i < 0 {
+		return false
+	}
+	j := strings.LastIndexByte(detail[:i], ' ')
+	if j < 0 {
+		return false
+	}
+	n, err := strconv.Atoi(detail[j+1 : i])
+	return err == nil && n > 0
+}
+
+func total(counts map[spec.Status]int) int {
+	n := 0
+	for _, v := range counts {
+		n += v
+	}
+	return n
 }

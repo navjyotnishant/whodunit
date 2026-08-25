@@ -19,6 +19,7 @@ import type {SidebarsConfig} from '@docusaurus/plugin-content-docs';
 const sidebars: SidebarsConfig = {
   docs: [
     'intro',
+    'measuring-ai-impact',
     {
       type: 'category',
       label: 'Getting started',
@@ -28,6 +29,7 @@ const sidebars: SidebarsConfig = {
         'getting-started/install',
         'getting-started/first-commit',
         'getting-started/the-trailer',
+        'getting-started/upgrading',
       ],
     },
     {

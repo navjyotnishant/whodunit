@@ -8,7 +8,7 @@
   "schemaVersion": 39,
   "refresh": "",
   "time": {
-    "from": "now-90d",
+    "from": "now-30d",
     "to": "now"
   },
   "templating": {
@@ -33,6 +33,22 @@
         "refresh": 1,
         "allValue": "__all__",
         "options": []
+      },
+      {
+        "name": "evidence",
+        "type": "custom",
+        "label": "Evidence",
+        "query": "intersected — agent lines survived : intersected,observed — agent edited the files : observed,inferred — from surrounding evidence : inferred,declared — stated only : declared,undetermined — no evidence either way : undetermined",
+        "options": [],
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "__all__"
+        },
+        "includeAll": true,
+        "allValue": "__all__",
+        "multi": false,
+        "hide": 0
       },
       {
         "name": "board",
@@ -78,7 +94,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT ROUND(100.0 * COUNT(DISTINCT w.commit_sha)\n                    / NULLIF(COUNT(DISTINCT c.sha), 0), 1) AS v\nFROM commits c\nJOIN repo_commits rc ON rc.commit_sha = c.sha\nJOIN whodunit_commits seen ON seen.commit_sha IN (\n       SELECT commit_sha FROM repo_commits WHERE repo_id = rc.repo_id)\nLEFT JOIN whodunit_commits w ON w.commit_sha = c.sha\nLEFT JOIN whodunit_repos r ON r.repo_id = w.repo_id\nWHERE ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}' OR w.commit_sha IS NULL)\n  AND c.authored_date BETWEEN FROM_UNIXTIME($__unixEpochFrom())\n                          AND FROM_UNIXTIME($__unixEpochTo())"
+          "rawSql": "SELECT ROUND(100.0 * COUNT(DISTINCT w.commit_sha)\n                    / NULLIF(COUNT(DISTINCT c.sha), 0), 1) AS v\nFROM commits c\nJOIN repo_commits rc ON rc.commit_sha = c.sha\nJOIN whodunit_commits seen ON seen.commit_sha IN (\n       SELECT commit_sha FROM repo_commits WHERE ('${evidence:raw}' = '__all__' OR seen.method = '${evidence:raw}')\n  AND  repo_id = rc.repo_id)\nLEFT JOIN whodunit_commits w ON w.commit_sha = c.sha\nLEFT JOIN whodunit_repos r ON r.repo_id = w.repo_id\nWHERE ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}' OR w.commit_sha IS NULL)\n  AND c.authored_date BETWEEN FROM_UNIXTIME($__unixEpochFrom())\n                          AND FROM_UNIXTIME($__unixEpochTo())"
         }
       ],
       "fieldConfig": {
@@ -304,7 +320,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT CONCAT(\n         FORMAT(SUM(c.status = 'assisted'), 0), ' / ',\n         FORMAT(COUNT(*), 0)) AS v\nFROM whodunit_commits c\nJOIN whodunit_repos r ON r.repo_id = c.repo_id\nWHERE ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}')\n  AND c.committed_at BETWEEN $__unixEpochFrom() * 1000000000\n                         AND $__unixEpochTo()   * 1000000000"
+          "rawSql": "SELECT CONCAT(\n         FORMAT(SUM(c.status = 'assisted'), 0), ' / ',\n         FORMAT(COUNT(*), 0)) AS v\nFROM whodunit_commits c\nJOIN whodunit_repos r ON r.repo_id = c.repo_id\nWHERE ('${evidence:raw}' = '__all__' OR c.method = '${evidence:raw}')\n  AND  ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}')\n  AND c.committed_at BETWEEN $__unixEpochFrom() * 1000000000\n                         AND $__unixEpochTo()   * 1000000000"
         }
       ],
       "fieldConfig": {
@@ -621,7 +637,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT COUNT(*) v FROM (\nSELECT i.issue_key, i.lead_time_minutes AS ltm,\n       COALESCE(MAX(w.status = 'assisted'), 0) AS ai\nFROM issues i\nJOIN board_issues bi ON bi.issue_id = i.id\nLEFT JOIN commits c\n       ON c.message REGEXP CONCAT('(^|[^A-Za-z0-9])', i.issue_key, '([^0-9]|$)')\nLEFT JOIN whodunit_commits w ON w.commit_sha = c.sha\nWHERE bi.board_id = '$board'\n  AND i.lead_time_minutes IS NOT NULL\n  AND $__timeFilter(i.resolution_date)\n  AND i.issue_key REGEXP '^[A-Z][A-Z0-9]+-[0-9]+$'\n    AND i.issue_key REGEXP CONCAT('^',\n        (SELECT SUBSTRING_INDEX(i2.issue_key,'-',1)\n           FROM issues i2 JOIN board_issues bi2 ON bi2.issue_id = i2.id\n          WHERE bi2.board_id = '$board'\n            AND i2.issue_key REGEXP '^[A-Z][A-Z0-9]+-[0-9]+$' LIMIT 1),\n        '-[0-9]+$')\nGROUP BY i.issue_key, i.lead_time_minutes\nHAVING ai = 1\n) t"
+          "rawSql": "SELECT COUNT(*) v FROM (\nSELECT i.issue_key, i.lead_time_minutes AS ltm,\n       COALESCE(MAX(w.status = 'assisted'), 0) AS ai\nFROM issues i\nJOIN board_issues bi ON bi.issue_id = i.id\nLEFT JOIN commits c\n       ON c.message REGEXP CONCAT('(^|[^A-Za-z0-9])', i.issue_key, '([^0-9]|$)')\nLEFT JOIN whodunit_commits w ON w.commit_sha = c.sha\nWHERE ('${evidence:raw}' = '__all__' OR w.method = '${evidence:raw}')\n  AND  bi.board_id = '$board'\n  AND i.lead_time_minutes IS NOT NULL\n  AND $__timeFilter(i.resolution_date)\n  AND i.issue_key REGEXP '^[A-Z][A-Z0-9]+-[0-9]+$'\n    AND i.issue_key REGEXP CONCAT('^',\n        (SELECT SUBSTRING_INDEX(i2.issue_key,'-',1)\n           FROM issues i2 JOIN board_issues bi2 ON bi2.issue_id = i2.id\n          WHERE bi2.board_id = '$board'\n            AND i2.issue_key REGEXP '^[A-Z][A-Z0-9]+-[0-9]+$' LIMIT 1),\n        '-[0-9]+$')\nGROUP BY i.issue_key, i.lead_time_minutes\nHAVING ai = 1\n) t"
         }
       ],
       "fieldConfig": {
@@ -671,7 +687,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT COUNT(*) v FROM (\nSELECT i.issue_key, i.lead_time_minutes AS ltm,\n       COALESCE(MAX(w.status = 'assisted'), 0) AS ai\nFROM issues i\nJOIN board_issues bi ON bi.issue_id = i.id\nLEFT JOIN commits c\n       ON c.message REGEXP CONCAT('(^|[^A-Za-z0-9])', i.issue_key, '([^0-9]|$)')\nLEFT JOIN whodunit_commits w ON w.commit_sha = c.sha\nWHERE bi.board_id = '$board'\n  AND i.lead_time_minutes IS NOT NULL\n  AND $__timeFilter(i.resolution_date)\n  AND i.issue_key REGEXP '^[A-Z][A-Z0-9]+-[0-9]+$'\n    AND i.issue_key REGEXP CONCAT('^',\n        (SELECT SUBSTRING_INDEX(i2.issue_key,'-',1)\n           FROM issues i2 JOIN board_issues bi2 ON bi2.issue_id = i2.id\n          WHERE bi2.board_id = '$board'\n            AND i2.issue_key REGEXP '^[A-Z][A-Z0-9]+-[0-9]+$' LIMIT 1),\n        '-[0-9]+$')\nGROUP BY i.issue_key, i.lead_time_minutes\nHAVING ai = 0\n) t"
+          "rawSql": "SELECT COUNT(*) v FROM (\nSELECT i.issue_key, i.lead_time_minutes AS ltm,\n       COALESCE(MAX(w.status = 'assisted'), 0) AS ai\nFROM issues i\nJOIN board_issues bi ON bi.issue_id = i.id\nLEFT JOIN commits c\n       ON c.message REGEXP CONCAT('(^|[^A-Za-z0-9])', i.issue_key, '([^0-9]|$)')\nLEFT JOIN whodunit_commits w ON w.commit_sha = c.sha\nWHERE ('${evidence:raw}' = '__all__' OR w.method = '${evidence:raw}')\n  AND  bi.board_id = '$board'\n  AND i.lead_time_minutes IS NOT NULL\n  AND $__timeFilter(i.resolution_date)\n  AND i.issue_key REGEXP '^[A-Z][A-Z0-9]+-[0-9]+$'\n    AND i.issue_key REGEXP CONCAT('^',\n        (SELECT SUBSTRING_INDEX(i2.issue_key,'-',1)\n           FROM issues i2 JOIN board_issues bi2 ON bi2.issue_id = i2.id\n          WHERE bi2.board_id = '$board'\n            AND i2.issue_key REGEXP '^[A-Z][A-Z0-9]+-[0-9]+$' LIMIT 1),\n        '-[0-9]+$')\nGROUP BY i.issue_key, i.lead_time_minutes\nHAVING ai = 0\n) t"
         }
       ],
       "fieldConfig": {
@@ -802,7 +818,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT CASE c.method\n         WHEN 'intersected' THEN 'intersected — the agent''s lines survived'\n         WHEN 'observed'    THEN 'observed — edited before committing'\n         WHEN 'declared'    THEN 'declared — stated, not measured'\n         WHEN 'inferred'    THEN 'inferred — from surrounding evidence'\n         ELSE 'undetermined — no evidence either way'\n       END AS `method`, COUNT(*) AS `commits`\nFROM whodunit_commits c JOIN whodunit_repos r ON r.repo_id=c.repo_id\nWHERE 1=1 AND ('${contributor:raw}'='__all__' OR r.contributor='${contributor:raw}') AND c.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nGROUP BY c.method ORDER BY `commits` DESC"
+          "rawSql": "SELECT CASE c.method\n         WHEN 'intersected' THEN 'intersected — the agent''s lines survived'\n         WHEN 'observed'    THEN 'observed — edited before committing'\n         WHEN 'declared'    THEN 'declared — stated, not measured'\n         WHEN 'inferred'    THEN 'inferred — from surrounding evidence'\n         ELSE 'undetermined — no evidence either way'\n       END AS `method`, COUNT(*) AS `commits`\nFROM whodunit_commits c JOIN whodunit_repos r ON r.repo_id=c.repo_id\nWHERE ('${evidence:raw}' = '__all__' OR c.method = '${evidence:raw}')\n  AND  1=1 AND ('${contributor:raw}'='__all__' OR r.contributor='${contributor:raw}') AND c.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nGROUP BY c.method ORDER BY `commits` DESC"
         }
       ],
       "options": {
@@ -920,7 +936,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT r.contributor, COUNT(*) AS commits, SUM(c.status = 'assisted') AS assisted, ROUND(100.0 * SUM(c.status <> 'undetermined') / COUNT(*), 0) AS coverage_pct, ROUND(AVG(c.ratio), 2) AS avg_share, SUM(c.lines_added) AS lines_added FROM whodunit_commits c JOIN whodunit_repos r ON r.repo_id = c.repo_id WHERE r.contributor <> '' AND c.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000 GROUP BY r.contributor ORDER BY commits DESC"
+          "rawSql": "SELECT r.contributor, COUNT(*) AS commits, SUM(c.status = 'assisted') AS assisted, ROUND(100.0 * SUM(c.status NOT IN ('undetermined','unassisted','unmatched','degraded')) / COUNT(*), 0) AS coverage_pct, ROUND(AVG(c.ratio), 2) AS avg_share, SUM(c.lines_added) AS lines_added FROM whodunit_commits c JOIN whodunit_repos r ON r.repo_id = c.repo_id WHERE ('${evidence:raw}' = '__all__' OR c.method = '${evidence:raw}')\n  AND  r.contributor <> '' AND c.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000 GROUP BY r.contributor ORDER BY commits DESC"
         }
       ]
     },

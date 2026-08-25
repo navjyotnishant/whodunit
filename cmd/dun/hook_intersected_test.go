@@ -62,7 +62,7 @@ func TestFreshInstallReachesIntersected(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	trailer := determineTrailer()
+	trailer := determineTrailer("")
 
 	if trailer.Method != spec.MethodIntersected {
 		t.Fatalf("method = %q, want %q.\n"+
@@ -106,7 +106,7 @@ func TestHookPopulatesTheJournal(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_ = determineTrailer()
+	_ = determineTrailer("")
 
 	// The journal is the shared surface: dun report, dun sync and the
 	// dashboards all read it. If the hook does not write, all three are
@@ -168,7 +168,7 @@ func TestUnwritableJournalStillStampsATrailer(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	trailer := determineTrailer() // must not panic, must return something
+	trailer := determineTrailer("") // must not panic, must return something
 
 	// Still assisted: the transcripts prove an agent touched the staged
 	// file even though nothing could be recorded.
@@ -266,7 +266,7 @@ func TestTrailerCarriesAHashedSessionNotTheRawID(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	trailer := determineTrailer()
+	trailer := determineTrailer("")
 
 	// writeTranscriptFor records sessionId "test-session".
 	if trailer.Session == "test-session" {

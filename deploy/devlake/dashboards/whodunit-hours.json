@@ -10,7 +10,7 @@
   "version": 1,
   "refresh": "",
   "time": {
-    "from": "now-90d",
+    "from": "now-30d",
     "to": "now"
   },
   "templating": {
@@ -47,7 +47,7 @@
         "name": "tz",
         "type": "custom",
         "label": "Timezone",
-        "query": "+00:00 : UTC, -05:00 : US Central, -08:00 : US Pacific, +05:30 : India, +01:00 : Central Europe",
+        "query": "UTC : +00:00,US Central : -05:00,US Pacific : -08:00,India : +05:30,Central Europe : +01:00",
         "options": [
           {
             "text": "UTC",
@@ -80,6 +80,22 @@
           "text": "US Central",
           "value": "-05:00"
         }
+      },
+      {
+        "name": "evidence",
+        "type": "custom",
+        "label": "Evidence",
+        "query": "intersected — agent lines survived : intersected,observed — agent edited the files : observed,inferred — from surrounding evidence : inferred,declared — stated only : declared,undetermined — no evidence either way : undetermined",
+        "options": [],
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "__all__"
+        },
+        "includeAll": true,
+        "allValue": "__all__",
+        "multi": false,
+        "hide": 0
       }
     ]
   },

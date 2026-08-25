@@ -26,6 +26,7 @@ type CommitRow struct {
 	RepoID        string
 	CommittedAt   time.Time
 	Status        string
+	ChangedBy     string
 	Method        string
 	Agent         string
 	AgentVersion  string
@@ -203,10 +204,19 @@ func CommitRowsFrom(commits []report.Commit, repoID string, syncedAt time.Time) 
 	rows := make([]CommitRow, 0, len(commits))
 	for _, c := range commits {
 		row := CommitRow{
-			CommitSHA:     c.SHA,
-			RepoID:        repoID,
-			CommittedAt:   c.Timestamp,
-			Status:        string(spec.StatusUndetermined),
+			CommitSHA:   c.SHA,
+			RepoID:      repoID,
+			CommittedAt: c.Timestamp,
+			// No trailer at all, which means the hooks were not
+			// running when this was committed - the commit predates
+			// instrumentation, or was made somewhere without it
+			// (WHO-211). That is uninstrumented, not undetermined:
+			// undetermined would claim we looked and found nothing,
+			// when in fact nothing looked.
+			//
+			// Overwritten below whenever a trailer exists, so this
+			// default only ever describes commits that carry none.
+			Status:        string(spec.StatusUninstrumented),
 			Method:        string(spec.MethodUndetermined),
 			Purpose:       string(c.Purpose),
 			LinesAdded:    c.LinesAdded,
@@ -218,6 +228,7 @@ func CommitRowsFrom(commits []report.Commit, repoID string, syncedAt time.Time) 
 		if t := c.Trailer; t != nil {
 			row.Status = string(t.Status)
 			row.Method = string(t.Method)
+			row.ChangedBy = string(t.ChangedBy)
 			row.Agent = t.Agent
 			row.AgentVersion = t.Version
 			row.Ratio = t.Ratio

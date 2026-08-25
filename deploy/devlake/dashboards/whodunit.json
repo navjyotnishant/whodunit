@@ -8,7 +8,7 @@
   "schemaVersion": 39,
   "refresh": "",
   "time": {
-    "from": "now-90d",
+    "from": "now-30d",
     "to": "now"
   },
   "templating": {
@@ -24,6 +24,22 @@
         },
         "hide": 0,
         "label": "Database"
+      },
+      {
+        "name": "evidence",
+        "type": "custom",
+        "label": "Evidence",
+        "query": "intersected — agent lines survived : intersected,observed — agent edited the files : observed,inferred — from surrounding evidence : inferred,declared — stated only : declared,undetermined — no evidence either way : undetermined",
+        "options": [],
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "__all__"
+        },
+        "includeAll": true,
+        "allValue": "__all__",
+        "multi": false,
+        "hide": 0
       }
     ]
   },
@@ -95,7 +111,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT 100.0 * SUM(status <> 'undetermined') / NULLIF(COUNT(*), 0) AS coverage FROM whodunit_commits WHERE committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000"
+          "rawSql": "SELECT 100.0 * SUM(status NOT IN ('undetermined','unassisted','unmatched','degraded')) / NULLIF(COUNT(*), 0) AS coverage FROM whodunit_commits WHERE committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000"
         }
       ]
     },
@@ -145,7 +161,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT 100.0 * SUM(status = 'assisted') / NULLIF(SUM(status <> 'undetermined'), 0) AS penetration FROM whodunit_commits WHERE committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000"
+          "rawSql": "SELECT 100.0 * SUM(status = 'assisted') / NULLIF(SUM(status NOT IN ('undetermined','unassisted','unmatched','degraded')), 0) AS penetration FROM whodunit_commits WHERE committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000"
         }
       ]
     },
@@ -240,7 +256,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT AVG(ratio) AS median_share FROM whodunit_commits WHERE ratio IS NOT NULL AND committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000"
+          "rawSql": "SELECT AVG(t.ratio) AS median_share FROM (\n  SELECT c.ratio,\n         ROW_NUMBER() OVER (ORDER BY c.ratio) AS rn,\n         COUNT(*) OVER () AS n\n  FROM whodunit_commits c\n  WHERE c.ratio IS NOT NULL\n    AND c.committed_at BETWEEN $__unixEpochFrom() * 1000000000\n                           AND $__unixEpochTo() * 1000000000\n) t\nWHERE t.rn IN (FLOOR((t.n + 1) / 2), CEIL((t.n + 1) / 2))"
         }
       ]
     },

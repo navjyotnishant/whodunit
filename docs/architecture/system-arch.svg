@@ -1,0 +1,290 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 830" width="1440" height="830" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, Helvetica, Arial, sans-serif">
+  <title>whodunit system architecture</title>
+  <desc>Agent transcripts are parsed locally by adapters into a SQLite journal, git hooks stamp an AI-Attribution trailer onto each commit, and data leaves the machine only via an explicit dun sync.</desc>
+
+  <style>
+    .bg      { fill: #f7f8fa; }
+    .frame   { fill: none; stroke: #d6dae1; stroke-width: 2; }
+    .title   { fill: #10131a; font-size: 30px; font-weight: 700; }
+    .sub     { fill: #5b6472; font-size: 16px; }
+    .band    { fill: #eceff3; }
+    .bandlbl { fill: #78828f; font-size: 12px; font-weight: 700; letter-spacing: 1.6px; }
+    .card    { stroke-width: 1.5; }
+    .cardttl { font-size: 15px; font-weight: 650; fill: #10131a; }
+    .cardsub { font-size: 12px; fill: #5b6472; }
+    .mono    { font-family: 'SF Mono', Menlo, Consolas, monospace; }
+    .conn    { fill: none; stroke: #97a1ae; stroke-width: 2; }
+    .connlbl { fill: #78828f; font-size: 11px; font-weight: 600; }
+    .legtxt  { fill: #5b6472; font-size: 12px; }
+    .kpinum  { font-size: 26px; font-weight: 700; fill: #10131a; }
+    .kpilbl  { font-size: 11.5px; fill: #5b6472; }
+    .boundlbl{ fill: #1f8a4c; font-size: 12.5px; font-weight: 700; }
+
+    @media (prefers-color-scheme: dark) {
+      .bg      { fill: #0f1216; }
+      .frame   { stroke: #2b313a; }
+      .title   { fill: #f2f4f7; }
+      .sub     { fill: #9aa4b2; }
+      .band    { fill: #161b21; }
+      .bandlbl { fill: #79838f; }
+      .cardttl { fill: #f2f4f7; }
+      .cardsub { fill: #9aa4b2; }
+      .conn    { stroke: #6b7683; }
+      .connlbl { fill: #8b95a2; }
+      .legtxt  { fill: #9aa4b2; }
+      .kpinum  { fill: #f2f4f7; }
+      .kpilbl  { fill: #9aa4b2; }
+      .boundlbl{ fill: #4ade80; }
+    }
+  </style>
+
+  <defs>
+    <linearGradient id="gGrey" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#f4f6f8"/><stop offset="100%" stop-color="#e4e8ed"/>
+    </linearGradient>
+    <linearGradient id="gOrange" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ffb765"/><stop offset="100%" stop-color="#f79024"/>
+    </linearGradient>
+    <linearGradient id="gPurple" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#b98ce8"/><stop offset="100%" stop-color="#8d54cd"/>
+    </linearGradient>
+    <linearGradient id="gBlue" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#74b4f5"/><stop offset="100%" stop-color="#2f80e0"/>
+    </linearGradient>
+    <linearGradient id="gGreen" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#6fd699"/><stop offset="100%" stop-color="#25a25a"/>
+    </linearGradient>
+    <linearGradient id="gCloud" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#eef1f5"/><stop offset="100%" stop-color="#dde3ea"/>
+    </linearGradient>
+
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="180%">
+      <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#0d1520" flood-opacity="0.16"/>
+    </filter>
+
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5"
+            markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#97a1ae"/>
+    </marker>
+    <marker id="arrowGreen" viewBox="0 0 10 10" refX="9" refY="5"
+            markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#25a25a"/>
+    </marker>
+  </defs>
+
+  <rect class="bg" x="0" y="0" width="1440" height="830"/>
+  <rect class="frame" x="16" y="16" width="1408" height="798" rx="14"/>
+
+  <!-- ── header ─────────────────────────────────────────────── -->
+  <text class="title" x="52" y="72">Every commit says which agent touched it.</text>
+  <text class="sub"   x="52" y="100">Collection is entirely local. Data leaves the machine only when you run <tspan class="mono" font-size="14">dun sync</tspan> yourself.</text>
+
+  <!-- ── band backgrounds ───────────────────────────────────── -->
+  <rect class="band" x="52"   y="132" width="268" height="452" rx="12"/>
+  <rect class="band" x="348"  y="132" width="286" height="452" rx="12"/>
+  <rect class="band" x="662"  y="132" width="316" height="452" rx="12"/>
+  <rect class="band" x="1006" y="132" width="382" height="452" rx="12"/>
+
+  <text class="bandlbl" x="72"   y="158">1 · OBSERVE</text>
+  <text class="bandlbl" x="368"  y="158">2 · RECORD</text>
+  <text class="bandlbl" x="682"  y="158">3 · ATTRIBUTE</text>
+  <text class="bandlbl" x="1026" y="158">4 · READ OUT</text>
+
+  <!-- ═══ BAND 1 — OBSERVE ═══════════════════════════════════ -->
+  <text class="cardsub" x="72" y="186" font-weight="650">Agent transcripts on disk</text>
+
+  <g filter="url(#shadow)">
+    <rect class="card" x="72" y="200" width="228" height="46" rx="9" fill="url(#gGrey)" stroke="#c9d0d9"/>
+    <text class="cardttl" x="88" y="222">Claude Code</text>
+    <text class="cardsub mono" x="88" y="238">~/.claude · *.jsonl</text>
+  </g>
+  <g filter="url(#shadow)">
+    <rect class="card" x="72" y="256" width="228" height="46" rx="9" fill="url(#gGrey)" stroke="#c9d0d9"/>
+    <text class="cardttl" x="88" y="278">Codex</text>
+    <text class="cardsub mono" x="88" y="294">$CODEX_HOME · rollout</text>
+  </g>
+  <g filter="url(#shadow)">
+    <rect class="card" x="72" y="312" width="228" height="46" rx="9" fill="url(#gGrey)" stroke="#c9d0d9"/>
+    <text class="cardttl" x="88" y="334">Agy</text>
+    <text class="cardsub mono" x="88" y="350">sqlite session store</text>
+  </g>
+
+  <!-- adapters -->
+  <g filter="url(#shadow)">
+    <rect class="card" x="72" y="392" width="228" height="66" rx="9" fill="url(#gOrange)" stroke="#e07f13"/>
+    <text class="cardttl" x="88" y="416" fill="#3d2402">Adapters</text>
+    <text class="cardsub" x="88" y="434" fill="#5c3a08">Parse transcripts into events.</text>
+    <text class="cardsub" x="88" y="450" fill="#5c3a08">Unknown format yields nothing.</text>
+  </g>
+
+  <g filter="url(#shadow)">
+    <rect class="card" x="72" y="480" width="228" height="76" rx="9" fill="#fff" stroke="#c9d0d9"/>
+    <text class="cardsub" x="88" y="502" font-weight="650">Never collected</text>
+    <text class="cardsub" x="88" y="521">prompts · keystrokes · file</text>
+    <text class="cardsub" x="88" y="537">contents · names · emails</text>
+  </g>
+
+  <path class="conn" d="M 186 358 L 186 388" marker-end="url(#arrow)"/>
+
+  <!-- ═══ BAND 2 — RECORD ════════════════════════════════════ -->
+  <text class="cardsub" x="368" y="186" font-weight="650">Local journal · one SQLite file</text>
+
+  <!-- cylinder -->
+  <g filter="url(#shadow)">
+    <path d="M 380 232 a 92 15 0 0 1 184 0 v 128 a 92 15 0 0 1 -184 0 z"
+          fill="url(#gPurple)" stroke="#7a44b8" stroke-width="1.5"/>
+    <ellipse cx="472" cy="232" rx="92" ry="15" fill="#c7a3ee" stroke="#7a44b8" stroke-width="1.5"/>
+  </g>
+  <text class="cardttl" x="472" y="262" text-anchor="middle" fill="#fff">journal.db</text>
+  <text class="cardsub mono" x="472" y="280" text-anchor="middle" fill="#ecdfff">~/.whodunit/data</text>
+  <text class="cardsub" x="472" y="306" text-anchor="middle" fill="#f3e9ff">entries · sessions</text>
+  <text class="cardsub" x="472" y="323" text-anchor="middle" fill="#f3e9ff">agent_lines · repo_metadata</text>
+  <text class="cardsub" x="472" y="346" text-anchor="middle" fill="#ecdfff" font-weight="650">line hashes, never lines</text>
+
+  <!-- writers -->
+  <g filter="url(#shadow)">
+    <rect class="card" x="368" y="392" width="246" height="66" rx="9" fill="url(#gBlue)" stroke="#2668b8"/>
+    <text class="cardttl" x="384" y="416" fill="#fff">dun ingest · daemon</text>
+    <text class="cardsub" x="384" y="434" fill="#e2eeff">Watches transcripts, appends</text>
+    <text class="cardsub" x="384" y="450" fill="#e2eeff">events. Idempotent on replay.</text>
+  </g>
+
+  <g filter="url(#shadow)">
+    <rect class="card" x="368" y="480" width="246" height="76" rx="9" fill="#fff" stroke="#c9d0d9"/>
+    <text class="cardsub" x="384" y="502" font-weight="650">Scoped by repo_id</text>
+    <text class="cardsub" x="384" y="521">the repo's root commit SHA —</text>
+    <text class="cardsub" x="384" y="537">reveals nothing on its own</text>
+  </g>
+
+  <path class="conn" d="M 300 425 L 362 425" marker-end="url(#arrow)"/>
+  <path class="conn" d="M 472 388 L 472 372" marker-end="url(#arrow)"/>
+  <text class="connlbl" x="486" y="382">append</text>
+
+  <!-- ═══ BAND 3 — ATTRIBUTE ═════════════════════════════════ -->
+  <text class="cardsub" x="682" y="186" font-weight="650">Git hooks · installed by <tspan class="mono">dun init</tspan></text>
+
+  <g filter="url(#shadow)">
+    <rect class="card" x="682" y="200" width="276" height="58" rx="9" fill="url(#gGreen)" stroke="#1c854a"/>
+    <text class="cardttl" x="698" y="222" fill="#fff">prepare-commit-msg</text>
+    <text class="cardsub" x="698" y="240" fill="#e3f7ec">Stamps the AI-Attribution trailer</text>
+  </g>
+  <g filter="url(#shadow)">
+    <rect class="card" x="682" y="268" width="276" height="58" rx="9" fill="url(#gGreen)" stroke="#1c854a"/>
+    <text class="cardttl" x="698" y="290" fill="#fff">commit-msg</text>
+    <text class="cardsub" x="698" y="308" fill="#e3f7ec">Validates what was stamped</text>
+  </g>
+  <g filter="url(#shadow)">
+    <rect class="card" x="682" y="336" width="276" height="58" rx="9" fill="url(#gGreen)" stroke="#1c854a"/>
+    <text class="cardttl" x="698" y="358" fill="#fff">pre-push</text>
+    <text class="cardsub" x="698" y="376" fill="#e3f7ec">Publishes only if sync configured</text>
+  </g>
+
+  <!-- trailer sample -->
+  <g filter="url(#shadow)">
+    <rect class="card" x="682" y="416" width="276" height="140" rx="9" fill="#fff" stroke="#c9d0d9"/>
+    <text class="cardsub" x="698" y="438" font-weight="650">The commit trailer</text>
+    <text class="cardsub mono" x="698" y="459" font-size="11">AI-Attribution: v=1;</text>
+    <text class="cardsub mono" x="698" y="475" font-size="11">status=assisted;</text>
+    <text class="cardsub mono" x="698" y="491" font-size="11">method=intersected;</text>
+    <text class="cardsub mono" x="698" y="507" font-size="11">agent=claude-code; ratio=0.62</text>
+    <text class="cardsub" x="698" y="530" font-size="11.5">undetermined → declared → inferred</text>
+    <text class="cardsub" x="698" y="546" font-size="11.5">→ observed → <tspan font-weight="700">intersected</tspan></text>
+  </g>
+
+  <path class="conn" d="M 614 297 L 676 297" marker-end="url(#arrow)"/>
+  <text class="connlbl" x="618" y="288">read</text>
+
+  <!-- ═══ BAND 4 — READ OUT ══════════════════════════════════ -->
+  <text class="cardsub" x="1026" y="186" font-weight="650">Stays local by default</text>
+
+  <g filter="url(#shadow)">
+    <rect class="card" x="1026" y="200" width="166" height="58" rx="9" fill="url(#gBlue)" stroke="#2668b8"/>
+    <text class="cardttl" x="1042" y="222" fill="#fff">dun report</text>
+    <text class="cardsub" x="1042" y="240" fill="#e2eeff">Self-contained HTML</text>
+  </g>
+  <g filter="url(#shadow)">
+    <rect class="card" x="1206" y="200" width="166" height="58" rx="9" fill="url(#gBlue)" stroke="#2668b8"/>
+    <text class="cardttl" x="1222" y="222" fill="#fff">dun status</text>
+    <text class="cardsub" x="1222" y="240" fill="#e2eeff">Coverage at a glance</text>
+  </g>
+  <g filter="url(#shadow)">
+    <rect class="card" x="1026" y="268" width="166" height="58" rx="9" fill="url(#gBlue)" stroke="#2668b8"/>
+    <text class="cardttl" x="1042" y="290" fill="#fff">dun delta</text>
+    <text class="cardsub" x="1042" y="308" fill="#e2eeff">Before / after windows</text>
+  </g>
+  <g filter="url(#shadow)">
+    <rect class="card" x="1206" y="268" width="166" height="58" rx="9" fill="url(#gBlue)" stroke="#2668b8"/>
+    <text class="cardttl" x="1222" y="290" fill="#fff">dun check</text>
+    <text class="cardsub" x="1222" y="308" fill="#e2eeff">CI trailer gate</text>
+  </g>
+
+  <!-- the boundary -->
+  <line x1="1026" y1="352" x2="1372" y2="352" stroke="#25a25a" stroke-width="2" stroke-dasharray="7 5"/>
+  <text class="boundlbl" x="1026" y="372">▲ nothing above this line leaves your machine</text>
+
+  <g filter="url(#shadow)">
+    <rect class="card" x="1026" y="392" width="346" height="66" rx="9" fill="url(#gGreen)" stroke="#1c854a"/>
+    <text class="cardttl" x="1042" y="416" fill="#fff">dun sync — explicit, opt-in</text>
+    <text class="cardsub" x="1042" y="434" fill="#e3f7ec">You configure a DSN and run it. Credentials are</text>
+    <text class="cardsub" x="1042" y="450" fill="#e3f7ec">AES-GCM encrypted at rest, never in a flag.</text>
+  </g>
+
+  <!-- cloud -->
+  <g filter="url(#shadow)">
+    <path d="M 1074 520 a 26 26 0 0 1 26 -26 a 34 34 0 0 1 64 -10 a 28 28 0 0 1 40 26
+             a 24 24 0 0 1 -4 46 h -118 a 24 24 0 0 1 -8 -36 z"
+          fill="url(#gCloud)" stroke="#c2cad4" stroke-width="1.5"/>
+  </g>
+  <text class="cardttl" x="1152" y="530" text-anchor="middle" font-size="14">DevLake · MySQL</text>
+  <text class="cardsub" x="1152" y="548" text-anchor="middle" font-size="11.5">6 whodunit_* tables · Grafana</text>
+
+  <path class="conn" d="M 958 425 L 1020 425" marker-end="url(#arrow)"/>
+  <path class="conn" d="M 1199 462 L 1199 490" stroke="#25a25a" stroke-dasharray="6 4" marker-end="url(#arrowGreen)"/>
+
+  <!-- read arrow from journal to readout band, routed under band 3 -->
+  <path class="conn" d="M 472 566 L 472 600 L 1100 600 L 1100 264 L 1020 264" marker-end="url(#arrow)"/>
+  <text class="connlbl" x="700" y="594">read — every query is repo-scoped</text>
+
+  <!-- ── legend ─────────────────────────────────────────────── -->
+  <rect x="52" y="628" width="656" height="74" rx="10" fill="none" stroke="#d6dae1"/>
+  <text class="bandlbl" x="72" y="652">LEGEND</text>
+
+  <rect x="72"  y="666" width="20" height="14" rx="4" fill="url(#gOrange)"/>
+  <text class="legtxt" x="100" y="678">agent work</text>
+
+  <rect x="188" y="666" width="20" height="14" rx="4" fill="url(#gPurple)"/>
+  <text class="legtxt" x="216" y="678">datastore</text>
+
+  <rect x="300" y="666" width="20" height="14" rx="4" fill="url(#gBlue)"/>
+  <text class="legtxt" x="328" y="678">local command</text>
+
+  <rect x="440" y="666" width="20" height="14" rx="4" fill="url(#gGreen)"/>
+  <text class="legtxt" x="468" y="678">gate / opt-in egress</text>
+
+  <line x1="600" y1="673" x2="632" y2="673" stroke="#25a25a" stroke-width="2" stroke-dasharray="6 4"/>
+  <text class="legtxt" x="640" y="678">opt-in</text>
+
+  <!-- ── takeaway row ───────────────────────────────────────── -->
+  <rect x="732" y="628" width="656" height="74" rx="10" fill="none" stroke="#d6dae1"/>
+
+  <text class="kpinum" x="772"  y="668">0</text>
+  <text class="kpilbl" x="772"  y="686">network calls until</text>
+  <text class="kpilbl" x="772"  y="700" font-weight="650">you run dun sync</text>
+
+  <text class="kpinum" x="948"  y="668">5</text>
+  <text class="kpilbl" x="948"  y="686">attribution methods,</text>
+  <text class="kpilbl" x="948"  y="700" font-weight="650">weakest to strongest</text>
+
+  <text class="kpinum" x="1130" y="668">3</text>
+  <text class="kpilbl" x="1130" y="686">git hooks — no commit</text>
+  <text class="kpilbl" x="1130" y="700" font-weight="650">is ever blocked</text>
+
+  <text class="kpinum" x="1300" y="668">1</text>
+  <text class="kpilbl" x="1300" y="686">SQLite file holds</text>
+  <text class="kpilbl" x="1300" y="700" font-weight="650">every observation</text>
+
+  <!-- ── footer ─────────────────────────────────────────────── -->
+  <text class="cardsub" x="52" y="740" font-size="12.5">Absence of AI is never asserted as fact — a commit with no evidence either way is <tspan class="mono" font-weight="650">undetermined</tspan>, never silently "no AI".</text>
+  <text class="cardsub" x="52" y="762" font-size="12.5">Unknown trailer keys are preserved and re-emitted unchanged, so the grammar outlives any one implementation of it.</text>
+  <text class="cardsub" x="52" y="790" font-size="11.5" opacity="0.75">whodunit · system architecture (as-is) · generated from the repo</text>
+</svg>

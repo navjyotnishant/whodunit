@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -12,6 +13,7 @@ import (
 	"github.com/navjyotnishant/whodunit/internal/journal"
 	"github.com/navjyotnishant/whodunit/internal/registry"
 	"github.com/navjyotnishant/whodunit/internal/repoid"
+	"github.com/navjyotnishant/whodunit/internal/termcolor"
 	"github.com/spf13/cobra"
 )
 
@@ -62,6 +64,18 @@ func runInit(cmd *cobra.Command, repoPath string) error {
 		repoPath = abs
 	}
 
+	// Say so when this repository is already instrumented.
+	//
+	// A re-run is legitimate and common - `dun repos update` rewrites
+	// hooks after an upgrade, and someone re-running init by hand is
+	// usually checking rather than installing. But three lines of
+	// "installed ..." read identically either way, so the one question a
+	// re-run is asking - is this set up? - goes unanswered.
+	//
+	// Reported, never refused: re-running still rewrites the hooks, which
+	// is what makes it a repair. This only changes what the output says.
+	alreadyInstrumented := reportExistingInstrumentation(cmd.OutOrStdout(), repoPath)
+
 	// Capture the pre-adoption baseline before anything else happens.
 	//
 	// This has to be first, and it only gets one chance. The moment the
@@ -71,7 +85,12 @@ func runInit(cmd *cobra.Command, repoPath string) error {
 	// said "run this FIRST", which turns out to be the same as not having
 	// it: nobody runs a command they have not needed yet, and by the time
 	// the comparison is wanted the window has closed for good.
-	captureBaselineOnInit(cmd.OutOrStdout(), repoPath)
+	// Skipped on a re-run: the pre-adoption window closed when the hooks
+	// were first installed, so capturing now would record a baseline that
+	// already contains assisted work and label it "before".
+	if !alreadyInstrumented {
+		captureBaselineOnInit(cmd.OutOrStdout(), repoPath)
+	}
 
 	gd, err := gitDirFor(repoPath)
 	if err != nil {
@@ -243,4 +262,36 @@ func staleHooks(gitDir string) (missing, stale []string) {
 		}
 	}
 	return missing, stale
+}
+
+// reportExistingInstrumentation tells the user when a repository is already
+// instrumented, and reports whether it was.
+//
+// Deliberately not a refusal. Re-running init is how hooks are repaired
+// after an upgrade or after another tool overwrote them, so the command
+// still does its work — this only ensures the output answers the question
+// the user was actually asking.
+func reportExistingInstrumentation(w io.Writer, repoPath string) bool {
+	repoID, err := repoid.ForRepo(repoPath)
+	if err != nil {
+		// No commits yet, so no identity and nothing to have registered.
+		return false
+	}
+	entries, err := registry.List()
+	if err != nil {
+		// A registry that cannot be read is not evidence of anything. Say
+		// nothing rather than claiming a first-time install (NAV-21).
+		return false
+	}
+	for _, e := range entries {
+		if e.RepoID != repoID {
+			continue
+		}
+		c := termcolor.New(w)
+		fmt.Fprintf(w, "%s\n", c.S(termcolor.Muted, fmt.Sprintf(
+			"already instrumented %s — re-running to repair the hooks",
+			e.InstrumentedAt.Local().Format("2006-01-02"))))
+		return true
+	}
+	return false
 }

@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/navjyotnishant/whodunit/internal/declared"
 	"github.com/navjyotnishant/whodunit/internal/journal"
 	"github.com/navjyotnishant/whodunit/internal/spec"
 )
@@ -91,7 +92,26 @@ func Determine(entries []journal.Entry, stagedFiles []string, agentLineHashes ma
 	}
 
 	if len(relevant) == 0 {
-		return spec.Undetermined()
+		// No journal entry touched a staged file - but WHY decides which
+		// status this is, and the two answers demand opposite responses
+		// (WHO-211).
+		//
+		// Agent lines present means an agent was working, just not on
+		// these files: a generated file leaves no tool call naming it,
+		// and the honest answer is that nothing here is attributable to
+		// it. Nothing present means the tooling was watching and there
+		// was no agent at all, which is a positive finding - a human
+		// wrote this.
+		//
+		// The claim only holds because we got this far: entries were
+		// read, so the journal was readable. A caller that could not
+		// read it stamps Degraded instead and never reaches here, which
+		// is what keeps `unassisted` from being asserted on the mere
+		// absence of evidence (NAV-21).
+		if len(agentLineHashes) > 0 {
+			return spec.WithStatus(spec.StatusUnmatched)
+		}
+		return spec.WithStatus(spec.StatusUnassisted)
 	}
 
 	agent, version, session := relevant[0].Agent, relevant[0].AgentVersion, relevant[0].Session
@@ -148,14 +168,30 @@ func Determine(entries []journal.Entry, stagedFiles []string, agentLineHashes ma
 		method = spec.MethodIntersected
 	}
 
+	// Observed means the agent's text is not what got staged, and the
+	// reason is often knowable (WHO-213). A human revising the output is
+	// a different fact from the agent rewriting its own work, and the
+	// difference matters to anyone reading how much of the agent's
+	// contribution actually survived.
+	//
+	// Only asked on observed. On intersected the text DID survive, so
+	// there is nothing to explain, and on the unattributed statuses there
+	// is no agent contribution to have changed.
+	var changedBy spec.ChangedBy
+	if method == spec.MethodObserved {
+		changedBy = whatChangedIt(relevant)
+	}
+
 	trailer := spec.Trailer{
-		Status:  spec.StatusAssisted,
-		Method:  method,
-		Agent:   agent,
-		Version: version,
-		Model:   model,
-		Session: session,
-		Extra:   map[string]string{},
+		SpecVer:   spec.Version,
+		Status:    spec.StatusAssisted,
+		Method:    method,
+		ChangedBy: changedBy,
+		Agent:     agent,
+		Version:   version,
+		Model:     model,
+		Session:   session,
+		Extra:     map[string]string{},
 	}
 
 	if r, ok := computeRatio(agentLines, staged.Commit.Added, staged.Commit.Removed); ok {
@@ -163,4 +199,84 @@ func Determine(entries []journal.Entry, stagedFiles []string, agentLineHashes ma
 	}
 
 	return trailer
+}
+
+// FromDeclaration builds a trailer from an agent's own claim in the commit
+// message.
+//
+// This is the weakest rung the spec defines, and deliberately so: a trailer
+// is the author's own assertion, verified by nothing.
+//
+// WHO-91 specified `inferred` for this and it is reversed here. `inferred`
+// is for evidence surrounding a change that the author did not write -
+// something deduced from context. A self-applied trailer is not context; it
+// is the author's own claim about their own commit, which is precisely what
+// `declared` is reserved for ("weakest - the author declared it, nothing
+// verified it", spec/trailer.go). Grading a self-assertion as `inferred`
+// would rank it above the rung that exists for exactly this case.
+//
+// The VS Code 1.118 episode is the argument made concrete: the editor added
+// a Copilot co-author line by default and reverted it a month later, in
+// part because the line appeared on commits made with Copilot disabled. A
+// self-applied label is evidence, and it is the least of it. No ratio, no session
+// and no model, because a declaration says an agent was involved and
+// nothing about which lines it produced — a zero there would assert it
+// contributed nothing (NAV-21).
+func FromDeclaration(d *declared.Declaration) spec.Trailer {
+	if d == nil {
+		return spec.Undetermined()
+	}
+	return spec.Trailer{
+		SpecVer: spec.Version,
+		Status:  spec.StatusAssisted,
+		Method:  spec.MethodDeclared,
+		Agent:   d.Agent,
+		Extra:   map[string]string{},
+	}
+}
+
+// Best returns whichever determination rests on stronger evidence.
+//
+// It exists so the precedence rule is one comparison rather than a branch
+// at every site that has to choose. Transcript evidence wins over a
+// declaration not because it comes first but because `observed` and
+// `intersected` outrank `declared` on the ladder — and if a future producer
+// yields something stronger, this needs no edit to prefer it.
+//
+// Ties keep the first argument, so the caller's ordering decides between
+// two determinations of equal strength rather than this function guessing.
+func Best(a, b spec.Trailer) spec.Trailer {
+	if b.Method.StrongerThan(a.Method) {
+		return b
+	}
+	return a
+}
+
+// whatChangedIt reads the journal entries for a signal about why the
+// agent's text is not what got staged.
+//
+// Reports human only when an entry says so outright. The alternative -
+// inferring it from the mere absence of a line match - is the same
+// absence-as-evidence mistake the rest of this package exists to avoid:
+// a formatter, a later agent turn and a human edit all leave no match,
+// and only one of them is a person.
+//
+// The last relevant entry wins, for the same reason the model does: a
+// commit can hold several edits to the same file, and what happened to
+// the text last is what describes the state that got committed.
+func whatChangedIt(entries []journal.Entry) spec.ChangedBy {
+	for i := len(entries) - 1; i >= 0; i-- {
+		if m := entries[i].UserModified; m != nil {
+			if *m {
+				return spec.ChangedByHuman
+			}
+			// Explicitly not modified by a human, yet the text still did
+			// not survive - so something else replaced it, and within a
+			// single agent's entries that is the agent itself.
+			return spec.ChangedByAgent
+		}
+	}
+	// No entry carried the signal. Absent rather than guessed: Codex and
+	// agy never report it, and on those agents this is permanent.
+	return ""
 }

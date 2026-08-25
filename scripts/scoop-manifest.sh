@@ -13,10 +13,10 @@
 #   scripts/release.sh v0.3.0
 #   scripts/scoop-manifest.sh v0.3.0 > ../scoop-bucket/bucket/dun.json
 #
-# This is the Windows half of what the Homebrew tap does for macOS and Linux
-# (NAV-103). Both are updated by hand at release time; neither is generated
-# by CI, because publishing to a second repository from a release workflow
-# needs a cross-repo token, and that is a larger decision than this needs.
+# This is the Windows half of what scripts/brew-formula.sh does for macOS and
+# Linux (NAV-103). Both are run by the publish-packages job in release.yml;
+# run this by hand only when that job could not (it skips when
+# PACKAGING_TOKEN is unset).
 #
 # The checksums are READ from checksums.txt rather than recomputed here, so
 # the manifest cannot disagree with what the release actually published. A

@@ -209,3 +209,96 @@ func TestAnAbsentModelIsOmitted(t *testing.T) {
 		t.Errorf("a trailer with no model mentions one: %s", out)
 	}
 }
+
+func TestMethodStrongerThanOrdersTheLadder(t *testing.T) {
+	// The order the spec documents, asserted as one chain rather than
+	// scattered across the call sites that depend on it.
+	ladder := []Method{
+		MethodUndetermined, MethodDeclared, MethodInferred,
+		MethodObserved, MethodIntersected,
+	}
+	for i := 1; i < len(ladder); i++ {
+		if !ladder[i].StrongerThan(ladder[i-1]) {
+			t.Errorf("%s should outrank %s", ladder[i], ladder[i-1])
+		}
+		if ladder[i-1].StrongerThan(ladder[i]) {
+			t.Errorf("%s must not outrank %s", ladder[i-1], ladder[i])
+		}
+	}
+	for _, m := range ladder {
+		if m.StrongerThan(m) {
+			t.Errorf("%s should not outrank itself", m)
+		}
+	}
+}
+
+func TestUnknownMethodRanksBelowEverything(t *testing.T) {
+	// A value from a newer writer is not evidence this code can weigh.
+	// Ranking it high would let an unrecognised claim beat a measured one.
+	future := Method("quantum-verified")
+	if future.StrongerThan(MethodUndetermined) {
+		t.Error("an unknown method must not outrank undetermined")
+	}
+	if !MethodDeclared.StrongerThan(future) {
+		t.Error("declared should outrank an unknown method")
+	}
+}
+
+// Every status has to explain itself, for the same argument that applies
+// to Method.Explain: the word alone is the thing the reader does not
+// understand. A status with an empty gloss renders as a bare token in
+// `dun status`, which is the state WHO-211 set out to fix.
+func TestEveryStatusExplainsItself(t *testing.T) {
+	for _, st := range []Status{
+		StatusAssisted, StatusUnassisted, StatusUnmatched,
+		StatusUninstrumented, StatusDegraded, StatusUndetermined,
+	} {
+		if st.Explain() == "" {
+			t.Errorf("%s has no explanation", st)
+		}
+	}
+	if Status("something-new").Explain() != "" {
+		t.Error("an unknown status must not borrow another's explanation")
+	}
+}
+
+// The question every coverage figure asks. Answered positively, because
+// the negation - anything that is not undetermined - counted unassisted
+// commits as attributed the moment the status existed, and did it while
+// rendering a plausible number.
+func TestOnlyAssistedCountsAsAttributed(t *testing.T) {
+	if !StatusAssisted.Attributed() {
+		t.Error("assisted must count as attributed")
+	}
+	for _, st := range []Status{
+		StatusUnassisted, StatusUnmatched, StatusUninstrumented,
+		StatusDegraded, StatusUndetermined,
+	} {
+		if st.Attributed() {
+			t.Errorf("%s must not count as attributed", st)
+		}
+	}
+}
+
+// The two states that mean opposite things must not read alike. A fault
+// someone should fix and a finding they should trust are the pair most
+// costly to confuse, and this project confused them for twelve days.
+func TestFaultAndFindingReadDifferently(t *testing.T) {
+	fault := StatusDegraded.Explain()
+	finding := StatusUnassisted.Explain()
+	if !strings.Contains(fault, "fault") {
+		t.Errorf("degraded must say it is a fault, got %q", fault)
+	}
+	if !strings.Contains(finding, "human") {
+		t.Errorf("unassisted must state the positive claim, got %q", finding)
+	}
+}
+
+// uninstrumented is the NAV-21 case: it must never read as "no AI was
+// used", only as "we were not there to see".
+func TestUninstrumentedDoesNotClaimAbsence(t *testing.T) {
+	e := StatusUninstrumented.Explain()
+	if !strings.Contains(e, "unknown") {
+		t.Errorf("uninstrumented must say unknown rather than absent, got %q", e)
+	}
+}
