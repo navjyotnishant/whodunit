@@ -517,7 +517,7 @@
         {
           "refId": "A",
           "format": "time_series",
-          "rawSql": "SELECT IF('$grain'='%Y-%m-%d',  DATE(FROM_UNIXTIME(c.committed_at/1000000000)),\n    IF('$grain'='%x-W%v', DATE(FROM_UNIXTIME(c.committed_at/1000000000)\n                             - INTERVAL WEEKDAY(FROM_UNIXTIME(c.committed_at/1000000000)) DAY),\n                        DATE(FROM_UNIXTIME(c.committed_at/1000000000)\n                             - INTERVAL DAYOFMONTH(FROM_UNIXTIME(c.committed_at/1000000000))-1 DAY))) AS `time`,\n       NULLIF(SUM(c.status =  'assisted'), 0) AS `assisted`,\n       NULLIF(SUM(c.status <> 'assisted'), 0) AS `not assisted`,\n       ROUND(100.0 * SUM(c.status = 'assisted') / COUNT(*), 0) AS `% assisted`\nFROM whodunit_commits c\nJOIN whodunit_repos r ON r.repo_id = c.repo_id\nWHERE ('${evidence:raw}' = '__all__' OR c.method = '${evidence:raw}')\n  AND  ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}')\n  AND ('${repo:raw}' = '__all__' OR c.repo_id = '${repo:raw}')\n  AND c.committed_at BETWEEN $__unixEpochFrom() * 1000000000\n                         AND $__unixEpochTo()   * 1000000000\nGROUP BY `time`\nORDER BY `time`"
+          "rawSql": "SELECT IF('$grain'='%Y-%m-%d',  DATE(FROM_UNIXTIME(c.committed_at/1000000000)),\n    IF('$grain'='%x-W%v', DATE(FROM_UNIXTIME(c.committed_at/1000000000)\n                             - INTERVAL WEEKDAY(FROM_UNIXTIME(c.committed_at/1000000000)) DAY),\n                        DATE(FROM_UNIXTIME(c.committed_at/1000000000)\n                             - INTERVAL DAYOFMONTH(FROM_UNIXTIME(c.committed_at/1000000000))-1 DAY))) AS `time`,\n       NULLIF(SUM(c.status =  'assisted'), 0) AS `assisted commits`,\n       NULLIF(SUM(c.status <> 'assisted'), 0) AS `unassisted commits`,\n       ROUND(100.0 * SUM(c.status = 'assisted') / COUNT(*), 0) AS `% assisted`\nFROM whodunit_commits c\nJOIN whodunit_repos r ON r.repo_id = c.repo_id\nWHERE ('${evidence:raw}' = '__all__' OR c.method = '${evidence:raw}')\n  AND  ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}')\n  AND ('${repo:raw}' = '__all__' OR c.repo_id = '${repo:raw}')\n  AND c.committed_at BETWEEN $__unixEpochFrom() * 1000000000\n                         AND $__unixEpochTo()   * 1000000000\nGROUP BY `time`\nORDER BY `time`"
         }
       ],
       "fieldConfig": {
@@ -604,7 +604,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "assisted"
+              "options": "assisted commits"
             },
             "properties": [
               {

@@ -590,7 +590,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT DATE_FORMAT(FROM_UNIXTIME(c.committed_at/1000000000), '$grain') AS `period`,\n       ROUND(AVG(CASE WHEN c.status='assisted' THEN c.lines_added+c.lines_removed END),0) AS `assisted`,\n       ROUND(AVG(CASE WHEN c.status IN ('undetermined','unassisted','unmatched','degraded') THEN c.lines_added+c.lines_removed END),0) AS `not assisted`\nFROM whodunit_commits c JOIN whodunit_repos r ON r.repo_id=c.repo_id\nWHERE ('${evidence:raw}' = '__all__' OR c.method = '${evidence:raw}')\n  AND  ('${contributor:raw}'='__all__' OR r.contributor='${contributor:raw}') AND c.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nGROUP BY `period` ORDER BY `period`"
+          "rawSql": "SELECT DATE_FORMAT(FROM_UNIXTIME(c.committed_at/1000000000), '$grain') AS `period`,\n       ROUND(AVG(CASE WHEN c.status='assisted' THEN c.lines_added+c.lines_removed END),0) AS `assisted lines`,\n       ROUND(AVG(CASE WHEN c.status IN ('undetermined','unassisted','unmatched','degraded') THEN c.lines_added+c.lines_removed END),0) AS `unassisted lines`\nFROM whodunit_commits c JOIN whodunit_repos r ON r.repo_id=c.repo_id\nWHERE ('${evidence:raw}' = '__all__' OR c.method = '${evidence:raw}')\n  AND  ('${contributor:raw}'='__all__' OR r.contributor='${contributor:raw}') AND c.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nGROUP BY `period` ORDER BY `period`"
         }
       ],
       "fieldConfig": {
@@ -772,7 +772,7 @@
     {
       "id": 212,
       "title": "Autonomy and what it produced",
-      "type": "table",
+      "type": "piechart",
       "datasource": "${datasource}",
       "gridPos": {
         "x": 14,
@@ -780,35 +780,44 @@
         "w": 10,
         "h": 8
       },
-      "description": "How much work happened at each level of autonomy.\n\n**The session counts are thin and shown for that reason** — measured here, `default` is 3 sessions and `auto` is 1, against 64 for `never`. A mode with one session tells you about that session.\n\nTool calls are not shipped work. A mode that permits more actions produces more actions by construction; whether that becomes delivered code is the question this panel raises and cannot answer.\n\nEach agent's own vocabulary is kept rather than mapped onto a shared enum — Codex says `never` and `on-request`, Claude Code says `acceptEdits`, `auto` and `default`.",
+      "description": "Tool calls by the permission mode the session ran under.\n\n**Tool calls are not shipped work.** A mode that permits more actions produces more by construction; whether that becomes delivered code is the question this raises and cannot answer.\n\nA mode with no tool calls is **absent, not a zero slice** — `never` sessions exist and simply made none.",
       "targets": [
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT\n  s.permission_mode          AS Mode,\n  COUNT(*)                   AS Sessions,\n  SUM(s.tool_calls)          AS `Tool calls`\nFROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id\nWHERE s.first_seen BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  AND  s.permission_mode IS NOT NULL AND ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}')\nGROUP BY s.permission_mode ORDER BY SUM(s.tool_calls) DESC"
+          "rawSql": "SELECT s.permission_mode AS `metric`,\n       SUM(s.tool_calls) AS `value`\nFROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id\nWHERE s.first_seen BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  AND s.permission_mode IS NOT NULL\n  AND ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}')\nGROUP BY s.permission_mode\nHAVING SUM(s.tool_calls) > 0\nORDER BY SUM(s.tool_calls) DESC"
         }
       ],
       "fieldConfig": {
         "defaults": {
-          "color": {
-            "mode": "fixed",
-            "fixedColor": "text"
-          },
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "text",
-                "value": null
-              }
-            ]
-          },
-          "noValue": "no session recorded a permission mode"
+          "unit": "short",
+          "custom": {}
         },
         "overrides": []
       },
       "options": {
-        "showHeader": true
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": true
+        },
+        "pieType": "donut",
+        "displayLabels": [],
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "values": [
+            "value",
+            "percent"
+          ],
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
       }
     },
     {
