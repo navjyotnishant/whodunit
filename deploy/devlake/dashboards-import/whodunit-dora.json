@@ -408,7 +408,7 @@
       "type": "stat",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
-        "x": 8,
+        "x": 16,
         "y": 10,
         "w": 8,
         "h": 6
@@ -418,7 +418,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT ROUND(AVG(CASE WHEN c.status IN ('undetermined','unassisted','unmatched','degraded')\n                      THEN c.lines_added + c.lines_removed END), 0) AS `unassisted lines`,\n       ROUND(AVG(CASE WHEN c.status='assisted'\n                      THEN c.lines_added + c.lines_removed END), 0) AS `assisted lines`,\n       ROUND(\n         AVG(CASE WHEN c.status='assisted' THEN c.lines_added + c.lines_removed END)\n         / NULLIF(AVG(CASE WHEN c.status IN ('undetermined','unassisted','unmatched','degraded')\n                           THEN c.lines_added + c.lines_removed END), 0)\n       , 2) AS `ratio`\nFROM whodunit_commits c JOIN whodunit_repos r ON r.repo_id = c.repo_id\nWHERE c.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  AND ('${evidence:raw}' = '__all__' OR c.method = '${evidence:raw}')\n  AND  ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}') AND c.purpose IN (\n  SELECT purpose FROM (\n    SELECT c2.purpose\n    FROM whodunit_commits c2 JOIN whodunit_repos r2 ON r2.repo_id = c2.repo_id\n    WHERE c2.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n      AND ('${contributor:raw}' = '__all__' OR r2.contributor = '${contributor:raw}')\n    GROUP BY c2.purpose\n    HAVING SUM(c2.status='assisted') >= 20\n       AND SUM(c2.status IN ('undetermined','unassisted','unmatched','degraded')) >= 20\n  ) eligible\n)"
+          "rawSql": "SELECT ROUND(AVG(CASE WHEN c.status IN ('undetermined','unassisted','unmatched','degraded')\n                      THEN c.lines_added + c.lines_removed END), 0) AS `unassisted avg lines/commit`,\n       ROUND(AVG(CASE WHEN c.status='assisted'\n                      THEN c.lines_added + c.lines_removed END), 0) AS `assisted avg lines/commit`,\n       ROUND(\n         AVG(CASE WHEN c.status='assisted' THEN c.lines_added + c.lines_removed END)\n         / NULLIF(AVG(CASE WHEN c.status IN ('undetermined','unassisted','unmatched','degraded')\n                           THEN c.lines_added + c.lines_removed END), 0)\n       , 2) AS `ratio`\nFROM whodunit_commits c JOIN whodunit_repos r ON r.repo_id = c.repo_id\nWHERE c.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  AND ('${evidence:raw}' = '__all__' OR c.method = '${evidence:raw}')\n  AND  ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}') AND c.purpose IN (\n  SELECT purpose FROM (\n    SELECT c2.purpose\n    FROM whodunit_commits c2 JOIN whodunit_repos r2 ON r2.repo_id = c2.repo_id\n    WHERE c2.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n      AND ('${contributor:raw}' = '__all__' OR r2.contributor = '${contributor:raw}')\n    GROUP BY c2.purpose\n    HAVING SUM(c2.status='assisted') >= 20\n       AND SUM(c2.status IN ('undetermined','unassisted','unmatched','degraded')) >= 20\n  ) eligible\n)"
         }
       ],
       "fieldConfig": {
@@ -443,7 +443,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "assisted lines"
+              "options": "assisted avg lines/commit"
             },
             "properties": [
               {
@@ -459,7 +459,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "unassisted lines"
+              "options": "unassisted avg lines/commit"
             },
             "properties": [
               {
@@ -512,7 +512,7 @@
       "type": "stat",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
-        "x": 16,
+        "x": 8,
         "y": 10,
         "w": 8,
         "h": 6
