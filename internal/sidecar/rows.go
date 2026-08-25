@@ -204,9 +204,9 @@ func CommitRowsFrom(commits []report.Commit, repoID string, syncedAt time.Time) 
 	rows := make([]CommitRow, 0, len(commits))
 	for _, c := range commits {
 		row := CommitRow{
-			CommitSHA:     c.SHA,
-			RepoID:        repoID,
-			CommittedAt:   c.Timestamp,
+			CommitSHA:   c.SHA,
+			RepoID:      repoID,
+			CommittedAt: c.Timestamp,
 			// No trailer at all, which means the hooks were not
 			// running when this was committed - the commit predates
 			// instrumentation, or was made somewhere without it
