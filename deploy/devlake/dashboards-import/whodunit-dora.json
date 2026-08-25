@@ -571,7 +571,7 @@
     {
       "id": 7,
       "type": "barchart",
-      "title": "Output volume — assisted vs not assisted",
+      "title": "Lines per commit, over time",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
         "x": 0,
@@ -583,7 +583,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT DATE_FORMAT(FROM_UNIXTIME(c.committed_at/1000000000), '$grain') AS `period`,\n       ROUND(AVG(CASE WHEN c.status='assisted' THEN c.lines_added+c.lines_removed END),0) AS `assisted`,\n       ROUND(AVG(CASE WHEN c.status<>'assisted' THEN c.lines_added+c.lines_removed END),0) AS `not assisted`\nFROM whodunit_commits c JOIN whodunit_repos r ON r.repo_id=c.repo_id\nWHERE ('${evidence:raw}' = '__all__' OR c.method = '${evidence:raw}')\n  AND  ('${contributor:raw}'='__all__' OR r.contributor='${contributor:raw}') AND c.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nGROUP BY `period` ORDER BY `period`"
+          "rawSql": "SELECT DATE_FORMAT(FROM_UNIXTIME(c.committed_at/1000000000), '$grain') AS `period`,\n       ROUND(AVG(CASE WHEN c.status='assisted' THEN c.lines_added+c.lines_removed END),0) AS `assisted`,\n       ROUND(AVG(CASE WHEN c.status IN ('undetermined','unassisted','unmatched','degraded') THEN c.lines_added+c.lines_removed END),0) AS `not assisted`\nFROM whodunit_commits c JOIN whodunit_repos r ON r.repo_id=c.repo_id\nWHERE ('${evidence:raw}' = '__all__' OR c.method = '${evidence:raw}')\n  AND  ('${contributor:raw}'='__all__' OR r.contributor='${contributor:raw}') AND c.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nGROUP BY `period` ORDER BY `period`"
         }
       ],
       "fieldConfig": {
@@ -595,7 +595,7 @@
           }
         }
       },
-      "description": "Mean lines changed per commit over time, assisted against unassisted.\n\n**Volume, not productivity.** A rising line means commits are getting larger, which is not the same as work getting faster.",
+      "description": "Mean lines changed per commit, assisted against unassisted, per period.\n\nThe same measure as **Lines per commit**, bucketed by the Granularity control. Commits made before the hooks existed are excluded from both: counting them as unassisted would claim a human wrote work nothing was watching.\n\n**Size, not productivity.** A rising line means commits are getting larger, which is not the same as work getting faster.",
       "options": {
         "xField": "period",
         "showValue": "never",
