@@ -61,6 +61,11 @@ wrote this" and "the agent wrote this and it was kept" — and it exists for
 one agent out of three. The panel's denominator counts only calls that
 carried the signal, so the other two do not dilute the rate.
 
+**Only Claude Code reports `changed_by`.** It is the one agent that says
+whether a human edited its output, so an `observed` commit from Codex or
+agy cannot say whether the text was revised by a person or replaced by a
+later turn. The key is absent there permanently, not pending.
+
 **Only Codex reports timing.** Claude Code and Antigravity record none, so
 a latency panel is structurally empty for them. It says so rather than
 rendering zero, which would make them appear instantaneous.

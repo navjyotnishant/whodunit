@@ -42,11 +42,21 @@ The distinction people get wrong is treating the last four as a single grey
 | State | What it means | What you may conclude |
 |---|---|---|
 | `intersected` | The agent's own lines are in the commit. Its produced lines were hashed as it wrote them, the staged diff was hashed the same way, and the two sets overlap. | The agent wrote this text. Not inference. |
-| `observed` | The agent edited these files, but its exact text is not what got committed. | It worked here. What shipped may be someone's rewrite of its output. |
+| `observed` | The agent edited these files, but its exact text is not what got committed. | It worked here. What shipped may be someone's rewrite of its output — `changed_by` says which. |
 | `declared` | The trailer says so, and nothing verified it. Emitted by agents that announce themselves in the commit message rather than in a readable transcript. | An agent claimed this. Treat it as a claim. |
 
 `inferred` sits between `observed` and `declared` in the ladder and is
 currently emitted by nothing.
+
+**`observed` carries a `changed_by` key** saying what happened to the text:
+`human` if a person revised the agent's output before committing, `agent`
+if a later turn replaced its own earlier lines. Both are real contributions
+that did not survive verbatim.
+
+The key is absent where nothing recorded it, and that absence is permanent
+rather than pending: only Claude Code reports whether a human edited its
+output. A formatter, a later agent turn and a human edit all leave no line
+match, so the reason is never inferred from the absence of one.
 
 **Why `declared` is the weakest rung** rather than the strongest: a
 self-applied trailer is a tool asserting something about itself. When VS
