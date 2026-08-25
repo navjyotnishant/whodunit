@@ -1114,57 +1114,21 @@
       "description": "Blank means no issue is classified as an incident. That is an issue-tracker configuration gap, not a claim that nothing has broken."
     },
     {
-      "id": 16,
-      "type": "barchart",
-      "title": "Deployment frequency",
-      "datasource": "${DS_WHODUNIT}",
-      "gridPos": {
-        "x": 0,
-        "y": 49,
-        "w": 12,
-        "h": 9
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "format": "table",
-          "rawSql": "SELECT DATE_FORMAT(cdc.finished_date, '$grain') AS `period`,\n       COUNT(DISTINCT cdc.cicd_deployment_id) AS `deployments`\nFROM cicd_deployment_commits cdc\nJOIN project_mapping pm ON cdc.cicd_scope_id = pm.row_id AND pm.`table` = 'cicd_scopes'\nWHERE cdc.result='SUCCESS' AND cdc.environment='PRODUCTION'\n  AND $__timeFilter(cdc.finished_date)\nGROUP BY `period` ORDER BY `period`"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "short",
-          "custom": {
-            "fillOpacity": 80,
-            "lineWidth": 1
-          }
-        }
-      },
-      "description": "Deployments per day, from DevLake's CI collection.\n\nRequires a deployment pattern on the scope config — without one, `cicd_deployment_commits` stays empty and every DORA panel on this page reads blank while collection reports success.",
-      "options": {
-        "xField": "period",
-        "showValue": "never",
-        "stacking": "none",
-        "xTickLabelRotation": -45,
-        "xTickLabelSpacing": 100
-      }
-    },
-    {
       "id": 17,
       "type": "barchart",
       "title": "Deployment outcomes",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
-        "x": 12,
+        "x": 0,
         "y": 49,
-        "w": 12,
+        "w": 24,
         "h": 9
       },
       "targets": [
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT DATE_FORMAT(cdc.finished_date, '$grain') AS `period`,\n       SUM(cdc.result='SUCCESS') AS `succeeded`,\n       SUM(cdc.result='FAILURE') AS `failed`\nFROM cicd_deployment_commits cdc\nJOIN project_mapping pm ON cdc.cicd_scope_id = pm.row_id AND pm.`table` = 'cicd_scopes'\nWHERE cdc.environment='PRODUCTION' AND $__timeFilter(cdc.finished_date)\nGROUP BY `period` ORDER BY `period`"
+          "rawSql": "SELECT DATE_FORMAT(cdc.finished_date, '$grain') AS `period`,\n       COUNT(DISTINCT IF(cdc.result='SUCCESS', cdc.cicd_deployment_id, NULL)) AS `succeeded`,\n       COUNT(DISTINCT IF(cdc.result='FAILURE', cdc.cicd_deployment_id, NULL)) AS `failed`\nFROM cicd_deployment_commits cdc\nJOIN project_mapping pm ON cdc.cicd_scope_id = pm.row_id AND pm.`table` = 'cicd_scopes'\nWHERE cdc.environment='PRODUCTION' AND $__timeFilter(cdc.finished_date)\nGROUP BY `period` ORDER BY `period`"
         }
       ],
       "fieldConfig": {
@@ -1211,7 +1175,7 @@
           }
         ]
       },
-      "description": "The failure rate's two components, so a rising rate can be read as more failures or fewer deployments.",
+      "description": "Production deployments per period, split by whether they succeeded.\n\nThe green series is deployment frequency; the red is what the change failure rate is computed over, so a rising rate can be read as more failures or fewer deployments.\n\nCounts distinct deployments, not deployment-commit rows.\n\n**Needs a deployment pattern configured**, or every CI run is unclassified and this reads empty rather than zero.",
       "options": {
         "xField": "period",
         "showValue": "never",
