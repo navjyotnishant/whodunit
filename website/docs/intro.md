@@ -21,6 +21,18 @@ as rework — are made without evidence. A trailer is evidence: attached to a
 specific commit, checkable by anyone with the repository, and impossible to
 add retroactively without rewriting history.
 
+`method=intersected` in that trailer is the strongest thing whodunit can
+say, and it is the one word worth understanding before anything else:
+
+![Two overlapping circles. The left holds the lines the agent produced, the right holds the lines in the commit, and the lit overlap between them holds the lines that are in both - which is what `intersected` means.](/img/architecture/the-intersection.png)
+
+Every substantive line an agent writes is hashed as it writes it — blank
+lines and lone braces are skipped, because a `}` proves nothing about who
+wrote it. At commit time the staged diff is hashed the same way, and the
+two sets are intersected. If the overlap is non-empty, the agent's own
+text is demonstrably in the commit — not guessed from coding style, not
+assumed from a licence someone holds.
+
 ## What it is not
 
 **It is not a productivity measurement.** This is the most important
@@ -48,6 +60,13 @@ is entirely local and makes no network calls; data leaves your machine only
 if you configure `dun sync` and run it. See [Privacy](reference/privacy).
 
 ## How it works, in three parts
+
+![How attribution is established: agent transcripts are read by an adapter into a local journal and a set of line hashes; at commit time those hashes are intersected with the staged diff to decide one of five methods, or one of four reasons there is no method; the result is stamped as a git trailer and optionally synced to DevLake and Grafana.](/img/architecture/attribution-flow.png)
+
+The middle of that diagram is the whole product. Everything else moves data
+around; the intersection is where a claim gets made or withheld. Two things
+it shows are designed rather than built — the replay log, and the four
+reasons as first-class states rather than reconstructed after the fact.
 
 **The trailer** is a specification, not an implementation. It is plain git,
 readable by anything that reads a commit message, and it outlives any one
