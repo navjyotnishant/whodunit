@@ -706,7 +706,7 @@
     {
       "id": 210,
       "title": "Fix-commit share by change size",
-      "type": "table",
+      "type": "barchart",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
         "x": 0,
@@ -714,52 +714,94 @@
         "w": 14,
         "h": 8
       },
-      "description": "**A rework proxy, not a defect rate.** `purpose` is derived from Conventional Commits prefixes and path heuristics, so this measures what commits were *labelled* — not what actually broke.\n\n**Banded by change size, and that changes the answer.** The unbanded figure is 28.4% assisted against 33.3% unassisted, which looks favourable. Split by size it reverses in the middle band: assisted work is 42.1% fixes against 24.7% at 50-300 lines, while at under 50 lines it is 38.5% against 46.6%. The aggregate was a size-mix artefact — assisted commits skew larger, and large commits are rarely labelled fixes.\n\nBoth denominators are shown because several bands are thin. Selection bias is uncontrolled either way: an agent is reached for on some kinds of work and not others, so part of this measures which work was assigned rather than what the agent did to it.",
+      "description": "Share of each cohort's commits labelled `fix`, by change size.\n\n**Read the crossover, not the totals.** Unbanded, assisted work looks better — 28.4% against 33.3% — but that is a size-mix artefact: assisted commits skew larger, and large commits are rarely labelled fixes. Banded, assisted is lower at small and large sizes and higher in the middle.\n\n**A rework proxy, not a defect rate.** `purpose` comes from commit prefixes, so this measures what commits were *labelled*.",
       "targets": [
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT\n  CASE WHEN c.lines_added+c.lines_removed < 50 THEN 'small (<50)'\n     WHEN c.lines_added+c.lines_removed < 300 THEN 'medium (50-300)'\n     ELSE 'large (300+)' END                                                          AS `Change size`,\n  SUM(c.status='assisted')                                        AS `Assisted n`,\n  ROUND(100.0*SUM(c.status='assisted' AND c.purpose='fix')\n    / NULLIF(SUM(c.status='assisted'),0),1)                       AS `Assisted fix %`,\n  SUM(c.status IN ('undetermined','unassisted','unmatched','degraded'))                                    AS `Unassisted n`,\n  ROUND(100.0*SUM(c.status IN ('undetermined','unassisted','unmatched','degraded') AND c.purpose='fix')\n    / NULLIF(SUM(c.status IN ('undetermined','unassisted','unmatched','degraded')),0),1)                   AS `Unassisted fix %`\nFROM whodunit_commits c JOIN whodunit_repos r ON r.repo_id = c.repo_id\nWHERE c.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  AND  ('${evidence:raw}' = '__all__' OR c.method = '${evidence:raw}')\n  AND  c.status IN ('assisted','undetermined') AND ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}')\nGROUP BY 1 ORDER BY 1"
+          "rawSql": "SELECT CASE WHEN c.lines_added+c.lines_removed < 50 THEN 'small (<50)'\n            WHEN c.lines_added+c.lines_removed < 300 THEN 'medium (50-300)'\n            ELSE 'large (300+)' END AS `size`,\n       ROUND(100.0*SUM(c.status='assisted' AND c.purpose='fix')\n         / NULLIF(SUM(c.status='assisted'),0),1) AS `assisted fix %`,\n       ROUND(100.0*SUM(c.status IN ('undetermined','unassisted','unmatched','degraded') AND c.purpose='fix')\n         / NULLIF(SUM(c.status IN ('undetermined','unassisted','unmatched','degraded')),0),1) AS `unassisted fix %`,\n       SUM(c.status='assisted') AS `assisted commits`,\n       SUM(c.status IN ('undetermined','unassisted','unmatched','degraded')) AS `unassisted commits`\nFROM whodunit_commits c JOIN whodunit_repos r ON r.repo_id = c.repo_id\nWHERE c.committed_at BETWEEN $__unixEpochFrom() * 1000000000\n                         AND $__unixEpochTo() * 1000000000\n  AND ('${evidence:raw}' = '__all__' OR c.method = '${evidence:raw}')\n  AND ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}')\nGROUP BY 1\nORDER BY FIELD(`size`, 'small (<50)', 'medium (50-300)', 'large (300+)')"
         }
       ],
       "fieldConfig": {
         "defaults": {
-          "color": {
-            "mode": "fixed",
-            "fixedColor": "text"
-          },
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "text",
-                "value": null
-              }
-            ]
-          },
-          "noValue": "no commits in range"
+          "unit": "percent",
+          "decimals": 1,
+          "custom": {
+            "axisLabel": "",
+            "lineWidth": 1,
+            "fillOpacity": 80
+          }
         },
         "overrides": [
           {
             "matcher": {
-              "id": "byRegexp",
-              "options": ".*fix %$"
+              "id": "byName",
+              "options": "assisted commits"
             },
             "properties": [
               {
+                "id": "custom.hideFrom",
+                "value": {
+                  "viz": true,
+                  "legend": true,
+                  "tooltip": false
+                }
+              },
+              {
                 "id": "unit",
-                "value": "percent"
+                "value": "short"
               },
               {
                 "id": "decimals",
-                "value": 1
+                "value": 0
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "unassisted commits"
+            },
+            "properties": [
+              {
+                "id": "custom.hideFrom",
+                "value": {
+                  "viz": true,
+                  "legend": true,
+                  "tooltip": false
+                }
+              },
+              {
+                "id": "unit",
+                "value": "short"
+              },
+              {
+                "id": "decimals",
+                "value": 0
               }
             ]
           }
         ]
       },
       "options": {
-        "showHeader": true
+        "orientation": "auto",
+        "showValue": "always",
+        "stacking": "none",
+        "xTickLabelRotation": 0,
+        "xTickLabelSpacing": 0,
+        "groupWidth": 0.7,
+        "barWidth": 0.9,
+        "fullHighlight": false,
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        },
+        "xField": "size"
       }
     },
     {
