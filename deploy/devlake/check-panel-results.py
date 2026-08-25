@@ -123,6 +123,37 @@ def unattributed_set_violations() -> list[str]:
     return bad
 
 
+def grain_comparison_violations() -> list[str]:
+    """SQL that compares $grain against a value the variable cannot hold.
+
+    The variable holds a DATE_FORMAT mask - Daily is '%Y-%m-%d', Weekly
+    is '%x-W%v'. Three exec panels tested it against 'day' and 'week',
+    which never matched, so every branch fell through to the monthly
+    default and the Granularity control silently did nothing.
+
+    Silent is the problem: the panel renders a correct-looking monthly
+    chart whatever the dropdown says. Checked here against the variable's
+    own declared options rather than a hardcoded list, so renaming an
+    option cannot leave this guard passing while the SQL breaks.
+    """
+    bad = []
+    for path in sorted(Path(__file__).parent.glob("dashboards/*.json")):
+        dash = json.loads(path.read_text())
+        values = set()
+        for v in dash.get("templating", {}).get("list", []):
+            if v.get("name") == "grain":
+                values = {o.get("value") for o in v.get("options", [])}
+        if not values:
+            continue
+        for p in dash.get("panels", []):
+            for t in p.get("targets") or []:
+                for lit in re.findall(r"'\$grain'\s*=\s*'([^']*)'", t.get("rawSql", "")):
+                    if lit not in values:
+                        bad.append(f"{path.name} :: {p.get('title','?')}: "
+                                   f"compares $grain to '{lit}', which it never holds")
+    return bad
+
+
 def contributor_filter_cases() -> list[tuple[str, str, callable]]:
     """The assertions that encode what has actually gone wrong before."""
     return [
@@ -277,6 +308,14 @@ def main() -> int:
         print(f"  FAIL  {v} - use the unattributed set, not a single status")
     if not violations:
         print("  ok    no panel negates a single status")
+
+    print("\nchecking $grain comparisons against the values it can hold")
+    grain_bad = grain_comparison_violations()
+    for v in grain_bad:
+        failures.append(v)
+        print(f"  FAIL  {v}")
+    if not grain_bad:
+        print("  ok    every $grain comparison uses a real option value")
 
     if failures:
         print(f"\n{len(failures)} failure(s)")
