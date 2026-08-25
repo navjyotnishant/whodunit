@@ -15,9 +15,11 @@ import (
 	_ "github.com/navjyotnishant/whodunit/internal/adapter/claudecode"
 	_ "github.com/navjyotnishant/whodunit/internal/adapter/codex"
 	"github.com/navjyotnishant/whodunit/internal/attribution"
+	"github.com/navjyotnishant/whodunit/internal/config"
 	"github.com/navjyotnishant/whodunit/internal/declared"
 	"github.com/navjyotnishant/whodunit/internal/hooklog"
 	"github.com/navjyotnishant/whodunit/internal/journal"
+	"github.com/navjyotnishant/whodunit/internal/replaylog"
 	"github.com/navjyotnishant/whodunit/internal/spec"
 	"github.com/spf13/cobra"
 )
@@ -261,6 +263,25 @@ func determineTrailer(message string) spec.Trailer {
 				Commit: attribution.CommitLines{Added: added, Removed: removed},
 			}, now),
 		fromDeclaration)
+
+	// A determination that failed is worth keeping, so a later run can
+	// try again (WHO-212). Only the two failure statuses reach the log;
+	// Record drops the rest.
+	//
+	// No commit SHA here - prepare-commit-msg runs before the commit
+	// exists - so the entry carries what a replay actually needs: the
+	// staged files to match against, and how many agent lines there were
+	// to match with.
+	if home, herr := config.Dir(); herr == nil {
+		repoID, _ := currentRepoID()
+		replaylog.Record(home, replaylog.Entry{
+			RepoID:      repoID,
+			Time:        now,
+			Status:      trailer.Status,
+			StagedFiles: staged,
+			AgentLines:  len(agentLines),
+		})
+	}
 
 	// The commit carries a derived token, never the agent's own session id.
 	//

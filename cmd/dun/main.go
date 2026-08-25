@@ -41,6 +41,7 @@ func newRootCmd() *cobra.Command {
 	root.AddCommand(newJournalCmd())
 	root.AddCommand(newHookCmd())
 	root.AddCommand(newCheckCmd())
+	root.AddCommand(newReplayCmd())
 	root.AddCommand(newReportCmd())
 	root.AddCommand(newIngestCmd())
 	root.AddCommand(newDaemonCmd())

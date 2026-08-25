@@ -29,7 +29,9 @@ sidebar_label: How attribution works
 
 ```
 staged files match a recent session?
-├── no  → undetermined
+├── no  → was the agent producing lines at all?
+│         ├── no  → unassisted    (a human wrote this)
+│         └── yes → unmatched     (the agent was working elsewhere)
 └── yes → observed
          └── staged lines match lines the agent produced?
              └── yes → intersected
@@ -38,6 +40,14 @@ staged files match a recent session?
 `observed` means the agent edited these files recently. `intersected` means
 the exact text it produced is what got staged — the text was not rewritten
 in between.
+
+The left branch is the part worth reading twice. Both outcomes produce no
+attribution, and they are not the same thing: `unassisted` is a finding —
+the hooks were watching, the journal was readable, and there was no agent
+— while `unmatched` means an agent was busy somewhere the staged files
+are not. A script that generates a file leaves no tool call naming it, so
+its commits land in `unmatched`, and claiming those lines for the agent
+that ran the script would be a lie about who wrote them.
 
 `declared` and `inferred` sit below `observed` on the ladder and are
 reserved for agents whose stores cannot support file-level or line-level
@@ -78,11 +88,26 @@ would silently turn an `intersected` commit into an `observed` one, so
 
 **Hooks never fail a commit.** A hook that blocks work because it could not
 attribute it would be uninstalled within a day, so every failure path exits
-zero and stamps `undetermined`.
+zero and stamps a status saying what happened.
 
-Which is why `undetermined` alone cannot tell you whether anything went
-wrong: a genuine failure and a commit nobody used an agent on both land
-there. `dun status` separates them under **why undetermined**.
+`degraded` is the one that means something broke — an unreadable journal,
+a failed ingest, config that would not load. It is deliberately distinct
+from `unmatched` and `unassisted`, which are answers rather than faults.
+
+Failures are also appended to a **replay log** that nothing rotates away,
+so a determination that failed can be retried once the cause is fixed:
+
+```sh
+dun replay           # what failed, and why
+dun replay --apply   # retry each one against the journal as it stands now
+```
+
+A retry re-runs the same determination against a journal that may have
+learned more since — a transcript ingested after the commit was made
+carries hashes that were not available at the time. The commit keeps its
+original trailer either way: git history is not rewritten, and the replay
+log records the outcome by appending rather than by editing what it
+already said.
 
 That silence is deliberate but not total — the errors are recorded:
 
