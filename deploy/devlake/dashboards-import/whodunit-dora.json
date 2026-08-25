@@ -1520,42 +1520,49 @@
     },
     {
       "id": 21,
-      "type": "stat",
-      "title": "Correlation with deployment frequency",
+      "type": "table",
+      "title": "Adoption correlation",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
         "x": 0,
         "y": 68,
-        "w": 8,
+        "w": 24,
         "h": 4
       },
       "targets": [
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "WITH b AS (SELECT repo_id,\n       MIN(CASE WHEN method <> 'undetermined' THEN committed_at END) AS first_attributed\nFROM whodunit_commits GROUP BY repo_id),\n     a AS (SELECT DATE_FORMAT(FROM_UNIXTIME(c.committed_at/1000000000), '%x-W%v') AS wk,\n       SUM(c.status='assisted')*100.0\n         /NULLIF(SUM(c.committed_at >= b.first_attributed),0) AS adoption\nFROM whodunit_commits c JOIN b ON b.repo_id=c.repo_id\nWHERE c.committed_at BETWEEN $__unixEpochFrom() * 1000000000\n                         AND $__unixEpochTo() * 1000000000\nGROUP BY wk),\n     m AS (SELECT DATE_FORMAT(cdc.finished_date, '%x-W%v') AS wk,\n       COUNT(DISTINCT cdc.cicd_deployment_id) AS metric\nFROM cicd_deployment_commits cdc\nJOIN project_mapping pm ON cdc.cicd_scope_id = pm.row_id AND pm.`table` = 'cicd_scopes'\nWHERE cdc.result='SUCCESS' AND cdc.environment='PRODUCTION' GROUP BY wk),\n     p AS (SELECT a.adoption x, m.metric y FROM a JOIN m ON a.wk = m.wk)\nSELECT CASE WHEN COUNT(*) < 10 THEN NULL\n            ELSE ROUND((COUNT(*)*SUM(x*y) - SUM(x)*SUM(y)) /\n                 NULLIF(SQRT((COUNT(*)*SUM(x*x) - POW(SUM(x),2)) *\n                             (COUNT(*)*SUM(y*y) - POW(SUM(y),2))), 0), 2)\n       END AS `r`\nFROM p"
-        },
-        {
-          "refId": "B",
-          "format": "table",
-          "rawSql": "WITH b AS (SELECT repo_id,\n       MIN(CASE WHEN method <> 'undetermined' THEN committed_at END) AS first_attributed\nFROM whodunit_commits GROUP BY repo_id),\n     a AS (SELECT DATE_FORMAT(FROM_UNIXTIME(c.committed_at/1000000000), '%x-W%v') AS wk,\n       SUM(c.status='assisted')*100.0\n         /NULLIF(SUM(c.committed_at >= b.first_attributed),0) AS adoption\nFROM whodunit_commits c JOIN b ON b.repo_id=c.repo_id\nWHERE c.committed_at BETWEEN $__unixEpochFrom() * 1000000000\n                         AND $__unixEpochTo() * 1000000000\nGROUP BY wk),\n     m AS (SELECT DATE_FORMAT(cdc.finished_date, '%x-W%v') AS wk,\n       COUNT(DISTINCT cdc.cicd_deployment_id) AS metric\nFROM cicd_deployment_commits cdc\nJOIN project_mapping pm ON cdc.cicd_scope_id = pm.row_id AND pm.`table` = 'cicd_scopes'\nWHERE cdc.result='SUCCESS' AND cdc.environment='PRODUCTION' GROUP BY wk)\nSELECT COUNT(*) AS `weeks` FROM a JOIN m ON a.wk = m.wk"
+          "rawSql": "SELECT 'deployment frequency' AS `against`,\n       CASE WHEN COUNT(*) < 10 THEN NULL\n            ELSE ROUND((COUNT(*)*SUM(x*y) - SUM(x)*SUM(y)) /\n                 NULLIF(SQRT((COUNT(*)*SUM(x*x) - POW(SUM(x),2)) *\n                             (COUNT(*)*SUM(y*y) - POW(SUM(y),2))), 0), 2)\n       END AS `r`,\n       COUNT(*) AS `weeks`\nFROM (WITH b AS (SELECT repo_id,\n       MIN(CASE WHEN method <> 'undetermined' THEN committed_at END) AS first_attributed\nFROM whodunit_commits GROUP BY repo_id),\n     a AS (SELECT DATE_FORMAT(FROM_UNIXTIME(c.committed_at/1000000000), '%x-W%v') AS wk,\n       SUM(c.status='assisted')*100.0\n         /NULLIF(SUM(c.committed_at >= b.first_attributed),0) AS adoption\nFROM whodunit_commits c JOIN b ON b.repo_id=c.repo_id\nWHERE c.committed_at BETWEEN $__unixEpochFrom() * 1000000000\n                         AND $__unixEpochTo() * 1000000000\nGROUP BY wk),\n     m AS (SELECT DATE_FORMAT(cdc.finished_date, '%x-W%v') AS wk,\n       COUNT(DISTINCT cdc.cicd_deployment_id) AS metric\nFROM cicd_deployment_commits cdc\nJOIN project_mapping pm ON cdc.cicd_scope_id = pm.row_id AND pm.`table` = 'cicd_scopes'\nWHERE cdc.result='SUCCESS' AND cdc.environment='PRODUCTION' GROUP BY wk),\n     p AS (SELECT a.adoption x, m.metric y FROM a JOIN m ON a.wk = m.wk)\nSELECT * FROM p) q\nUNION ALL\nSELECT 'change failure rate' AS `against`,\n       CASE WHEN COUNT(*) < 10 THEN NULL\n            ELSE ROUND((COUNT(*)*SUM(x*y) - SUM(x)*SUM(y)) /\n                 NULLIF(SQRT((COUNT(*)*SUM(x*x) - POW(SUM(x),2)) *\n                             (COUNT(*)*SUM(y*y) - POW(SUM(y),2))), 0), 2)\n       END AS `r`,\n       COUNT(*) AS `weeks`\nFROM (WITH b AS (SELECT repo_id,\n       MIN(CASE WHEN method <> 'undetermined' THEN committed_at END) AS first_attributed\nFROM whodunit_commits GROUP BY repo_id),\n     a AS (SELECT DATE_FORMAT(FROM_UNIXTIME(c.committed_at/1000000000), '%x-W%v') AS wk,\n       SUM(c.status='assisted')*100.0\n         /NULLIF(SUM(c.committed_at >= b.first_attributed),0) AS adoption\nFROM whodunit_commits c JOIN b ON b.repo_id=c.repo_id\nWHERE c.committed_at BETWEEN $__unixEpochFrom() * 1000000000\n                         AND $__unixEpochTo() * 1000000000\nGROUP BY wk),\n     m AS (SELECT DATE_FORMAT(cdc.finished_date, '%x-W%v') AS wk,\n       SUM(cdc.result='FAILURE')*100.0/NULLIF(COUNT(*),0) AS metric\nFROM cicd_deployment_commits cdc\nJOIN project_mapping pm ON cdc.cicd_scope_id = pm.row_id AND pm.`table` = 'cicd_scopes'\nWHERE cdc.environment='PRODUCTION' GROUP BY wk),\n     p AS (SELECT a.adoption x, m.metric y FROM a JOIN m ON a.wk = m.wk)\nSELECT * FROM p) q\nUNION ALL\nSELECT 'PR cycle time' AS `against`,\n       CASE WHEN COUNT(*) < 10 THEN NULL\n            ELSE ROUND((COUNT(*)*SUM(x*y) - SUM(x)*SUM(y)) /\n                 NULLIF(SQRT((COUNT(*)*SUM(x*x) - POW(SUM(x),2)) *\n                             (COUNT(*)*SUM(y*y) - POW(SUM(y),2))), 0), 2)\n       END AS `r`,\n       COUNT(*) AS `weeks`\nFROM (WITH b AS (SELECT repo_id,\n       MIN(CASE WHEN method <> 'undetermined' THEN committed_at END) AS first_attributed\nFROM whodunit_commits GROUP BY repo_id),\n     a AS (SELECT DATE_FORMAT(FROM_UNIXTIME(c.committed_at/1000000000), '%x-W%v') AS wk,\n       SUM(c.status='assisted')*100.0\n         /NULLIF(SUM(c.committed_at >= b.first_attributed),0) AS adoption\nFROM whodunit_commits c JOIN b ON b.repo_id=c.repo_id\nWHERE c.committed_at BETWEEN $__unixEpochFrom() * 1000000000\n                         AND $__unixEpochTo() * 1000000000\nGROUP BY wk),\n     m AS (SELECT DATE_FORMAT(pr_merged_date, '%x-W%v') AS wk,\n       AVG(pr_cycle_time)/60.0 AS metric\nFROM project_pr_metrics WHERE pr_cycle_time IS NOT NULL GROUP BY wk),\n     p AS (SELECT a.adoption x, m.metric y FROM a JOIN m ON a.wk = m.wk)\nSELECT * FROM p) q"
         }
       ],
       "fieldConfig": {
         "defaults": {
-          "decimals": 2,
-          "noValue": "not enough overlapping weeks yet",
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "text",
-                "value": null
-              }
-            ]
-          }
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            }
+          },
+          "noValue": "withheld — under 10 weeks"
         },
         "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "r"
+            },
+            "properties": [
+              {
+                "id": "decimals",
+                "value": 2
+              },
+              {
+                "id": "custom.width",
+                "value": 120
+              }
+            ]
+          },
           {
             "matcher": {
               "id": "byName",
@@ -1563,167 +1570,26 @@
             },
             "properties": [
               {
-                "id": "decimals",
-                "value": 0
-              },
-              {
-                "id": "unit",
-                "value": "none"
+                "id": "custom.width",
+                "value": 100
               }
             ]
           }
         ]
       },
       "options": {
-        "graphMode": "none",
-        "textMode": "value_and_name",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
           ],
-          "fields": "",
-          "values": true
+          "countRows": false,
+          "fields": ""
         }
       },
-      "description": "Pearson correlation between weekly adoption and weekly deployment frequency, with the weeks it rests on.\n\n**Withheld below 10 weeks** — three points can produce r = 0.99 by coincidence. Correlation is not causation even at high n.\n\nAdoption covers every instrumented repository; outcomes only the project with deployments."
-    },
-    {
-      "id": 24,
-      "type": "stat",
-      "title": "Correlation with change failure rate",
-      "datasource": "${DS_WHODUNIT}",
-      "gridPos": {
-        "x": 8,
-        "y": 68,
-        "w": 8,
-        "h": 4
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "format": "table",
-          "rawSql": "WITH b AS (SELECT repo_id,\n       MIN(CASE WHEN method <> 'undetermined' THEN committed_at END) AS first_attributed\nFROM whodunit_commits GROUP BY repo_id),\n     a AS (SELECT DATE_FORMAT(FROM_UNIXTIME(c.committed_at/1000000000), '%x-W%v') AS wk,\n       SUM(c.status='assisted')*100.0\n         /NULLIF(SUM(c.committed_at >= b.first_attributed),0) AS adoption\nFROM whodunit_commits c JOIN b ON b.repo_id=c.repo_id\nWHERE c.committed_at BETWEEN $__unixEpochFrom() * 1000000000\n                         AND $__unixEpochTo() * 1000000000\nGROUP BY wk),\n     m AS (SELECT DATE_FORMAT(cdc.finished_date, '%x-W%v') AS wk,\n       SUM(cdc.result='FAILURE')*100.0/NULLIF(COUNT(*),0) AS metric\nFROM cicd_deployment_commits cdc\nJOIN project_mapping pm ON cdc.cicd_scope_id = pm.row_id AND pm.`table` = 'cicd_scopes'\nWHERE cdc.environment='PRODUCTION' GROUP BY wk),\n     p AS (SELECT a.adoption x, m.metric y FROM a JOIN m ON a.wk = m.wk)\nSELECT CASE WHEN COUNT(*) < 10 THEN NULL\n            ELSE ROUND((COUNT(*)*SUM(x*y) - SUM(x)*SUM(y)) /\n                 NULLIF(SQRT((COUNT(*)*SUM(x*x) - POW(SUM(x),2)) *\n                             (COUNT(*)*SUM(y*y) - POW(SUM(y),2))), 0), 2)\n       END AS `r`\nFROM p"
-        },
-        {
-          "refId": "B",
-          "format": "table",
-          "rawSql": "WITH b AS (SELECT repo_id,\n       MIN(CASE WHEN method <> 'undetermined' THEN committed_at END) AS first_attributed\nFROM whodunit_commits GROUP BY repo_id),\n     a AS (SELECT DATE_FORMAT(FROM_UNIXTIME(c.committed_at/1000000000), '%x-W%v') AS wk,\n       SUM(c.status='assisted')*100.0\n         /NULLIF(SUM(c.committed_at >= b.first_attributed),0) AS adoption\nFROM whodunit_commits c JOIN b ON b.repo_id=c.repo_id\nWHERE c.committed_at BETWEEN $__unixEpochFrom() * 1000000000\n                         AND $__unixEpochTo() * 1000000000\nGROUP BY wk),\n     m AS (SELECT DATE_FORMAT(cdc.finished_date, '%x-W%v') AS wk,\n       SUM(cdc.result='FAILURE')*100.0/NULLIF(COUNT(*),0) AS metric\nFROM cicd_deployment_commits cdc\nJOIN project_mapping pm ON cdc.cicd_scope_id = pm.row_id AND pm.`table` = 'cicd_scopes'\nWHERE cdc.environment='PRODUCTION' GROUP BY wk)\nSELECT COUNT(*) AS `weeks` FROM a JOIN m ON a.wk = m.wk"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "decimals": 2,
-          "noValue": "not enough overlapping weeks yet",
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "text",
-                "value": null
-              }
-            ]
-          }
-        },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "weeks"
-            },
-            "properties": [
-              {
-                "id": "decimals",
-                "value": 0
-              },
-              {
-                "id": "unit",
-                "value": "none"
-              }
-            ]
-          }
-        ]
-      },
-      "options": {
-        "graphMode": "none",
-        "textMode": "value_and_name",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": true
-        }
-      },
-      "description": "Pearson correlation between weekly adoption and weekly change failure rate, with the weeks it rests on.\n\n**Withheld below 10 weeks** — three points can produce r = 0.99 by coincidence. Correlation is not causation even at high n.\n\nAdoption covers every instrumented repository; outcomes only the project with deployments."
-    },
-    {
-      "id": 27,
-      "type": "stat",
-      "title": "Correlation with PR cycle time",
-      "datasource": "${DS_WHODUNIT}",
-      "gridPos": {
-        "x": 16,
-        "y": 68,
-        "w": 8,
-        "h": 4
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "format": "table",
-          "rawSql": "WITH b AS (SELECT repo_id,\n       MIN(CASE WHEN method <> 'undetermined' THEN committed_at END) AS first_attributed\nFROM whodunit_commits GROUP BY repo_id),\n     a AS (SELECT DATE_FORMAT(FROM_UNIXTIME(c.committed_at/1000000000), '%x-W%v') AS wk,\n       SUM(c.status='assisted')*100.0\n         /NULLIF(SUM(c.committed_at >= b.first_attributed),0) AS adoption\nFROM whodunit_commits c JOIN b ON b.repo_id=c.repo_id\nWHERE c.committed_at BETWEEN $__unixEpochFrom() * 1000000000\n                         AND $__unixEpochTo() * 1000000000\nGROUP BY wk),\n     m AS (SELECT DATE_FORMAT(pr_merged_date, '%x-W%v') AS wk,\n       AVG(pr_cycle_time)/60.0 AS metric\nFROM project_pr_metrics WHERE pr_cycle_time IS NOT NULL GROUP BY wk),\n     p AS (SELECT a.adoption x, m.metric y FROM a JOIN m ON a.wk = m.wk)\nSELECT CASE WHEN COUNT(*) < 10 THEN NULL\n            ELSE ROUND((COUNT(*)*SUM(x*y) - SUM(x)*SUM(y)) /\n                 NULLIF(SQRT((COUNT(*)*SUM(x*x) - POW(SUM(x),2)) *\n                             (COUNT(*)*SUM(y*y) - POW(SUM(y),2))), 0), 2)\n       END AS `r`\nFROM p"
-        },
-        {
-          "refId": "B",
-          "format": "table",
-          "rawSql": "WITH b AS (SELECT repo_id,\n       MIN(CASE WHEN method <> 'undetermined' THEN committed_at END) AS first_attributed\nFROM whodunit_commits GROUP BY repo_id),\n     a AS (SELECT DATE_FORMAT(FROM_UNIXTIME(c.committed_at/1000000000), '%x-W%v') AS wk,\n       SUM(c.status='assisted')*100.0\n         /NULLIF(SUM(c.committed_at >= b.first_attributed),0) AS adoption\nFROM whodunit_commits c JOIN b ON b.repo_id=c.repo_id\nWHERE c.committed_at BETWEEN $__unixEpochFrom() * 1000000000\n                         AND $__unixEpochTo() * 1000000000\nGROUP BY wk),\n     m AS (SELECT DATE_FORMAT(pr_merged_date, '%x-W%v') AS wk,\n       AVG(pr_cycle_time)/60.0 AS metric\nFROM project_pr_metrics WHERE pr_cycle_time IS NOT NULL GROUP BY wk)\nSELECT COUNT(*) AS `weeks` FROM a JOIN m ON a.wk = m.wk"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "decimals": 2,
-          "noValue": "not enough overlapping weeks yet",
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "text",
-                "value": null
-              }
-            ]
-          }
-        },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "weeks"
-            },
-            "properties": [
-              {
-                "id": "decimals",
-                "value": 0
-              },
-              {
-                "id": "unit",
-                "value": "none"
-              }
-            ]
-          }
-        ]
-      },
-      "options": {
-        "graphMode": "none",
-        "textMode": "value_and_name",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": true
-        }
-      },
-      "description": "Pearson correlation between weekly adoption and weekly PR cycle time, with the weeks it rests on.\n\n**Withheld below 10 weeks** — three points can produce r = 0.99 by coincidence. Correlation is not causation even at high n.\n\nAdoption covers every instrumented repository; outcomes only the project with deployments."
+      "description": "Pearson correlation between weekly adoption and each delivery metric, with the weeks each rests on.\n\n**Withheld below 10 weeks** — three points can produce r = 0.99 by coincidence. Correlation is not causation even at high n.\n\nAdoption covers every instrumented repository; the outcomes only the project with deployments."
     }
   ],
   "__inputs": [
