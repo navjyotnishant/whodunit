@@ -290,8 +290,8 @@
         "showUnfilled": true,
         "valueMode": "text",
         "text": {
-          "valueSize": 12,
-          "titleSize": 10
+          "valueSize": 14,
+          "titleSize": 11
         },
         "reduceOptions": {
           "calcs": [
@@ -299,8 +299,8 @@
           ],
           "values": true
         },
-        "maxVizHeight": 14,
-        "minVizHeight": 8,
+        "maxVizHeight": 20,
+        "minVizHeight": 14,
         "sizing": "manual"
       }
     },
