@@ -18,6 +18,72 @@ const (
 	MethodIntersected  Method = "intersected"
 )
 
+// Reason says why a commit has no attribution method.
+//
+// A different axis from Method, not another rung on it. Method grades how
+// strongly the evidence supports a claim that an agent wrote something;
+// Reason explains why there is no such claim to grade. Every Reason
+// belongs to MethodUndetermined, and a commit with any other method has
+// none.
+//
+// The distinction is worth the extra type because the four answers demand
+// opposite responses. ReasonUnassisted is a finding: the tooling watched
+// and a human wrote the code. ReasonDegraded is a fault to fix.
+// ReasonUninstrumented is a gap in coverage. ReasonUnmatched is usually
+// correct behaviour - a generated file, or an agent working elsewhere.
+// Collapsing them into one word, as this project did until WHO-210, means
+// a fault and a finding are indistinguishable.
+type Reason string
+
+const (
+	// ReasonUninstrumented - the commit predates the hooks in this
+	// repository. Says nothing about whether an agent was involved
+	// (NAV-21): whodunit was not there to see.
+	ReasonUninstrumented Reason = "uninstrumented"
+
+	// ReasonUnmatched - an agent was active, but no journal entry touched
+	// any staged file. Often correct: a script that writes a file leaves
+	// no tool call naming it, and claiming those lines for the agent that
+	// ran the script would be a lie about who wrote them.
+	ReasonUnmatched Reason = "unmatched"
+
+	// ReasonDegraded - attribution itself failed: an unreadable journal,
+	// a failed ingest, unloadable config. The only reason here that is a
+	// fault, and the only one worth replaying.
+	ReasonDegraded Reason = "degraded"
+
+	// ReasonUnassisted - the hooks ran, the journal was readable, and no
+	// agent had been near this work. A human wrote it.
+	//
+	// The only positive claim in this type, and the one that must never
+	// be asserted loosely: it requires proof the tooling was watching,
+	// not merely the absence of evidence. Asserting it wrongly is the
+	// NAV-21 error in the direction that flatters the tool.
+	ReasonUnassisted Reason = "unassisted"
+)
+
+// Explain returns a plain-English gloss for a reason, on the same terms as
+// Method.Explain: written from the reader's side, saying what may be
+// concluded rather than what the collector did.
+//
+// Each gloss says whether the reason is a finding, a fault or a gap,
+// because the words alone do not. "unmatched" and "degraded" read as
+// equally wrong; one is usually correct behaviour and the other is a bug.
+func (r Reason) Explain() string {
+	switch r {
+	case ReasonUnassisted:
+		return "a human wrote this — the hooks were watching and saw no agent"
+	case ReasonUnmatched:
+		return "an agent was active, but touched none of these files"
+	case ReasonUninstrumented:
+		return "committed before the hooks existed, so AI use is unknown, not absent"
+	case ReasonDegraded:
+		return "attribution failed here — this is a fault, not a finding"
+	default:
+		return ""
+	}
+}
+
 // confidence ranks the methods so two candidate determinations can be
 // compared rather than resolved by whichever branch happened to run first.
 //

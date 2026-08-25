@@ -243,3 +243,43 @@ func TestUnknownMethodRanksBelowEverything(t *testing.T) {
 		t.Error("declared should outrank an unknown method")
 	}
 }
+
+// Every reason has to explain itself, for the same argument that applies
+// to Method.Explain: the word alone is the thing the reader does not
+// understand. A reason with an empty gloss renders as a bare token in
+// `dun status`, which is the state WHO-210 set out to fix.
+func TestEveryReasonExplainsItself(t *testing.T) {
+	for _, r := range []Reason{
+		ReasonUnassisted, ReasonUnmatched, ReasonUninstrumented, ReasonDegraded,
+	} {
+		if Reason(r).Explain() == "" {
+			t.Errorf("%s has no explanation", r)
+		}
+	}
+	if Reason("something-new").Explain() != "" {
+		t.Error("an unknown reason must not borrow another's explanation")
+	}
+}
+
+// The two states that mean opposite things must not read alike. A fault
+// someone should fix and a finding they should trust are the pair most
+// costly to confuse, and this project confused them for twelve days.
+func TestFaultAndFindingReadDifferently(t *testing.T) {
+	fault := ReasonDegraded.Explain()
+	finding := ReasonUnassisted.Explain()
+	if !strings.Contains(fault, "fault") {
+		t.Errorf("degraded must say it is a fault, got %q", fault)
+	}
+	if !strings.Contains(finding, "human") {
+		t.Errorf("unassisted must state the positive claim, got %q", finding)
+	}
+}
+
+// uninstrumented is the NAV-21 case: it must never read as "no AI was
+// used", only as "we were not there to see".
+func TestUninstrumentedDoesNotClaimAbsence(t *testing.T) {
+	e := ReasonUninstrumented.Explain()
+	if !strings.Contains(e, "unknown") {
+		t.Errorf("uninstrumented must say unknown rather than absent, got %q", e)
+	}
+}
