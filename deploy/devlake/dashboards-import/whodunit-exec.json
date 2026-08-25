@@ -210,7 +210,7 @@
           "min": 0,
           "color": {
             "mode": "fixed",
-            "fixedColor": "blue"
+            "fixedColor": "#25c2a0"
           },
           "thresholds": {
             "mode": "absolute",
@@ -222,29 +222,73 @@
             ]
           }
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "chat only"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#7fe3cd"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "edits"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#25c2a0"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "agentic"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#1a8870"
+                }
+              }
+            ]
+          }
+        ]
       },
       "description": "Sessions by how far they went: **chat only** made no tool calls, **edits** made some, **agentic** used MCP or ran 5+ distinct tools or 50+ calls.\n\nDepth is not value. A long agentic session and a one-question chat can both be exactly what the work needed.",
       "options": {
+        "displayMode": "gradient",
+        "orientation": "horizontal",
+        "showUnfilled": true,
+        "valueMode": "text",
+        "text": {
+          "valueSize": 12,
+          "titleSize": 10
+        },
         "reduceOptions": {
           "calcs": [
             "lastNotNull"
           ],
-          "fields": "",
           "values": true
         },
-        "orientation": "horizontal",
-        "displayMode": "gradient",
-        "valueMode": "text",
-        "showUnfilled": true,
-        "namePlacement": "left",
-        "minVizWidth": 8,
-        "minVizHeight": 16,
-        "maxVizHeight": 300,
-        "sizing": "auto",
-        "legend": {
-          "showLegend": false
-        }
+        "maxVizHeight": 14,
+        "minVizHeight": 8,
+        "sizing": "manual"
       }
     },
     {
