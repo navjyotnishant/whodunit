@@ -184,7 +184,7 @@ def rows():
 DEVLAKE_TABLES = [
     "board_issues", "cicd_deployment_commits", "commits", "incidents",
     "issue_commits", "issues", "project_mapping", "project_pr_metrics",
-    "repo_commits",
+    "repo_commits", "team_users", "teams",
 ]
 
 

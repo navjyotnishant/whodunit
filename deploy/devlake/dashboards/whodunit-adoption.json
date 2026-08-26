@@ -903,8 +903,8 @@
     },
     {
       "type": "table",
-      "title": "By contributor",
-      "description": "Per-person activity. Identity comes from the git committer email already present in every commit — this makes existing information easier to query, it does not observe anything new.",
+      "title": "Agent activity by team",
+      "description": "Per-team agent activity. Grouped by team by default so a shared dashboard does not open on a ranked list of named developers; select a Contributor to see one person. Identity comes from the git committer email already in every commit — this queries existing information, it observes nothing new.",
       "datasource": {
         "type": "mysql",
         "uid": "${datasource}"
@@ -922,7 +922,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT r.contributor, COUNT(DISTINCT e.session) AS sessions, COUNT(*) AS agent_edits, SUM(e.lines_added) AS lines_written FROM whodunit_events e JOIN whodunit_repos r ON r.repo_id = e.repo_id WHERE r.contributor <> '' AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000 GROUP BY r.contributor ORDER BY agent_edits DESC"
+          "rawSql": "-- Grouped by team, not by person (WHO-189).\n--\n-- The default is what most people ever see, and it decides whether this\n-- reads as team insight or as per-developer monitoring. Opening a\n-- leadership dashboard on a named list of developers ranked by AI\n-- adoption is the shape that ends adoption inside a company: developers\n-- see it once and stop trusting the tool.\n--\n-- Individuals stay one selection away through the Contributor filter.\n-- Team default must not mean individuals are unreachable.\nSELECT COALESCE(t.name, '(unassigned)') AS team,\n       COUNT(DISTINCT e.session) AS sessions,\n       COUNT(*)                  AS agent_edits,\n       SUM(e.lines_added)        AS lines_written\nFROM whodunit_events e\nLEFT JOIN whodunit_identities wi ON wi.alias = e.contributor\nLEFT JOIN team_users tu ON tu.user_id = COALESCE(wi.canonical, e.contributor)\nLEFT JOIN teams t ON t.id = tu.team_id\nWHERE e.contributor IS NOT NULL\n  AND ('${contributor:raw}' = '__all__'\n       OR COALESCE(wi.canonical, e.contributor) = '${contributor:raw}')\n  AND ('${team:raw}' = '__all__' OR COALESCE(t.name, '(unassigned)') = '${team:raw}')\n  AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nGROUP BY COALESCE(t.name, '(unassigned)')\nORDER BY agent_edits DESC"
         }
       ]
     },
@@ -978,8 +978,8 @@
     },
     {
       "type": "table",
-      "title": "Committed work by contributor",
-      "description": "What reached a commit, per person — the question a vendor's usage API cannot answer. Coverage is shown alongside, because a penetration figure without it says how much of what we could see was assisted, not how much of the work was.",
+      "title": "Committed work by team",
+      "description": "What reached a commit, per team — the question a vendor's usage API cannot answer. Grouped by team by default; select a Contributor for one person. Coverage sits alongside, because a penetration figure without it says how much of what we could see was assisted, not how much of the work was.",
       "datasource": {
         "type": "mysql",
         "uid": "${datasource}"
@@ -997,7 +997,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT r.contributor, COUNT(*) AS commits, SUM(c.status = 'assisted') AS assisted, ROUND(100.0 * SUM(c.status NOT IN ('undetermined','unassisted','unmatched','degraded','uninstrumented')) / COUNT(*), 0) AS coverage_pct, ROUND(AVG(c.ratio), 2) AS avg_share, SUM(c.lines_added) AS lines_added FROM whodunit_commits c JOIN whodunit_repos r ON r.repo_id = c.repo_id WHERE ('${evidence:raw}' = '__all__' OR c.method = '${evidence:raw}')\n  AND  r.contributor <> '' AND c.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000 GROUP BY r.contributor ORDER BY commits DESC"
+          "rawSql": "-- Grouped by team, not by person — see 'By contributor' above (WHO-189).\nSELECT COALESCE(t.name, '(unassigned)') AS team,\n       COUNT(*)                      AS commits,\n       SUM(c.status = 'assisted')    AS assisted,\n       ROUND(100.0 * SUM(c.status NOT IN ('undetermined','unassisted','unmatched','degraded','uninstrumented')) / COUNT(*), 0) AS coverage_pct,\n       ROUND(AVG(c.ratio), 2)        AS avg_share,\n       SUM(c.lines_added)            AS lines_added\nFROM whodunit_commits c\nLEFT JOIN whodunit_identities wi ON wi.alias = c.contributor\nLEFT JOIN team_users tu ON tu.user_id = COALESCE(wi.canonical, c.contributor)\nLEFT JOIN teams t ON t.id = tu.team_id\nWHERE ('${evidence:raw}' = '__all__' OR c.method = '${evidence:raw}')\n  AND c.contributor IS NOT NULL\n  AND ('${contributor:raw}' = '__all__'\n       OR COALESCE(wi.canonical, c.contributor) = '${contributor:raw}')\n  AND ('${team:raw}' = '__all__' OR COALESCE(t.name, '(unassigned)') = '${team:raw}')\n  AND c.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nGROUP BY COALESCE(t.name, '(unassigned)')\nORDER BY commits DESC"
         }
       ]
     },
