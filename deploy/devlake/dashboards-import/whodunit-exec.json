@@ -74,6 +74,19 @@
         "options": []
       },
       {
+        "name": "team",
+        "type": "query",
+        "datasource": "${DS_WHODUNIT}",
+        "query": "SELECT DISTINCT COALESCE(NULLIF(t.name, ''), '(unassigned)') AS __text, COALESCE(NULLIF(t.name, ''), '(unassigned)') AS __value FROM whodunit_repos r LEFT JOIN team_users tu ON tu.user_id = r.contributor LEFT JOIN teams t ON t.id = tu.team_id ORDER BY 1",
+        "includeAll": true,
+        "multi": false,
+        "current": {},
+        "label": "Team",
+        "refresh": 1,
+        "allValue": "__all__",
+        "options": []
+      },
+      {
         "name": "evidence",
         "type": "custom",
         "label": "Evidence",

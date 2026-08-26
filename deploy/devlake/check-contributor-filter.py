@@ -153,17 +153,45 @@ def main():
                         f"as {{value}} and matches nothing while All keeps "
                         f"working")
                 continue
-            if v.get("name") != "contributor":
+            # team is checked by the same rules, in this file rather than
+            # a new one (WHO-186). Every failure below is a property of how
+            # Grafana substitutes a filter variable, not of what the
+            # variable filters on: an empty dropdown, a {value} that
+            # matches nothing, a query that is not valid SQL. A second
+            # script would have to restate all of it and would drift.
+            #
+            # The one rule that does NOT carry over is the empty-value
+            # check. A contributor with no recorded identity is a real
+            # state that must stay reachable; a team resolves to
+            # "(unassigned)" instead, so there is no empty team to hide.
+            name = v.get("name")
+            if name not in ("contributor", "team"):
                 continue
             q = v.get("query", "")
-            if BAD in q:
+            if name == "contributor" and BAD in q:
                 problems.append(
                     f"{d['uid']}: contributor variable excludes empty values, so "
                     f"a repository with no recorded identity is unreachable")
-            elif "COALESCE" not in q and "NULLIF" not in q:
+            elif name == "contributor" and "COALESCE" not in q and "NULLIF" not in q:
                 problems.append(
                     f"{d['uid']}: contributor variable does not offer an "
                     f"option for repositories with no recorded identity")
+            elif name == "team" and "COALESCE" not in q:
+                # Without it an unmapped contributor resolves to NULL and
+                # drops out of the dropdown entirely — the person vanishes
+                # rather than appearing as (unassigned) (NAV-21).
+                problems.append(
+                    f"{d['uid']}: team variable does not COALESCE an "
+                    f"unmapped contributor to (unassigned), so they "
+                    f"disappear from the dropdown")
+            elif name == "team" and "LEFT JOIN" not in q.upper():
+                # DevLake's team tables are empty on this install and
+                # absent on some. An inner join empties the dropdown and
+                # takes every panel filtered by it along.
+                problems.append(
+                    f"{d['uid']}: team variable does not LEFT JOIN DevLake's "
+                    f"team tables, so an install with none renders an empty "
+                    f"dropdown rather than (unassigned)")
             elif v.get("includeAll") and v.get("multi") is not False:
                 # With includeAll set and multi absent, Grafana treats the
                 # variable as multi-capable and substitutes a chosen value
@@ -173,7 +201,7 @@ def main():
                 # braced. The filter looks functional and silently returns
                 # no rows.
                 problems.append(
-                    f"{d['uid']}: contributor variable has includeAll without "
+                    f"{d['uid']}: {name} variable has includeAll without "
                     f"multi=false, so a selected value is substituted as "
                     f"{{value}} and matches nothing")
             elif q.upper().count("ORDER BY") > 1:
@@ -183,7 +211,7 @@ def main():
                 # search-and-replace that appended ORDER BY to a query
                 # that already had one.
                 problems.append(
-                    f"{d['uid']}: contributor variable has two ORDER BY "
+                    f"{d['uid']}: {name} variable has two ORDER BY "
                     f"clauses and is not valid SQL — the dropdown will be "
                     f"empty with no error shown")
 

@@ -42,9 +42,28 @@ reveals what someone worked on, not merely how much.
 
 **A contributor email.** `whodunit_repos` stores the git committer email
 for the repository — the same address already in every commit you author.
-A shared database needs it to attribute anything to anyone.
+A shared database needs it to attribute anything to anyone. The same
+address is carried on commit and event rows, so a per-person view resolves
+without a join.
 
 Both stay local until you run `dun sync`.
+
+### Team membership is not a third thing
+
+The optional `teams` block in your config maps those addresses onto team
+names, so a dashboard can report a group rather than a list of named
+individuals.
+
+It adds no new observation of anyone. The addresses are already here; which
+team someone is on is a fact about the organisation chart, and it is one
+you wrote down yourself rather than one `dun` inferred from anything it
+watched. Nothing reads it from your machine, and nothing derives it from
+your activity.
+
+If you configure no teams, everyone resolves to `(unassigned)` and the
+dashboards work unchanged. Someone in no team is never dropped from a
+filter — a person disappearing from a dropdown is the one failure this
+whole area is designed against.
 
 ## Where it lives
 
