@@ -291,7 +291,7 @@ func TestEntryObservationsSurviveTheSync(t *testing.T) {
 		t.Helper()
 		if _, err := Write(store, Payload{
 			Repo:   RepoRow{RepoID: "repo-1", SyncedAt: now},
-			Events: EventRowsFrom([]journal.Entry{e}, "repo-1", now),
+			Events: EventRowsFrom([]journal.Entry{e}, "repo-1", "dev@example.com", now),
 		}); err != nil {
 			t.Fatal(err)
 		}
@@ -337,7 +337,7 @@ func TestAnAgentWithNoBranchStoresNull(t *testing.T) {
 			Timestamp: now, Agent: "agy", Session: "s1", Event: "tool_use",
 			Tool: "write_file", File: "/repo/x.go",
 			Model: "gemini-3.7-flash-high",
-		}}, "repo-1", now),
+		}}, "repo-1", "dev@example.com", now),
 	}); err != nil {
 		t.Fatal(err)
 	}

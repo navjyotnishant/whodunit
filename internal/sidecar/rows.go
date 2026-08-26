@@ -24,6 +24,7 @@ type RepoRow struct {
 type CommitRow struct {
 	CommitSHA     string
 	RepoID        string
+	Contributor   string
 	CommittedAt   time.Time
 	Status        string
 	ChangedBy     string
@@ -49,6 +50,7 @@ type EventRow struct {
 	EventID string
 
 	RepoID       string
+	Contributor  string
 	ObservedAt   time.Time
 	Agent        string
 	AgentVersion string
@@ -200,12 +202,13 @@ type Payload struct {
 // status=undetermined. Dropping it would make coverage uncomputable —
 // the denominator is every commit, not every commit we happened to
 // understand (NAV-21).
-func CommitRowsFrom(commits []report.Commit, repoID string, syncedAt time.Time) []CommitRow {
+func CommitRowsFrom(commits []report.Commit, repoID, contributor string, syncedAt time.Time) []CommitRow {
 	rows := make([]CommitRow, 0, len(commits))
 	for _, c := range commits {
 		row := CommitRow{
 			CommitSHA:   c.SHA,
 			RepoID:      repoID,
+			Contributor: contributor,
 			CommittedAt: c.Timestamp,
 			// No trailer at all, which means the hooks were not
 			// running when this was committed - the commit predates
@@ -239,12 +242,13 @@ func CommitRowsFrom(commits []report.Commit, repoID string, syncedAt time.Time) 
 }
 
 // EventRowsFrom maps journal entries onto the event grain.
-func EventRowsFrom(entries []journal.Entry, repoID string, syncedAt time.Time) []EventRow {
+func EventRowsFrom(entries []journal.Entry, repoID, contributor string, syncedAt time.Time) []EventRow {
 	rows := make([]EventRow, 0, len(entries))
 	for _, e := range entries {
 		rows = append(rows, EventRow{
 			EventID:      eventID(repoID, e),
 			RepoID:       repoID,
+			Contributor:  contributor,
 			ObservedAt:   e.Timestamp,
 			Agent:        e.Agent,
 			AgentVersion: e.AgentVersion,

@@ -120,9 +120,22 @@ func TestEveryTableIsNamespaced(t *testing.T) {
 }
 
 func TestNoIdentityColumnOnCommits(t *testing.T) {
-	// Contributor belongs on repos, not on every commit row: a repository
-	// has one contributor, so repeating it per row is storage spent on a
-	// constant. This asserts the shape rather than trusting the DDL text.
+	// Contributor is now carried on commits, and that reverses what this
+	// test used to assert.
+	//
+	// It guarded the premise that a repository has one contributor, so
+	// repeating it per row is storage spent on a constant. True locally,
+	// false in the shared database this sidecar populates: repo_id is the
+	// root commit SHA, identical for everyone who clones the repository,
+	// so identity resolved through a join was identity resolved through a
+	// row two people share (WHO-192,
+	// docs/decisions/0001-contributor-key.md).
+	//
+	// What has NOT changed is the rest of the rule: contributor is the one
+	// identity fact this table carries, and author, committer and email
+	// stay off it. The git objects already hold those, and duplicating
+	// them here would be new surveillance surface rather than a join
+	// removed. That is what this test guards now.
 	db := openDB(t)
 	if _, err := db.Exec(Schema); err != nil {
 		t.Fatalf("schema: %v", err)
@@ -134,6 +147,7 @@ func TestNoIdentityColumnOnCommits(t *testing.T) {
 	}
 	defer rows.Close()
 
+	var sawContributor bool
 	for rows.Next() {
 		var cid int
 		var name, ctype string
@@ -143,9 +157,19 @@ func TestNoIdentityColumnOnCommits(t *testing.T) {
 			t.Fatalf("scan: %v", err)
 		}
 		switch name {
-		case "contributor", "author", "committer", "email":
-			t.Errorf("whodunit_commits has an identity column %q; it belongs on whodunit_repos", name)
+		case "author", "committer", "email":
+			t.Errorf("whodunit_commits has an identity column %q; contributor "+
+				"is the only identity this table carries, and git already "+
+				"holds the rest", name)
 		}
+		if name == "contributor" {
+			sawContributor = true
+		}
+	}
+	if !sawContributor {
+		t.Error("whodunit_commits has no contributor column; the dashboard " +
+			"grain would be back to resolving identity through a join that " +
+			"two people share")
 	}
 }
 
@@ -210,7 +234,7 @@ func TestCommitRowsFromKeepsUntrailedCommits(t *testing.T) {
 		}},
 	}
 
-	rows := CommitRowsFrom(commits, "repo", now)
+	rows := CommitRowsFrom(commits, "repo", "dev@example.com", now)
 	if len(rows) != 2 {
 		t.Fatalf("want 2 rows, got %d", len(rows))
 	}
@@ -237,7 +261,7 @@ func TestCommitRowsCarryRatioOnlyWhenPresent(t *testing.T) {
 		{SHA: "without", Trailer: &spec.Trailer{Status: spec.StatusAssisted, Method: spec.MethodObserved}},
 	}
 
-	rows := CommitRowsFrom(commits, "repo", now)
+	rows := CommitRowsFrom(commits, "repo", "dev@example.com", now)
 	if rows[0].Ratio == nil || *rows[0].Ratio != 0.42 {
 		t.Errorf("ratio lost in mapping: %+v", rows[0].Ratio)
 	}
@@ -253,7 +277,7 @@ func TestEventRowsPreserveTheJournalGrain(t *testing.T) {
 			Tool: "Edit", File: "/repo/main.go", LinesAdded: 3, HunkHash: "sha256:x"},
 	}
 
-	rows := EventRowsFrom(entries, "repo", now)
+	rows := EventRowsFrom(entries, "repo", "dev@example.com", now)
 	if len(rows) != 1 {
 		t.Fatalf("want 1 row, got %d", len(rows))
 	}
@@ -290,7 +314,7 @@ func TestSchemaAcceptsEveryRowType(t *testing.T) {
 		SHA: "abc", Timestamp: now, Purpose: purpose.Feature, LinesAdded: 10, LinesRemoved: 2,
 		Files:   []string{"a.go"},
 		Trailer: &spec.Trailer{Status: spec.StatusAssisted, Method: spec.MethodIntersected, Agent: "claude-code", Ratio: &r},
-	}}, "repo", now)[0]
+	}}, "repo", "dev@example.com", now)[0]
 
 	if _, err := db.Exec(`INSERT INTO whodunit_commits
 		(commit_sha, repo_id, committed_at, status, method, agent, agent_version,
@@ -306,7 +330,7 @@ func TestSchemaAcceptsEveryRowType(t *testing.T) {
 	er := EventRowsFrom([]journal.Entry{{
 		Timestamp: now, Agent: "claude-code", Session: "s", Event: "tool_use",
 		Tool: "Write", File: "/repo/a.go", LinesAdded: 10,
-	}}, "repo", now)[0]
+	}}, "repo", "dev@example.com", now)[0]
 
 	if _, err := db.Exec(`INSERT INTO whodunit_events
 		(event_id, repo_id, observed_at, agent, agent_version, session, event, tool, file,

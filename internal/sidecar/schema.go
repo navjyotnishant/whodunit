@@ -113,6 +113,17 @@ CREATE TABLE IF NOT EXISTS whodunit_repos (
 CREATE TABLE IF NOT EXISTS whodunit_commits (
 	commit_sha    VARCHAR(64)  NOT NULL,
 	repo_id       VARCHAR(64)  NOT NULL,
+	-- Who synced this row, carried rather than joined.
+	--
+	-- repo_id is the root commit SHA, identical for everyone who clones
+	-- the repository, so resolving identity through whodunit_repos meant
+	-- resolving it through a row two people share (WHO-192).
+	--
+	-- NULLable, unlike the columns around it. A row synced before this
+	-- column existed has no contributor to report, and '' would assert
+	-- "measured, and it was nobody" about something never measured
+	-- (NAV-21). A panel renders NULL as unattributed, never as a person.
+	contributor   VARCHAR(320),
 	committed_at  BIGINT       NOT NULL,
 	status        VARCHAR(32)  NOT NULL,
 	method        VARCHAR(32)  NOT NULL,
@@ -163,6 +174,11 @@ CREATE TABLE IF NOT EXISTS whodunit_events (
 	-- keeps sync idempotent.
 	event_id      VARCHAR(64)  NOT NULL,
 	repo_id       VARCHAR(64)  NOT NULL,
+
+	-- Carried, not joined — see whodunit_commits above for why, and
+	-- NULLable for the same reason (WHO-192, NAV-21).
+	contributor   VARCHAR(320),
+
 	observed_at   BIGINT       NOT NULL,
 	agent         VARCHAR(64)  NOT NULL,
 	agent_version VARCHAR(64)  NOT NULL DEFAULT '',
@@ -318,6 +334,15 @@ CREATE TABLE IF NOT EXISTS whodunit_event_lines (
 //   - BIGINT and VARCHAR(n) rather than INTEGER/TEXT. SQLite accepts both
 //     under its type affinity rules; MySQL needs the length.
 var Migrations = []string{
+	// WHO-192. NULLable on purpose: a row synced before this column
+	// existed has no contributor, and '' would claim one was measured.
+	// Existing rows keep NULL rather than being backfilled from
+	// whodunit_repos — that join is exactly the collision this epic
+	// removed, so backfilling through it would write the wrong name
+	// confidently onto history (NAV-21).
+	`ALTER TABLE whodunit_commits ADD COLUMN contributor VARCHAR(320)`,
+	`ALTER TABLE whodunit_events ADD COLUMN contributor VARCHAR(320)`,
+
 	`ALTER TABLE whodunit_events ADD COLUMN outcome VARCHAR(16) NOT NULL DEFAULT ''`,
 
 	// NAV-88. NULLable, unlike the columns declared in Schema above.

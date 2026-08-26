@@ -165,7 +165,11 @@ func WriteProgress(db *Store, p Payload, onRow func(done, total int)) (Counts, e
 
 	for _, c := range p.Commits {
 		if _, err := tx.Exec(upsertCommit(mysql),
-			c.CommitSHA, c.RepoID, c.CommittedAt.UnixNano(), c.Status, c.Method,
+			// nullString, not the empty string: a row whose contributor
+			// is unknown must read as absent rather than as a person
+			// with no name (NAV-21).
+			c.CommitSHA, c.RepoID, nullString(c.Contributor),
+			c.CommittedAt.UnixNano(), c.Status, c.Method,
 			c.Agent, c.AgentVersion, c.Purpose, c.Ratio, c.LinesAdded, c.LinesRemoved,
 			c.FilesChanged, c.SpecVersion, c.SchemaVersion, c.SyncedAt.UnixNano(),
 			nullString(c.ChangedBy)); err != nil {
@@ -177,7 +181,8 @@ func WriteProgress(db *Store, p Payload, onRow func(done, total int)) (Counts, e
 
 	for _, e := range p.Events {
 		if _, err := tx.Exec(upsertEvent(mysql),
-			e.EventID, e.RepoID, e.ObservedAt.UnixNano(), e.Agent, e.AgentVersion,
+			e.EventID, e.RepoID, nullString(e.Contributor),
+			e.ObservedAt.UnixNano(), e.Agent, e.AgentVersion,
 			e.Session, e.Event, e.Tool, e.File, e.LinesAdded, e.LinesRemoved,
 			e.HunkHash, e.SpecVersion, e.Outcome, e.SyncedAt.UnixNano(),
 			nullString(e.Model), nullString(e.Branch), nullString(e.MCPServer),
@@ -258,12 +263,13 @@ func upsertRepo(mysql bool) string {
 
 func upsertCommit(mysql bool) string {
 	cols := `INSERT INTO whodunit_commits
-		(commit_sha, repo_id, committed_at, status, method, agent, agent_version,
-		 purpose, ratio, lines_added, lines_removed, files_changed, spec_version,
-		 schema_version, synced_at, changed_by)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+		(commit_sha, repo_id, contributor, committed_at, status, method, agent,
+		 agent_version, purpose, ratio, lines_added, lines_removed, files_changed,
+		 spec_version, schema_version, synced_at, changed_by)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 	if mysql {
 		return cols + ` ON DUPLICATE KEY UPDATE
+			contributor=VALUES(contributor),
 			status=VALUES(status), method=VALUES(method), agent=VALUES(agent),
 			agent_version=VALUES(agent_version), purpose=VALUES(purpose),
 			ratio=VALUES(ratio), lines_added=VALUES(lines_added),
@@ -272,6 +278,7 @@ func upsertCommit(mysql bool) string {
 			synced_at=VALUES(synced_at), changed_by=VALUES(changed_by)`
 	}
 	return cols + ` ON CONFLICT(commit_sha, repo_id) DO UPDATE SET
+		contributor=excluded.contributor,
 		status=excluded.status, method=excluded.method, agent=excluded.agent,
 		agent_version=excluded.agent_version, purpose=excluded.purpose,
 		ratio=excluded.ratio, lines_added=excluded.lines_added,
@@ -282,10 +289,10 @@ func upsertCommit(mysql bool) string {
 
 func upsertEvent(mysql bool) string {
 	cols := `INSERT INTO whodunit_events
-		(event_id, repo_id, observed_at, agent, agent_version, session, event,
+		(event_id, repo_id, contributor, observed_at, agent, agent_version, session, event,
 		 tool, file, lines_added, lines_removed, hunk_hash, spec_version, outcome, synced_at,
 		 model, branch, mcp_server, user_modified)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 	// outcome is refreshed on conflict, unlike the rest of the row: an
 	// event's identity is fixed but its outcome can be backfilled by a
 	// later ingest that finally saw the tool result.

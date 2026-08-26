@@ -430,3 +430,82 @@ func TestResyncingTheSameContributorAddsNoRow(t *testing.T) {
 		t.Errorf("three identical syncs produced %d row(s), want 1", n)
 	}
 }
+
+// The point of carrying contributor: filter without a join.
+//
+// WHO-192. Before this, a per-person panel resolved identity through
+// whodunit_repos — the row two people syncing one repository share. The
+// filter was therefore only as correct as the row that had last been
+// overwritten.
+func TestCommitsAndEventsFilterByContributorWithoutAJoin(t *testing.T) {
+	db := openStore(t)
+	now := time.Date(2026, 8, 25, 12, 0, 0, 0, time.UTC)
+
+	for _, who := range []string{"first@example.com", "second@example.com"} {
+		p := samplePayload(now)
+		p.Repo.Contributor = who
+		for i := range p.Commits {
+			p.Commits[i].Contributor = who
+			p.Commits[i].CommitSHA = who[:5] + p.Commits[i].CommitSHA
+		}
+		for i := range p.Events {
+			p.Events[i].Contributor = who
+			p.Events[i].EventID = who[:5] + p.Events[i].EventID
+		}
+		if _, err := Write(db, p); err != nil {
+			t.Fatalf("%s: %v", who, err)
+		}
+	}
+
+	// No whodunit_repos in either query. That is the assertion.
+	for _, q := range []struct{ table, sql string }{
+		{"whodunit_commits", `SELECT COUNT(*) FROM whodunit_commits WHERE contributor = ?`},
+		{"whodunit_events", `SELECT COUNT(*) FROM whodunit_events WHERE contributor = ?`},
+	} {
+		var n int
+		if err := db.QueryRow(q.sql, "first@example.com").Scan(&n); err != nil {
+			t.Fatalf("%s: %v", q.table, err)
+		}
+		if n == 0 {
+			t.Errorf("%s has no rows for the first contributor; identity did "+
+				"not reach the grain the dashboards query", q.table)
+		}
+
+		var other int
+		if err := db.QueryRow(q.sql, "second@example.com").Scan(&other); err != nil {
+			t.Fatalf("%s: %v", q.table, err)
+		}
+		if other == 0 {
+			t.Errorf("%s has no rows for the second contributor", q.table)
+		}
+	}
+}
+
+// A row synced before the column existed reads as absent, not as a person.
+//
+// NAV-21. The empty string would be a claim that someone with no name did
+// the work; NULL is the honest answer, and a panel renders it as
+// unattributed.
+func TestAnUnknownContributorIsNullNotEmpty(t *testing.T) {
+	db := openStore(t)
+	now := time.Date(2026, 8, 25, 12, 0, 0, 0, time.UTC)
+
+	p := samplePayload(now)
+	p.Repo.Contributor = "someone@example.com"
+	for i := range p.Commits {
+		p.Commits[i].Contributor = "" // as an old row arrives
+	}
+	if _, err := Write(db, p); err != nil {
+		t.Fatal(err)
+	}
+
+	var isNull bool
+	if err := db.QueryRow(
+		`SELECT contributor IS NULL FROM whodunit_commits LIMIT 1`).Scan(&isNull); err != nil {
+		t.Fatal(err)
+	}
+	if !isNull {
+		t.Error("an unknown contributor was stored as the empty string; that " +
+			"asserts a person with no name rather than an absent value (NAV-21)")
+	}
+}
