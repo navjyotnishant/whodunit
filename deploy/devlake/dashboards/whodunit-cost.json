@@ -94,7 +94,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT COALESCE(SUM(s.input_tokens + s.output_tokens\n       + COALESCE(s.cache_read_tokens,0) + COALESCE(s.cache_write_tokens,0)), 0) AS v\nFROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id\nWHERE s.first_seen BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  AND  s.input_tokens IS NOT NULL AND ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}')"
+          "rawSql": "SELECT COALESCE(SUM(s.input_tokens + s.output_tokens\n       + COALESCE(s.cache_read_tokens,0) + COALESCE(s.cache_write_tokens,0)), 0) AS v\nFROM whodunit_sessions s\nWHERE s.first_seen BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  AND  s.input_tokens IS NOT NULL AND ('${contributor:raw}' = '__all__' OR s.contributor = '${contributor:raw}')"
         }
       ],
       "fieldConfig": {
@@ -146,7 +146,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT COALESCE(SUM(s.output_tokens), 0) AS v\nFROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id\nWHERE s.first_seen BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  AND  s.output_tokens IS NOT NULL AND ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}')"
+          "rawSql": "SELECT COALESCE(SUM(s.output_tokens), 0) AS v\nFROM whodunit_sessions s\nWHERE s.first_seen BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  AND  s.output_tokens IS NOT NULL AND ('${contributor:raw}' = '__all__' OR s.contributor = '${contributor:raw}')"
         }
       ],
       "fieldConfig": {
@@ -198,7 +198,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT COALESCE(SUM(s.input_tokens), 0) AS v\nFROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id\nWHERE s.first_seen BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  AND  s.input_tokens IS NOT NULL AND ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}')"
+          "rawSql": "SELECT COALESCE(SUM(s.input_tokens), 0) AS v\nFROM whodunit_sessions s\nWHERE s.first_seen BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  AND  s.input_tokens IS NOT NULL AND ('${contributor:raw}' = '__all__' OR s.contributor = '${contributor:raw}')"
         }
       ],
       "fieldConfig": {
@@ -250,7 +250,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT COALESCE(SUM(s.cache_read_tokens), 0) AS v\nFROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id\nWHERE s.first_seen BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  AND  s.cache_read_tokens IS NOT NULL AND ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}')"
+          "rawSql": "SELECT COALESCE(SUM(s.cache_read_tokens), 0) AS v\nFROM whodunit_sessions s\nWHERE s.first_seen BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  AND  s.cache_read_tokens IS NOT NULL AND ('${contributor:raw}' = '__all__' OR s.contributor = '${contributor:raw}')"
         }
       ],
       "fieldConfig": {
@@ -302,7 +302,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT ROUND(100.0 * SUM(COALESCE(s.cache_read_tokens,0))\n  / NULLIF(SUM(s.input_tokens + COALESCE(s.cache_read_tokens,0)\n             + COALESCE(s.cache_write_tokens,0)), 0), 1) AS v\nFROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id\nWHERE s.first_seen BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  AND  s.input_tokens IS NOT NULL AND ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}')"
+          "rawSql": "SELECT ROUND(100.0 * SUM(COALESCE(s.cache_read_tokens,0))\n  / NULLIF(SUM(s.input_tokens + COALESCE(s.cache_read_tokens,0)\n             + COALESCE(s.cache_write_tokens,0)), 0), 1) AS v\nFROM whodunit_sessions s\nWHERE s.first_seen BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  AND  s.input_tokens IS NOT NULL AND ('${contributor:raw}' = '__all__' OR s.contributor = '${contributor:raw}')"
         }
       ],
       "fieldConfig": {
@@ -358,7 +358,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT ROUND(SUM(COALESCE(s.cache_read_tokens,0))\n  / NULLIF(SUM(s.cache_write_tokens), 0), 2) AS v\nFROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id\nWHERE s.first_seen BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  AND  s.cache_write_tokens IS NOT NULL AND s.cache_write_tokens > 0 AND ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}')"
+          "rawSql": "SELECT ROUND(SUM(COALESCE(s.cache_read_tokens,0))\n  / NULLIF(SUM(s.cache_write_tokens), 0), 2) AS v\nFROM whodunit_sessions s\nWHERE s.first_seen BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  AND  s.cache_write_tokens IS NOT NULL AND s.cache_write_tokens > 0 AND ('${contributor:raw}' = '__all__' OR s.contributor = '${contributor:raw}')"
         }
       ],
       "fieldConfig": {
@@ -426,7 +426,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT COALESCE(SUM(s.reasoning_tokens), 0) AS v\nFROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id\nWHERE s.first_seen BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  AND  s.reasoning_tokens IS NOT NULL AND ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}')"
+          "rawSql": "SELECT COALESCE(SUM(s.reasoning_tokens), 0) AS v\nFROM whodunit_sessions s\nWHERE s.first_seen BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  AND  s.reasoning_tokens IS NOT NULL AND ('${contributor:raw}' = '__all__' OR s.contributor = '${contributor:raw}')"
         }
       ],
       "fieldConfig": {
@@ -478,7 +478,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT ROUND(100.0 * SUM(CASE WHEN e.user_modified = 1 THEN 1 ELSE 0 END)\n  / NULLIF(COUNT(*), 0), 1) AS v\nFROM whodunit_events e JOIN whodunit_repos r ON r.repo_id = e.repo_id\nWHERE e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  AND  e.user_modified IS NOT NULL AND ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}')"
+          "rawSql": "SELECT ROUND(100.0 * SUM(CASE WHEN e.user_modified = 1 THEN 1 ELSE 0 END)\n  / NULLIF(COUNT(*), 0), 1) AS v\nFROM whodunit_events e\nWHERE e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  AND  e.user_modified IS NOT NULL AND ('${contributor:raw}' = '__all__' OR e.contributor = '${contributor:raw}')"
         }
       ],
       "fieldConfig": {
@@ -534,7 +534,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT ROUND(AVG(s.duration_ms) / 1000, 1) AS v\nFROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id\nWHERE s.first_seen BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  AND  s.duration_ms IS NOT NULL AND ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}')"
+          "rawSql": "SELECT ROUND(AVG(s.duration_ms) / 1000, 1) AS v\nFROM whodunit_sessions s\nWHERE s.first_seen BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  AND  s.duration_ms IS NOT NULL AND ('${contributor:raw}' = '__all__' OR s.contributor = '${contributor:raw}')"
         }
       ],
       "fieldConfig": {
@@ -586,7 +586,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT ROUND(100.0 * SUM(CASE WHEN s.compactions > 0 THEN 1 ELSE 0 END)\n  / NULLIF(COUNT(*), 0), 0) AS v\nFROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id\nWHERE s.first_seen BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  AND  s.compactions IS NOT NULL AND ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}')"
+          "rawSql": "SELECT ROUND(100.0 * SUM(CASE WHEN s.compactions > 0 THEN 1 ELSE 0 END)\n  / NULLIF(COUNT(*), 0), 0) AS v\nFROM whodunit_sessions s\nWHERE s.first_seen BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  AND  s.compactions IS NOT NULL AND ('${contributor:raw}' = '__all__' OR s.contributor = '${contributor:raw}')"
         }
       ],
       "fieldConfig": {
@@ -638,7 +638,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT\n  s.agent AS metric,\n  ROUND(100.0 * SUM(CASE WHEN s.compactions > 0 THEN 1 ELSE 0 END)\n    / NULLIF(COUNT(*), 0)) AS value\nFROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id\nWHERE s.first_seen BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  AND  s.compactions IS NOT NULL AND ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}')\nGROUP BY s.agent ORDER BY 2 DESC"
+          "rawSql": "SELECT\n  s.agent AS metric,\n  ROUND(100.0 * SUM(CASE WHEN s.compactions > 0 THEN 1 ELSE 0 END)\n    / NULLIF(COUNT(*), 0)) AS value\nFROM whodunit_sessions s\nWHERE s.first_seen BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  AND  s.compactions IS NOT NULL AND ('${contributor:raw}' = '__all__' OR s.contributor = '${contributor:raw}')\nGROUP BY s.agent ORDER BY 2 DESC"
         }
       ],
       "fieldConfig": {
@@ -694,7 +694,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT ROUND(AVG(s.compactions), 1) AS v\nFROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id\nWHERE s.first_seen BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  AND  s.compactions > 0 AND ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}')"
+          "rawSql": "SELECT ROUND(AVG(s.compactions), 1) AS v\nFROM whodunit_sessions s\nWHERE s.first_seen BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  AND  s.compactions > 0 AND ('${contributor:raw}' = '__all__' OR s.contributor = '${contributor:raw}')"
         }
       ],
       "fieldConfig": {
@@ -745,7 +745,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT s.effort AS metric, COUNT(*) AS value\nFROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id\nWHERE s.first_seen BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  AND  s.effort IS NOT NULL AND ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}')\nGROUP BY s.effort"
+          "rawSql": "SELECT s.effort AS metric, COUNT(*) AS value\nFROM whodunit_sessions s\nWHERE s.first_seen BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  AND  s.effort IS NOT NULL AND ('${contributor:raw}' = '__all__' OR s.contributor = '${contributor:raw}')\nGROUP BY s.effort"
         }
       ],
       "fieldConfig": {
@@ -864,7 +864,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT\n  COALESCE(NULLIF(s.model, ''), '(unattributed)') AS model,\n  SUM(s.input_tokens)                             AS `Uncached in`,\n  SUM(s.output_tokens)                            AS `Output`,\n  SUM(COALESCE(s.cache_write_tokens,0))           AS `Cache write`,\n  SUM(COALESCE(s.cache_read_tokens,0))            AS `Cache read`\nFROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id\nWHERE s.first_seen BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  AND  s.input_tokens IS NOT NULL AND ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}')\nGROUP BY 1\nORDER BY SUM(s.input_tokens + s.output_tokens\n           + COALESCE(s.cache_read_tokens,0)\n           + COALESCE(s.cache_write_tokens,0)) DESC"
+          "rawSql": "SELECT\n  COALESCE(NULLIF(s.model, ''), '(unattributed)') AS model,\n  SUM(s.input_tokens)                             AS `Uncached in`,\n  SUM(s.output_tokens)                            AS `Output`,\n  SUM(COALESCE(s.cache_write_tokens,0))           AS `Cache write`,\n  SUM(COALESCE(s.cache_read_tokens,0))            AS `Cache read`\nFROM whodunit_sessions s\nWHERE s.first_seen BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  AND  s.input_tokens IS NOT NULL AND ('${contributor:raw}' = '__all__' OR s.contributor = '${contributor:raw}')\nGROUP BY 1\nORDER BY SUM(s.input_tokens + s.output_tokens\n           + COALESCE(s.cache_read_tokens,0)\n           + COALESCE(s.cache_write_tokens,0)) DESC"
         }
       ],
       "fieldConfig": {
@@ -980,7 +980,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT\n  CONCAT(\n    ROW_NUMBER() OVER (ORDER BY (s.last_seen - s.first_seen) DESC),\n    '. ', s.agent, ' · ',\n    COALESCE(NULLIF(s.model, ''), 'model not reported')) AS metric,\n  ROUND((s.last_seen - s.first_seen) / 1000000000 / 3600, 1) AS value\nFROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id\nWHERE s.first_seen BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  AND  ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}')\n  AND s.last_seen > s.first_seen\n  -- A session whose first record predates the ingest window carries the\n  -- zero time, which reaches the database as -6795364578871345152 and\n  -- renders as a 272-year session. The adapter no longer writes those,\n  -- but a database synced before that fix still holds them, and one such\n  -- row at the top of a DESC sort makes the whole panel nonsense.\n  AND s.first_seen > 0\nORDER BY (s.last_seen - s.first_seen) DESC LIMIT 8"
+          "rawSql": "SELECT\n  CONCAT(\n    ROW_NUMBER() OVER (ORDER BY (s.last_seen - s.first_seen) DESC),\n    '. ', s.agent, ' · ',\n    COALESCE(NULLIF(s.model, ''), 'model not reported')) AS metric,\n  ROUND((s.last_seen - s.first_seen) / 1000000000 / 3600, 1) AS value\nFROM whodunit_sessions s\nWHERE s.first_seen BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  AND  ('${contributor:raw}' = '__all__' OR s.contributor = '${contributor:raw}')\n  AND s.last_seen > s.first_seen\n  -- A session whose first record predates the ingest window carries the\n  -- zero time, which reaches the database as -6795364578871345152 and\n  -- renders as a 272-year session. The adapter no longer writes those,\n  -- but a database synced before that fix still holds them, and one such\n  -- row at the top of a DESC sort makes the whole panel nonsense.\n  AND s.first_seen > 0\nORDER BY (s.last_seen - s.first_seen) DESC LIMIT 8"
         }
       ],
       "fieldConfig": {
@@ -1036,7 +1036,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT\n  COALESCE(NULLIF(s.model, ''), '(unattributed)') AS Model,\n  COUNT(*)                                        AS Sessions,\n  SUM(s.input_tokens)                             AS `Uncached in`,\n  SUM(s.output_tokens)                            AS `Out`,\n  SUM(COALESCE(s.cache_read_tokens,0))            AS `Cache read`,\n  SUM(COALESCE(s.cache_write_tokens,0))           AS `Cache write`,\n  ROUND(100.0 * SUM(COALESCE(s.cache_read_tokens,0))\n    / NULLIF(SUM(s.input_tokens + COALESCE(s.cache_read_tokens,0)\n               + COALESCE(s.cache_write_tokens,0)), 0), 1) AS `From cache %`,\n  ROUND(SUM(COALESCE(s.cache_read_tokens,0))\n    / NULLIF(SUM(s.cache_write_tokens), 0), 1)    AS `Write payback ×`\nFROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id\nWHERE s.first_seen BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  AND  s.input_tokens IS NOT NULL AND ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}')\nGROUP BY COALESCE(NULLIF(s.model, ''), '(unattributed)')\nORDER BY SUM(s.input_tokens + s.output_tokens\n           + COALESCE(s.cache_read_tokens,0)\n           + COALESCE(s.cache_write_tokens,0)) DESC"
+          "rawSql": "SELECT\n  COALESCE(NULLIF(s.model, ''), '(unattributed)') AS Model,\n  COUNT(*)                                        AS Sessions,\n  SUM(s.input_tokens)                             AS `Uncached in`,\n  SUM(s.output_tokens)                            AS `Out`,\n  SUM(COALESCE(s.cache_read_tokens,0))            AS `Cache read`,\n  SUM(COALESCE(s.cache_write_tokens,0))           AS `Cache write`,\n  ROUND(100.0 * SUM(COALESCE(s.cache_read_tokens,0))\n    / NULLIF(SUM(s.input_tokens + COALESCE(s.cache_read_tokens,0)\n               + COALESCE(s.cache_write_tokens,0)), 0), 1) AS `From cache %`,\n  ROUND(SUM(COALESCE(s.cache_read_tokens,0))\n    / NULLIF(SUM(s.cache_write_tokens), 0), 1)    AS `Write payback ×`\nFROM whodunit_sessions s\nWHERE s.first_seen BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  AND  s.input_tokens IS NOT NULL AND ('${contributor:raw}' = '__all__' OR s.contributor = '${contributor:raw}')\nGROUP BY COALESCE(NULLIF(s.model, ''), '(unattributed)')\nORDER BY SUM(s.input_tokens + s.output_tokens\n           + COALESCE(s.cache_read_tokens,0)\n           + COALESCE(s.cache_write_tokens,0)) DESC"
         }
       ],
       "fieldConfig": {
@@ -1166,7 +1166,7 @@
         {
           "refId": "A",
           "format": "time_series",
-          "rawSql": "SELECT\n  FROM_UNIXTIME(FLOOR(s.last_seen / 1000000000 / 86400) * 86400) AS time,\n  COALESCE(NULLIF(s.model, ''), '(unattributed)')                AS metric,\n  SUM(s.output_tokens)                                           AS value\nFROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id\nWHERE s.output_tokens IS NOT NULL AND ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}')\n  AND s.last_seen >= $__unixEpochFrom() * 1000000000\n  AND s.last_seen <  $__unixEpochTo() * 1000000000\nGROUP BY 1, 2 ORDER BY 1"
+          "rawSql": "SELECT\n  FROM_UNIXTIME(FLOOR(s.last_seen / 1000000000 / 86400) * 86400) AS time,\n  COALESCE(NULLIF(s.model, ''), '(unattributed)')                AS metric,\n  SUM(s.output_tokens)                                           AS value\nFROM whodunit_sessions s\nWHERE s.output_tokens IS NOT NULL AND ('${contributor:raw}' = '__all__' OR s.contributor = '${contributor:raw}')\n  AND s.last_seen >= $__unixEpochFrom() * 1000000000\n  AND s.last_seen <  $__unixEpochTo() * 1000000000\nGROUP BY 1, 2 ORDER BY 1"
         }
       ],
       "fieldConfig": {
@@ -1231,7 +1231,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT branch, `Lines added` FROM (\n  SELECT\n    CASE WHEN CHAR_LENGTH(e.branch) > 34\n         THEN CONCAT(LEFT(e.branch, 31), '...')\n         ELSE e.branch END      AS branch,\n    SUM(e.lines_added)          AS `Lines added`,\n    1                           AS grp,\n    ROW_NUMBER() OVER (ORDER BY SUM(e.lines_added) DESC) AS rn\n  FROM whodunit_events e JOIN whodunit_repos r ON r.repo_id = e.repo_id\n  WHERE e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  AND  e.branch IS NOT NULL AND ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}')\n  GROUP BY e.branch\n  HAVING SUM(e.lines_added) > 0\n) ranked WHERE rn <= 12\nUNION ALL\nSELECT\n  CONCAT('+ ', COUNT(*), ' more branches'),\n  SUM(lines_added)\nFROM (\n  SELECT\n    SUM(e.lines_added) AS lines_added,\n    ROW_NUMBER() OVER (ORDER BY SUM(e.lines_added) DESC) AS rn\n  FROM whodunit_events e JOIN whodunit_repos r ON r.repo_id = e.repo_id\n  WHERE e.branch IS NOT NULL AND ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}')\n  GROUP BY e.branch\n  HAVING SUM(e.lines_added) > 0\n) tail WHERE rn > 12\nHAVING COUNT(*) > 0"
+          "rawSql": "SELECT branch, `Lines added` FROM (\n  SELECT\n    CASE WHEN CHAR_LENGTH(e.branch) > 34\n         THEN CONCAT(LEFT(e.branch, 31), '...')\n         ELSE e.branch END      AS branch,\n    SUM(e.lines_added)          AS `Lines added`,\n    1                           AS grp,\n    ROW_NUMBER() OVER (ORDER BY SUM(e.lines_added) DESC) AS rn\n  FROM whodunit_events e\n  WHERE e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  AND  e.branch IS NOT NULL AND ('${contributor:raw}' = '__all__' OR e.contributor = '${contributor:raw}')\n  GROUP BY e.branch\n  HAVING SUM(e.lines_added) > 0\n) ranked WHERE rn <= 12\nUNION ALL\nSELECT\n  CONCAT('+ ', COUNT(*), ' more branches'),\n  SUM(lines_added)\nFROM (\n  SELECT\n    SUM(e.lines_added) AS lines_added,\n    ROW_NUMBER() OVER (ORDER BY SUM(e.lines_added) DESC) AS rn\n  FROM whodunit_events e\n  WHERE e.branch IS NOT NULL AND ('${contributor:raw}' = '__all__' OR e.contributor = '${contributor:raw}')\n  GROUP BY e.branch\n  HAVING SUM(e.lines_added) > 0\n) tail WHERE rn > 12\nHAVING COUNT(*) > 0"
         }
       ],
       "fieldConfig": {
@@ -1293,7 +1293,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT\n  CONCAT(s.permission_mode, '  (', s.agent, ')')  AS metric,\n  ROUND(SUM(s.tool_calls) / COUNT(*))              AS value\nFROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id\nWHERE s.first_seen BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  AND  s.permission_mode IS NOT NULL AND ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}')\nGROUP BY s.permission_mode, s.agent\nORDER BY 2 DESC"
+          "rawSql": "SELECT\n  CONCAT(s.permission_mode, '  (', s.agent, ')')  AS metric,\n  ROUND(SUM(s.tool_calls) / COUNT(*))              AS value\nFROM whodunit_sessions s\nWHERE s.first_seen BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  AND  s.permission_mode IS NOT NULL AND ('${contributor:raw}' = '__all__' OR s.contributor = '${contributor:raw}')\nGROUP BY s.permission_mode, s.agent\nORDER BY 2 DESC"
         }
       ],
       "fieldConfig": {
@@ -1348,7 +1348,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT e.mcp_server AS metric, COUNT(*) AS value\nFROM whodunit_events e JOIN whodunit_repos r ON r.repo_id = e.repo_id\nWHERE e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  AND  e.mcp_server IS NOT NULL AND ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}')\nGROUP BY e.mcp_server ORDER BY COUNT(*) DESC LIMIT 15"
+          "rawSql": "SELECT e.mcp_server AS metric, COUNT(*) AS value\nFROM whodunit_events e\nWHERE e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  AND  e.mcp_server IS NOT NULL AND ('${contributor:raw}' = '__all__' OR e.contributor = '${contributor:raw}')\nGROUP BY e.mcp_server ORDER BY COUNT(*) DESC LIMIT 15"
         }
       ],
       "fieldConfig": {

@@ -198,7 +198,7 @@
           "refId": "A",
           "format": "table",
           "datasource": "${datasource}",
-          "rawSql": "SELECT ROUND(SUM(c.status='assisted')*100.0/NULLIF(COUNT(*),0),1) AS v\nFROM whodunit_commits c\nJOIN whodunit_repos r ON r.repo_id = c.repo_id\nWHERE ('${evidence:raw}' = '__all__' OR c.method = '${evidence:raw}')\n  AND  ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}')\n  AND ('${repo:raw}' = '__all__' OR c.repo_id = '${repo:raw}')\n  AND c.committed_at BETWEEN $__unixEpochFrom() * 1000000000\n                         AND $__unixEpochTo()   * 1000000000"
+          "rawSql": "SELECT ROUND(SUM(c.status='assisted')*100.0/NULLIF(COUNT(*),0),1) AS v\nFROM whodunit_commits c\nWHERE ('${evidence:raw}' = '__all__' OR c.method = '${evidence:raw}')\n  AND  ('${contributor:raw}' = '__all__' OR c.contributor = '${contributor:raw}')\n  AND ('${repo:raw}' = '__all__' OR c.repo_id = '${repo:raw}')\n  AND c.committed_at BETWEEN $__unixEpochFrom() * 1000000000\n                         AND $__unixEpochTo()   * 1000000000"
         }
       ]
     },
@@ -217,7 +217,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT CASE\n         WHEN s.mcp_calls > 0 OR s.distinct_tools >= 5 OR s.tool_calls >= 50\n              THEN 'agentic'\n         WHEN s.tool_calls > 0 THEN 'edits'\n         ELSE 'chat only'\n       END AS `depth`,\n       COUNT(*) AS `sessions`\nFROM whodunit_sessions s\nJOIN whodunit_repos r ON r.repo_id = s.repo_id\nWHERE s.last_seen BETWEEN $__unixEpochFrom() * 1000000000\n                      AND $__unixEpochTo()   * 1000000000\n  AND ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}')\n  AND ('${repo:raw}' = '__all__' OR s.repo_id = '${repo:raw}')\nGROUP BY `depth`\nORDER BY FIELD(`depth`, 'chat only', 'edits', 'agentic')"
+          "rawSql": "SELECT CASE\n         WHEN s.mcp_calls > 0 OR s.distinct_tools >= 5 OR s.tool_calls >= 50\n              THEN 'agentic'\n         WHEN s.tool_calls > 0 THEN 'edits'\n         ELSE 'chat only'\n       END AS `depth`,\n       COUNT(*) AS `sessions`\nFROM whodunit_sessions s\nWHERE s.last_seen BETWEEN $__unixEpochFrom() * 1000000000\n                      AND $__unixEpochTo()   * 1000000000\n  AND ('${contributor:raw}' = '__all__' OR s.contributor = '${contributor:raw}')\n  AND ('${repo:raw}' = '__all__' OR s.repo_id = '${repo:raw}')\nGROUP BY `depth`\nORDER BY FIELD(`depth`, 'chat only', 'edits', 'agentic')"
         }
       ],
       "fieldConfig": {
@@ -323,7 +323,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT ROUND(100.0*SUM(e.outcome='accepted')/NULLIF(SUM(e.outcome IN ('accepted','rejected','failed')),0),1) v FROM whodunit_events e JOIN whodunit_repos r ON r.repo_id=e.repo_id WHERE ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}')\n  AND ('${repo:raw}' = '__all__' OR e.repo_id = '${repo:raw}') AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000"
+          "rawSql": "SELECT ROUND(100.0*SUM(e.outcome='accepted')/NULLIF(SUM(e.outcome IN ('accepted','rejected','failed')),0),1) v FROM whodunit_events e WHERE ('${contributor:raw}' = '__all__' OR e.contributor = '${contributor:raw}')\n  AND ('${repo:raw}' = '__all__' OR e.repo_id = '${repo:raw}') AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000"
         }
       ],
       "fieldConfig": {
@@ -376,7 +376,7 @@
         {
           "refId": "A",
           "format": "time_series",
-          "rawSql": "SELECT IF('$grain'='%Y-%m-%d',  DATE(FROM_UNIXTIME(c.committed_at/1000000000)),\n    IF('$grain'='%x-W%v', DATE(FROM_UNIXTIME(c.committed_at/1000000000)\n                             - INTERVAL WEEKDAY(FROM_UNIXTIME(c.committed_at/1000000000)) DAY),\n                        DATE(FROM_UNIXTIME(c.committed_at/1000000000)\n                             - INTERVAL DAYOFMONTH(FROM_UNIXTIME(c.committed_at/1000000000))-1 DAY))) AS `time`,\n       NULLIF(SUM(c.status =  'assisted'), 0) AS `AI-assisted commits`,\n       NULLIF(SUM(c.status <> 'assisted'), 0) AS `not AI-assisted commits`,\n       ROUND(100.0 * SUM(c.status = 'assisted') / COUNT(*), 0) AS `% AI-assisted`\nFROM whodunit_commits c\nJOIN whodunit_repos r ON r.repo_id = c.repo_id\nWHERE ('${evidence:raw}' = '__all__' OR c.method = '${evidence:raw}')\n  AND  ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}')\n  AND ('${repo:raw}' = '__all__' OR c.repo_id = '${repo:raw}')\n  AND c.committed_at BETWEEN $__unixEpochFrom() * 1000000000\n                         AND $__unixEpochTo()   * 1000000000\nGROUP BY `time`\nORDER BY `time`"
+          "rawSql": "SELECT IF('$grain'='%Y-%m-%d',  DATE(FROM_UNIXTIME(c.committed_at/1000000000)),\n    IF('$grain'='%x-W%v', DATE(FROM_UNIXTIME(c.committed_at/1000000000)\n                             - INTERVAL WEEKDAY(FROM_UNIXTIME(c.committed_at/1000000000)) DAY),\n                        DATE(FROM_UNIXTIME(c.committed_at/1000000000)\n                             - INTERVAL DAYOFMONTH(FROM_UNIXTIME(c.committed_at/1000000000))-1 DAY))) AS `time`,\n       NULLIF(SUM(c.status =  'assisted'), 0) AS `AI-assisted commits`,\n       NULLIF(SUM(c.status <> 'assisted'), 0) AS `not AI-assisted commits`,\n       ROUND(100.0 * SUM(c.status = 'assisted') / COUNT(*), 0) AS `% AI-assisted`\nFROM whodunit_commits c\nWHERE ('${evidence:raw}' = '__all__' OR c.method = '${evidence:raw}')\n  AND  ('${contributor:raw}' = '__all__' OR c.contributor = '${contributor:raw}')\n  AND ('${repo:raw}' = '__all__' OR c.repo_id = '${repo:raw}')\n  AND c.committed_at BETWEEN $__unixEpochFrom() * 1000000000\n                         AND $__unixEpochTo()   * 1000000000\nGROUP BY `time`\nORDER BY `time`"
         }
       ],
       "fieldConfig": {
@@ -660,7 +660,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "\nSELECT c.purpose AS `metric`, COUNT(*) AS `value`\nFROM whodunit_commits c JOIN whodunit_repos r ON r.repo_id=c.repo_id\nWHERE ('${evidence:raw}' = '__all__' OR c.method = '${evidence:raw}')\n  AND  c.status='assisted' AND c.purpose<>'' AND ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}')\n  AND ('${repo:raw}' = '__all__' OR c.repo_id = '${repo:raw}')\n  AND c.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nGROUP BY c.purpose ORDER BY `value` DESC\n"
+          "rawSql": "\nSELECT c.purpose AS `metric`, COUNT(*) AS `value`\nFROM whodunit_commits c\nWHERE ('${evidence:raw}' = '__all__' OR c.method = '${evidence:raw}')\n  AND  c.status='assisted' AND c.purpose<>'' AND ('${contributor:raw}' = '__all__' OR c.contributor = '${contributor:raw}')\n  AND ('${repo:raw}' = '__all__' OR c.repo_id = '${repo:raw}')\n  AND c.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nGROUP BY c.purpose ORDER BY `value` DESC\n"
         }
       ],
       "options": {
@@ -711,7 +711,7 @@
         {
           "refId": "A",
           "format": "time_series",
-          "rawSql": "\nSELECT IF('$grain'='%Y-%m-%d', DATE(FROM_UNIXTIME(e.observed_at/1000000000)),\n          IF('$grain'='%x-W%v', DATE(FROM_UNIXTIME(e.observed_at/1000000000) - INTERVAL WEEKDAY(FROM_UNIXTIME(e.observed_at/1000000000)) DAY),\n                                DATE(FROM_UNIXTIME(e.observed_at/1000000000) - INTERVAL DAYOFMONTH(FROM_UNIXTIME(e.observed_at/1000000000))-1 DAY))) AS `time`,\n       ROUND(100.0*SUM(e.outcome='accepted')\n             /NULLIF(SUM(e.outcome IN ('accepted','rejected','failed')),0),1) AS `accept %`\nFROM whodunit_events e JOIN whodunit_repos r ON r.repo_id=e.repo_id\nWHERE ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}')\n  AND ('${repo:raw}' = '__all__' OR e.repo_id = '${repo:raw}') AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nGROUP BY `time` ORDER BY `time`\n"
+          "rawSql": "\nSELECT IF('$grain'='%Y-%m-%d', DATE(FROM_UNIXTIME(e.observed_at/1000000000)),\n          IF('$grain'='%x-W%v', DATE(FROM_UNIXTIME(e.observed_at/1000000000) - INTERVAL WEEKDAY(FROM_UNIXTIME(e.observed_at/1000000000)) DAY),\n                                DATE(FROM_UNIXTIME(e.observed_at/1000000000) - INTERVAL DAYOFMONTH(FROM_UNIXTIME(e.observed_at/1000000000))-1 DAY))) AS `time`,\n       ROUND(100.0*SUM(e.outcome='accepted')\n             /NULLIF(SUM(e.outcome IN ('accepted','rejected','failed')),0),1) AS `accept %`\nFROM whodunit_events e\nWHERE ('${contributor:raw}' = '__all__' OR e.contributor = '${contributor:raw}')\n  AND ('${repo:raw}' = '__all__' OR e.repo_id = '${repo:raw}') AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nGROUP BY `time` ORDER BY `time`\n"
         }
       ],
       "fieldConfig": {
@@ -786,7 +786,7 @@
         {
           "refId": "A",
           "format": "time_series",
-          "rawSql": "\nSELECT IF('$grain'='%Y-%m-%d', DATE(FROM_UNIXTIME(e.observed_at/1000000000)),\n          IF('$grain'='%x-W%v', DATE(FROM_UNIXTIME(e.observed_at/1000000000) - INTERVAL WEEKDAY(FROM_UNIXTIME(e.observed_at/1000000000)) DAY),\n                                DATE(FROM_UNIXTIME(e.observed_at/1000000000) - INTERVAL DAYOFMONTH(FROM_UNIXTIME(e.observed_at/1000000000))-1 DAY))) AS `time`,\n       COUNT(*) AS `agent edits`,\n       SUM(e.lines_added) AS `lines added`\nFROM whodunit_events e JOIN whodunit_repos r ON r.repo_id=e.repo_id\nWHERE ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}')\n  AND ('${repo:raw}' = '__all__' OR e.repo_id = '${repo:raw}') AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nGROUP BY `time` ORDER BY `time`\n"
+          "rawSql": "\nSELECT IF('$grain'='%Y-%m-%d', DATE(FROM_UNIXTIME(e.observed_at/1000000000)),\n          IF('$grain'='%x-W%v', DATE(FROM_UNIXTIME(e.observed_at/1000000000) - INTERVAL WEEKDAY(FROM_UNIXTIME(e.observed_at/1000000000)) DAY),\n                                DATE(FROM_UNIXTIME(e.observed_at/1000000000) - INTERVAL DAYOFMONTH(FROM_UNIXTIME(e.observed_at/1000000000))-1 DAY))) AS `time`,\n       COUNT(*) AS `agent edits`,\n       SUM(e.lines_added) AS `lines added`\nFROM whodunit_events e\nWHERE ('${contributor:raw}' = '__all__' OR e.contributor = '${contributor:raw}')\n  AND ('${repo:raw}' = '__all__' OR e.repo_id = '${repo:raw}') AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nGROUP BY `time` ORDER BY `time`\n"
         }
       ],
       "fieldConfig": {

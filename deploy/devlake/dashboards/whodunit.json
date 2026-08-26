@@ -149,7 +149,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT 100.0 * SUM(status = 'assisted')\n     / NULLIF(SUM(status IN ('assisted','unassisted','unmatched')), 0) AS penetration\n-- status-set-excludes: undetermined, uninstrumented, degraded\n--   the tool never reached a verdict on these, so counting them\n--   would understate the rate rather than complete it\nFROM whodunit_commits\nWHERE committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000"
+          "rawSql": "-- status-set-excludes: undetermined, uninstrumented, degraded\n--   the tool never reached a verdict on these, so counting them\n--   would understate the rate rather than complete it\nSELECT 100.0 * SUM(status = 'assisted')\n     / NULLIF(SUM(status IN ('assisted','unassisted','unmatched')), 0) AS penetration\nFROM whodunit_commits\nWHERE committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000"
         }
       ]
     },
