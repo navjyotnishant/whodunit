@@ -163,6 +163,16 @@ func WriteProgress(db *Store, p Payload, onRow func(done, total int)) (Counts, e
 	}
 	counts.Repos = 1
 
+	// Written before the grains that reference them, though nothing
+	// enforces the order: the join is a LEFT JOIN, so a dashboard reading
+	// mid-sync sees unresolved aliases rather than an error.
+	for _, id := range p.Identities {
+		if _, err := tx.Exec(upsertIdentity(mysql),
+			id.Alias, id.Canonical, id.SyncedAt.UnixNano()); err != nil {
+			return counts, fmt.Errorf("write identity: %w", err)
+		}
+	}
+
 	for _, c := range p.Commits {
 		if _, err := tx.Exec(upsertCommit(mysql),
 			// nullString, not the empty string: a row whose contributor
@@ -259,6 +269,14 @@ func upsertRepo(mysql bool) string {
 	// restore the overwrite the key change exists to prevent, and it would
 	// do so silently.
 	return cols + ` ON CONFLICT(repo_id, contributor) DO UPDATE SET spec_version=excluded.spec_version, synced_at=excluded.synced_at`
+}
+
+func upsertIdentity(mysql bool) string {
+	cols := `INSERT INTO whodunit_identities (alias, canonical, synced_at) VALUES (?, ?, ?)`
+	if mysql {
+		return cols + ` ON DUPLICATE KEY UPDATE canonical=VALUES(canonical), synced_at=VALUES(synced_at)`
+	}
+	return cols + ` ON CONFLICT(alias) DO UPDATE SET canonical=excluded.canonical, synced_at=excluded.synced_at`
 }
 
 func upsertCommit(mysql bool) string {

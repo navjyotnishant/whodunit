@@ -88,6 +88,35 @@ CREATE TABLE IF NOT EXISTS whodunit_schema (
 	PRIMARY KEY (id)
 );
 
+-- Which addresses belong to the same person.
+--
+-- One person picks up a second identity the moment one machine is
+-- configured with a GitHub noreply address and another with their real
+-- one. Nothing announces it: both are valid, both commit, and the
+-- dashboards show two contributors. Measured on one install, 148 of 1,263
+-- commits sat under a second address, so filtering to either silently
+-- dropped a ninth of the work.
+--
+-- Read-time resolution, deliberately. The literal committer email stays in
+-- every commit row, every event row and every commit object. This is a
+-- lookup table joined when a dashboard asks who someone is. A wrong entry
+-- is corrected by editing one line rather than by re-syncing history, and
+-- that reversibility is the reason it is a table rather than a rewrite.
+--
+-- Chains are flattened before they are written: alias holds every address,
+-- canonical holds where it ends up, so SQL never has to follow c -> b -> a
+-- recursively and cannot disagree with config.ResolveIdentity about the
+-- answer (WHO-208).
+--
+-- Not new personal data: both addresses already appear in every commit
+-- object this maps between (NAV-25).
+CREATE TABLE IF NOT EXISTS whodunit_identities (
+	alias        VARCHAR(320) NOT NULL,
+	canonical    VARCHAR(320) NOT NULL,
+	synced_at    BIGINT       NOT NULL,
+	PRIMARY KEY (alias)
+);
+
 -- One row per repository. Holds facts that do not vary per commit.
 CREATE TABLE IF NOT EXISTS whodunit_repos (
 	repo_id      VARCHAR(64)  NOT NULL,

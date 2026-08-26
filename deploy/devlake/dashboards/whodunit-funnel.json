@@ -175,7 +175,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT CASE\n         WHEN s.mcp_calls > 0 OR s.distinct_tools >= 5 THEN 'agentic — MCP or many tools'\n         WHEN s.tool_calls >= 50 THEN 'multi-file work'\n         WHEN s.tool_calls >= 10 THEN 'wrote code'\n         WHEN s.tool_calls > 0   THEN 'light edits'\n         ELSE 'conversation only — no edits'\n       END AS `intensity`,\n       COUNT(*) AS `sessions`\nFROM whodunit_sessions s\nWHERE s.last_seen BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000 AND ('${contributor:raw}' = '__all__' OR s.contributor = '${contributor:raw}')\nGROUP BY `intensity` ORDER BY `sessions` DESC"
+          "rawSql": "SELECT CASE\n         WHEN s.mcp_calls > 0 OR s.distinct_tools >= 5 THEN 'agentic — MCP or many tools'\n         WHEN s.tool_calls >= 50 THEN 'multi-file work'\n         WHEN s.tool_calls >= 10 THEN 'wrote code'\n         WHEN s.tool_calls > 0   THEN 'light edits'\n         ELSE 'conversation only — no edits'\n       END AS `intensity`,\n       COUNT(*) AS `sessions`\nFROM whodunit_sessions s\nLEFT JOIN whodunit_identities wi ON wi.alias = s.contributor\nWHERE s.last_seen BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000 AND ('${contributor:raw}' = '__all__' OR COALESCE(wi.canonical, s.contributor) = '${contributor:raw}')\nGROUP BY `intensity` ORDER BY `sessions` DESC"
         }
       ],
       "fieldConfig": {
@@ -281,7 +281,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT ROUND(SUM(s.tool_calls > 0) * 100.0 / NULLIF(COUNT(*), 0), 0) AS v\nFROM whodunit_sessions s\nWHERE s.last_seen BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000 AND ('${contributor:raw}' = '__all__' OR s.contributor = '${contributor:raw}')"
+          "rawSql": "SELECT ROUND(SUM(s.tool_calls > 0) * 100.0 / NULLIF(COUNT(*), 0), 0) AS v\nFROM whodunit_sessions s\nLEFT JOIN whodunit_identities wi ON wi.alias = s.contributor\nWHERE s.last_seen BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000 AND ('${contributor:raw}' = '__all__' OR COALESCE(wi.canonical, s.contributor) = '${contributor:raw}')"
         }
       ],
       "fieldConfig": {
@@ -504,7 +504,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT ROUND(100.0 * SUM(c.purpose = 'fix' AND c.status = 'assisted')\n  / NULLIF(SUM(c.status = 'assisted'), 0), 1) AS v\nFROM whodunit_commits c\nWHERE c.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  AND  ('${evidence:raw}' = '__all__' OR c.method = '${evidence:raw}')\n  AND  ('${contributor:raw}' = '__all__' OR c.contributor = '${contributor:raw}')"
+          "rawSql": "SELECT ROUND(100.0 * SUM(c.purpose = 'fix' AND c.status = 'assisted')\n  / NULLIF(SUM(c.status = 'assisted'), 0), 1) AS v\nFROM whodunit_commits c\nLEFT JOIN whodunit_identities wi ON wi.alias = c.contributor\nWHERE c.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  AND  ('${evidence:raw}' = '__all__' OR c.method = '${evidence:raw}')\n  AND  ('${contributor:raw}' = '__all__' OR COALESCE(wi.canonical, c.contributor) = '${contributor:raw}')"
         }
       ],
       "fieldConfig": {

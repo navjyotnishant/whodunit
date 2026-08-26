@@ -102,7 +102,8 @@ func TestEveryTableIsNamespaced(t *testing.T) {
 		}
 		count++
 	}
-	// repos, commits, events, sessions, event_lines, baselines, schema.
+	// repos, commits, events, sessions, event_lines, baselines, schema,
+	// identities.
 	//
 	// The literal is deliberate: a table appearing without anyone updating
 	// this number means a table was added without deciding whether it
@@ -114,8 +115,13 @@ func TestEveryTableIsNamespaced(t *testing.T) {
 	// about whodunit's tables rather than about the database it shares
 	// (WHO-220). It carries the prefix for the same reason every other
 	// table does.
-	if count != 7 {
-		t.Errorf("found %d tables, want 7", count)
+	//
+	// whodunit_identities was the eighth, and yes again: it maps between
+	// addresses that already appear in every commit object, so a
+	// dashboard filtered to one person includes every address they commit
+	// from (WHO-208).
+	if count != 8 {
+		t.Errorf("found %d tables, want 8", count)
 	}
 }
 
@@ -391,5 +397,88 @@ func TestEventIDSeparatesFields(t *testing.T) {
 	b := journal.Entry{Timestamp: now, Session: "a", Tool: "bc"}
 	if eventID("repo", a) == eventID("repo", b) {
 		t.Error("adjacent fields collided; the id is not separator-delimited")
+	}
+}
+
+// A semicolon inside a SQL comment truncates the statement it sits in.
+//
+// splitStatements splits on ";" before it strips comments, so a comment
+// containing one is cut in half and the tail — including the CREATE TABLE
+// that followed it — is sent to the engine as its own statement. The
+// failure reads as a syntax error on a fragment of English prose, which
+// gives no hint where it came from. Cost a confused debugging round on
+// WHO-208, where a comment ended "...every commit object; this is a lookup
+// table".
+func TestNoSemicolonInsideASchemaComment(t *testing.T) {
+	for i, line := range strings.Split(Schema, "\n") {
+		trimmed := strings.TrimSpace(line)
+		if !strings.HasPrefix(trimmed, "--") {
+			continue
+		}
+		if strings.Contains(trimmed, ";") {
+			t.Errorf("line %d has a semicolon inside a comment, which "+
+				"truncates the statement it belongs to:\n  %s", i+1, trimmed)
+		}
+	}
+}
+
+// Every alias resolves to a canonical address, never to itself.
+//
+// A row mapping an address to itself carries no information, and the join
+// treats a missing row as "its own identity" anyway — so writing it would
+// only make absence harder to read (NAV-21).
+func TestIdentityRowsSkipSelfReferences(t *testing.T) {
+	resolve := func(s string) string {
+		if s == "b@x.com" {
+			return "a@x.com"
+		}
+		return s
+	}
+	rows := IdentityRowsFrom(
+		map[string]string{"b@x.com": "a@x.com", "a@x.com": "a@x.com"},
+		resolve, time.Now())
+
+	if len(rows) != 1 {
+		t.Fatalf("got %d row(s), want 1 — a self-reference was written", len(rows))
+	}
+	if rows[0].Alias != "b@x.com" || rows[0].Canonical != "a@x.com" {
+		t.Errorf("got %v", rows[0])
+	}
+}
+
+// A chain must be flattened, so SQL never has to follow one.
+//
+// Writing c -> b verbatim would make the dashboard responsible for
+// following the chain to a, which MySQL and SQLite express differently and
+// neither expresses simply. Flattening here means the dashboard joins once
+// and cannot disagree with config.ResolveIdentity about the answer.
+func TestIdentityChainsAreFlattened(t *testing.T) {
+	// c -> b -> a, as config.ResolveIdentity would resolve it.
+	resolve := func(s string) string {
+		for _, step := range []struct{ from, to string }{{"c@x.com", "b@x.com"}, {"b@x.com", "a@x.com"}} {
+			if s == step.from {
+				s = step.to
+			}
+		}
+		if s == "b@x.com" {
+			s = "a@x.com"
+		}
+		return s
+	}
+	rows := IdentityRowsFrom(map[string]string{"c@x.com": "b@x.com"}, resolve, time.Now())
+
+	if len(rows) != 1 {
+		t.Fatalf("got %d row(s), want 1", len(rows))
+	}
+	if rows[0].Canonical != "a@x.com" {
+		t.Errorf("chain resolved to %q, want a@x.com — SQL would have to "+
+			"follow the chain itself", rows[0].Canonical)
+	}
+}
+
+// No configured aliases means no rows: the feature is inert until used.
+func TestNoAliasesMeansNoRows(t *testing.T) {
+	if rows := IdentityRowsFrom(nil, func(s string) string { return s }, time.Now()); rows != nil {
+		t.Errorf("got %d row(s) from an empty map", len(rows))
 	}
 }

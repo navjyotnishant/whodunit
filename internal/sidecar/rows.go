@@ -3,6 +3,7 @@ package sidecar
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"sort"
 	"strconv"
 	"time"
 
@@ -18,6 +19,14 @@ type RepoRow struct {
 	Contributor string
 	SpecVersion string
 	SyncedAt    time.Time
+}
+
+// IdentityRow is one row of whodunit_identities: an alias and the address
+// it resolves to.
+type IdentityRow struct {
+	Alias     string
+	Canonical string
+	SyncedAt  time.Time
 }
 
 // CommitRow is one row of whodunit_commits — the dashboard grain.
@@ -192,6 +201,12 @@ type Payload struct {
 	Lines    []LineRow
 	Sessions []SessionRow
 
+	// Identities maps every alias onto the person who owns it, so a
+	// dashboard filtered to one person includes every address they commit
+	// from. Empty when nobody has configured any, which is the common
+	// case — and the feature is inert until then.
+	Identities []IdentityRow
+
 	// Baseline is the repository's pre-adoption snapshot, when one was
 	// captured. Absent for a repository instrumented without one.
 	Baseline *BaselineRow
@@ -347,4 +362,37 @@ func timep(t time.Time) *time.Time {
 		return nil
 	}
 	return &t
+}
+
+// IdentityRowsFrom flattens an alias map onto rows.
+//
+// resolve is config.ResolveIdentity, passed in rather than reimplemented:
+// it already handles chains and cycles, and a second implementation here
+// would be a second answer to "who is this" that could drift from the one
+// `dun identities` prints.
+//
+// Chains are flattened at this point on purpose. Writing a -> b and b -> c
+// verbatim would make SQL responsible for following the chain, which MySQL
+// and SQLite express differently and neither expresses simply. Resolving
+// first means every row's canonical is the final answer, and a dashboard
+// joins once.
+//
+// An address that resolves to itself is skipped. It carries no
+// information, and the join treats a missing row as "its own identity"
+// anyway — writing it would only make the table larger and the absence
+// harder to read (NAV-21).
+func IdentityRowsFrom(aliases map[string]string, resolve func(string) string, syncedAt time.Time) []IdentityRow {
+	if len(aliases) == 0 {
+		return nil
+	}
+	rows := make([]IdentityRow, 0, len(aliases))
+	for alias := range aliases {
+		canonical := resolve(alias)
+		if canonical == "" || canonical == alias {
+			continue
+		}
+		rows = append(rows, IdentityRow{Alias: alias, Canonical: canonical, SyncedAt: syncedAt})
+	}
+	sort.Slice(rows, func(i, j int) bool { return rows[i].Alias < rows[j].Alias })
+	return rows
 }
