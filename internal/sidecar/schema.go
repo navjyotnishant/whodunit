@@ -217,6 +217,10 @@ CREATE TABLE IF NOT EXISTS whodunit_events (
 -- compatible with the no-prompt-text rule.
 CREATE TABLE IF NOT EXISTS whodunit_sessions (
 	repo_id        VARCHAR(64)  NOT NULL,
+
+	-- Carried, not joined — see whodunit_commits above (WHO-170).
+	contributor    VARCHAR(320),
+
 	session        VARCHAR(128) NOT NULL,
 	agent          VARCHAR(64)  NOT NULL DEFAULT '',
 	agent_version  VARCHAR(64)  NOT NULL DEFAULT '',
@@ -342,6 +346,7 @@ var Migrations = []string{
 	// confidently onto history (NAV-21).
 	`ALTER TABLE whodunit_commits ADD COLUMN contributor VARCHAR(320)`,
 	`ALTER TABLE whodunit_events ADD COLUMN contributor VARCHAR(320)`,
+	`ALTER TABLE whodunit_sessions ADD COLUMN contributor VARCHAR(320)`,
 
 	`ALTER TABLE whodunit_events ADD COLUMN outcome VARCHAR(16) NOT NULL DEFAULT ''`,
 

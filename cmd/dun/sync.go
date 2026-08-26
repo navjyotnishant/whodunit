@@ -229,7 +229,7 @@ func buildPayload(limit int) (sidecar.Payload, error) {
 	p.Commits = sidecar.CommitRowsFrom(stats.Commits, repoID, repo.Contributor, now)
 	p.Events = sidecar.EventRowsFrom(entries, repoID, repo.Contributor, now)
 	p.Lines = sidecar.LineRowsFrom(lines, repoID, now)
-	p.Sessions = sidecar.SessionRowsFrom(sessions, repoID, now)
+	p.Sessions = sidecar.SessionRowsFrom(sessions, repoID, repo.Contributor, now)
 
 	// The pre-adoption baseline, when one was captured (NAV-107).
 	//

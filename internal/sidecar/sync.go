@@ -195,7 +195,7 @@ func WriteProgress(db *Store, p Payload, onRow func(done, total int)) (Counts, e
 
 	for _, s := range p.Sessions {
 		if _, err := tx.Exec(upsertSession(mysql),
-			s.RepoID, s.Session, s.Agent, s.AgentVersion,
+			s.RepoID, nullString(s.Contributor), s.Session, s.Agent, s.AgentVersion,
 			s.FirstSeen.UnixNano(), s.LastSeen.UnixNano(),
 			s.UserMessages, s.AgentMessages, s.ToolCalls, s.DistinctTools,
 			s.MCPCalls, s.SyncedAt.UnixNano(),
@@ -346,14 +346,15 @@ func nullString(s string) any {
 
 func upsertSession(mysql bool) string {
 	cols := `INSERT INTO whodunit_sessions
-		(repo_id, session, agent, agent_version, first_seen, last_seen,
+		(repo_id, contributor, session, agent, agent_version, first_seen, last_seen,
 		 user_messages, agent_messages, tool_calls, distinct_tools, mcp_calls, synced_at,
 		 input_tokens, output_tokens, cache_read_tokens, cache_write_tokens,
 		 reasoning_tokens, duration_ms, time_to_first_token_ms,
 		 effort, permission_mode, model, compactions)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 	if mysql {
 		return cols + ` ON DUPLICATE KEY UPDATE
+			contributor=VALUES(contributor),
 			last_seen=VALUES(last_seen), user_messages=VALUES(user_messages),
 			agent_messages=VALUES(agent_messages), tool_calls=VALUES(tool_calls),
 			distinct_tools=VALUES(distinct_tools), mcp_calls=VALUES(mcp_calls),
@@ -371,6 +372,7 @@ func upsertSession(mysql bool) string {
 			compactions=COALESCE(VALUES(compactions), compactions)`
 	}
 	return cols + ` ON CONFLICT(repo_id, session) DO UPDATE SET
+		contributor=excluded.contributor,
 		last_seen=excluded.last_seen, user_messages=excluded.user_messages,
 		agent_messages=excluded.agent_messages, tool_calls=excluded.tool_calls,
 		distinct_tools=excluded.distinct_tools, mcp_calls=excluded.mcp_calls,

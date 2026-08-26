@@ -277,7 +277,7 @@ func TestSessionRowsCarryEveryField(t *testing.T) {
 		ToolCalls:     23,
 		DistinctTools: 5,
 		MCPCalls:      3,
-	}}, "repo", now)
+	}}, "repo", "dev@example.com", now)
 
 	if len(rows) != 1 {
 		t.Fatalf("got %d rows, want 1", len(rows))
@@ -325,7 +325,7 @@ func TestSessionsRoundTripThroughTheStore(t *testing.T) {
 		FirstSeen: now.Add(-time.Hour), LastSeen: now,
 		UserMessages: 7, AgentMessages: 11, ToolCalls: 23,
 		DistinctTools: 5, MCPCalls: 3,
-	}}, "repo", now)
+	}}, "repo", "dev@example.com", now)
 
 	counts, err := Write(db, p)
 	if err != nil {

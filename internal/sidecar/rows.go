@@ -81,6 +81,7 @@ type EventRow struct {
 // SessionRow is one row of whodunit_sessions (NAV-55).
 type SessionRow struct {
 	RepoID        string
+	Contributor   string
 	Session       string
 	Agent         string
 	AgentVersion  string
@@ -297,11 +298,12 @@ func eventID(repoID string, e journal.Entry) string {
 }
 
 // SessionRowsFrom maps session activity onto its row type.
-func SessionRowsFrom(sessions []journal.Session, repoID string, syncedAt time.Time) []SessionRow {
+func SessionRowsFrom(sessions []journal.Session, repoID, contributor string, syncedAt time.Time) []SessionRow {
 	rows := make([]SessionRow, 0, len(sessions))
 	for _, s := range sessions {
 		rows = append(rows, SessionRow{
-			RepoID: repoID, Session: s.Session, Agent: s.Agent,
+			RepoID: repoID, Contributor: contributor,
+			Session: s.Session, Agent: s.Agent,
 			AgentVersion: s.AgentVersion, FirstSeen: s.FirstSeen, LastSeen: s.LastSeen,
 			UserMessages: s.UserMessages, AgentMessages: s.AgentMessages,
 			ToolCalls: s.ToolCalls, DistinctTools: s.DistinctTools,

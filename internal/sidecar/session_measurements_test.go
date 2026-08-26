@@ -33,7 +33,7 @@ func TestMeasurementsSurviveTheSync(t *testing.T) {
 		Effort: "high", PermissionMode: "bypassPermissions",
 		Model: "claude-opus-5",
 		// Claude Code reports no timing and no reasoning split.
-	}}, "repo-1", now)
+	}}, "repo-1", "dev@example.com", now)
 
 	if _, err := Write(store, Payload{
 		Repo:     RepoRow{RepoID: "repo-1", SyncedAt: now},
@@ -95,7 +95,7 @@ func TestAReSyncWithoutMeasurementsDoesNotEraseThem(t *testing.T) {
 		t.Helper()
 		if _, err := Write(store, Payload{
 			Repo:     RepoRow{RepoID: "repo-1", SyncedAt: now},
-			Sessions: SessionRowsFrom([]journal.Session{s}, "repo-1", now),
+			Sessions: SessionRowsFrom([]journal.Session{s}, "repo-1", "dev@example.com", now),
 		}); err != nil {
 			t.Fatal(err)
 		}
@@ -144,7 +144,7 @@ func TestALaterMeasurementReplacesAnEarlierOne(t *testing.T) {
 		t.Helper()
 		if _, err := Write(store, Payload{
 			Repo:     RepoRow{RepoID: "repo-1", SyncedAt: now},
-			Sessions: SessionRowsFrom([]journal.Session{s}, "repo-1", now),
+			Sessions: SessionRowsFrom([]journal.Session{s}, "repo-1", "dev@example.com", now),
 		}); err != nil {
 			t.Fatal(err)
 		}
@@ -183,7 +183,7 @@ func TestAnAgentThatReportsNothingStoresNulls(t *testing.T) {
 		Sessions: SessionRowsFrom([]journal.Session{{
 			Session: "s1", Agent: "agy", FirstSeen: now, LastSeen: now,
 			ToolCalls: 12,
-		}}, "repo-1", now),
+		}}, "repo-1", "dev@example.com", now),
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -222,7 +222,7 @@ func TestEmptyStringsAreStoredAsNull(t *testing.T) {
 			Sessions: SessionRowsFrom([]journal.Session{{
 				Session: "s1", Agent: "codex", FirstSeen: now, LastSeen: now,
 				Model: model,
-			}}, "repo-1", now),
+			}}, "repo-1", "dev@example.com", now),
 		}); err != nil {
 			t.Fatal(err)
 		}
@@ -385,7 +385,7 @@ func TestEveryMeasuredSessionFieldReachesTheRow(t *testing.T) {
 		Effort:      "high", PermissionMode: "auto", Model: "claude-opus-5",
 	}
 
-	rows := SessionRowsFrom([]journal.Session{src}, "repo-1", now)
+	rows := SessionRowsFrom([]journal.Session{src}, "repo-1", "dev@example.com", now)
 	if len(rows) != 1 {
 		t.Fatalf("got %d rows, want 1", len(rows))
 	}
