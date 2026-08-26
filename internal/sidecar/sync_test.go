@@ -345,3 +345,88 @@ func TestSessionsRoundTripThroughTheStore(t *testing.T) {
 		t.Errorf("tool_calls=%d mcp_calls=%d, want 23 and 3", toolCalls, mcp)
 	}
 }
+
+// Two people syncing the same repository must both survive.
+//
+// WHO-173, and the measurement the whole WHO-167 epic rests on. repo_id is
+// the repository's root commit SHA, identical for everyone who clones it,
+// so on the old key of (repo_id) alone the second person's sync overwrote
+// the first person's row rather than adding to it.
+//
+// The damage is not the lost row. whodunit_commits joins to whodunit_repos
+// for the contributor, so every commit the first person had already synced
+// was silently reattributed to the second. Nothing failed; the dashboards
+// rendered a confident wrong answer.
+//
+// Written through Write rather than raw SQL on purpose: the overwrite is a
+// property of the real write path, and a test that inserts directly would
+// prove something about SQL rather than about this tool.
+func TestTwoContributorsOnOneRepositoryBothSurvive(t *testing.T) {
+	db := openStore(t)
+	now := time.Date(2026, 8, 25, 12, 0, 0, 0, time.UTC)
+
+	first := samplePayload(now)
+	first.Repo.Contributor = "first@example.com"
+	if _, err := Write(db, first); err != nil {
+		t.Fatalf("first sync: %v", err)
+	}
+
+	// The same repository, a different person. On a shared database this is
+	// the ordinary case, not an edge one.
+	second := samplePayload(now)
+	second.Repo.Contributor = "second@example.com"
+	if _, err := Write(db, second); err != nil {
+		t.Fatalf("second sync: %v", err)
+	}
+
+	var n int
+	if err := db.QueryRow(
+		`SELECT COUNT(*) FROM whodunit_repos WHERE repo_id = ?`, "repo").Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+	if n != 2 {
+		t.Errorf("got %d row(s) for one repository with two contributors, want 2 "+
+			"— the second sync overwrote the first, and every commit already "+
+			"synced by the first person is now attributed to the second", n)
+	}
+
+	// Both by name, so a test that counts two rows for the wrong reason
+	// still fails.
+	for _, want := range []string{"first@example.com", "second@example.com"} {
+		var got int
+		if err := db.QueryRow(
+			`SELECT COUNT(*) FROM whodunit_repos WHERE repo_id = ? AND contributor = ?`,
+			"repo", want).Scan(&got); err != nil {
+			t.Fatal(err)
+		}
+		if got != 1 {
+			t.Errorf("contributor %s has %d row(s), want 1", want, got)
+		}
+	}
+}
+
+// Re-syncing identical data must still add nothing.
+//
+// WHO-178. Widening the key is only safe if it does not turn a repeated
+// sync into a duplicate: the local journal is the source of truth and a
+// sync is a projection of it, run on every push.
+func TestResyncingTheSameContributorAddsNoRow(t *testing.T) {
+	db := openStore(t)
+	now := time.Date(2026, 8, 25, 12, 0, 0, 0, time.UTC)
+
+	p := samplePayload(now)
+	p.Repo.Contributor = "same@example.com"
+	for i := 0; i < 3; i++ {
+		if _, err := Write(db, p); err != nil {
+			t.Fatalf("sync %d: %v", i+1, err)
+		}
+	}
+
+	var n int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM whodunit_repos`).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+	if n != 1 {
+		t.Errorf("three identical syncs produced %d row(s), want 1", n)
+	}
+}
