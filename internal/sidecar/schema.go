@@ -27,9 +27,19 @@
 //
 // # Identity
 //
-// contributor lives on repos, not on every commit row: a repository has
-// one contributor locally, so repeating it per row would be storage spent
-// on a constant.
+// contributor is part of the repos key, not a column on it.
+//
+// It reads as storage spent on a constant — a repository has one
+// contributor *locally*, so why repeat it? That premise is true on one
+// machine and false in the database this sidecar exists to populate.
+// repo_id is the repository's root commit SHA, identical for everyone who
+// clones it, so keying on repo_id alone means the second person to sync
+// overwrites the first.
+//
+// The lost row is not the damage. whodunit_commits joins here for the
+// contributor, so every commit the first person synced is reattributed to
+// the second: no error, and a dashboard that reads confidently wrong
+// (WHO-167, decided in docs/decisions/0001-contributor-key.md).
 //
 // The identity is the git committer email, which is already in every
 // commit object. The column adds convenience for querying, not new
@@ -43,7 +53,7 @@ package sidecar
 // SchemaVersion is bumped when the table definitions change in a way that
 // requires attention. It is stored on every synced row so a reader can
 // tell which definition produced a number, months later.
-const SchemaVersion = 1
+const SchemaVersion = 2
 
 // TablePrefix namespaces every table. DevLake shares the database, so
 // unprefixed names would eventually collide with theirs or a plugin's.
@@ -67,7 +77,11 @@ CREATE TABLE IF NOT EXISTS whodunit_repos (
 	contributor  VARCHAR(320) NOT NULL DEFAULT '',
 	spec_version VARCHAR(16)  NOT NULL DEFAULT '',
 	synced_at    BIGINT       NOT NULL,
-	PRIMARY KEY (repo_id)
+
+	-- 1536 bytes under utf8mb4, against InnoDB's 3072-byte index limit.
+	-- Measured rather than assumed, which is what ruled out hashing the
+	-- address into a fixed-width surrogate.
+	PRIMARY KEY (repo_id, contributor)
 );
 
 -- One row per commit: the dashboard grain.

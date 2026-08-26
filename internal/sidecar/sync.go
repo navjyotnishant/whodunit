@@ -234,9 +234,12 @@ type Counts struct {
 func upsertRepo(mysql bool) string {
 	cols := `INSERT INTO whodunit_repos (repo_id, contributor, spec_version, synced_at) VALUES (?, ?, ?, ?)`
 	if mysql {
-		return cols + ` ON DUPLICATE KEY UPDATE contributor=VALUES(contributor), spec_version=VALUES(spec_version), synced_at=VALUES(synced_at)`
+		return cols + ` ON DUPLICATE KEY UPDATE spec_version=VALUES(spec_version), synced_at=VALUES(synced_at)`
 	}
-	return cols + ` ON CONFLICT(repo_id) DO UPDATE SET contributor=excluded.contributor, spec_version=excluded.spec_version, synced_at=excluded.synced_at`
+	// The conflict target is the full key. Narrowing it to repo_id would
+	// restore the overwrite the key change exists to prevent, and it would
+	// do so silently.
+	return cols + ` ON CONFLICT(repo_id, contributor) DO UPDATE SET spec_version=excluded.spec_version, synced_at=excluded.synced_at`
 }
 
 func upsertCommit(mysql bool) string {
