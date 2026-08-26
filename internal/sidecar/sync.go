@@ -78,6 +78,20 @@ func EnsureSchema(db *Store) error {
 	for _, stmt := range Migrations {
 		_, _ = db.Exec(stmt)
 	}
+
+	// Destructive migrations run after the additive ones and before the
+	// indexes, because a rebuild drops and recreates its table — indexes
+	// created before it would go with the table they were built on.
+	//
+	// Unlike Migrations above, an error here is fatal. Those are
+	// best-effort by design; this one has either rebuilt a table or left
+	// the database in the shape it found, and continuing as though a
+	// failed migration had succeeded is how a wrong key survives into
+	// production.
+	if _, err := Migrate(db, time.Now()); err != nil {
+		return err
+	}
+
 	for _, stmt := range Indexes {
 		_, _ = db.Exec(stmt)
 	}

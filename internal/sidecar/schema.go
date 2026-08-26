@@ -71,6 +71,23 @@ const TablePrefix = "whodunit_"
 // Indexes are separate (see Indexes): MySQL has no
 // CREATE INDEX IF NOT EXISTS, and inline INDEX clauses are MySQL-only.
 const Schema = `
+-- Which schema version this database has actually had applied.
+--
+-- Separate from the schema_version stamped on synced rows: that records
+-- which definition produced a number, this records what the database has
+-- been migrated to. A rebuild is gated on it, so it must be readable
+-- before any table it gates is touched, and it must survive that rebuild.
+--
+-- One row, id = 1. A single-row table rather than a key-value store
+-- because there is exactly one fact here and inventing a schema registry
+-- for it would be more machinery than the question deserves.
+CREATE TABLE IF NOT EXISTS whodunit_schema (
+	id         INTEGER NOT NULL,
+	version    BIGINT  NOT NULL,
+	applied_at BIGINT  NOT NULL,
+	PRIMARY KEY (id)
+);
+
 -- One row per repository. Holds facts that do not vary per commit.
 CREATE TABLE IF NOT EXISTS whodunit_repos (
 	repo_id      VARCHAR(64)  NOT NULL,

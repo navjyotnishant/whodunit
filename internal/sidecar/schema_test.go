@@ -102,14 +102,20 @@ func TestEveryTableIsNamespaced(t *testing.T) {
 		}
 		count++
 	}
-	// repos, commits, events, sessions, event_lines, baselines.
+	// repos, commits, events, sessions, event_lines, baselines, schema.
 	//
 	// The literal is deliberate: a table appearing without anyone updating
 	// this number means a table was added without deciding whether it
 	// belongs in a shared DevLake database, which is the question the
 	// prefix rule exists to force.
-	if count != 6 {
-		t.Errorf("found %d tables, want 6", count)
+	//
+	// whodunit_schema was the seventh, and the answer is yes: it records
+	// which migrations this database has had applied, which is a fact
+	// about whodunit's tables rather than about the database it shares
+	// (WHO-220). It carries the prefix for the same reason every other
+	// table does.
+	if count != 7 {
+		t.Errorf("found %d tables, want 7", count)
 	}
 }
 
