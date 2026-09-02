@@ -18,12 +18,8 @@
         "name": "board",
         "type": "query",
         "datasource": "${datasource}",
-        "query": "SELECT name AS __text, id AS __value FROM boards WHERE id LIKE 'linear:%' ORDER BY name",
-        "current": {
-          "selected": false,
-          "text": "whodunit",
-          "value": "linear:LinearTeam:1:1504cde3-5004-4b71-ac4f-2e0872fea6db"
-        },
+        "query": "SELECT name AS __text, id AS __value FROM boards\nWHERE id LIKE 'linear:%' OR id LIKE 'jira:%'\nORDER BY name",
+        "current": {},
         "refresh": 1,
         "hide": 0,
         "label": "Issue board",

@@ -18,7 +18,7 @@
         "name": "board",
         "type": "query",
         "datasource": "${DS_WHODUNIT}",
-        "query": "SELECT name AS __text, id AS __value FROM boards WHERE id LIKE 'linear:%' ORDER BY name",
+        "query": "SELECT name AS __text, id AS __value FROM boards\nWHERE id LIKE 'linear:%' OR id LIKE 'jira:%'\nORDER BY name",
         "current": {},
         "refresh": 1,
         "hide": 0,
