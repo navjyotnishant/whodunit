@@ -185,6 +185,8 @@ DEVLAKE_TABLES = [
     "board_issues", "cicd_deployment_commits", "commits", "incidents",
     "issue_commits", "issues", "project_mapping", "project_pr_metrics",
     "repo_commits", "team_users", "teams",
+    # Filled by fetch-model-prices.py; cloned empty here so the join runs.
+    "whodunit_model_prices",
 ]
 
 

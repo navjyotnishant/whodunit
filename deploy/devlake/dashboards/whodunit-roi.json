@@ -75,46 +75,6 @@
         "hide": 0
       },
       {
-        "type": "textbox",
-        "name": "price_in",
-        "label": "$ per M input tokens",
-        "description": "List price per million input tokens, from your provider's pricing page (anthropic.com/pricing, openai.com/pricing). Each model has its own; this box applies one price to all, so the token row is relative weight, not an invoice. If you pay a subscription, leave the default and ignore the token row.",
-        "query": "3",
-        "current": {
-          "selected": false,
-          "text": "3",
-          "value": "3"
-        },
-        "options": [
-          {
-            "selected": true,
-            "text": "3",
-            "value": "3"
-          }
-        ],
-        "hide": 0
-      },
-      {
-        "type": "textbox",
-        "name": "price_out",
-        "label": "$ per M output tokens",
-        "description": "List price per million output tokens, from the same pricing page. Output is usually 4\u20135\u00d7 the input price. Only the token-spend row uses it.",
-        "query": "15",
-        "current": {
-          "selected": false,
-          "text": "15",
-          "value": "15"
-        },
-        "options": [
-          {
-            "selected": true,
-            "text": "15",
-            "value": "15"
-          }
-        ],
-        "hide": 0
-      },
-      {
         "name": "contributor",
         "type": "query",
         "datasource": "${datasource}",
@@ -162,7 +122,7 @@
       "id": 1,
       "options": {
         "mode": "html",
-        "content": "<h3 style='margin:0 0 6px'>Every dollar on this page is a number you typed, multiplied by a number we measured</h3><p style='margin:0'>The tool does not know what you pay, what an hour costs, or how many seats you bought. Those are the boxes at the top of the page \u2014 change them and everything below recomputes. What the tool measures is who used it, how much was delivered, and what it consumed. This page joins the two, and never claims a saving: it tells you what the investment costs per unit of output, and what it would have to save to pay for itself.</p>"
+        "content": "<h3 style='margin:0 0 6px'>Every dollar on this page is a number you typed, multiplied by a number we measured</h3><p style='margin:0'>The tool does not know what you pay, what an hour costs, or how many seats you bought. Those are the boxes at the top of the page \u2014 change them and everything below recomputes. Token prices are not typed: they are fetched per model from the providers' pricing pages and shown, dated, at the bottom. What the tool measures is who used it, how much was delivered, and what it consumed. This page joins the two, and never claims a saving: it tells you what the investment costs per unit of output, and what it would have to save to pay for itself.</p>"
       }
     },
     {
@@ -1027,8 +987,8 @@
     },
     {
       "type": "barchart",
-      "title": "Sessions with no token data, by agent",
-      "description": "Sessions whose agent reports no token counts. They are excluded from the token figures below and appear here so the gap is visible: an agent that reports nothing is unmeasured, not free.",
+      "title": "Sessions not priced, and why",
+      "description": "Sessions excluded from the token figures, by reason: the agent reports no token counts, or the model it used has no row in the price table. Both are absence, not zero \u2014 an unpriced session is unmeasured, not free. A 'no price for' row means the price list needs a fetch or a new model has appeared.",
       "datasource": "${datasource}",
       "gridPos": {
         "h": 8,
@@ -1042,7 +1002,7 @@
           "refId": "A",
           "format": "table",
           "datasource": "${datasource}",
-          "rawSql": "\nSELECT s.agent AS metric, COUNT(*) AS value FROM whodunit_sessions s\nWHERE s.last_seen BETWEEN $__unixEpochFrom()*1000000000 AND $__unixEpochTo()*1000000000 AND s.input_tokens IS NULL GROUP BY s.agent"
+          "rawSql": "\nSELECT CONCAT(s.agent, ' \u00b7 ', CASE WHEN s.input_tokens IS NULL THEN 'reports no tokens'\n                                   ELSE CONCAT('no price for ', COALESCE(NULLIF(s.model,''),'(no model)')) END) AS metric,\n       COUNT(*) AS value\nFROM whodunit_sessions s LEFT JOIN whodunit_model_prices p ON p.model = s.model\nWHERE s.last_seen BETWEEN $__unixEpochFrom()*1000000000 AND $__unixEpochTo()*1000000000 AND (s.input_tokens IS NULL OR p.model IS NULL)\nGROUP BY metric ORDER BY value DESC"
         }
       ],
       "fieldConfig": {
@@ -1071,7 +1031,7 @@
     },
     {
       "type": "row",
-      "title": "Token spend at list price \u2014 only meaningful if you are billed per token",
+      "title": "Token spend at list price, per model \u2014 only meaningful if you are billed per token",
       "gridPos": {
         "h": 1,
         "w": 24,
@@ -1085,7 +1045,7 @@
     {
       "type": "stat",
       "title": "Token spend in range",
-      "description": "Input, output, cache-read and cache-write tokens priced at the per-million rates typed above (cache read at 10% of input, cache write at 125%). List price, not an invoice. Under a subscription this number is not a cost.",
+      "description": "Each session's tokens priced at its own model's list price \u2014 input, output, cache read and cache write each at that model's rate \u2014 summed over sessions with a price row. Prices come from the providers' pricing pages via fetch-model-prices.py, dated in the table beside. List price, not an invoice; under a subscription this is not a cost.",
       "datasource": "${datasource}",
       "gridPos": {
         "h": 8,
@@ -1099,7 +1059,7 @@
           "refId": "A",
           "format": "table",
           "datasource": "${datasource}",
-          "rawSql": "\nSELECT ROUND(SUM(COALESCE(s.input_tokens,0))/1e6*CAST('$price_in' AS DECIMAL(12,4)) + SUM(COALESCE(s.output_tokens,0))/1e6*CAST('$price_out' AS DECIMAL(12,4))\n      + SUM(COALESCE(s.cache_read_tokens,0))/1e6*CAST('$price_in' AS DECIMAL(12,4))*0.1 + SUM(COALESCE(s.cache_write_tokens,0))/1e6*CAST('$price_in' AS DECIMAL(12,4))*1.25,2) AS value FROM whodunit_sessions s\nWHERE s.last_seen BETWEEN $__unixEpochFrom()*1000000000 AND $__unixEpochTo()*1000000000 AND s.input_tokens IS NOT NULL"
+          "rawSql": "\nSELECT ROUND(SUM((COALESCE(s.input_tokens,0)/1e6*p.input_usd + COALESCE(s.output_tokens,0)/1e6*p.output_usd + COALESCE(s.cache_read_tokens,0)/1e6*p.cache_read_usd + COALESCE(s.cache_write_tokens,0)/1e6*p.cache_write_usd)),2) AS value FROM whodunit_sessions s LEFT JOIN whodunit_model_prices p ON p.model = s.model\nWHERE s.last_seen BETWEEN $__unixEpochFrom()*1000000000 AND $__unixEpochTo()*1000000000 AND s.input_tokens IS NOT NULL AND p.model IS NOT NULL"
         }
       ],
       "fieldConfig": {
@@ -1147,7 +1107,7 @@
           "refId": "A",
           "format": "table",
           "datasource": "${datasource}",
-          "rawSql": "\nSELECT ROUND(100*(SUM(COALESCE(s.input_tokens,0))/1e6*CAST('$price_in' AS DECIMAL(12,4)) + SUM(COALESCE(s.output_tokens,0))/1e6*CAST('$price_out' AS DECIMAL(12,4))\n      + SUM(COALESCE(s.cache_read_tokens,0))/1e6*CAST('$price_in' AS DECIMAL(12,4))*0.1 + SUM(COALESCE(s.cache_write_tokens,0))/1e6*CAST('$price_in' AS DECIMAL(12,4))*1.25)/NULLIF(((CAST('$seats' AS DECIMAL(12,2))*CAST('$seat_cost' AS DECIMAL(12,2)))*(($__unixEpochTo() - $__unixEpochFrom()) / (30.4375*86400))),0),0) AS value FROM whodunit_sessions s\nWHERE s.last_seen BETWEEN $__unixEpochFrom()*1000000000 AND $__unixEpochTo()*1000000000 AND s.input_tokens IS NOT NULL"
+          "rawSql": "\nSELECT ROUND(100*SUM((COALESCE(s.input_tokens,0)/1e6*p.input_usd + COALESCE(s.output_tokens,0)/1e6*p.output_usd + COALESCE(s.cache_read_tokens,0)/1e6*p.cache_read_usd + COALESCE(s.cache_write_tokens,0)/1e6*p.cache_write_usd))/NULLIF(((CAST('$seats' AS DECIMAL(12,2))*CAST('$seat_cost' AS DECIMAL(12,2)))*(($__unixEpochTo() - $__unixEpochFrom()) / (30.4375*86400))),0),0) AS value FROM whodunit_sessions s LEFT JOIN whodunit_model_prices p ON p.model = s.model\nWHERE s.last_seen BETWEEN $__unixEpochFrom()*1000000000 AND $__unixEpochTo()*1000000000 AND s.input_tokens IS NOT NULL AND p.model IS NOT NULL"
         }
       ],
       "fieldConfig": {
@@ -1181,7 +1141,7 @@
     {
       "type": "barchart",
       "title": "Token spend by model, at list price",
-      "description": "The same list-price calculation split by model. Sessions that do not report a model are grouped as not reported rather than dropped. Models with different prices are priced the same here \u2014 one rate per token type \u2014 so treat this as relative weight, not an invoice.",
+      "description": "The same per-model pricing, split by model. Each bar is priced at that model's own rate, so the bars are comparable as money, not just as token counts. Models with no price row are absent here and listed in the unpriced panel.",
       "datasource": "${datasource}",
       "gridPos": {
         "h": 8,
@@ -1195,7 +1155,7 @@
           "refId": "A",
           "format": "table",
           "datasource": "${datasource}",
-          "rawSql": "\nSELECT COALESCE(NULLIF(s.model,''),'(not reported)') AS metric, ROUND(SUM(COALESCE(s.input_tokens,0))/1e6*CAST('$price_in' AS DECIMAL(12,4)) + SUM(COALESCE(s.output_tokens,0))/1e6*CAST('$price_out' AS DECIMAL(12,4))\n      + SUM(COALESCE(s.cache_read_tokens,0))/1e6*CAST('$price_in' AS DECIMAL(12,4))*0.1 + SUM(COALESCE(s.cache_write_tokens,0))/1e6*CAST('$price_in' AS DECIMAL(12,4))*1.25,2) AS value\nFROM whodunit_sessions s WHERE s.last_seen BETWEEN $__unixEpochFrom()*1000000000 AND $__unixEpochTo()*1000000000 AND s.input_tokens IS NOT NULL\nGROUP BY metric ORDER BY value DESC"
+          "rawSql": "\nSELECT s.model AS metric, ROUND(SUM((COALESCE(s.input_tokens,0)/1e6*p.input_usd + COALESCE(s.output_tokens,0)/1e6*p.output_usd + COALESCE(s.cache_read_tokens,0)/1e6*p.cache_read_usd + COALESCE(s.cache_write_tokens,0)/1e6*p.cache_write_usd)),2) AS value FROM whodunit_sessions s LEFT JOIN whodunit_model_prices p ON p.model = s.model\nWHERE s.last_seen BETWEEN $__unixEpochFrom()*1000000000 AND $__unixEpochTo()*1000000000 AND s.input_tokens IS NOT NULL AND p.model IS NOT NULL\nGROUP BY s.model ORDER BY value DESC"
         }
       ],
       "fieldConfig": {
@@ -1230,12 +1190,73 @@
         "h": 4,
         "w": 24,
         "x": 0,
-        "y": 48
+        "y": 57
       },
       "id": 26,
       "options": {
         "mode": "html",
         "content": "<p style='margin:0'><b>What this page does not claim.</b> No time saved, no hours returned, no return-on-investment figure \u2014 none of those are measured, and a number built from an assumed hours-saved is an assumption wearing a chart. Token spend is shown at list price and only means anything if you are billed per token; under a subscription the marginal token costs nothing. Agents that report no tokens appear as unmeasured, not as free. The measured differences beside the break-even figures are between self-selected cohorts and are not effects.</p>"
+      }
+    },
+    {
+      "type": "table",
+      "title": "Price list applied \u2014 per million tokens",
+      "description": "The list prices in use, for models seen in the selected range. Source 'fetched' means read from the provider's pricing page on the date shown; 'baked <date>' means the page could not be parsed and a dated snapshot was written instead. Rerun fetch-model-prices.py to refresh. A model missing here is unpriced, not free.",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "h": 9,
+        "w": 24,
+        "x": 0,
+        "y": 48
+      },
+      "id": 27,
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "datasource": "${datasource}",
+          "rawSql": "\nSELECT p.model AS `Model`, p.provider AS `Provider`,\n       p.input_usd AS `Input`, p.cache_read_usd AS `Cache read`, p.cache_write_usd AS `Cache write`, p.output_usd AS `Output`,\n       CASE WHEN p.source LIKE 'http%' THEN 'fetched' ELSE p.source END AS `Source`,\n       DATE_FORMAT(p.fetched_at,'%Y-%m-%d') AS `As of`\nFROM whodunit_model_prices p\nWHERE p.model IN (SELECT DISTINCT s.model FROM whodunit_sessions s WHERE s.last_seen BETWEEN $__unixEpochFrom()*1000000000 AND $__unixEpochTo()*1000000000 AND s.model IS NOT NULL)\nORDER BY p.provider, p.model"
+        }
+      ],
+      "options": {
+        "cellHeight": "sm"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "right"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "Model|Provider|Source|As of"
+            },
+            "properties": [
+              {
+                "id": "custom.align",
+                "value": "left"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "Input|Cache read|Cache write|Output"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "currencyUSD"
+              },
+              {
+                "id": "decimals",
+                "value": 2
+              }
+            ]
+          }
+        ]
       }
     }
   ],

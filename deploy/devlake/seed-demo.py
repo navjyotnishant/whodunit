@@ -264,7 +264,7 @@ def augment(container, db):
                                  ELT(1 + (CONV(SUBSTRING(MD5(session),1,2),16,10) % 4),
                                      'auto','plan','default','acceptEdits')),
           model              = COALESCE(model,
-                                 CASE WHEN agent = 'codex' THEN 'gpt-5-codex'
+                                 CASE WHEN agent = 'codex' THEN 'gpt-5.3-codex'
                                       ELSE ELT(1 + (CONV(SUBSTRING(MD5(session),3,2),16,10) % 2),
                                                'claude-opus-4','claude-sonnet-4') END)
     """, container, db)
@@ -460,7 +460,7 @@ def augment(container, db):
         UPDATE whodunit_sessions SET model = CASE agent
             WHEN 'claude-code' THEN ELT(1 + (CONV(SUBSTRING(MD5(session),5,2),16,10) % 2),
                                         'claude-opus-4','claude-sonnet-4')
-            WHEN 'codex'       THEN 'gpt-5-codex'
+            WHEN 'codex'       THEN 'gpt-5.3-codex'
             ELSE NULL END
     """, container, db)
 
