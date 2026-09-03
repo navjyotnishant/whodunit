@@ -567,6 +567,85 @@ def augment(container, db):
     """, container, db)
     print("dropdowns: every contributor and method option now returns rows")
 
+    # --- MCP servers: which integrations each team actually uses ---------
+    #
+    # The real data carries 6,752 MCP calls across 13 server names, but the
+    # names are the same servers under different transports — Linear
+    # appears five ways, Playwright three. Normalisation happens in the
+    # panels; what the demo needs on top is a spread that differs BY TEAM,
+    # because "everyone uses the same integrations equally" is the one
+    # answer that makes the dashboard pointless.
+    #
+    # Teams get a profile rather than a uniform draw: payments leans on
+    # Jira and Atlassian, growth on Figma and Notion, platform on
+    # Playwright and GitHub, infra on Sentry and Vercel. That is what a
+    # real org looks like, and it is what makes "which MCP for which team"
+    # a question worth putting on a screen.
+    profiles = {
+        "platform": ["playwright", "github", "linear", "playwright", "sentry"],
+        "growth":   ["figma", "notion", "figma", "linear", "playwright"],
+        "payments": ["jira", "atlassian", "jira", "linear", "sentry"],
+        "infra":    ["sentry", "vercel", "github", "playwright", "jira"],
+    }
+    for team, servers in profiles.items():
+        cases = " ".join(f"WHEN {i} THEN '{srv}'" for i, srv in enumerate(servers))
+        mysql(f"""
+            UPDATE whodunit_events e
+            JOIN team_users tu ON tu.user_id = e.contributor
+            JOIN teams t ON t.id = tu.team_id AND t.name = '{team}'
+            SET e.mcp_server = CASE
+                  CONV(SUBSTRING(MD5(e.event_id),17,2),16,10) % {len(servers)}
+                  {cases} END
+            WHERE CONV(SUBSTRING(MD5(e.event_id),19,2),16,10) % 100 < 22
+        """, container, db)
+
+    # Everything else has no MCP server, which is the honest majority: most
+    # tool calls are built-ins. A dashboard where every call is an MCP call
+    # would overstate how much work depends on integrations.
+    mysql("""
+        UPDATE whodunit_events SET mcp_server = NULL
+        WHERE CONV(SUBSTRING(MD5(event_id),19,2),16,10) % 100 >= 22
+    """, container, db)
+
+    # The tool name has to agree with the server. Panels split MCP from
+    # built-in tools on the mcp__ prefix, so a row naming a server while
+    # its tool says `Bash` would be counted both ways.
+    mysql("""
+        UPDATE whodunit_events
+        SET tool = CONCAT('mcp__', mcp_server, '__',
+              CASE mcp_server
+                WHEN 'playwright' THEN ELT(1+(CONV(SUBSTRING(MD5(event_id),21,2),16,10)%4),
+                       'browser_navigate','browser_click','browser_evaluate','browser_snapshot')
+                WHEN 'linear'     THEN ELT(1+(CONV(SUBSTRING(MD5(event_id),21,2),16,10)%3),
+                       'save_issue','list_issues','get_issue')
+                WHEN 'jira'       THEN ELT(1+(CONV(SUBSTRING(MD5(event_id),21,2),16,10)%4),
+                       'createJiraIssue','searchJiraIssuesUsingJql','editJiraIssue','getJiraIssue')
+                WHEN 'figma'      THEN ELT(1+(CONV(SUBSTRING(MD5(event_id),21,2),16,10)%3),
+                       'get_design_context','get_screenshot','get_variable_defs')
+                WHEN 'github'     THEN ELT(1+(CONV(SUBSTRING(MD5(event_id),21,2),16,10)%3),
+                       'create_pull_request','list_commits','get_file_contents')
+                WHEN 'sentry'     THEN ELT(1+(CONV(SUBSTRING(MD5(event_id),21,2),16,10)%2),
+                       'find_issues','get_issue_details')
+                WHEN 'notion'     THEN ELT(1+(CONV(SUBSTRING(MD5(event_id),21,2),16,10)%2),
+                       'notion-search','notion-fetch')
+                WHEN 'atlassian'  THEN ELT(1+(CONV(SUBSTRING(MD5(event_id),21,2),16,10)%2),
+                       'getConfluencePage','searchConfluenceUsingCql')
+                ELSE 'call' END)
+        WHERE mcp_server IS NOT NULL
+    """, container, db)
+
+    # A session's mcp_calls must match the events beneath it, or the
+    # session-grain panels and the event-grain panels disagree about the
+    # same fact.
+    mysql("""
+        UPDATE whodunit_sessions s
+        SET mcp_calls = COALESCE((
+            SELECT COUNT(*) FROM whodunit_events e
+            WHERE e.session = s.session AND e.repo_id = s.repo_id
+              AND e.mcp_server IS NOT NULL), 0)
+    """, container, db)
+    print("mcp: per-team server profiles, tool names aligned, session counts rebuilt")
+
     # --- issues: spread delivery across the window -----------------------
     #
     # The three issue panels on the exec dashboard — opened vs closed,

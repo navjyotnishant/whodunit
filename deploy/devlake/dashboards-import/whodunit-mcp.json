@@ -1,0 +1,376 @@
+{
+  "title": "MCP & Tools",
+  "uid": "whodunit-mcp",
+  "tags": [
+    "whodunit"
+  ],
+  "timezone": "utc",
+  "schemaVersion": 39,
+  "refresh": "",
+  "time": {
+    "from": "now-30d",
+    "to": "now"
+  },
+  "description": "Which integrations the agents actually call, and which teams call them. Server names are normalised: the same MCP arrives under several names depending on the transport.",
+  "templating": {
+    "list": [
+      {
+        "name": "contributor",
+        "type": "query",
+        "datasource": "${DS_WHODUNIT}",
+        "query": "SELECT DISTINCT COALESCE(NULLIF(contributor, ''), '(unattributed)') AS __text, COALESCE(NULLIF(contributor, ''), '') AS __value FROM whodunit_repos ORDER BY 1",
+        "includeAll": true,
+        "multi": false,
+        "current": {},
+        "label": "Contributor",
+        "refresh": 1,
+        "allValue": "__all__",
+        "options": []
+      },
+      {
+        "name": "team",
+        "type": "query",
+        "datasource": "${DS_WHODUNIT}",
+        "query": "SELECT DISTINCT COALESCE(NULLIF(t.name, ''), '(unassigned)') AS __text, COALESCE(NULLIF(t.name, ''), '(unassigned)') AS __value FROM whodunit_repos r LEFT JOIN team_users tu ON tu.user_id = r.contributor LEFT JOIN teams t ON t.id = tu.team_id ORDER BY 1",
+        "includeAll": true,
+        "multi": false,
+        "current": {},
+        "label": "Team",
+        "refresh": 1,
+        "allValue": "__all__",
+        "options": []
+      }
+    ]
+  },
+  "panels": [
+    {
+      "type": "row",
+      "title": "Integration use",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 1
+      },
+      "panels": []
+    },
+    {
+      "title": "MCP share",
+      "description": "How much of the agents' work goes through an MCP server rather than a built-in tool like Bash or Edit. A low number is not a failure: most work is editing files. It says how much the agents depend on integrations someone has to keep running.",
+      "type": "stat",
+      "gridPos": {
+        "x": 0,
+        "y": 1,
+        "w": 4,
+        "h": 6
+      },
+      "datasource": "${DS_WHODUNIT}",
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "datasource": "${DS_WHODUNIT}",
+          "rawSql": "SELECT ROUND(100.0 * SUM(e.mcp_server IS NOT NULL) / COUNT(*), 1) AS v\nFROM whodunit_events e\nLEFT JOIN whodunit_identities wi ON wi.alias = e.contributor\nLEFT JOIN team_users tu ON tu.user_id = COALESCE(wi.canonical, e.contributor)\nLEFT JOIN teams t ON t.id = tu.team_id\nWHERE e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  AND ('${team:raw}' = '__all__' OR COALESCE(t.name, '(unassigned)') = '${team:raw}')\n  AND ('${contributor:raw}' = '__all__'\n       OR COALESCE(wi.canonical, e.contributor) = '${contributor:raw}')"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        }
+      }
+    },
+    {
+      "title": "Which MCP servers are used",
+      "description": "Calls per server, with transport aliases folded together — the same server arrives named five different ways depending on which agent invoked it, and unnormalised the busiest one looks like five minor ones. This answers whether an integration someone is paying for is actually being called.",
+      "type": "barchart",
+      "gridPos": {
+        "x": 4,
+        "y": 1,
+        "w": 10,
+        "h": 6
+      },
+      "datasource": "${DS_WHODUNIT}",
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "datasource": "${DS_WHODUNIT}",
+          "rawSql": "SELECT LOWER(TRIM(REPLACE(REGEXP_REPLACE(e.mcp_server,'^(mcp__codex_apps__|plugin:[^:]+:|claude\\\\.ai |claude_ai_|mcp__)',''),'-server',''))) AS `server`, COUNT(*) AS `calls`\nFROM whodunit_events e\nLEFT JOIN whodunit_identities wi ON wi.alias = e.contributor\nLEFT JOIN team_users tu ON tu.user_id = COALESCE(wi.canonical, e.contributor)\nLEFT JOIN teams t ON t.id = tu.team_id\nWHERE e.mcp_server IS NOT NULL AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  AND ('${team:raw}' = '__all__' OR COALESCE(t.name, '(unassigned)') = '${team:raw}')\n  AND ('${contributor:raw}' = '__all__'\n       OR COALESCE(wi.canonical, e.contributor) = '${contributor:raw}')\nGROUP BY LOWER(TRIM(REPLACE(REGEXP_REPLACE(e.mcp_server,'^(mcp__codex_apps__|plugin:[^:]+:|claude\\\\.ai |claude_ai_|mcp__)',''),'-server','')))\nORDER BY `calls` DESC"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "xField": "server",
+        "orientation": "horizontal",
+        "showValue": "always"
+      }
+    },
+    {
+      "title": "Share of MCP calls",
+      "description": "The same servers as parts of a whole, so one integration dominating is visible at a glance. Volume, not value: a server called constantly by one automated workflow will outrank one a person reaches for deliberately.",
+      "type": "piechart",
+      "gridPos": {
+        "x": 14,
+        "y": 1,
+        "w": 10,
+        "h": 6
+      },
+      "datasource": "${DS_WHODUNIT}",
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "datasource": "${DS_WHODUNIT}",
+          "rawSql": "SELECT LOWER(TRIM(REPLACE(REGEXP_REPLACE(e.mcp_server,'^(mcp__codex_apps__|plugin:[^:]+:|claude\\\\.ai |claude_ai_|mcp__)',''),'-server',''))) AS `server`, COUNT(*) AS `calls`\nFROM whodunit_events e\nLEFT JOIN whodunit_identities wi ON wi.alias = e.contributor\nLEFT JOIN team_users tu ON tu.user_id = COALESCE(wi.canonical, e.contributor)\nLEFT JOIN teams t ON t.id = tu.team_id\nWHERE e.mcp_server IS NOT NULL AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  AND ('${team:raw}' = '__all__' OR COALESCE(t.name, '(unassigned)') = '${team:raw}')\n  AND ('${contributor:raw}' = '__all__'\n       OR COALESCE(wi.canonical, e.contributor) = '${contributor:raw}')\nGROUP BY LOWER(TRIM(REPLACE(REGEXP_REPLACE(e.mcp_server,'^(mcp__codex_apps__|plugin:[^:]+:|claude\\\\.ai |claude_ai_|mcp__)',''),'-server','')))\nORDER BY `calls` DESC"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "values": [
+            "value",
+            "percent"
+          ]
+        },
+        "pieType": "donut",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": true
+        }
+      }
+    },
+    {
+      "title": "Which MCP each team uses",
+      "description": "Server calls per team. Teams standardising on different integrations is the point of this panel: a licence renewal is a different conversation when one team accounts for all the use, and an integration nobody calls is a cost with no reader.",
+      "type": "barchart",
+      "gridPos": {
+        "x": 0,
+        "y": 7,
+        "w": 14,
+        "h": 9
+      },
+      "datasource": "${DS_WHODUNIT}",
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "datasource": "${DS_WHODUNIT}",
+          "rawSql": "SELECT COALESCE(t.name, '(unassigned)') AS `team`,\n       SUM(LOWER(TRIM(REPLACE(REGEXP_REPLACE(e.mcp_server,'^(mcp__codex_apps__|plugin:[^:]+:|claude\\\\.ai |claude_ai_|mcp__)',''),'-server',''))) = 'playwright') AS `playwright`,\n       SUM(LOWER(TRIM(REPLACE(REGEXP_REPLACE(e.mcp_server,'^(mcp__codex_apps__|plugin:[^:]+:|claude\\\\.ai |claude_ai_|mcp__)',''),'-server',''))) = 'jira')       AS `jira`,\n       SUM(LOWER(TRIM(REPLACE(REGEXP_REPLACE(e.mcp_server,'^(mcp__codex_apps__|plugin:[^:]+:|claude\\\\.ai |claude_ai_|mcp__)',''),'-server',''))) = 'linear')     AS `linear`,\n       SUM(LOWER(TRIM(REPLACE(REGEXP_REPLACE(e.mcp_server,'^(mcp__codex_apps__|plugin:[^:]+:|claude\\\\.ai |claude_ai_|mcp__)',''),'-server',''))) = 'figma')      AS `figma`,\n       SUM(LOWER(TRIM(REPLACE(REGEXP_REPLACE(e.mcp_server,'^(mcp__codex_apps__|plugin:[^:]+:|claude\\\\.ai |claude_ai_|mcp__)',''),'-server',''))) = 'github')     AS `github`,\n       SUM(LOWER(TRIM(REPLACE(REGEXP_REPLACE(e.mcp_server,'^(mcp__codex_apps__|plugin:[^:]+:|claude\\\\.ai |claude_ai_|mcp__)',''),'-server',''))) = 'sentry')     AS `sentry`,\n       SUM(LOWER(TRIM(REPLACE(REGEXP_REPLACE(e.mcp_server,'^(mcp__codex_apps__|plugin:[^:]+:|claude\\\\.ai |claude_ai_|mcp__)',''),'-server',''))) = 'notion')     AS `notion`\nFROM whodunit_events e\nLEFT JOIN whodunit_identities wi ON wi.alias = e.contributor\nLEFT JOIN team_users tu ON tu.user_id = COALESCE(wi.canonical, e.contributor)\nLEFT JOIN teams t ON t.id = tu.team_id\nWHERE e.mcp_server IS NOT NULL AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  AND ('${team:raw}' = '__all__' OR COALESCE(t.name, '(unassigned)') = '${team:raw}')\n  AND ('${contributor:raw}' = '__all__'\n       OR COALESCE(wi.canonical, e.contributor) = '${contributor:raw}')\nGROUP BY COALESCE(t.name, '(unassigned)')\nORDER BY `team`"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "xField": "team",
+        "stacking": "normal",
+        "showValue": "always",
+        "text": {
+          "valueSize": 11
+        }
+      }
+    },
+    {
+      "title": "Tools called most, within MCP",
+      "description": "The individual tool behind each call, not just the server. This is the granularity that answers whether an integration is used for the thing it was bought for — a Jira MCP called only to read issues is a different purchase from one used to file and transition them.",
+      "type": "barchart",
+      "gridPos": {
+        "x": 14,
+        "y": 7,
+        "w": 10,
+        "h": 9
+      },
+      "datasource": "${DS_WHODUNIT}",
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "datasource": "${DS_WHODUNIT}",
+          "rawSql": "SELECT REPLACE(SUBSTRING_INDEX(e.tool, '__', -1), '_', ' ') AS `tool`,\n       COUNT(*) AS `calls`\nFROM whodunit_events e\nLEFT JOIN whodunit_identities wi ON wi.alias = e.contributor\nLEFT JOIN team_users tu ON tu.user_id = COALESCE(wi.canonical, e.contributor)\nLEFT JOIN teams t ON t.id = tu.team_id\nWHERE e.tool LIKE 'mcp\\\\_\\\\_%' AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  AND ('${team:raw}' = '__all__' OR COALESCE(t.name, '(unassigned)') = '${team:raw}')\n  AND ('${contributor:raw}' = '__all__'\n       OR COALESCE(wi.canonical, e.contributor) = '${contributor:raw}')\nGROUP BY REPLACE(SUBSTRING_INDEX(e.tool, '__', -1), '_', ' ')\nORDER BY `calls` DESC\nLIMIT 12"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "continuous-BlPu"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "xField": "tool",
+        "orientation": "horizontal",
+        "showValue": "always"
+      }
+    },
+    {
+      "title": "MCP use over time",
+      "description": "Calls per server per day. A server appearing partway through is an integration being adopted; one falling to zero is either a workflow that ended or an integration that broke, and the two are worth telling apart.",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 0,
+        "y": 16,
+        "w": 24,
+        "h": 9
+      },
+      "datasource": "${DS_WHODUNIT}",
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "datasource": "${DS_WHODUNIT}",
+          "rawSql": "SELECT FROM_UNIXTIME(FLOOR(e.observed_at / 1000000000 / 86400) * 86400) AS `time`,\n       LOWER(TRIM(REPLACE(REGEXP_REPLACE(e.mcp_server,'^(mcp__codex_apps__|plugin:[^:]+:|claude\\\\.ai |claude_ai_|mcp__)',''),'-server',''))) AS `metric`,\n       COUNT(*) AS `value`\nFROM whodunit_events e\nLEFT JOIN whodunit_identities wi ON wi.alias = e.contributor\nLEFT JOIN team_users tu ON tu.user_id = COALESCE(wi.canonical, e.contributor)\nLEFT JOIN teams t ON t.id = tu.team_id\nWHERE e.mcp_server IS NOT NULL AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  AND ('${team:raw}' = '__all__' OR COALESCE(t.name, '(unassigned)') = '${team:raw}')\n  AND ('${contributor:raw}' = '__all__'\n       OR COALESCE(wi.canonical, e.contributor) = '${contributor:raw}')\nGROUP BY FROM_UNIXTIME(FLOOR(e.observed_at / 1000000000 / 86400) * 86400), LOWER(TRIM(REPLACE(REGEXP_REPLACE(e.mcp_server,'^(mcp__codex_apps__|plugin:[^:]+:|claude\\\\.ai |claude_ai_|mcp__)',''),'-server','')))\nORDER BY `time`"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 8,
+            "showPoints": "never",
+            "spanNulls": true
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      }
+    },
+    {
+      "title": "Built-in tools, for comparison",
+      "description": "The tools agents reach for without an integration. Shown beside the MCP panels because the ratio is the useful part: MCP calls are a small share of a much larger volume of ordinary editing, and a dashboard showing only MCP would imply otherwise.",
+      "type": "barchart",
+      "gridPos": {
+        "x": 0,
+        "y": 25,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": "${DS_WHODUNIT}",
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "datasource": "${DS_WHODUNIT}",
+          "rawSql": "SELECT e.tool AS `tool`, COUNT(*) AS `calls`\nFROM whodunit_events e\nLEFT JOIN whodunit_identities wi ON wi.alias = e.contributor\nLEFT JOIN team_users tu ON tu.user_id = COALESCE(wi.canonical, e.contributor)\nLEFT JOIN teams t ON t.id = tu.team_id\nWHERE e.tool NOT LIKE 'mcp\\\\_\\\\_%' AND e.tool <> '' AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  AND ('${team:raw}' = '__all__' OR COALESCE(t.name, '(unassigned)') = '${team:raw}')\n  AND ('${contributor:raw}' = '__all__'\n       OR COALESCE(wi.canonical, e.contributor) = '${contributor:raw}')\nGROUP BY e.tool\nORDER BY `calls` DESC\nLIMIT 10"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "continuous-GrYlRd"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "xField": "tool",
+        "orientation": "horizontal",
+        "showValue": "always"
+      }
+    },
+    {
+      "title": "Sessions reaching for an integration",
+      "description": "How many sessions used any MCP at all, against those that used none. A session is one working stretch, so this reads as how often integrations enter the work rather than how many calls they generate — one automated loop can produce hundreds of calls in a single session.",
+      "type": "piechart",
+      "gridPos": {
+        "x": 12,
+        "y": 25,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": "${DS_WHODUNIT}",
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "datasource": "${DS_WHODUNIT}",
+          "rawSql": "SELECT CASE WHEN s.mcp_calls > 0 THEN 'used an MCP' ELSE 'built-ins only' END AS `kind`,\n       COUNT(*) AS `sessions`\nFROM whodunit_sessions s\nLEFT JOIN whodunit_identities wi ON wi.alias = s.contributor\nLEFT JOIN team_users tu ON tu.user_id = COALESCE(wi.canonical, s.contributor)\nLEFT JOIN teams t ON t.id = tu.team_id\nWHERE s.first_seen BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  AND ('${team:raw}' = '__all__' OR COALESCE(t.name, '(unassigned)') = '${team:raw}')\n  AND ('${contributor:raw}' = '__all__'\n       OR COALESCE(wi.canonical, s.contributor) = '${contributor:raw}')\nGROUP BY CASE WHEN s.mcp_calls > 0 THEN 'used an MCP' ELSE 'built-ins only' END"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "values": [
+            "value",
+            "percent"
+          ]
+        },
+        "pieType": "pie",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": true
+        }
+      }
+    }
+  ],
+  "__inputs": [
+    {
+      "name": "DS_WHODUNIT",
+      "label": "MySQL",
+      "description": "The database holding the whodunit_* tables",
+      "type": "datasource",
+      "pluginId": "mysql",
+      "pluginName": "MySQL"
+    }
+  ]
+}
