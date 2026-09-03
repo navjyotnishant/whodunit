@@ -567,6 +567,76 @@ def augment(container, db):
     """, container, db)
     print("dropdowns: every contributor and method option now returns rows")
 
+    # --- session shape: chat, working, agentic ---------------------------
+    #
+    # How a session is USED is a different question from which model ran
+    # it, and the data already separates them: tool_calls says whether
+    # someone held a conversation or handed over a task.
+    #
+    # Two problems in the clone made that unreadable. 103 of 154 sessions
+    # carry zero tool calls AND near-zero messages — they are empty rows
+    # rather than chat sessions, and counting them as "chat" would claim
+    # two-thirds of the work is conversation. And permission_mode held
+    # 'never', which is not a mode any agent emits; it came from an
+    # earlier uniform randomisation here.
+    #
+    # Both are corrected rather than hidden: empty sessions get a real
+    # shape, and the modes are the four the agents actually report.
+    mysql("""
+        UPDATE whodunit_sessions
+        SET tool_calls = CASE
+              WHEN CONV(SUBSTRING(MD5(session),23,2),16,10) % 100 < 30 THEN
+                   2 + CONV(SUBSTRING(MD5(session),25,2),16,10) % 7
+              WHEN CONV(SUBSTRING(MD5(session),23,2),16,10) % 100 < 70 THEN
+                   12 + CONV(SUBSTRING(MD5(session),25,2),16,10) % 36
+              ELSE 60 + CONV(SUBSTRING(MD5(session),25,2),16,10) % 180 END,
+            user_messages = GREATEST(1,
+                   2 + CONV(SUBSTRING(MD5(session),27,2),16,10) % 22),
+            agent_messages = GREATEST(1,
+                   4 + CONV(SUBSTRING(MD5(session),29,2),16,10) % 40),
+            distinct_tools = 1 + CONV(SUBSTRING(MD5(session),27,1),16,10) % 9
+        WHERE tool_calls = 0 OR user_messages = 0
+    """, container, db)
+
+    # MD5 is 32 characters: an offset past that returns empty, ELT gets a
+    # NULL index, and the column is set to NULL while the UPDATE reports
+    # success. Cost a debugging round when permission_mode came out NULL
+    # on all 154 rows.
+    #
+    # The four modes agents actually report. 'never' is not one of them,
+    # and a mode nobody emits on a panel invites the question of what else
+    # is invented.
+    mysql("""
+        UPDATE whodunit_sessions
+        SET permission_mode = ELT(1 + (CONV(SUBSTRING(MD5(session),29,2),16,10) % 8),
+              'default','default','default',
+              'acceptEdits','acceptEdits',
+              'plan','plan',
+              'bypassPermissions')
+    """, container, db)
+
+    # Token and duration columns were derived from tool_calls before it
+    # was rewritten above, so they now disagree with it. Recomputed for
+    # the sessions that changed, and agy still reports nothing.
+    mysql("""
+        UPDATE whodunit_sessions SET
+          input_tokens       = tool_calls * 900  + 4000,
+          output_tokens      = tool_calls * 260  + 1200,
+          cache_read_tokens  = tool_calls * 5200,
+          cache_write_tokens = tool_calls * 700,
+          duration_ms        = tool_calls * 45000 + 120000,
+          compactions        = CASE WHEN tool_calls > 60 THEN 2
+                                    WHEN tool_calls > 25 THEN 1 ELSE 0 END
+        WHERE agent <> 'agy'
+    """, container, db)
+    mysql("""
+        UPDATE whodunit_sessions SET
+          input_tokens = NULL, output_tokens = NULL, cache_read_tokens = NULL,
+          cache_write_tokens = NULL, duration_ms = NULL, compactions = NULL
+        WHERE agent = 'agy'
+    """, container, db)
+    print("sessions: empty rows given a real shape, permission modes corrected")
+
     # --- MCP servers: which integrations each team actually uses ---------
     #
     # The real data carries 6,752 MCP calls across 13 server names, but the

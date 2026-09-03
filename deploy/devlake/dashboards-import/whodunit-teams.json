@@ -395,6 +395,162 @@
           "valueSize": 12
         }
       }
+    },
+    {
+      "type": "row",
+      "title": "How the tooling is used",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 37,
+        "w": 24,
+        "h": 1
+      },
+      "panels": []
+    },
+    {
+      "title": "How each team works with the agent",
+      "description": "Sessions grouped by how many tool calls they made: a conversation, a working session, or a task handed over. Says how the tooling is used, not how well — a team weighted to chat may be doing design work that suits it.",
+      "type": "barchart",
+      "gridPos": {
+        "x": 0,
+        "y": 38,
+        "w": 12,
+        "h": 9
+      },
+      "datasource": "${DS_WHODUNIT}",
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "datasource": "${DS_WHODUNIT}",
+          "rawSql": "SELECT COALESCE(t.name, '(unassigned)') AS `team`,\n       SUM(s.tool_calls < 10) AS `chat · under 10 calls`,\n       SUM(s.tool_calls >= 10 AND s.tool_calls < 50) AS `working · 10-49`,\n       SUM(s.tool_calls >= 50) AS `agentic · 50+`\nFROM whodunit_sessions s\nLEFT JOIN whodunit_identities wi ON wi.alias = s.contributor\nLEFT JOIN team_users tu ON tu.user_id = COALESCE(wi.canonical, s.contributor)\nLEFT JOIN teams t ON t.id = tu.team_id\nWHERE s.first_seen BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  AND ('${team:raw}' = '__all__' OR COALESCE(t.name, '(unassigned)') = '${team:raw}')\n  AND ('${contributor:raw}' = '__all__'\n       OR COALESCE(wi.canonical, s.contributor) = '${contributor:raw}')\nGROUP BY COALESCE(t.name, '(unassigned)')\nORDER BY `team`"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "xField": "team",
+        "stacking": "normal",
+        "showValue": "always",
+        "text": {
+          "valueSize": 11
+        }
+      }
+    },
+    {
+      "title": "Which model each team runs",
+      "description": "Sessions per model. Only agents that report one appear — agy reports no model at all, so its sessions are absent here rather than bucketed as unknown. A team on a cheaper model at similar output is a finding worth checking.",
+      "type": "barchart",
+      "gridPos": {
+        "x": 12,
+        "y": 38,
+        "w": 12,
+        "h": 9
+      },
+      "datasource": "${DS_WHODUNIT}",
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "datasource": "${DS_WHODUNIT}",
+          "rawSql": "SELECT COALESCE(t.name, '(unassigned)') AS `team`,\n       SUM(s.model = 'claude-opus-4')   AS `claude-opus-4`,\n       SUM(s.model = 'claude-sonnet-4') AS `claude-sonnet-4`,\n       SUM(s.model = 'gpt-5-codex')     AS `gpt-5-codex`\nFROM whodunit_sessions s\nLEFT JOIN whodunit_identities wi ON wi.alias = s.contributor\nLEFT JOIN team_users tu ON tu.user_id = COALESCE(wi.canonical, s.contributor)\nLEFT JOIN teams t ON t.id = tu.team_id\nWHERE s.model IS NOT NULL AND s.first_seen BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  AND ('${team:raw}' = '__all__' OR COALESCE(t.name, '(unassigned)') = '${team:raw}')\n  AND ('${contributor:raw}' = '__all__'\n       OR COALESCE(wi.canonical, s.contributor) = '${contributor:raw}')\nGROUP BY COALESCE(t.name, '(unassigned)')\nORDER BY `team`"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "xField": "team",
+        "stacking": "normal",
+        "showValue": "always",
+        "text": {
+          "valueSize": 11
+        }
+      }
+    },
+    {
+      "title": "How much autonomy each team grants",
+      "description": "The permission mode sessions ran under. `plan` reviews before acting, `acceptEdits` applies edits without asking, `bypassPermissions` asks nothing. A team's position here is a trust decision they have made, and it explains throughput differences elsewhere.",
+      "type": "barchart",
+      "gridPos": {
+        "x": 0,
+        "y": 47,
+        "w": 12,
+        "h": 9
+      },
+      "datasource": "${DS_WHODUNIT}",
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "datasource": "${DS_WHODUNIT}",
+          "rawSql": "SELECT COALESCE(t.name, '(unassigned)') AS `team`,\n       SUM(s.permission_mode = 'plan')              AS `plan`,\n       SUM(s.permission_mode = 'default')           AS `default`,\n       SUM(s.permission_mode = 'acceptEdits')       AS `acceptEdits`,\n       SUM(s.permission_mode = 'bypassPermissions') AS `bypassPermissions`\nFROM whodunit_sessions s\nLEFT JOIN whodunit_identities wi ON wi.alias = s.contributor\nLEFT JOIN team_users tu ON tu.user_id = COALESCE(wi.canonical, s.contributor)\nLEFT JOIN teams t ON t.id = tu.team_id\nWHERE s.permission_mode IS NOT NULL AND s.first_seen BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  AND ('${team:raw}' = '__all__' OR COALESCE(t.name, '(unassigned)') = '${team:raw}')\n  AND ('${contributor:raw}' = '__all__'\n       OR COALESCE(wi.canonical, s.contributor) = '${contributor:raw}')\nGROUP BY COALESCE(t.name, '(unassigned)')\nORDER BY `team`"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "xField": "team",
+        "stacking": "normal",
+        "showValue": "always",
+        "text": {
+          "valueSize": 11
+        }
+      }
+    },
+    {
+      "title": "Reasoning effort, where the agent reports it",
+      "description": "Effort per team, from the agents that report it — Codex alone does, so this panel covers a subset by design and is not a gap. Higher effort spends more tokens on the same task, which is the lever behind cost differences between teams running the same work.",
+      "type": "barchart",
+      "gridPos": {
+        "x": 12,
+        "y": 47,
+        "w": 12,
+        "h": 9
+      },
+      "datasource": "${DS_WHODUNIT}",
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "datasource": "${DS_WHODUNIT}",
+          "rawSql": "SELECT COALESCE(t.name, '(unassigned)') AS `team`,\n       SUM(s.effort = 'low')    AS `low`,\n       SUM(s.effort = 'medium') AS `medium`,\n       SUM(s.effort = 'high')   AS `high`\nFROM whodunit_sessions s\nLEFT JOIN whodunit_identities wi ON wi.alias = s.contributor\nLEFT JOIN team_users tu ON tu.user_id = COALESCE(wi.canonical, s.contributor)\nLEFT JOIN teams t ON t.id = tu.team_id\nWHERE s.effort IS NOT NULL AND s.first_seen BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  AND ('${team:raw}' = '__all__' OR COALESCE(t.name, '(unassigned)') = '${team:raw}')\n  AND ('${contributor:raw}' = '__all__'\n       OR COALESCE(wi.canonical, s.contributor) = '${contributor:raw}')\nGROUP BY COALESCE(t.name, '(unassigned)')\nORDER BY `team`"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "xField": "team",
+        "stacking": "normal",
+        "showValue": "always",
+        "text": {
+          "valueSize": 11
+        }
+      }
     }
   ],
   "__inputs": [
