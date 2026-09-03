@@ -812,6 +812,20 @@ def augment(container, db):
     """, container, db)
     print("issues: opened and resolved dates spread across the window, weekdays only")
 
+    # Assignees, so the per-team and per-person forecast has something to
+    # attribute open work to. The real tracker leaves most issues
+    # unassigned (52 of 564), which the dashboard shows as "(unassigned)";
+    # a demo needs the other case visible. Assigned by hash of the issue
+    # id so a re-run reproduces it; issues already assigned keep theirs.
+    cases = " ".join(f"WHEN {i} THEN '{p}'" for i, p in enumerate(people))
+    mysql(f"""
+        UPDATE issues
+        SET assignee_name = CASE CONV(SUBSTRING(MD5(id),5,4),16,10) % {len(people)} {cases} END,
+            assignee_id = assignee_name
+        WHERE assignee_name IS NULL OR assignee_name = ''
+    """, container, db)
+    print("issues: assignees spread across the roster")
+
     # --- delivery: deployments and PRs up to today -----------------------
     #
     # The DORA row reads deployments, PR metrics and incidents. All three
