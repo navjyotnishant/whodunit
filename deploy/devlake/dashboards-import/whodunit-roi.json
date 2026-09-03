@@ -421,16 +421,113 @@
     },
     {
       "type": "stat",
+      "title": "Spend over the range",
+      "description": "Paid seats times cost per seat, times the months in the selected range. The numerator of every per-unit figure on this row — and, by construction, what any of them multiplied back by its count returns.",
+      "datasource": "${DS_WHODUNIT}",
+      "gridPos": {
+        "h": 7,
+        "w": 4,
+        "x": 0,
+        "y": 14
+      },
+      "id": 9,
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "datasource": "${DS_WHODUNIT}",
+          "rawSql": "SELECT ROUND(((CAST('$seats' AS DECIMAL(12,2))*CAST('$seat_cost' AS DECIMAL(12,2)))*(($__unixEpochTo() - $__unixEpochFrom()) / (30.4375*86400))),0) AS value"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/^value$/"
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "text": {
+          "valueSize": 36
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "decimals": 0,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#8a8f9a"
+          },
+          "noValue": "needs an input"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "type": "stat",
+      "title": "What was delivered with assistance",
+      "description": "Commits with verified AI assistance in range, and closed issues with at least one such commit linked. The denominators of the per-unit figures beside them. Issues need tracker links; a range with none shows zero issues, which means unlinked, not undelivered.",
+      "datasource": "${DS_WHODUNIT}",
+      "gridPos": {
+        "h": 7,
+        "w": 5,
+        "x": 4,
+        "y": 14
+      },
+      "id": 10,
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "datasource": "${DS_WHODUNIT}",
+          "rawSql": "\nSELECT (SELECT COUNT(*) FROM whodunit_commits c WHERE c.committed_at BETWEEN $__unixEpochFrom()*1000000000 AND $__unixEpochTo()*1000000000 AND c.status='assisted') AS `Assisted commits`,\n       (SELECT COUNT(DISTINCT i.id) FROM issues i JOIN issue_commits ic ON ic.issue_id = i.id\n        JOIN whodunit_commits c ON c.commit_sha = ic.commit_sha\n        WHERE i.status='DONE' AND i.issue_key REGEXP '^[A-Z][A-Z0-9]+-[0-9]+$'\n          AND $__timeFilter(i.resolution_date) AND c.status='assisted') AS `Assisted issues closed`"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "none",
+        "graphMode": "none",
+        "textMode": "value_and_name",
+        "justifyMode": "center",
+        "orientation": "vertical",
+        "text": {
+          "valueSize": 30,
+          "titleSize": 12
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 0,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#4caf78"
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "type": "stat",
       "title": "Per assisted commit",
       "description": "Licence spend over the selected range divided by commits with verified AI assistance in it. Falls as adoption rises for the same spend.",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
         "h": 7,
-        "w": 6,
-        "x": 0,
+        "w": 4,
+        "x": 9,
         "y": 14
       },
-      "id": 9,
+      "id": 11,
       "targets": [
         {
           "refId": "A",
@@ -474,11 +571,11 @@
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
         "h": 7,
-        "w": 6,
-        "x": 6,
+        "w": 3,
+        "x": 13,
         "y": 14
       },
-      "id": 10,
+      "id": 12,
       "targets": [
         {
           "refId": "A",
@@ -522,11 +619,11 @@
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
         "h": 7,
-        "w": 6,
-        "x": 12,
+        "w": 4,
+        "x": 16,
         "y": 14
       },
-      "id": 11,
+      "id": 13,
       "targets": [
         {
           "refId": "A",
@@ -570,11 +667,11 @@
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
         "h": 7,
-        "w": 6,
-        "x": 18,
+        "w": 4,
+        "x": 20,
         "y": 14
       },
-      "id": 12,
+      "id": 14,
       "targets": [
         {
           "refId": "A",
@@ -663,7 +760,7 @@
         "x": 0,
         "y": 21
       },
-      "id": 13,
+      "id": 15,
       "collapsed": false,
       "panels": []
     },
@@ -678,7 +775,7 @@
         "x": 0,
         "y": 22
       },
-      "id": 14,
+      "id": 16,
       "targets": [
         {
           "refId": "A",
@@ -726,7 +823,7 @@
         "x": 6,
         "y": 22
       },
-      "id": 15,
+      "id": 17,
       "targets": [
         {
           "refId": "A",
@@ -774,7 +871,7 @@
         "x": 12,
         "y": 22
       },
-      "id": 16,
+      "id": 18,
       "targets": [
         {
           "refId": "A",
@@ -822,7 +919,7 @@
         "x": 18,
         "y": 22
       },
-      "id": 17,
+      "id": 19,
       "targets": [
         {
           "refId": "A",
@@ -868,7 +965,7 @@
         "x": 0,
         "y": 30
       },
-      "id": 18,
+      "id": 20,
       "collapsed": false,
       "panels": []
     },
@@ -883,7 +980,7 @@
         "x": 0,
         "y": 31
       },
-      "id": 19,
+      "id": 21,
       "targets": [
         {
           "refId": "A",
@@ -1009,7 +1106,7 @@
         "x": 14,
         "y": 31
       },
-      "id": 20,
+      "id": 22,
       "targets": [
         {
           "refId": "A",
@@ -1057,7 +1154,7 @@
         "x": 20,
         "y": 31
       },
-      "id": 21,
+      "id": 23,
       "targets": [
         {
           "refId": "A",
@@ -1103,7 +1200,7 @@
         "x": 0,
         "y": 40
       },
-      "id": 22,
+      "id": 24,
       "collapsed": false,
       "panels": []
     },
@@ -1118,7 +1215,7 @@
         "x": 0,
         "y": 41
       },
-      "id": 23,
+      "id": 25,
       "targets": [
         {
           "refId": "A",
@@ -1183,7 +1280,7 @@
         "x": 8,
         "y": 41
       },
-      "id": 24,
+      "id": 26,
       "targets": [
         {
           "refId": "A",
@@ -1245,7 +1342,7 @@
         "x": 16,
         "y": 41
       },
-      "id": 25,
+      "id": 27,
       "targets": [
         {
           "refId": "A",
@@ -1287,7 +1384,7 @@
         "x": 0,
         "y": 49
       },
-      "id": 26,
+      "id": 28,
       "collapsed": false,
       "panels": []
     },
@@ -1302,7 +1399,7 @@
         "x": 0,
         "y": 50
       },
-      "id": 27,
+      "id": 29,
       "targets": [
         {
           "refId": "A",
@@ -1350,7 +1447,7 @@
         "x": 6,
         "y": 50
       },
-      "id": 28,
+      "id": 30,
       "targets": [
         {
           "refId": "A",
@@ -1398,7 +1495,7 @@
         "x": 12,
         "y": 50
       },
-      "id": 29,
+      "id": 31,
       "targets": [
         {
           "refId": "A",
@@ -1443,7 +1540,7 @@
         "x": 0,
         "y": 58
       },
-      "id": 30,
+      "id": 32,
       "targets": [
         {
           "refId": "A",
@@ -1502,7 +1599,7 @@
         "x": 0,
         "y": 67
       },
-      "id": 31,
+      "id": 33,
       "options": {
         "mode": "html",
         "content": "<p style='margin:0'><b>What this page does not claim.</b> No time saved, no hours returned, no return-on-investment figure — none of those are measured, and a number built from an assumed hours-saved is an assumption wearing a chart. Token spend is shown at list price and only means anything if you are billed per token; under a subscription the marginal token costs nothing. Agents that report no tokens appear as unmeasured, not as free. The measured differences beside the break-even figures are between self-selected cohorts and are not effects.</p>"
