@@ -583,28 +583,26 @@
             "mode": "continuous-BlPu"
           },
           "custom": {
-            "axisLabel": "lines / active day (log)",
-            "fillOpacity": 85,
-            "gradientMode": "scheme",
-            "scaleDistribution": {
-              "type": "log",
-              "log": 10
-            }
+            "pointSize": {
+              "fixed": 14
+            },
+            "fillOpacity": 70,
+            "show": "points"
           }
         },
         "overrides": []
       },
       "options": {
-        "xField": "person",
-        "orientation": "vertical",
-        "showValue": "never",
+        "mapping": "auto",
+        "series": [],
         "legend": {
           "showLegend": false
         },
-        "barWidth": 0.8,
-        "xTickLabelRotation": -45,
-        "xTickLabelMaxLength": 22
-      }
+        "tooltip": {
+          "mode": "single"
+        }
+      },
+      "pluginVersion": "11.6.2"
     },
     {
       "type": "row",
