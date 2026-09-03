@@ -948,10 +948,21 @@ def publish_dashboards(container, db, grafana, user, password, ds_uid, folder):
         except urllib.error.HTTPError as e:
             return json.loads(e.read() or "{}")
 
-    folders = api("/api/folders")
-    folder_uid = next((f["uid"] for f in folders if f.get("title") == folder), None)
-    if not folder_uid:
-        folder_uid = (api("/api/folders", {"title": folder}) or {}).get("uid")
+    def folder_for(title):
+        folders = api("/api/folders")
+        uid = next((f["uid"] for f in folders if f.get("title") == title), None)
+        if not uid:
+            uid = (api("/api/folders", {"title": title}) or {}).get("uid")
+        return uid
+
+    folder_uid = folder_for(folder)
+
+    # Dashboards built beside an existing one rather than replacing it.
+    # Their demo copies are parked in a separate folder so the demo folder
+    # holds one dashboard per question; the repo and the real folder still
+    # carry them. Move a uid out of this set to promote it.
+    PARKED = {"whodunit-board", "whodunit-leadership", "whodunit-mcp-board"}
+    parked_uid = folder_for("TBD")
 
     # The board with the most recently resolved issues, not the first
     # alphabetically. Ordering by name picked EngageHub, which has 84
@@ -980,12 +991,14 @@ def publish_dashboards(container, db, grafana, user, password, ds_uid, folder):
                 if v.get("name") == "board":
                     sel = {"selected": True, "text": board[1], "value": board[0]}
                     v["current"], v["options"] = sel, [sel]
+        base_uid = os.path.basename(path)[:-5]
         api("/api/dashboards/import", {
-            "dashboard": d, "overwrite": True, "folderUid": folder_uid,
+            "dashboard": d, "overwrite": True,
+            "folderUid": parked_uid if base_uid in PARKED else folder_uid,
             "inputs": [{"name": "DS_WHODUNIT", "type": "datasource",
                         "pluginId": "mysql", "value": ds_uid}]})
         n += 1
-    print(f"dashboards: {n} imported into {folder!r}, board preselected")
+    print(f"dashboards: {n} imported into {folder!r} ({len(PARKED)} parked in 'TBD'), board preselected")
 
 
 def main():
