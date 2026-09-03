@@ -357,12 +357,6 @@ def augment(container, db):
                   THEN ELT(1 + (CONV(SUBSTRING(MD5(commit_sha),5,2),16,10) % 2),
                            'intersected','observed')
                   ELSE method END,
-                agent = CASE
-                  WHEN CONV(SUBSTRING(MD5(commit_sha),1,4),16,10) % 100 < {pct}
-                       AND agent = ''
-                  THEN ELT(1 + (CONV(SUBSTRING(MD5(commit_sha),7,2),16,10) % 2),
-                           'claude-code','codex')
-                  ELSE agent END,
                 ratio = CASE
                   WHEN CONV(SUBSTRING(MD5(commit_sha),1,4),16,10) % 100 < {pct}
                   THEN ROUND(0.25 + (CONV(SUBSTRING(MD5(commit_sha),9,2),16,10) % 60) / 100, 2)
@@ -388,6 +382,150 @@ def augment(container, db):
           )
     """, container, db)
     print("last 30 days: adoption ramped 25% -> 76%, volume outliers thinned")
+
+    # --- three agents, in a fixed mix ------------------------------------
+    #
+    # 15 panels across 6 dashboards break down by agent or model, and the
+    # real data carries two agents in ratios that disagree between tables:
+    # events are 94/6 claude-code to codex, sessions are 49/51. A panel
+    # comparing agents then says something different depending on which
+    # grain it reads, which is the kind of inconsistency a viewer notices
+    # and cannot unsee.
+    #
+    # Set to one mix everywhere: claude-code 80%, codex 12%, agy 8%.
+    # Assigned by a hash of each row's own key so the same row always lands
+    # on the same agent, and so the three tables agree with each other.
+    #
+    # agy is the one that matters for the demo's honesty. It reports no
+    # tokens, no timing and no reasoning at all — so its rows stay NULL in
+    # the cost columns below, and the cost panels show a genuine gap rather
+    # than a fabricated number. That absence is the product's argument.
+    # Bytes 9-12 of the hash, NOT 1-4. The adoption ramp above selects
+    # which commits are assisted using bytes 1-4, so reusing them here
+    # makes agent and status perfectly correlated: every assisted commit
+    # falls in the same bucket and the mix comes out 99% claude-code with
+    # no agy at all. Independent bytes give independent draws.
+    agent_case = """CASE
+        WHEN CONV(SUBSTRING(MD5({k}),9,4),16,10) % 100 < 80 THEN 'claude-code'
+        WHEN CONV(SUBSTRING(MD5({k}),9,4),16,10) % 100 < 92 THEN 'codex'
+        ELSE 'agy' END"""
+
+    for table, key, extra in (
+            ("whodunit_commits", "commit_sha", "AND status = 'assisted'"),
+            ("whodunit_events", "event_id", ""),
+            ("whodunit_sessions", "session", "")):
+        mysql(f"UPDATE {table} SET agent = {agent_case.format(k=key)} "
+              f"WHERE 1=1 {extra}", container, db)
+
+    # Versions, so "By agent and version" has more than one bar per agent.
+    for table, key in (("whodunit_commits", "commit_sha"),
+                       ("whodunit_events", "event_id"),
+                       ("whodunit_sessions", "session")):
+        mysql(f"""
+            UPDATE {table} SET agent_version = CASE agent
+                WHEN 'claude-code' THEN ELT(1 + (CONV(SUBSTRING(MD5({key}),3,2),16,10) % 3),
+                                            '2.1.183','2.1.204','2.1.228')
+                WHEN 'codex'       THEN ELT(1 + (CONV(SUBSTRING(MD5({key}),3,2),16,10) % 2),
+                                            '0.47.0','0.51.0')
+                ELSE ELT(1 + (CONV(SUBSTRING(MD5({key}),3,2),16,10) % 2), '1.4.0','1.5.0')
+            END
+        """, container, db)
+
+    # Models follow the agent. agy is left NULL — it does not report one,
+    # and inventing a model name would be the same lie as inventing a cost.
+    mysql("""
+        UPDATE whodunit_sessions SET model = CASE agent
+            WHEN 'claude-code' THEN ELT(1 + (CONV(SUBSTRING(MD5(session),5,2),16,10) % 2),
+                                        'claude-opus-4','claude-sonnet-4')
+            WHEN 'codex'       THEN 'gpt-5-codex'
+            ELSE NULL END
+    """, container, db)
+
+    # agy reports no measurements at all. Clearing them rather than leaving
+    # the values assigned earlier, so the cost dashboard shows a real gap
+    # for that agent instead of numbers it could not have produced.
+    mysql("""
+        UPDATE whodunit_sessions SET
+          input_tokens = NULL, output_tokens = NULL,
+          cache_read_tokens = NULL, cache_write_tokens = NULL,
+          reasoning_tokens = NULL, duration_ms = NULL,
+          time_to_first_token_ms = NULL, effort = NULL, compactions = NULL
+        WHERE agent = 'agy'
+    """, container, db)
+
+    # Reasoning tokens and effort are Codex-only; claude-code reports
+    # neither, so those stay NULL there too.
+    mysql("""
+        UPDATE whodunit_sessions SET reasoning_tokens = NULL, effort = NULL
+        WHERE agent = 'claude-code'
+    """, container, db)
+    print("agents: claude-code 80% / codex 12% / agy 8%, agy left without measurements")
+
+    # --- issues: spread delivery across the window -----------------------
+    #
+    # The three issue panels on the exec dashboard — opened vs closed,
+    # cycle time trend, issues resolved — key on $board and read
+    # created_date and resolution_date. The real dates are when the work
+    # actually happened, which for one person on one project is bursty:
+    # measured on the clone, 8 active days in 30, one of them closing 53
+    # issues, and nothing at all in the last week.
+    #
+    # Three panels then trail off into empty space for the most recent and
+    # most-looked-at part of the window. Redistributing the dates spreads
+    # the same issues across the window without inventing any.
+    #
+    # Weekdays only. Issues closing steadily through Saturday and Sunday is
+    # the detail that makes a dataset read as generated.
+    mysql("""
+        UPDATE issues i
+        JOIN board_issues bi ON bi.issue_id = i.id
+        SET i.resolution_date = DATE_SUB(
+              NOW(),
+              INTERVAL (CONV(SUBSTRING(MD5(i.id),1,4),16,10) % 28) DAY)
+        WHERE i.resolution_date IS NOT NULL
+          AND i.resolution_date > NOW() - INTERVAL 40 DAY
+    """, container, db)
+
+    # Shift a resolution that lands on a weekend to the Friday before, so
+    # the delivery rhythm matches the commit rhythm.
+    mysql("""
+        UPDATE issues
+        SET resolution_date = DATE_SUB(resolution_date,
+              INTERVAL (WEEKDAY(resolution_date) - 4) DAY)
+        WHERE resolution_date IS NOT NULL
+          AND WEEKDAY(resolution_date) > 4
+          AND resolution_date > NOW() - INTERVAL 40 DAY
+    """, container, db)
+
+    # created_date then sits a plausible cycle before resolution rather
+    # than wherever it originally was: 4 hours to ~12 days, which gives
+    # the cycle-time panel a spread to average over instead of one value.
+    # lead_time_minutes is recomputed from the pair, because a stored
+    # figure that disagrees with its own dates is the kind of detail that
+    # gets noticed.
+    mysql("""
+        UPDATE issues i
+        JOIN board_issues bi ON bi.issue_id = i.id
+        SET i.created_date = DATE_SUB(i.resolution_date,
+              INTERVAL (4 + CONV(SUBSTRING(MD5(i.id),5,3),16,10) % 280) HOUR),
+            i.lead_time_minutes = (4 + CONV(SUBSTRING(MD5(i.id),5,3),16,10) % 280) * 60
+        WHERE i.resolution_date IS NOT NULL
+          AND i.resolution_date > NOW() - INTERVAL 40 DAY
+    """, container, db)
+
+    # Issues still open need a created_date in the window too, or the
+    # "opened" series stops while "closed" continues — which reads as a
+    # team that has stopped taking work on.
+    mysql("""
+        UPDATE issues i
+        JOIN board_issues bi ON bi.issue_id = i.id
+        SET i.created_date = DATE_SUB(
+              NOW(),
+              INTERVAL (CONV(SUBSTRING(MD5(i.id),1,4),16,10) % 28) DAY)
+        WHERE i.resolution_date IS NULL
+          AND i.created_date > NOW() - INTERVAL 60 DAY
+    """, container, db)
+    print("issues: opened and resolved dates spread across the window, weekdays only")
 
     # --- incidents: MTTR and change failure ------------------------------
     #
