@@ -460,6 +460,30 @@ def augment(container, db):
         UPDATE whodunit_sessions SET reasoning_tokens = NULL, effort = NULL
         WHERE agent = 'claude-code'
     """, container, db)
+
+    # Every Codex session reports an effort — it is a request parameter,
+    # not something that can be missing — so leaving some NULL was wrong
+    # as well as thin. Set on all of them, across the three tiers, so the
+    # panel shows a distribution rather than a single bar.
+    #
+    # Weighted toward medium because that is the default anyone gets
+    # without asking for something else, and reasoning tokens follow the
+    # tier: high thinks longer and costs more, which is the relationship
+    # the panel's tooltip says it exists to show.
+    mysql("""
+        UPDATE whodunit_sessions
+        SET effort = ELT(1 + (CONV(SUBSTRING(MD5(session),15,2),16,10) % 10),
+                         'low','low','medium','medium','medium',
+                         'medium','medium','high','high','high'),
+            reasoning_tokens = ROUND(
+                LEAST(tool_calls, 80) *
+                CASE ELT(1 + (CONV(SUBSTRING(MD5(session),15,2),16,10) % 10),
+                         'low','low','medium','medium','medium',
+                         'medium','medium','high','high','high')
+                    WHEN 'low' THEN 60 WHEN 'medium' THEN 200 ELSE 520 END
+                + 400)
+        WHERE agent = 'codex'
+    """, container, db)
     print("agents: claude-code 80% / codex 12% / agy 8%, agy left without measurements")
 
     # --- commit size: assisted commits deliver a little more -------------
