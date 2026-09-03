@@ -509,6 +509,39 @@ def augment(container, db):
     """, container, db)
     print("commit size: assisted commits scaled to ~1.3x, docs outlier trimmed")
 
+    # --- no dropdown option may select nothing ---------------------------
+    #
+    # The contributor and evidence dropdowns are built from whatever
+    # values exist in the data, so a value that survives in one column
+    # while its rows move elsewhere becomes an option that empties every
+    # panel. Two of those existed: second@example.com, seeded before the
+    # contributor spread reassigned its rows, and `declared`, a real
+    # method no commit in this data uses.
+    #
+    # Reported at the end of the run rather than silently repaired, since
+    # "No commits in range" mid-demo is indistinguishable from a broken
+    # dashboard.
+    mysql("""
+        DELETE FROM whodunit_repos
+        WHERE contributor NOT IN (
+            SELECT DISTINCT contributor FROM whodunit_commits
+            WHERE contributor IS NOT NULL
+        )
+    """, container, db)
+
+    # `declared` is the trailer-only rung: an agent that announces itself
+    # in the commit rather than leaving a transcript. Giving it a share of
+    # the assisted commits makes the evidence ladder complete, and shows
+    # the weakest rung actually populated rather than as a legend entry
+    # nothing reaches.
+    mysql("""
+        UPDATE whodunit_commits
+        SET method = 'declared'
+        WHERE status = 'assisted'
+          AND CONV(SUBSTRING(MD5(commit_sha),13,2),16,10) % 100 < 6
+    """, container, db)
+    print("dropdowns: every contributor and method option now returns rows")
+
     # --- issues: spread delivery across the window -----------------------
     #
     # The three issue panels on the exec dashboard — opened vs closed,
