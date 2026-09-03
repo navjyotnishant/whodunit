@@ -1,0 +1,410 @@
+{
+  "title": "Team Adoption",
+  "uid": "whodunit-teams",
+  "tags": [
+    "whodunit"
+  ],
+  "timezone": "utc",
+  "schemaVersion": 39,
+  "refresh": "",
+  "time": {
+    "from": "now-30d",
+    "to": "now"
+  },
+  "description": "Adoption by team, and whether it is even within one. Defaults to team grouping: a shared dashboard should not open on a ranked list of named developers. Individuals are one filter away for a manager who needs them.",
+  "templating": {
+    "list": [
+      {
+        "name": "contributor",
+        "type": "query",
+        "datasource": "${DS_WHODUNIT}",
+        "query": "SELECT DISTINCT COALESCE(NULLIF(contributor, ''), '(unattributed)') AS __text, COALESCE(NULLIF(contributor, ''), '') AS __value FROM whodunit_repos ORDER BY 1",
+        "includeAll": true,
+        "multi": false,
+        "current": {},
+        "label": "Contributor",
+        "refresh": 1,
+        "allValue": "__all__",
+        "options": []
+      },
+      {
+        "name": "team",
+        "type": "query",
+        "datasource": "${DS_WHODUNIT}",
+        "query": "SELECT DISTINCT COALESCE(NULLIF(t.name, ''), '(unassigned)') AS __text, COALESCE(NULLIF(t.name, ''), '(unassigned)') AS __value FROM whodunit_repos r LEFT JOIN team_users tu ON tu.user_id = r.contributor LEFT JOIN teams t ON t.id = tu.team_id ORDER BY 1",
+        "includeAll": true,
+        "multi": false,
+        "current": {},
+        "label": "Team",
+        "refresh": 1,
+        "allValue": "__all__",
+        "options": []
+      },
+      {
+        "name": "evidence",
+        "type": "custom",
+        "label": "Evidence",
+        "query": "intersected — agent lines survived : intersected,observed — agent edited the files : observed,inferred — from surrounding evidence : inferred,declared — stated only : declared,undetermined — no evidence either way : undetermined",
+        "options": [],
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "__all__"
+        },
+        "includeAll": true,
+        "allValue": "__all__",
+        "multi": false,
+        "hide": 0
+      }
+    ]
+  },
+  "panels": [
+    {
+      "type": "row",
+      "title": "Teams",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 1
+      },
+      "panels": []
+    },
+    {
+      "title": "Adoption by team",
+      "description": "Share of each team's commits carrying AI attribution, over the selected range. The question a rollout actually has to answer: whether adoption is even, or one team carrying it. A team low here is a conversation, not a failing — it may be work the tools suit less well.",
+      "type": "barchart",
+      "gridPos": {
+        "x": 0,
+        "y": 1,
+        "w": 8,
+        "h": 8
+      },
+      "datasource": "${DS_WHODUNIT}",
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "datasource": "${DS_WHODUNIT}",
+          "rawSql": "SELECT COALESCE(t.name, '(unassigned)') AS `team`,\n       ROUND(100.0 * SUM(c.status = 'assisted') / COUNT(*), 1) AS `adoption %`\nFROM whodunit_commits c\nLEFT JOIN whodunit_identities wi ON wi.alias = c.contributor\nLEFT JOIN team_users tu ON tu.user_id = COALESCE(wi.canonical, c.contributor)\nLEFT JOIN teams t ON t.id = tu.team_id\nWHERE c.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  AND ('${evidence:raw}' = '__all__' OR c.method = '${evidence:raw}')\n  AND ('${team:raw}' = '__all__' OR COALESCE(t.name, '(unassigned)') = '${team:raw}')\n  AND ('${contributor:raw}' = '__all__'\n       OR COALESCE(wi.canonical, c.contributor) = '${contributor:raw}')\nGROUP BY COALESCE(t.name, '(unassigned)')\nORDER BY `adoption %` DESC"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "platform"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "blue"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "growth"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "green"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "payments"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "orange"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "infra"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "purple"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "xField": "team",
+        "showValue": "always",
+        "text": {
+          "valueSize": 14
+        }
+      }
+    },
+    {
+      "title": "Evidence strength by team",
+      "description": "How each team's attribution was established, strongest first. A team resting on `declared` is a weaker claim than one on `intersected`, and the difference matters before any figure is quoted upward. Not a quality measure: it reflects which agents a team uses.",
+      "type": "barchart",
+      "gridPos": {
+        "x": 8,
+        "y": 1,
+        "w": 8,
+        "h": 8
+      },
+      "datasource": "${DS_WHODUNIT}",
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "datasource": "${DS_WHODUNIT}",
+          "rawSql": "SELECT COALESCE(t.name, '(unassigned)') AS `team`,\n       SUM(c.method = 'intersected') AS `intersected`,\n       SUM(c.method = 'observed')    AS `observed`,\n       SUM(c.method = 'declared')    AS `declared`\nFROM whodunit_commits c\nLEFT JOIN whodunit_identities wi ON wi.alias = c.contributor\nLEFT JOIN team_users tu ON tu.user_id = COALESCE(wi.canonical, c.contributor)\nLEFT JOIN teams t ON t.id = tu.team_id\nWHERE c.status = 'assisted'\n  AND c.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  AND ('${team:raw}' = '__all__' OR COALESCE(t.name, '(unassigned)') = '${team:raw}')\n  AND ('${contributor:raw}' = '__all__'\n       OR COALESCE(wi.canonical, c.contributor) = '${contributor:raw}')\nGROUP BY COALESCE(t.name, '(unassigned)')\nORDER BY `intersected` DESC"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {
+        "xField": "team",
+        "stacking": "normal"
+      }
+    },
+    {
+      "title": "Where the AI work is happening",
+      "description": "Each team's share of all AI-assisted commits. A pie because this genuinely is parts of a whole, unlike the adoption rate beside it — those are four independent percentages that sum past 200. A large slice means volume, not enthusiasm: a big team will dominate it at any adoption rate.",
+      "type": "piechart",
+      "gridPos": {
+        "x": 16,
+        "y": 1,
+        "w": 8,
+        "h": 8
+      },
+      "datasource": "${DS_WHODUNIT}",
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "datasource": "${DS_WHODUNIT}",
+          "rawSql": "SELECT COALESCE(t.name, '(unassigned)') AS `team`,\n       COUNT(*) AS `assisted commits`\nFROM whodunit_commits c\nLEFT JOIN whodunit_identities wi ON wi.alias = c.contributor\nLEFT JOIN team_users tu ON tu.user_id = COALESCE(wi.canonical, c.contributor)\nLEFT JOIN teams t ON t.id = tu.team_id\nWHERE c.status = 'assisted'\n  AND c.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  AND ('${team:raw}' = '__all__' OR COALESCE(t.name, '(unassigned)') = '${team:raw}')\n  AND ('${contributor:raw}' = '__all__'\n       OR COALESCE(wi.canonical, c.contributor) = '${contributor:raw}')\nGROUP BY COALESCE(t.name, '(unassigned)')\nORDER BY `assisted commits` DESC"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "values": [
+            "value",
+            "percent"
+          ]
+        },
+        "pieType": "donut",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": true
+        }
+      }
+    },
+    {
+      "title": "Agent mix by team",
+      "description": "Which assistants each team actually runs, counted from agent edits. Teams standardising on different tools is worth knowing before a licence decision, and it explains evidence-strength differences above — not every agent leaves a transcript to match against.",
+      "type": "barchart",
+      "gridPos": {
+        "x": 0,
+        "y": 9,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": "${DS_WHODUNIT}",
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "datasource": "${DS_WHODUNIT}",
+          "rawSql": "SELECT COALESCE(t.name, '(unassigned)') AS `team`,\n       SUM(e.agent = 'claude-code') AS `claude-code`,\n       SUM(e.agent = 'codex')       AS `codex`,\n       SUM(e.agent = 'agy')         AS `agy`\nFROM whodunit_events e\nLEFT JOIN whodunit_identities wi ON wi.alias = e.contributor\nLEFT JOIN team_users tu ON tu.user_id = COALESCE(wi.canonical, e.contributor)\nLEFT JOIN teams t ON t.id = tu.team_id\nWHERE e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  AND ('${team:raw}' = '__all__' OR COALESCE(t.name, '(unassigned)') = '${team:raw}')\n  AND ('${contributor:raw}' = '__all__'\n       OR COALESCE(wi.canonical, e.contributor) = '${contributor:raw}')\nGROUP BY COALESCE(t.name, '(unassigned)')\nORDER BY `claude-code` DESC"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {
+        "xField": "team",
+        "stacking": "normal"
+      }
+    },
+    {
+      "title": "Work mix by team",
+      "description": "What each team spends its commits on, by Conventional Commit prefix. A team heavy on `fix` against one heavy on `feature` is doing different work, which is the context an adoption percentage lacks on its own. Labels describe what commits were called, not what actually broke.",
+      "type": "barchart",
+      "gridPos": {
+        "x": 12,
+        "y": 9,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": "${DS_WHODUNIT}",
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "datasource": "${DS_WHODUNIT}",
+          "rawSql": "SELECT COALESCE(t.name, '(unassigned)') AS `team`,\n       SUM(c.purpose = 'feature')  AS `feature`,\n       SUM(c.purpose = 'fix')      AS `fix`,\n       SUM(c.purpose = 'docs')     AS `docs`,\n       SUM(c.purpose = 'test')     AS `test`,\n       SUM(c.purpose = 'refactor') AS `refactor`\nFROM whodunit_commits c\nLEFT JOIN whodunit_identities wi ON wi.alias = c.contributor\nLEFT JOIN team_users tu ON tu.user_id = COALESCE(wi.canonical, c.contributor)\nLEFT JOIN teams t ON t.id = tu.team_id\nWHERE c.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  AND ('${team:raw}' = '__all__' OR COALESCE(t.name, '(unassigned)') = '${team:raw}')\n  AND ('${contributor:raw}' = '__all__'\n       OR COALESCE(wi.canonical, c.contributor) = '${contributor:raw}')\nGROUP BY COALESCE(t.name, '(unassigned)')\nORDER BY `feature` DESC"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {
+        "xField": "team",
+        "stacking": "normal"
+      }
+    },
+    {
+      "title": "Adoption by team, over time",
+      "description": "Each team's AI-assisted share per period, so a rollout can be seen spreading rather than inferred from one number. A flat line on a team that adopted months ago is steady state; a flat line on a new team is a stalled rollout.",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 0,
+        "y": 17,
+        "w": 24,
+        "h": 9
+      },
+      "datasource": "${DS_WHODUNIT}",
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "datasource": "${DS_WHODUNIT}",
+          "rawSql": "SELECT FROM_UNIXTIME(FLOOR(c.committed_at / 1000000000 / 86400) * 86400) AS `time`,\n       COALESCE(t.name, '(unassigned)') AS `metric`,\n       ROUND(100.0 * SUM(c.status = 'assisted') / COUNT(*), 1) AS `value`\nFROM whodunit_commits c\nLEFT JOIN whodunit_identities wi ON wi.alias = c.contributor\nLEFT JOIN team_users tu ON tu.user_id = COALESCE(wi.canonical, c.contributor)\nLEFT JOIN teams t ON t.id = tu.team_id\nWHERE c.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  AND ('${team:raw}' = '__all__' OR COALESCE(t.name, '(unassigned)') = '${team:raw}')\n  AND ('${contributor:raw}' = '__all__'\n       OR COALESCE(wi.canonical, c.contributor) = '${contributor:raw}')\nGROUP BY FROM_UNIXTIME(FLOOR(c.committed_at / 1000000000 / 86400) * 86400),\n         COALESCE(t.name, '(unassigned)')\nORDER BY `time`"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 5,
+            "spanNulls": true,
+            "showPoints": "never"
+          }
+        },
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "title": "Is adoption even within each team?",
+      "description": "The spread between the highest and lowest adopter on each team. A team at 60% made of two people at 90% and two at 30% needs a different conversation from one where everybody sits at 60%, and the team average hides which it is.",
+      "type": "table",
+      "gridPos": {
+        "x": 0,
+        "y": 27,
+        "w": 12,
+        "h": 11
+      },
+      "datasource": "${DS_WHODUNIT}",
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "datasource": "${DS_WHODUNIT}",
+          "rawSql": "SELECT team, `people`, `team adoption %`, `lowest %`, `highest %`,\n       `highest %` - `lowest %` AS `spread`\nFROM (\n  SELECT COALESCE(t.name, '(unassigned)') AS team,\n         COUNT(DISTINCT COALESCE(wi.canonical, c.contributor)) AS `people`,\n         ROUND(100.0 * SUM(c.status = 'assisted') / COUNT(*)) AS `team adoption %`,\n         MIN(p.pct) AS `lowest %`, MAX(p.pct) AS `highest %`\n  FROM whodunit_commits c\n  LEFT JOIN whodunit_identities wi ON wi.alias = c.contributor\nLEFT JOIN team_users tu ON tu.user_id = COALESCE(wi.canonical, c.contributor)\nLEFT JOIN teams t ON t.id = tu.team_id\n  JOIN (\n    SELECT COALESCE(wi2.canonical, c2.contributor) AS person,\n           ROUND(100.0 * SUM(c2.status = 'assisted') / COUNT(*)) AS pct\n    FROM whodunit_commits c2\n    LEFT JOIN whodunit_identities wi2 ON wi2.alias = c2.contributor\n    WHERE c2.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n      AND c2.contributor IS NOT NULL\n    GROUP BY COALESCE(wi2.canonical, c2.contributor)\n  ) p ON p.person = COALESCE(wi.canonical, c.contributor)\n  WHERE c.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n    AND ('${team:raw}' = '__all__' OR COALESCE(t.name, '(unassigned)') = '${team:raw}')\n  AND ('${contributor:raw}' = '__all__'\n       OR COALESCE(wi.canonical, c.contributor) = '${contributor:raw}')\n  GROUP BY COALESCE(t.name, '(unassigned)')\n) x ORDER BY `spread` DESC"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "title": "Adoption within the team",
+      "description": "Each person's AI-assisted share, grouped by team. Deliberately a distribution rather than a ranked table: the question is whether a team is even or carried by one person, not who is top. Select a Team above to narrow it.",
+      "type": "barchart",
+      "gridPos": {
+        "x": 12,
+        "y": 27,
+        "w": 12,
+        "h": 11
+      },
+      "datasource": "${DS_WHODUNIT}",
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "datasource": "${DS_WHODUNIT}",
+          "rawSql": "SELECT CONCAT(SUBSTRING_INDEX(COALESCE(wi.canonical, c.contributor), '@', 1),\n              ' · ', COALESCE(t.name, '(unassigned)')) AS `person`,\n       ROUND(100.0 * SUM(c.status = 'assisted') / COUNT(*), 1) AS `adoption %`\nFROM whodunit_commits c\nLEFT JOIN whodunit_identities wi ON wi.alias = c.contributor\nLEFT JOIN team_users tu ON tu.user_id = COALESCE(wi.canonical, c.contributor)\nLEFT JOIN teams t ON t.id = tu.team_id\nWHERE c.contributor IS NOT NULL\n  AND c.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  AND ('${team:raw}' = '__all__' OR COALESCE(t.name, '(unassigned)') = '${team:raw}')\n  AND ('${contributor:raw}' = '__all__'\n       OR COALESCE(wi.canonical, c.contributor) = '${contributor:raw}')\nGROUP BY CONCAT(SUBSTRING_INDEX(COALESCE(wi.canonical, c.contributor), '@', 1),\n                ' · ', COALESCE(t.name, '(unassigned)'))\nORDER BY `adoption %` DESC"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "color": {
+            "mode": "continuous-GrYlRd"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "xField": "person",
+        "orientation": "horizontal",
+        "showValue": "always",
+        "text": {
+          "valueSize": 12
+        }
+      }
+    }
+  ],
+  "__inputs": [
+    {
+      "name": "DS_WHODUNIT",
+      "label": "MySQL",
+      "description": "The database holding the whodunit_* tables",
+      "type": "datasource",
+      "pluginId": "mysql",
+      "pluginName": "MySQL"
+    }
+  ]
+}
