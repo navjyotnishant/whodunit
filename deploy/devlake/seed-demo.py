@@ -508,6 +508,18 @@ def augment(container, db):
     """, container, db)
     print("agents: claude-code 80% / codex 12% / agy 8%, agy left without measurements")
 
+    # Events carry the model of their session, as the real lake's do. The
+    # clone's events still carry the real lake's models while the sessions
+    # above were given demo ones, and the per-model cost-per-line panel
+    # joins the two by model — so the event follows its session.
+    mysql("""
+        UPDATE whodunit_events e JOIN whodunit_sessions s
+          ON s.session = e.session AND s.repo_id = e.repo_id
+        SET e.model = s.model
+        WHERE s.model IS NOT NULL
+    """, container, db)
+    print("events: model copied from the session")
+
     # --- commit size: assisted commits deliver a little more -------------
     #
     # The adoption ramp reassigns status across commits whose line counts
@@ -975,7 +987,8 @@ def publish_dashboards(container, db, grafana, user, password, ds_uid, folder):
     # Their demo copies are parked in a separate folder so the demo folder
     # holds one dashboard per question; the repo and the real folder still
     # carry them. Move a uid out of this set to promote it.
-    PARKED = {"whodunit-board", "whodunit-leadership"}
+    PARKED = {"whodunit-board", "whodunit-leadership",
+              "whodunit-hours-board", "whodunit-funnel-board", "whodunit-attribution-board", "whodunit-cost-board"}
     parked_uid = folder_for("TBD")
 
     # The board with the most recently resolved issues, not the first

@@ -1,0 +1,596 @@
+{
+  "uid": "whodunit-funnel-board",
+  "title": "AI Productivity Funnel \u2014 People",
+  "tags": [
+    "whodunit"
+  ],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 0,
+  "refresh": "",
+  "time": {
+    "from": "now-30d",
+    "to": "now"
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "contributor",
+        "type": "query",
+        "datasource": "${datasource}",
+        "label": "Contributor",
+        "query": "SELECT DISTINCT COALESCE(NULLIF(contributor, ''), '(unattributed)') AS __text, COALESCE(NULLIF(contributor, ''), '') AS __value FROM whodunit_repos ORDER BY 1",
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "__all__"
+        },
+        "multi": false,
+        "includeAll": true,
+        "allValue": "__all__",
+        "refresh": 1,
+        "hide": 0
+      },
+      {
+        "name": "team",
+        "type": "query",
+        "datasource": "${datasource}",
+        "query": "SELECT DISTINCT COALESCE(NULLIF(t.name, ''), '(unassigned)') AS __text, COALESCE(NULLIF(t.name, ''), '(unassigned)') AS __value FROM whodunit_repos r LEFT JOIN team_users tu ON tu.user_id = r.contributor LEFT JOIN teams t ON t.id = tu.team_id ORDER BY 1",
+        "includeAll": true,
+        "multi": false,
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "__all__"
+        },
+        "label": "Team",
+        "refresh": 1,
+        "allValue": "__all__"
+      },
+      {
+        "name": "evidence",
+        "type": "custom",
+        "label": "Evidence",
+        "query": "intersected \u2014 agent lines survived : intersected,observed \u2014 agent edited the files : observed,inferred \u2014 from surrounding evidence : inferred,declared \u2014 stated only : declared,undetermined \u2014 no evidence either way : undetermined",
+        "options": [],
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "__all__"
+        },
+        "includeAll": true,
+        "allValue": "__all__",
+        "multi": false,
+        "hide": 0
+      },
+      {
+        "name": "board",
+        "type": "query",
+        "datasource": "${datasource}",
+        "query": "SELECT name AS __text, id AS __value FROM boards ORDER BY name",
+        "current": {},
+        "refresh": 1,
+        "hide": 0,
+        "label": "Issue board",
+        "includeAll": false,
+        "multi": false
+      }
+    ]
+  },
+  "panels": [
+    {
+      "type": "text",
+      "title": "",
+      "gridPos": {
+        "h": 4,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 1,
+      "options": {
+        "mode": "html",
+        "content": "<h3 style='margin:0 0 6px'>From everyone who commits to the people delivering tracked work with assistance \u2014 where they drop off</h3><p style='margin:0'>Every stage counts people, and each stage is a subset of the one before, so the fall between two bars is a real conversion rate rather than two unrelated numbers. Stage five \u2014 agent lines survived to the commit \u2014 is the strongest evidence the tool has; stage six needs the tracker key in the commit message. The drop-off list names who is stuck where, which is where a rollout acts.</p>"
+      }
+    },
+    {
+      "type": "row",
+      "title": "The funnel, in people",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 4
+      },
+      "id": 2,
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "type": "bargauge",
+      "title": "Six stages, each a subset of the last",
+      "description": "People at each stage in range. Stage one is everyone who committed; each later stage is the people from the stage before who also did the next thing. Read the bars top to bottom as a funnel; the table beside gives the conversion between them.",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "h": 11,
+        "w": 11,
+        "x": 0,
+        "y": 5
+      },
+      "id": 3,
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "datasource": "${datasource}",
+          "rawSql": "\nWITH \nppl0 AS (\n  SELECT COALESCE(wi.canonical, c.contributor) person, COALESCE(t.name,'(unassigned)') team,\n         COUNT(*) commits, SUM(c.status='assisted') assisted, SUM(c.status='assisted' AND c.method='intersected') intersected\n  FROM whodunit_commits c LEFT JOIN whodunit_identities wi ON wi.alias = c.contributor\n    LEFT JOIN team_users tu ON tu.user_id = COALESCE(wi.canonical, c.contributor)\n    LEFT JOIN teams t ON t.id = tu.team_id\n  WHERE c.committed_at BETWEEN $__unixEpochFrom()*1000000000 AND $__unixEpochTo()*1000000000 AND c.contributor IS NOT NULL AND c.status IN ('assisted','unassisted','undetermined','uninstrumented','unmatched','degraded') AND ('${contributor:raw}' = '__all__' OR COALESCE(wi.canonical, c.contributor) = '${contributor:raw}')\n    AND ('${team:raw}' = '__all__' OR COALESCE(t.name,'(unassigned)') = '${team:raw}')\n  GROUP BY person, team),\nsess AS (\n  SELECT COALESCE(wi.canonical, s.contributor) person, COUNT(*) n FROM whodunit_sessions s\n  LEFT JOIN whodunit_identities wi ON wi.alias = s.contributor\n  WHERE s.last_seen BETWEEN $__unixEpochFrom()*1000000000 AND $__unixEpochTo()*1000000000 AND s.contributor IS NOT NULL GROUP BY person),\niss AS (\n  SELECT COALESCE(wi.canonical, c.contributor) person, COUNT(DISTINCT i.id) n\n  FROM issues i JOIN issue_commits ic ON ic.issue_id = i.id JOIN whodunit_commits c ON c.commit_sha = ic.commit_sha\n  LEFT JOIN whodunit_identities wi ON wi.alias = c.contributor\n  WHERE i.status='DONE' AND i.issue_key REGEXP '^[A-Z][A-Z0-9]+-[0-9]+$' AND c.status='assisted' AND c.contributor IS NOT NULL\n    AND $__timeFilter(i.resolution_date) GROUP BY person),\nppl AS (\n  SELECT ppl0.*, COALESCE(sess.n,0) sessions, COALESCE(iss.n,0) issues\n  FROM ppl0 LEFT JOIN sess ON sess.person = ppl0.person LEFT JOIN iss ON iss.person = ppl0.person)\nSELECT s.stage AS metric, s.n AS value FROM (\n  SELECT '1 \u00b7 committed in range' stage, 1 o, COUNT(*) n FROM ppl\n  UNION ALL SELECT '2 \u00b7 opened an agent session', 2, COUNT(*) FROM ppl WHERE sessions > 0\n  UNION ALL SELECT '3 \u00b7 shipped an assisted commit', 3, COUNT(*) FROM ppl WHERE assisted > 0\n  UNION ALL SELECT '4 \u00b7 reached five assisted commits', 4, COUNT(*) FROM ppl WHERE assisted >= 5\n  UNION ALL SELECT '5 \u00b7 agent lines survived to the commit', 5, COUNT(*) FROM ppl WHERE intersected > 0\n  UNION ALL SELECT '6 \u00b7 closed a tracked issue with assistance', 6, COUNT(*) FROM ppl WHERE issues > 0\n) s ORDER BY s.o"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "decimals": 0,
+          "color": {
+            "mode": "continuous-BlPu"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/^value$/",
+          "values": true
+        },
+        "orientation": "horizontal",
+        "displayMode": "gradient",
+        "showUnfilled": true,
+        "valueMode": "color",
+        "namePlacement": "top",
+        "sizing": "auto"
+      }
+    },
+    {
+      "type": "table",
+      "title": "Conversion between stages",
+      "description": "Each stage as a share of everyone and as a share of the stage before it. The second column is the one to act on: the biggest fall between adjacent stages is where the rollout is losing people.",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "h": 11,
+        "w": 13,
+        "x": 11,
+        "y": 5
+      },
+      "id": 4,
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "datasource": "${datasource}",
+          "rawSql": "\nWITH \nppl0 AS (\n  SELECT COALESCE(wi.canonical, c.contributor) person, COALESCE(t.name,'(unassigned)') team,\n         COUNT(*) commits, SUM(c.status='assisted') assisted, SUM(c.status='assisted' AND c.method='intersected') intersected\n  FROM whodunit_commits c LEFT JOIN whodunit_identities wi ON wi.alias = c.contributor\n    LEFT JOIN team_users tu ON tu.user_id = COALESCE(wi.canonical, c.contributor)\n    LEFT JOIN teams t ON t.id = tu.team_id\n  WHERE c.committed_at BETWEEN $__unixEpochFrom()*1000000000 AND $__unixEpochTo()*1000000000 AND c.contributor IS NOT NULL AND c.status IN ('assisted','unassisted','undetermined','uninstrumented','unmatched','degraded') AND ('${contributor:raw}' = '__all__' OR COALESCE(wi.canonical, c.contributor) = '${contributor:raw}')\n    AND ('${team:raw}' = '__all__' OR COALESCE(t.name,'(unassigned)') = '${team:raw}')\n  GROUP BY person, team),\nsess AS (\n  SELECT COALESCE(wi.canonical, s.contributor) person, COUNT(*) n FROM whodunit_sessions s\n  LEFT JOIN whodunit_identities wi ON wi.alias = s.contributor\n  WHERE s.last_seen BETWEEN $__unixEpochFrom()*1000000000 AND $__unixEpochTo()*1000000000 AND s.contributor IS NOT NULL GROUP BY person),\niss AS (\n  SELECT COALESCE(wi.canonical, c.contributor) person, COUNT(DISTINCT i.id) n\n  FROM issues i JOIN issue_commits ic ON ic.issue_id = i.id JOIN whodunit_commits c ON c.commit_sha = ic.commit_sha\n  LEFT JOIN whodunit_identities wi ON wi.alias = c.contributor\n  WHERE i.status='DONE' AND i.issue_key REGEXP '^[A-Z][A-Z0-9]+-[0-9]+$' AND c.status='assisted' AND c.contributor IS NOT NULL\n    AND $__timeFilter(i.resolution_date) GROUP BY person),\nppl AS (\n  SELECT ppl0.*, COALESCE(sess.n,0) sessions, COALESCE(iss.n,0) issues\n  FROM ppl0 LEFT JOIN sess ON sess.person = ppl0.person LEFT JOIN iss ON iss.person = ppl0.person),\nst AS (\n  SELECT 1 o, 'committed in range' stage, COUNT(*) n FROM ppl\n  UNION ALL SELECT 2, 'opened an agent session', COUNT(*) FROM ppl WHERE sessions > 0\n  UNION ALL SELECT 3, 'shipped an assisted commit', COUNT(*) FROM ppl WHERE assisted > 0\n  UNION ALL SELECT 4, 'reached five assisted commits', COUNT(*) FROM ppl WHERE assisted >= 5\n  UNION ALL SELECT 5, 'agent lines survived to the commit', COUNT(*) FROM ppl WHERE intersected > 0\n  UNION ALL SELECT 6, 'closed a tracked issue with assistance', COUNT(*) FROM ppl WHERE issues > 0)\nSELECT a.o AS `#`, a.stage AS `Stage`, a.n AS `People`,\n       ROUND(100*a.n/NULLIF((SELECT n FROM st WHERE o=1),0),0) AS `Of everyone %`,\n       ROUND(100*a.n/NULLIF(b.n,0),0) AS `Of previous stage %`\nFROM st a LEFT JOIN st b ON b.o = a.o - 1 ORDER BY a.o"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "right"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Stage"
+            },
+            "properties": [
+              {
+                "id": "custom.align",
+                "value": "left"
+              },
+              {
+                "id": "custom.width",
+                "value": 200
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "#"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 36
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*%"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percent"
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background",
+                  "mode": "gradient"
+                }
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "continuous-RdYlGr"
+                }
+              },
+              {
+                "id": "min",
+                "value": 0
+              },
+              {
+                "id": "max",
+                "value": 100
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "cellHeight": "md"
+      }
+    },
+    {
+      "type": "row",
+      "title": "Per team, and who is stuck where",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 16
+      },
+      "id": 5,
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "type": "table",
+      "title": "The funnel per team",
+      "description": "People at each stage, per team. Two teams with the same adoption share can be at very different stages \u2014 one with everyone at three, one with half at five and half at one.",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "h": 7,
+        "w": 24,
+        "x": 0,
+        "y": 17
+      },
+      "id": 6,
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "datasource": "${datasource}",
+          "rawSql": "\nWITH \nppl0 AS (\n  SELECT COALESCE(wi.canonical, c.contributor) person, COALESCE(t.name,'(unassigned)') team,\n         COUNT(*) commits, SUM(c.status='assisted') assisted, SUM(c.status='assisted' AND c.method='intersected') intersected\n  FROM whodunit_commits c LEFT JOIN whodunit_identities wi ON wi.alias = c.contributor\n    LEFT JOIN team_users tu ON tu.user_id = COALESCE(wi.canonical, c.contributor)\n    LEFT JOIN teams t ON t.id = tu.team_id\n  WHERE c.committed_at BETWEEN $__unixEpochFrom()*1000000000 AND $__unixEpochTo()*1000000000 AND c.contributor IS NOT NULL AND c.status IN ('assisted','unassisted','undetermined','uninstrumented','unmatched','degraded') AND ('${contributor:raw}' = '__all__' OR COALESCE(wi.canonical, c.contributor) = '${contributor:raw}')\n    AND ('${team:raw}' = '__all__' OR COALESCE(t.name,'(unassigned)') = '${team:raw}')\n  GROUP BY person, team),\nsess AS (\n  SELECT COALESCE(wi.canonical, s.contributor) person, COUNT(*) n FROM whodunit_sessions s\n  LEFT JOIN whodunit_identities wi ON wi.alias = s.contributor\n  WHERE s.last_seen BETWEEN $__unixEpochFrom()*1000000000 AND $__unixEpochTo()*1000000000 AND s.contributor IS NOT NULL GROUP BY person),\niss AS (\n  SELECT COALESCE(wi.canonical, c.contributor) person, COUNT(DISTINCT i.id) n\n  FROM issues i JOIN issue_commits ic ON ic.issue_id = i.id JOIN whodunit_commits c ON c.commit_sha = ic.commit_sha\n  LEFT JOIN whodunit_identities wi ON wi.alias = c.contributor\n  WHERE i.status='DONE' AND i.issue_key REGEXP '^[A-Z][A-Z0-9]+-[0-9]+$' AND c.status='assisted' AND c.contributor IS NOT NULL\n    AND $__timeFilter(i.resolution_date) GROUP BY person),\nppl AS (\n  SELECT ppl0.*, COALESCE(sess.n,0) sessions, COALESCE(iss.n,0) issues\n  FROM ppl0 LEFT JOIN sess ON sess.person = ppl0.person LEFT JOIN iss ON iss.person = ppl0.person)\nSELECT team AS `Team`, COUNT(*) AS `Committed`, SUM(sessions > 0) AS `Session`, SUM(assisted > 0) AS `Assisted commit`,\n       SUM(assisted >= 5) AS `Five+`, SUM(intersected > 0) AS `Lines survived`, SUM(issues > 0) AS `Issue closed`\nFROM ppl GROUP BY team ORDER BY `Committed` DESC"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "right"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Team"
+            },
+            "properties": [
+              {
+                "id": "custom.align",
+                "value": "left"
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "cellHeight": "md"
+      }
+    },
+    {
+      "type": "table",
+      "title": "Drop-off \u2014 who is stuck, and at which stage",
+      "description": "Everyone who has not reached the last stage, with the first stage they failed to pass. Ordered earliest stage first, most active first within it \u2014 the people at the top are the ones a conversation moves furthest. Says where, not why.",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "h": 9,
+        "w": 24,
+        "x": 0,
+        "y": 24
+      },
+      "id": 7,
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "datasource": "${datasource}",
+          "rawSql": "\nWITH \nppl0 AS (\n  SELECT COALESCE(wi.canonical, c.contributor) person, COALESCE(t.name,'(unassigned)') team,\n         COUNT(*) commits, SUM(c.status='assisted') assisted, SUM(c.status='assisted' AND c.method='intersected') intersected\n  FROM whodunit_commits c LEFT JOIN whodunit_identities wi ON wi.alias = c.contributor\n    LEFT JOIN team_users tu ON tu.user_id = COALESCE(wi.canonical, c.contributor)\n    LEFT JOIN teams t ON t.id = tu.team_id\n  WHERE c.committed_at BETWEEN $__unixEpochFrom()*1000000000 AND $__unixEpochTo()*1000000000 AND c.contributor IS NOT NULL AND c.status IN ('assisted','unassisted','undetermined','uninstrumented','unmatched','degraded') AND ('${contributor:raw}' = '__all__' OR COALESCE(wi.canonical, c.contributor) = '${contributor:raw}')\n    AND ('${team:raw}' = '__all__' OR COALESCE(t.name,'(unassigned)') = '${team:raw}')\n  GROUP BY person, team),\nsess AS (\n  SELECT COALESCE(wi.canonical, s.contributor) person, COUNT(*) n FROM whodunit_sessions s\n  LEFT JOIN whodunit_identities wi ON wi.alias = s.contributor\n  WHERE s.last_seen BETWEEN $__unixEpochFrom()*1000000000 AND $__unixEpochTo()*1000000000 AND s.contributor IS NOT NULL GROUP BY person),\niss AS (\n  SELECT COALESCE(wi.canonical, c.contributor) person, COUNT(DISTINCT i.id) n\n  FROM issues i JOIN issue_commits ic ON ic.issue_id = i.id JOIN whodunit_commits c ON c.commit_sha = ic.commit_sha\n  LEFT JOIN whodunit_identities wi ON wi.alias = c.contributor\n  WHERE i.status='DONE' AND i.issue_key REGEXP '^[A-Z][A-Z0-9]+-[0-9]+$' AND c.status='assisted' AND c.contributor IS NOT NULL\n    AND $__timeFilter(i.resolution_date) GROUP BY person),\nppl AS (\n  SELECT ppl0.*, COALESCE(sess.n,0) sessions, COALESCE(iss.n,0) issues\n  FROM ppl0 LEFT JOIN sess ON sess.person = ppl0.person LEFT JOIN iss ON iss.person = ppl0.person)\nSELECT SUBSTRING_INDEX(person,'@',1) AS `Person`, team AS `Team`,\n       CASE WHEN sessions = 0 THEN 'never opened a session'\n            WHEN assisted = 0 THEN 'sessions, no assisted commit'\n            WHEN assisted < 5 THEN 'under five assisted commits'\n            WHEN intersected = 0 THEN 'assisted, but no lines survived'\n            ELSE 'no tracked issue closed with assistance' END AS `Stuck at`,\n       commits AS `Commits`, sessions AS `Sessions`, assisted AS `Assisted`\nFROM ppl WHERE issues = 0 ORDER BY FIELD(`Stuck at`,'never opened a session','sessions, no assisted commit','under five assisted commits','assisted, but no lines survived','no tracked issue closed with assistance'), commits DESC"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "left"
+          },
+          "noValue": "everyone reached the last stage"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "Commits|Sessions|Assisted"
+            },
+            "properties": [
+              {
+                "id": "custom.align",
+                "value": "right"
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "cellHeight": "sm"
+      }
+    },
+    {
+      "type": "row",
+      "title": "Kept from the original",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 33
+      },
+      "id": 8,
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "id": 9,
+      "title": "Stage 4 \u00b7 Cycle time \u2014 assisted vs not",
+      "type": "bargauge",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 34
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT CASE WHEN ai = 1 THEN 'AI-assisted' ELSE 'not assisted' END AS `group`,\n       ROUND(AVG(ltm)/60, 1) AS `hours`\nFROM (\n  SELECT i.issue_key, i.lead_time_minutes AS ltm,\n         COALESCE(MAX(w.status = 'assisted'), 0) AS ai\n  FROM issues i\n  JOIN board_issues bi ON bi.issue_id = i.id\n  LEFT JOIN issue_commits gc ON gc.issue_id = i.id\n  LEFT JOIN whodunit_commits w ON w.commit_sha = gc.commit_sha\n  WHERE w.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  AND  ('${evidence:raw}' = '__all__' OR w.method = '${evidence:raw}')\n  AND  bi.board_id = '$board'\n    AND i.lead_time_minutes IS NOT NULL\n    AND i.issue_key REGEXP '^[A-Z][A-Z0-9]+-[0-9]+$'\n  GROUP BY i.issue_key, i.lead_time_minutes\n) t GROUP BY ai"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "no commits cite this board\u2019s issue keys",
+          "color": {
+            "mode": "continuous-GrYlRd"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "description": "Median PR cycle time, split by whether the work was assisted.\n\n**Not a controlled comparison.** An agent is reached for on some kinds of work and not others, so part of any gap measures which work was assigned rather than what the agent did to it. Read it as a difference between two populations, not as an effect.",
+      "options": {
+        "displayMode": "gradient",
+        "orientation": "horizontal",
+        "showUnfilled": true,
+        "valueMode": "text",
+        "text": {
+          "valueSize": 18,
+          "titleSize": 12
+        },
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": true
+        }
+      }
+    },
+    {
+      "id": 10,
+      "title": "Stage 5 \u00b7 Rework rate, assisted",
+      "type": "stat",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "h": 8,
+        "w": 4,
+        "x": 8,
+        "y": 34
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT ROUND(100.0 * SUM(c.purpose = 'fix' AND c.status = 'assisted')\n  / NULLIF(SUM(c.status = 'assisted'), 0), 1) AS v\nFROM whodunit_commits c\nLEFT JOIN whodunit_identities wi ON wi.alias = c.contributor\nWHERE c.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  AND  ('${evidence:raw}' = '__all__' OR c.method = '${evidence:raw}')\n  AND  ('${contributor:raw}' = '__all__' OR COALESCE(wi.canonical, c.contributor) = '${contributor:raw}')"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 1,
+          "noValue": "no assisted commits in range",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "description": "Share of assisted commits labelled as fixes \u2014 a rework proxy.\n\n**Not a defect rate.** `purpose` comes from Conventional Commit prefixes and path heuristics, so it measures what commits were labelled, not what broke.\n\n**Read the banded version on the delivery dashboard before concluding anything.** Unbanded, assisted work looks better than unassisted (28.4% against 33.3%); split by change size that reverses in the middle band. The single figure here is a size-mix artefact and is shown as an entry point, not an answer.",
+      "options": {
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 11,
+      "title": "Habitual use (WAU / MAU)",
+      "type": "stat",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "h": 8,
+        "w": 4,
+        "x": 12,
+        "y": 34
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT ROUND(\n  (SELECT COUNT(*) FROM whodunit_sessions s\n   WHERE s.last_seen >= (UNIX_TIMESTAMP() - 7*86400) * 1000000000 AND ('${contributor:raw}' = '__all__' OR s.contributor = '${contributor:raw}')) * 100.0\n  / NULLIF((SELECT COUNT(*) FROM whodunit_sessions s\n   WHERE s.last_seen >= (UNIX_TIMESTAMP() - 30*86400) * 1000000000 AND ('${contributor:raw}' = '__all__' OR s.contributor = '${contributor:raw}')), 0), 0) AS v"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 0,
+          "noValue": "no sessions in range",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "description": "Weekly actives over monthly actives \u2014 whether use is habitual or occasional.\n\nA high ratio means the people who use it use it regularly. It says nothing about how many people that is, which is stage 1.",
+      "options": {
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 12,
+      "title": "Stage 2 \u00b7 Engagement \u2014 how deep, not how many",
+      "type": "bargauge",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 34
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT CASE\n         WHEN s.mcp_calls > 0 OR s.distinct_tools >= 5 THEN 'agentic \u2014 MCP or many tools'\n         WHEN s.tool_calls >= 50 THEN 'multi-file work'\n         WHEN s.tool_calls >= 10 THEN 'wrote code'\n         WHEN s.tool_calls > 0   THEN 'light edits'\n         ELSE 'conversation only \u2014 no edits'\n       END AS `intensity`,\n       COUNT(*) AS `sessions`\nFROM whodunit_sessions s\nLEFT JOIN whodunit_identities wi ON wi.alias = s.contributor\nWHERE s.last_seen BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000 AND ('${contributor:raw}' = '__all__' OR COALESCE(wi.canonical, s.contributor) = '${contributor:raw}')\nGROUP BY `intensity` ORDER BY `sessions` DESC"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "no sessions in range",
+          "color": {
+            "mode": "continuous-BlPu"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "description": "Sessions bucketed by what actually happened in them, from conversation-only up to agentic work using MCP or many tools.\n\nDepth rather than count, deliberately: ten sessions that produced nothing and one that rewrote a subsystem are not the same adoption, and a session count treats them identically.",
+      "options": {
+        "displayMode": "gradient",
+        "orientation": "horizontal",
+        "showUnfilled": true,
+        "valueMode": "text",
+        "text": {
+          "valueSize": 18,
+          "titleSize": 12
+        },
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": true
+        }
+      }
+    },
+    {
+      "type": "text",
+      "title": "",
+      "gridPos": {
+        "h": 3,
+        "w": 24,
+        "x": 0,
+        "y": 42
+      },
+      "id": 13,
+      "options": {
+        "mode": "html",
+        "content": "<p style='margin:0'><b>Read with care.</b> Someone at stage one may be working in a repository the tool is not installed in. Stage six counts only issues whose key was in a commit message; a team that does not write keys sits at stage five whatever it delivers. Filters apply to every panel. Cycle time and rework are kept from the original and carry its caveats.</p>"
+      }
+    }
+  ],
+  "editable": true,
+  "graphTooltip": 1
+}

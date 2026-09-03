@@ -1,0 +1,1123 @@
+{
+  "uid": "whodunit-cost-board",
+  "title": "Cost & Efficiency \u2014 Per model",
+  "tags": [
+    "whodunit"
+  ],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 0,
+  "refresh": "",
+  "time": {
+    "from": "now-30d",
+    "to": "now"
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "contributor",
+        "type": "query",
+        "datasource": "${datasource}",
+        "label": "Contributor",
+        "query": "SELECT DISTINCT COALESCE(NULLIF(contributor, ''), '(unattributed)') AS __text, COALESCE(NULLIF(contributor, ''), '') AS __value FROM whodunit_repos ORDER BY 1",
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "__all__"
+        },
+        "multi": false,
+        "includeAll": true,
+        "allValue": "__all__",
+        "refresh": 1,
+        "hide": 0
+      },
+      {
+        "name": "team",
+        "type": "query",
+        "datasource": "${datasource}",
+        "query": "SELECT DISTINCT COALESCE(NULLIF(t.name, ''), '(unassigned)') AS __text, COALESCE(NULLIF(t.name, ''), '(unassigned)') AS __value FROM whodunit_repos r LEFT JOIN team_users tu ON tu.user_id = r.contributor LEFT JOIN teams t ON t.id = tu.team_id ORDER BY 1",
+        "includeAll": true,
+        "multi": false,
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "__all__"
+        },
+        "label": "Team",
+        "refresh": 1,
+        "allValue": "__all__"
+      },
+      {
+        "name": "evidence",
+        "type": "custom",
+        "label": "Evidence",
+        "query": "intersected \u2014 agent lines survived : intersected,observed \u2014 agent edited the files : observed,inferred \u2014 from surrounding evidence : inferred,declared \u2014 stated only : declared,undetermined \u2014 no evidence either way : undetermined",
+        "options": [],
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "__all__"
+        },
+        "includeAll": true,
+        "allValue": "__all__",
+        "multi": false,
+        "hide": 0
+      }
+    ]
+  },
+  "panels": [
+    {
+      "type": "text",
+      "title": "",
+      "gridPos": {
+        "h": 4,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 1,
+      "options": {
+        "mode": "html",
+        "content": "<h3 style='margin:0 0 6px'>What the agent consumed, per model, and whether the context is under pressure</h3><p style='margin:0'>Tokens are reported as tokens. Where a model has a list price in the price table, the page also prices them \u2014 as list price, which is a cost only under per-token billing. The per-model split is the point: an aggregate hides a model that costs five times another for the same work. Context pressure \u2014 compaction and cache \u2014 is the part of cost a team can act on this week.</p>"
+      }
+    },
+    {
+      "type": "row",
+      "title": "What it cost, in tokens",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 4
+      },
+      "id": 2,
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "id": 3,
+      "title": "Total tokens",
+      "type": "stat",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "h": 5,
+        "w": 4,
+        "x": 0,
+        "y": 5
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT COALESCE(SUM(s.input_tokens + s.output_tokens\n       + COALESCE(s.cache_read_tokens,0) + COALESCE(s.cache_write_tokens,0)), 0) AS v\nFROM whodunit_sessions s\nLEFT JOIN whodunit_identities wi ON wi.alias = s.contributor\nWHERE s.first_seen BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  AND  s.input_tokens IS NOT NULL AND ('${contributor:raw}' = '__all__' OR COALESCE(wi.canonical, s.contributor) = '${contributor:raw}')"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "sishort",
+          "decimals": 1,
+          "noValue": "no session reported tokens",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "description": "Every token billed: uncached input + cache reads + cache writes + output.\n\n**Almost all of it is cache reads.** Measured here: 7.53B cache reads, 54.6M cache writes, 13.2M uncached input, 7.9M output \u2014 so this number tracks how much context was re-sent, not how much the models produced. The four tiles to the right hold the same breakdown as live figures.\n\nTokens, not currency: under a subscription the marginal cost of a token is zero, so a price table would report money nobody spent. Multiply by your own contract if you need a figure.",
+      "options": {
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 4,
+      "title": "Output tokens",
+      "type": "stat",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "h": 5,
+        "w": 4,
+        "x": 4,
+        "y": 5
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT COALESCE(SUM(s.output_tokens), 0) AS v\nFROM whodunit_sessions s\nLEFT JOIN whodunit_identities wi ON wi.alias = s.contributor\nWHERE s.first_seen BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  AND  s.output_tokens IS NOT NULL AND ('${contributor:raw}' = '__all__' OR COALESCE(wi.canonical, s.contributor) = '${contributor:raw}')"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "sishort",
+          "decimals": 1,
+          "noValue": "not reported",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "description": "What the models actually produced, as opposed to what was re-sent to them.\n\nTypically a fraction of a percent of the total \u2014 0.1% measured here.\n\n**Total and Output are three orders of magnitude apart**, so they render in different units (B against M) and comparing them by eye reads as a contradiction. They are not: 7.6 B is a thousand times 7.6 M.",
+      "options": {
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 5,
+      "title": "Uncached input",
+      "type": "stat",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "h": 5,
+        "w": 4,
+        "x": 8,
+        "y": 5
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT COALESCE(SUM(s.input_tokens), 0) AS v\nFROM whodunit_sessions s\nLEFT JOIN whodunit_identities wi ON wi.alias = s.contributor\nWHERE s.first_seen BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  AND  s.input_tokens IS NOT NULL AND ('${contributor:raw}' = '__all__' OR COALESCE(wi.canonical, s.contributor) = '${contributor:raw}')"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "sishort",
+          "decimals": 1,
+          "noValue": "not reported",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "description": "Input the model had to read fresh, at full price.\n\nThis is the figure a cache is meant to shrink. It was missing from this dashboard entirely, which left the headline total \u2014 almost all of it cache reads \u2014 looking like the whole story.",
+      "options": {
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 6,
+      "title": "Cache reads",
+      "type": "stat",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "h": 5,
+        "w": 4,
+        "x": 12,
+        "y": 5
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT COALESCE(SUM(s.cache_read_tokens), 0) AS v\nFROM whodunit_sessions s\nLEFT JOIN whodunit_identities wi ON wi.alias = s.contributor\nWHERE s.first_seen BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  AND  s.cache_read_tokens IS NOT NULL AND ('${contributor:raw}' = '__all__' OR COALESCE(wi.canonical, s.contributor) = '${contributor:raw}')"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "sishort",
+          "decimals": 1,
+          "noValue": "not reported",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "description": "Context re-sent and served from cache at about a tenth of base rate.\n\nNormally the largest number on this dashboard by three orders of magnitude \u2014 99% of the total here \u2014 which is why the headline figure is not a measure of how much work was produced.",
+      "options": {
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 7,
+      "title": "Served from cache",
+      "type": "stat",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "h": 5,
+        "w": 4,
+        "x": 16,
+        "y": 5
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT ROUND(100.0 * SUM(COALESCE(s.cache_read_tokens,0))\n  / NULLIF(SUM(s.input_tokens + COALESCE(s.cache_read_tokens,0)\n             + COALESCE(s.cache_write_tokens,0)), 0), 1) AS v\nFROM whodunit_sessions s\nLEFT JOIN whodunit_identities wi ON wi.alias = s.contributor\nWHERE s.first_seen BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  AND  s.input_tokens IS NOT NULL AND ('${contributor:raw}' = '__all__' OR COALESCE(wi.canonical, s.contributor) = '${contributor:raw}')"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 1,
+          "noValue": "no input tokens recorded",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 50
+              },
+              {
+                "color": "green",
+                "value": 75
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "description": "Share of input tokens served from cache.\n\n**Cache writes count as uncached here**, because a write arrives uncached and is billed above base rate. Omitting them turns a real 48% into a flattering 99% \u2014 measured on this project's own data.",
+      "options": {
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 8,
+      "title": "Cache write payback",
+      "type": "stat",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "h": 5,
+        "w": 4,
+        "x": 20,
+        "y": 5
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT ROUND(SUM(COALESCE(s.cache_read_tokens,0))\n  / NULLIF(SUM(s.cache_write_tokens), 0), 2) AS v\nFROM whodunit_sessions s\nLEFT JOIN whodunit_identities wi ON wi.alias = s.contributor\nWHERE s.first_seen BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  AND  s.cache_write_tokens IS NOT NULL AND s.cache_write_tokens > 0 AND ('${contributor:raw}' = '__all__' OR COALESCE(wi.canonical, s.contributor) = '${contributor:raw}')"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "suffix: \u00d7",
+          "decimals": 1,
+          "noValue": "no agent reported cache writes",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1.25
+              },
+              {
+                "color": "green",
+                "value": 3
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "description": "Reads returned per token written to cache \u2014 a **ratio, not a percentage**. 135 means each cached token was read back 135 times.\n\nBelow 1.25x the writes cost more than they saved \u2014 a write is billed at about 1.25x base and a read at 0.1x.\n\n**The obvious break-even of 1.0 is wrong**: a series at 1.10x lost money while looking healthy.\n\nEmpty for Codex, which reports cache reads but never writes.",
+      "options": {
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "type": "row",
+      "title": "Per model, priced",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 10
+      },
+      "id": 9,
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "type": "timeseries",
+      "title": "List-price spend per model, per week",
+      "description": "Each week's tokens priced at each model's own list price, stacked by model. The shape to watch is a model climbing that costs more per token than the one it displaced. Models with no price row are absent, not zero; see the Investment Case for the price list.",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 0,
+        "y": 11
+      },
+      "id": 10,
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "datasource": "${datasource}",
+          "rawSql": "\nSELECT CAST(DATE_SUB(DATE(FROM_UNIXTIME(s.last_seen/1e9)), INTERVAL WEEKDAY(FROM_UNIXTIME(s.last_seen/1e9)) DAY) AS DATETIME) AS time,\n       s.model AS metric, ROUND(SUM((COALESCE(s.input_tokens,0)/1e6*p.input_usd + COALESCE(s.output_tokens,0)/1e6*p.output_usd + COALESCE(s.cache_read_tokens,0)/1e6*p.cache_read_usd + COALESCE(s.cache_write_tokens,0)/1e6*p.cache_write_usd)),2) AS value\nFROM whodunit_sessions s LEFT JOIN whodunit_identities wi ON wi.alias = s.contributor\n    LEFT JOIN team_users tu ON tu.user_id = COALESCE(wi.canonical, s.contributor)\n    LEFT JOIN teams t ON t.id = tu.team_id LEFT JOIN whodunit_model_prices p ON p.model = s.model WHERE s.last_seen BETWEEN $__unixEpochFrom()*1000000000 AND $__unixEpochTo()*1000000000 AND s.input_tokens IS NOT NULL AND p.model IS NOT NULL AND ('${contributor:raw}' = '__all__' OR COALESCE(wi.canonical, s.contributor) = '${contributor:raw}')\n    AND ('${team:raw}' = '__all__' OR COALESCE(t.name,'(unassigned)') = '${team:raw}')\nGROUP BY time, s.model ORDER BY time, s.model"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "bars",
+            "stacking": {
+              "mode": "normal"
+            },
+            "fillOpacity": 80,
+            "lineWidth": 0
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "type": "table",
+      "title": "Cost per thousand agent-written lines, by model",
+      "description": "List-price spend per model against the lines that model's events added, and output tokens per line. This is the efficiency figure per model: a model that costs more per token can still cost less per line if it needs fewer tokens to get there. Lines are attributed by the model on the event.",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 12,
+        "y": 11
+      },
+      "id": 11,
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "datasource": "${datasource}",
+          "rawSql": "\nWITH sp AS (SELECT s.model, SUM((COALESCE(s.input_tokens,0)/1e6*p.input_usd + COALESCE(s.output_tokens,0)/1e6*p.output_usd + COALESCE(s.cache_read_tokens,0)/1e6*p.cache_read_usd + COALESCE(s.cache_write_tokens,0)/1e6*p.cache_write_usd)) usd, SUM(s.output_tokens) out_tok FROM whodunit_sessions s LEFT JOIN whodunit_identities wi ON wi.alias = s.contributor\n    LEFT JOIN team_users tu ON tu.user_id = COALESCE(wi.canonical, s.contributor)\n    LEFT JOIN teams t ON t.id = tu.team_id LEFT JOIN whodunit_model_prices p ON p.model = s.model\n            WHERE s.last_seen BETWEEN $__unixEpochFrom()*1000000000 AND $__unixEpochTo()*1000000000 AND s.input_tokens IS NOT NULL AND p.model IS NOT NULL AND ('${contributor:raw}' = '__all__' OR COALESCE(wi.canonical, s.contributor) = '${contributor:raw}')\n    AND ('${team:raw}' = '__all__' OR COALESCE(t.name,'(unassigned)') = '${team:raw}') GROUP BY s.model),\nln AS (SELECT COALESCE(NULLIF(e.model,''),'(no model)') model, SUM(e.lines_added) added\n       FROM whodunit_events e LEFT JOIN whodunit_identities wi ON wi.alias = e.contributor\n    LEFT JOIN team_users tu ON tu.user_id = COALESCE(wi.canonical, e.contributor)\n    LEFT JOIN teams t ON t.id = tu.team_id\n       WHERE e.observed_at BETWEEN $__unixEpochFrom()*1000000000 AND $__unixEpochTo()*1000000000 AND e.lines_added > 0\n         AND ('${contributor:raw}' = '__all__' OR COALESCE(wi.canonical, e.contributor) = '${contributor:raw}')\n         AND ('${team:raw}' = '__all__' OR COALESCE(t.name,'(unassigned)') = '${team:raw}')\n       GROUP BY model)\nSELECT sp.model AS `Model`, ROUND(sp.usd,2) AS `List-price spend`, ln.added AS `Lines the agent wrote`,\n       ROUND(sp.usd/NULLIF(ln.added/1000,0),2) AS `$ per 1,000 agent lines`,\n       ROUND(sp.out_tok/NULLIF(ln.added,0),0) AS `Output tokens per line`\nFROM sp LEFT JOIN ln ON ln.model = sp.model ORDER BY sp.usd DESC"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "right"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Model"
+            },
+            "properties": [
+              {
+                "id": "custom.align",
+                "value": "left"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "List-price spend|\\$ per.*"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "currencyUSD"
+              },
+              {
+                "id": "decimals",
+                "value": 2
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "$ per 1,000 agent lines"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background",
+                  "mode": "gradient"
+                }
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "continuous-GrYlRd"
+                }
+              },
+              {
+                "id": "min",
+                "value": 0
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "cellHeight": "md"
+      }
+    },
+    {
+      "type": "row",
+      "title": "Context pressure \u2014 the part you can act on",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 20
+      },
+      "id": 12,
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "type": "timeseries",
+      "title": "Compaction and cache, per week",
+      "description": "Share of sessions that compacted at least once, and share of input served from cache, per week. Compaction rising with cache falling is sessions outgrowing their context; both rising is long sessions that are at least being served cheaply.",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "h": 9,
+        "w": 10,
+        "x": 0,
+        "y": 21
+      },
+      "id": 13,
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "datasource": "${datasource}",
+          "rawSql": "\nSELECT CAST(DATE_SUB(DATE(FROM_UNIXTIME(s.last_seen/1e9)), INTERVAL WEEKDAY(FROM_UNIXTIME(s.last_seen/1e9)) DAY) AS DATETIME) AS time,\n       ROUND(100*SUM(s.compactions > 0)/COUNT(*),0) AS `Sessions that compacted`,\n       ROUND(100*SUM(COALESCE(s.cache_read_tokens,0))/NULLIF(SUM(s.input_tokens + COALESCE(s.cache_read_tokens,0)),0),0) AS `Input served from cache`\nFROM whodunit_sessions s LEFT JOIN whodunit_identities wi ON wi.alias = s.contributor\n    LEFT JOIN team_users tu ON tu.user_id = COALESCE(wi.canonical, s.contributor)\n    LEFT JOIN teams t ON t.id = tu.team_id LEFT JOIN whodunit_model_prices p ON p.model = s.model WHERE s.last_seen BETWEEN $__unixEpochFrom()*1000000000 AND $__unixEpochTo()*1000000000 AND s.compactions IS NOT NULL AND ('${contributor:raw}' = '__all__' OR COALESCE(wi.canonical, s.contributor) = '${contributor:raw}')\n    AND ('${team:raw}' = '__all__' OR COALESCE(t.name,'(unassigned)') = '${team:raw}')\nGROUP BY time HAVING COUNT(*) >= 3 ORDER BY time"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "custom": {
+            "lineWidth": 2,
+            "showPoints": "always",
+            "pointSize": 5
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Sessions that compacted"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#e0a63a"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Input served from cache"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#4caf78"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "type": "barchart",
+      "title": "What a compacted session looks like",
+      "description": "Sessions that compacted against those that did not: average output tokens, tool calls and context tokens. Compacted sessions being much larger on every axis is expected \u2014 they are the long ones. What to look for is output not keeping pace with context: paying for a large window and getting little out of it.",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "h": 9,
+        "w": 8,
+        "x": 10,
+        "y": 21
+      },
+      "id": 14,
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "datasource": "${datasource}",
+          "rawSql": "\nSELECT CASE WHEN s.compactions > 0 THEN 'Compacted' ELSE 'Did not compact' END AS metric,\n       ROUND(AVG(s.output_tokens)) AS `Output tokens`, ROUND(AVG(s.tool_calls),1) AS `Tool calls`,\n       ROUND(AVG(s.input_tokens + COALESCE(s.cache_read_tokens,0))) AS `Context tokens`, COUNT(*) AS `Sessions`\nFROM whodunit_sessions s LEFT JOIN whodunit_identities wi ON wi.alias = s.contributor\n    LEFT JOIN team_users tu ON tu.user_id = COALESCE(wi.canonical, s.contributor)\n    LEFT JOIN teams t ON t.id = tu.team_id LEFT JOIN whodunit_model_prices p ON p.model = s.model WHERE s.last_seen BETWEEN $__unixEpochFrom()*1000000000 AND $__unixEpochTo()*1000000000 AND s.compactions IS NOT NULL AND s.output_tokens IS NOT NULL AND ('${contributor:raw}' = '__all__' OR COALESCE(wi.canonical, s.contributor) = '${contributor:raw}')\n    AND ('${team:raw}' = '__all__' OR COALESCE(t.name,'(unassigned)') = '${team:raw}')\nGROUP BY metric ORDER BY metric"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "axisLabel": ""
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Sessions"
+            },
+            "properties": [
+              {
+                "id": "custom.hideFrom",
+                "value": {
+                  "viz": true,
+                  "legend": true,
+                  "tooltip": false
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Output tokens"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#4caf78"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Context tokens"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#8a8f9a"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Tool calls"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#5b8def"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "xField": "metric",
+        "orientation": "horizontal",
+        "showValue": "always",
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "text": {
+          "valueSize": 10
+        },
+        "barWidth": 0.8,
+        "groupWidth": 0.8
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Output tokens per assisted commit, per week",
+      "description": "Output tokens that week divided by assisted commits that week. The tokens-per-unit-of-output trend: falling is the team getting more commit per token, rising is longer conversations for the same output. Weekly, so one big session can move it.",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "h": 9,
+        "w": 6,
+        "x": 18,
+        "y": 21
+      },
+      "id": 15,
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "datasource": "${datasource}",
+          "rawSql": "\nWITH w AS (\n  SELECT DATE_SUB(DATE(FROM_UNIXTIME(s.last_seen/1e9)), INTERVAL WEEKDAY(FROM_UNIXTIME(s.last_seen/1e9)) DAY) wk, SUM(s.output_tokens) out_tok\n  FROM whodunit_sessions s LEFT JOIN whodunit_identities wi ON wi.alias = s.contributor\n    LEFT JOIN team_users tu ON tu.user_id = COALESCE(wi.canonical, s.contributor)\n    LEFT JOIN teams t ON t.id = tu.team_id LEFT JOIN whodunit_model_prices p ON p.model = s.model WHERE s.last_seen BETWEEN $__unixEpochFrom()*1000000000 AND $__unixEpochTo()*1000000000 AND s.output_tokens IS NOT NULL AND ('${contributor:raw}' = '__all__' OR COALESCE(wi.canonical, s.contributor) = '${contributor:raw}')\n    AND ('${team:raw}' = '__all__' OR COALESCE(t.name,'(unassigned)') = '${team:raw}') GROUP BY wk),\nc AS (\n  SELECT DATE_SUB(DATE(FROM_UNIXTIME(c.committed_at/1e9)), INTERVAL WEEKDAY(FROM_UNIXTIME(c.committed_at/1e9)) DAY) wk, COUNT(*) n\n  FROM whodunit_commits c LEFT JOIN whodunit_identities wi ON wi.alias = c.contributor\n    LEFT JOIN team_users tu ON tu.user_id = COALESCE(wi.canonical, c.contributor)\n    LEFT JOIN teams t ON t.id = tu.team_id\n  WHERE c.committed_at BETWEEN $__unixEpochFrom()*1000000000 AND $__unixEpochTo()*1000000000 AND c.status='assisted' AND ('${contributor:raw}' = '__all__' OR COALESCE(wi.canonical, c.contributor) = '${contributor:raw}')\n    AND ('${team:raw}' = '__all__' OR COALESCE(t.name,'(unassigned)') = '${team:raw}') GROUP BY wk)\nSELECT CAST(w.wk AS DATETIME) AS time, ROUND(w.out_tok/NULLIF(c.n,0)) AS `Output tokens per assisted commit`\nFROM w JOIN c ON c.wk = w.wk ORDER BY time"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#9b7bd6"
+          },
+          "custom": {
+            "lineWidth": 2,
+            "showPoints": "always",
+            "pointSize": 5,
+            "fillOpacity": 15
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "showLegend": false
+        },
+        "tooltip": {
+          "mode": "single"
+        }
+      }
+    },
+    {
+      "type": "row",
+      "title": "Kept from the original",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 30
+      },
+      "id": 16,
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "id": 17,
+      "title": "Token use and cache efficiency by model",
+      "type": "table",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "h": 8,
+        "w": 14,
+        "x": 0,
+        "y": 31
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT\n  COALESCE(NULLIF(s.model, ''), '(unattributed)') AS Model,\n  COUNT(*)                                        AS Sessions,\n  SUM(s.input_tokens)                             AS `Uncached in`,\n  SUM(s.output_tokens)                            AS `Out`,\n  SUM(COALESCE(s.cache_read_tokens,0))            AS `Cache read`,\n  SUM(COALESCE(s.cache_write_tokens,0))           AS `Cache write`,\n  ROUND(100.0 * SUM(COALESCE(s.cache_read_tokens,0))\n    / NULLIF(SUM(s.input_tokens + COALESCE(s.cache_read_tokens,0)\n               + COALESCE(s.cache_write_tokens,0)), 0), 1) AS `From cache %`,\n  ROUND(SUM(COALESCE(s.cache_read_tokens,0))\n    / NULLIF(SUM(s.cache_write_tokens), 0), 1)    AS `Write payback \u00d7`\nFROM whodunit_sessions s\nLEFT JOIN whodunit_identities wi ON wi.alias = s.contributor\nWHERE s.first_seen BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  AND  s.input_tokens IS NOT NULL AND ('${contributor:raw}' = '__all__' OR COALESCE(wi.canonical, s.contributor) = '${contributor:raw}')\nGROUP BY COALESCE(NULLIF(s.model, ''), '(unattributed)')\nORDER BY SUM(s.input_tokens + s.output_tokens\n           + COALESCE(s.cache_read_tokens,0)\n           + COALESCE(s.cache_write_tokens,0)) DESC"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "no session reported tokens"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Write payback \u00d7"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "red",
+                      "value": null
+                    },
+                    {
+                      "color": "orange",
+                      "value": 1.25
+                    },
+                    {
+                      "color": "green",
+                      "value": 3
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "noValue",
+                "value": "not reported"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "From cache %"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percent"
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*(in|Out|read|write)$"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "sishort"
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "gauge",
+                  "mode": "gradient",
+                  "valueDisplayMode": "text"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Sessions"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "gauge",
+                  "mode": "lcd",
+                  "valueDisplayMode": "text"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "description": "**Per model, because the aggregate hides the finding.** An overall 48% read ratio measured on real data contained one model at 0.73x amortisation \u2014 a loss, invisible in the total.\n\n`Write payback` below 1.25x is red: those writes cost more than they saved. Empty means the agent does not report cache writes rather than that it wrote none.",
+      "options": {
+        "showHeader": true,
+        "sortBy": [
+          {
+            "displayName": "Uncached in",
+            "desc": true
+          }
+        ]
+      }
+    },
+    {
+      "id": 18,
+      "title": "Reasoning effort",
+      "type": "piechart",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "h": 8,
+        "w": 5,
+        "x": 14,
+        "y": 31
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT s.effort AS metric, COUNT(*) AS value\nFROM whodunit_sessions s\nLEFT JOIN whodunit_identities wi ON wi.alias = s.contributor\nWHERE s.first_seen BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  AND  s.effort IS NOT NULL AND ('${contributor:raw}' = '__all__' OR COALESCE(wi.canonical, s.contributor) = '${contributor:raw}')\nGROUP BY s.effort"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "no session recorded an effort tier",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "low"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#5794F2"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "medium"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#73BF69"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "high"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#FF9830"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "xhigh"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#F2495C"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "description": "How hard the model was asked to think, where the agent says.\n\nThe lever behind the token counts above: a higher tier spends more on the same task.",
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "right",
+          "showLegend": true,
+          "values": [
+            "percent"
+          ]
+        },
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": true
+        }
+      }
+    },
+    {
+      "id": 19,
+      "title": "Human edited the agent's output",
+      "type": "stat",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "h": 8,
+        "w": 5,
+        "x": 19,
+        "y": 31
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT ROUND(100.0 * SUM(CASE WHEN e.user_modified = 1 THEN 1 ELSE 0 END)\n  / NULLIF(COUNT(*), 0), 1) AS v\nFROM whodunit_events e\nLEFT JOIN whodunit_identities wi ON wi.alias = e.contributor\nWHERE e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  AND  e.user_modified IS NOT NULL AND ('${contributor:raw}' = '__all__' OR COALESCE(wi.canonical, e.contributor) = '${contributor:raw}')"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 1,
+          "noValue": "only Claude Code reports this",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 20
+              },
+              {
+                "color": "red",
+                "value": 40
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "description": "Share of edits a human changed before committing \u2014 the difference between 'the agent wrote this' and 'the agent wrote this and it was kept'.\n\nClaude Code alone reports it. The denominator counts only calls that carried the signal, so agents without it do not dilute the rate.",
+      "options": {
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "type": "text",
+      "title": "",
+      "gridPos": {
+        "h": 3,
+        "w": 24,
+        "x": 0,
+        "y": 39
+      },
+      "id": 20,
+      "options": {
+        "mode": "html",
+        "content": "<p style='margin:0'><b>Read with care.</b> Under a subscription the marginal token costs nothing and every dollar here is notional. Agents that report no tokens are absent from every figure, not free. Lines the agent wrote are attributed by the model on the event; sessions and events are joined by model, not by session, so a model used in both counts once each side. Compaction is a symptom of long sessions, not a fault.</p>"
+      }
+    }
+  ],
+  "editable": true,
+  "graphTooltip": 1
+}
