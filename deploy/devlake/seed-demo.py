@@ -961,7 +961,7 @@ def publish_dashboards(container, db, grafana, user, password, ds_uid, folder):
     # Their demo copies are parked in a separate folder so the demo folder
     # holds one dashboard per question; the repo and the real folder still
     # carry them. Move a uid out of this set to promote it.
-    PARKED = {"whodunit-board", "whodunit-leadership", "whodunit-mcp-board"}
+    PARKED = {"whodunit-board", "whodunit-leadership"}
     parked_uid = folder_for("TBD")
 
     # The board with the most recently resolved issues, not the first
