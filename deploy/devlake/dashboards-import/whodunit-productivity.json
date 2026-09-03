@@ -64,7 +64,7 @@
       "type": "text",
       "title": "",
       "gridPos": {
-        "h": 5,
+        "h": 4,
         "w": 24,
         "x": 0,
         "y": 0
@@ -76,41 +76,28 @@
       }
     },
     {
-      "type": "table",
-      "title": "Output per unit of effort — five definitions",
-      "description": "There is no single productivity ratio. Each row divides output by a different measure of effort; read the row matching how your team defines it. The spread between rows is the point — one number would hide it. Difference, not gain: the two cohorts are self-selected, not randomised. Blank instead of a percentage when either side has under 5 commits. Compares two measured cohorts only: commits with no evidence collected (undetermined, uninstrumented, unmatched, degraded) are excluded, not counted as unassisted — that would report absence as a measured negative.",
-      "datasource": "${DS_WHODUNIT}",
+      "type": "row",
+      "title": "The headline, five ways",
       "gridPos": {
-        "h": 10,
-        "w": 13,
+        "h": 1,
+        "w": 24,
         "x": 0,
-        "y": 1
+        "y": 4
       },
       "id": 2,
-      "targets": [
-        {
-          "refId": "A",
-          "format": "table",
-          "datasource": "${DS_WHODUNIT}",
-          "rawSql": "\n-- Five definitions of Output/Effort, each computed both sides of the\n-- assisted split. No definition is privileged: a team that counts issues\n-- disagrees with one that counts lines, and both are shown rather than\n-- one being chosen for them.\n--\n-- Every denominator here is a measure of EFFORT. \"Per person\" is\n-- deliberately absent: assisted contributors were active on far more days,\n-- so a per-person ratio reports more time spent as though it were more\n-- output per unit of time. It read +137% where per-person-day read +3%.\nWITH c AS (\n  SELECT c.*, COALESCE(t.name,'(unassigned)') team\n  FROM whodunit_commits c LEFT JOIN whodunit_identities wi ON wi.alias = c.contributor\n    LEFT JOIN team_users tu ON tu.user_id = COALESCE(wi.canonical, c.contributor)\n    LEFT JOIN teams t ON t.id = tu.team_id\n  WHERE c.committed_at BETWEEN $__unixEpochFrom()*1000000000 AND $__unixEpochTo()*1000000000\n    AND c.contributor IS NOT NULL AND c.status IN ('assisted','unassisted','undetermined','uninstrumented','unmatched','degraded')\n    -- All six statuses are named so this set stays complete as dun's list\n    -- grows. Only two are compared: the other four mean no evidence was\n    -- collected, and counting them as unassisted would report absence as a\n    -- measured negative (NAV-21). CASE maps them to NULL, which drops them.\n    AND CASE c.status WHEN 'assisted' THEN 1 WHEN 'unassisted' THEN 1 END = 1 AND ('${contributor:raw}' = '__all__' OR c.contributor = '${contributor:raw}')\n    AND ('${team:raw}' = '__all__' OR COALESCE(t.name,'(unassigned)') = '${team:raw}')\n),\nagg AS (\n  SELECT status, COUNT(*) commits,\n         SUM(lines_added+lines_removed) total_lines,\n         SUM(files_changed) files,\n         COUNT(DISTINCT CONCAT(contributor,'|',DATE(FROM_UNIXTIME(committed_at/1000000000)))) person_days\n  FROM c GROUP BY status\n),\nn AS (SELECT MAX(CASE WHEN status='assisted' THEN commits END) na,\n             MAX(CASE WHEN status='unassisted' THEN commits END) nu FROM agg)\nSELECT d.definition, d.a AS `AI-assisted`, d.u AS `Unassisted`,\n       CASE WHEN d.u > 0 AND n.na >= 5 AND n.nu >= 5\n            THEN ROUND(100*(d.a-d.u)/d.u,0) END AS `Difference %`,\n       CONCAT(n.na,' / ',n.nu) AS `n assisted / n not`\nFROM (\n  SELECT 'Commits per person-day' definition, 1 ord,\n    ROUND(MAX(CASE WHEN status='assisted'   THEN commits/NULLIF(person_days,0) END),2) a,\n    ROUND(MAX(CASE WHEN status='unassisted' THEN commits/NULLIF(person_days,0) END),2) u FROM agg\n  UNION ALL SELECT 'Lines per person-day', 2,\n    ROUND(MAX(CASE WHEN status='assisted'   THEN total_lines/NULLIF(person_days,0) END),0),\n    ROUND(MAX(CASE WHEN status='unassisted' THEN total_lines/NULLIF(person_days,0) END),0) FROM agg\n  UNION ALL SELECT 'Lines per commit', 3,\n    ROUND(MAX(CASE WHEN status='assisted'   THEN total_lines/NULLIF(commits,0) END),0),\n    ROUND(MAX(CASE WHEN status='unassisted' THEN total_lines/NULLIF(commits,0) END),0) FROM agg\n  UNION ALL SELECT 'Files per commit', 4,\n    ROUND(MAX(CASE WHEN status='assisted'   THEN files/NULLIF(commits,0) END),1),\n    ROUND(MAX(CASE WHEN status='unassisted' THEN files/NULLIF(commits,0) END),1) FROM agg\n  UNION ALL SELECT 'Files per person-day', 5,\n    ROUND(MAX(CASE WHEN status='assisted'   THEN files/NULLIF(person_days,0) END),1),\n    ROUND(MAX(CASE WHEN status='unassisted' THEN files/NULLIF(person_days,0) END),1) FROM agg\n) d CROSS JOIN n ORDER BY d.ord\n"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {},
-        "overrides": []
-      },
-      "options": {}
+      "collapsed": false,
+      "panels": []
     },
     {
       "type": "barchart",
-      "title": "Rework rate — the gate on every number left",
-      "description": "Share of commits whose purpose is a fix. A difference in output means nothing if it arrives with more rework, so read this before any row of the table. This is a fix RATE, not a defect rate — it counts commits labelled fix, not bugs found. Compares two measured cohorts only: commits with no evidence collected (undetermined, uninstrumented, unmatched, degraded) are excluded, not counted as unassisted — that would report absence as a measured negative.",
+      "title": "Five definitions of the same difference",
+      "description": "Output divided by effort, five ways, each drawn from the same zero line. Bars right of zero favour assisted work, left favour unassisted. The spread is the finding: pick the definition your team uses. Difference, not gain — cohorts are self-selected. A bar is absent when either side has under 5 commits.",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
-        "h": 10,
-        "w": 11,
-        "x": 13,
-        "y": 1
+        "h": 9,
+        "w": 10,
+        "x": 0,
+        "y": 5
       },
       "id": 3,
       "targets": [
@@ -118,124 +105,49 @@
           "refId": "A",
           "format": "table",
           "datasource": "${DS_WHODUNIT}",
-          "rawSql": "\nSELECT CASE WHEN c.status='assisted' THEN 'AI-assisted' ELSE 'Unassisted' END AS metric,\n       ROUND(100*SUM(c.purpose='fix')/COUNT(*),1) AS value\nFROM whodunit_commits c LEFT JOIN whodunit_identities wi ON wi.alias = c.contributor\n    LEFT JOIN team_users tu ON tu.user_id = COALESCE(wi.canonical, c.contributor)\n    LEFT JOIN teams t ON t.id = tu.team_id\nWHERE c.committed_at BETWEEN $__unixEpochFrom()*1000000000 AND $__unixEpochTo()*1000000000\n  AND c.contributor IS NOT NULL AND c.status IN ('assisted','unassisted','undetermined','uninstrumented','unmatched','degraded')\n    -- All six statuses are named so this set stays complete as dun's list\n    -- grows. Only two are compared: the other four mean no evidence was\n    -- collected, and counting them as unassisted would report absence as a\n    -- measured negative (NAV-21). CASE maps them to NULL, which drops them.\n    AND CASE c.status WHEN 'assisted' THEN 1 WHEN 'unassisted' THEN 1 END = 1 AND ('${contributor:raw}' = '__all__' OR c.contributor = '${contributor:raw}')\n    AND ('${team:raw}' = '__all__' OR COALESCE(t.name,'(unassigned)') = '${team:raw}')\nGROUP BY c.status\nHAVING COUNT(*) >= 5\n"
+          "rawSql": "\nWITH c AS (\n  SELECT c.purpose,\n         CASE WHEN c.files_changed < 3 THEN '1-2 files'\n              WHEN c.files_changed <= 20 THEN '3-20 files'\n              ELSE '20+ files' END band,\n         c.status, c.lines_added + c.lines_removed AS churn, c.files_changed AS files,\n         COALESCE(wi.canonical, c.contributor) AS person,\n         COALESCE(t.name,'(unassigned)') AS team,\n         c.committed_at,\n         DATE(FROM_UNIXTIME(c.committed_at/1000000000)) AS d\n  FROM whodunit_commits c LEFT JOIN whodunit_identities wi ON wi.alias = c.contributor\n    LEFT JOIN team_users tu ON tu.user_id = COALESCE(wi.canonical, c.contributor)\n    LEFT JOIN teams t ON t.id = tu.team_id\n  WHERE c.committed_at BETWEEN $__unixEpochFrom()*1000000000 AND $__unixEpochTo()*1000000000\n    AND c.contributor IS NOT NULL AND c.status IN ('assisted','unassisted','undetermined','uninstrumented','unmatched','degraded')\n    -- All six named so the set stays complete as dun's list grows; only two\n    -- are compared, because the other four mean no evidence was collected\n    -- and counting them as unassisted reports absence as a measured\n    -- negative (NAV-21).\n    AND CASE c.status WHEN 'assisted' THEN 1 WHEN 'unassisted' THEN 1 END = 1 AND ('${contributor:raw}' = '__all__' OR c.contributor = '${contributor:raw}')\n    AND ('${team:raw}' = '__all__' OR COALESCE(t.name,'(unassigned)') = '${team:raw}')\n),\nagg AS (\n  SELECT status, COUNT(*) commits, SUM(churn) total_lines, SUM(files) files,\n         COUNT(DISTINCT person, d) person_days\n  FROM c GROUP BY status\n),\nn AS (SELECT MAX(CASE WHEN status='assisted' THEN commits END) na,\n             MAX(CASE WHEN status='unassisted' THEN commits END) nu FROM agg)\nSELECT d.definition AS metric,\n       CASE WHEN d.u > 0 AND n.na >= 5 AND n.nu >= 5 THEN ROUND(100*(d.a-d.u)/d.u,0) END AS value\nFROM (\n  SELECT 'Commits per person-day' definition, 1 ord,\n    MAX(CASE WHEN status='assisted'   THEN commits/NULLIF(person_days,0) END) a,\n    MAX(CASE WHEN status='unassisted' THEN commits/NULLIF(person_days,0) END) u FROM agg\n  UNION ALL SELECT 'Lines per person-day', 2,\n    MAX(CASE WHEN status='assisted'   THEN total_lines/NULLIF(person_days,0) END),\n    MAX(CASE WHEN status='unassisted' THEN total_lines/NULLIF(person_days,0) END) FROM agg\n  UNION ALL SELECT 'Lines per commit', 3,\n    MAX(CASE WHEN status='assisted'   THEN total_lines/NULLIF(commits,0) END),\n    MAX(CASE WHEN status='unassisted' THEN total_lines/NULLIF(commits,0) END) FROM agg\n  UNION ALL SELECT 'Files per commit', 4,\n    MAX(CASE WHEN status='assisted'   THEN files/NULLIF(commits,0) END),\n    MAX(CASE WHEN status='unassisted' THEN files/NULLIF(commits,0) END) FROM agg\n  UNION ALL SELECT 'Files per person-day', 5,\n    MAX(CASE WHEN status='assisted'   THEN files/NULLIF(person_days,0) END),\n    MAX(CASE WHEN status='unassisted' THEN files/NULLIF(person_days,0) END) FROM agg\n) d CROSS JOIN n ORDER BY d.ord\n"
         }
       ],
       "fieldConfig": {
         "defaults": {
+          "unit": "percent",
+          "decimals": 0,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#d64545",
+                "value": null
+              },
+              {
+                "color": "#4caf78",
+                "value": 0
+              }
+            ]
+          },
           "custom": {
-            "axisLabel": ""
+            "axisLabel": "",
+            "axisSoftMin": -50,
+            "axisSoftMax": 50
           }
         },
         "overrides": []
       },
       "options": {
         "xField": "metric",
+        "orientation": "horizontal",
         "showValue": "always",
         "text": {
-          "valueSize": 11
+          "valueSize": 13
         },
         "legend": {
-          "displayMode": "list",
-          "placement": "bottom"
+          "showLegend": false
         },
-        "orientation": "auto"
+        "barWidth": 0.6
       }
-    },
-    {
-      "type": "barchart",
-      "title": "Same comparison, split by work type",
-      "description": "Average change size per commit, by purpose. This is the check on the table above: if assisted work skews toward features and unassisted toward docs, an overall difference is composition, not productivity. A purpose with under 5 commits on a side is omitted. Compares two measured cohorts only: commits with no evidence collected (undetermined, uninstrumented, unmatched, degraded) are excluded, not counted as unassisted — that would report absence as a measured negative.",
-      "datasource": "${DS_WHODUNIT}",
-      "gridPos": {
-        "h": 9,
-        "w": 12,
-        "x": 0,
-        "y": 11
-      },
-      "id": 4,
-      "targets": [
-        {
-          "refId": "A",
-          "format": "table",
-          "datasource": "${DS_WHODUNIT}",
-          "rawSql": "\nSELECT c.purpose AS metric,\n       CASE WHEN c.status='assisted' THEN 'AI-assisted' ELSE 'Unassisted' END AS series,\n       ROUND(AVG(c.lines_added+c.lines_removed),0) AS value\nFROM whodunit_commits c LEFT JOIN whodunit_identities wi ON wi.alias = c.contributor\n    LEFT JOIN team_users tu ON tu.user_id = COALESCE(wi.canonical, c.contributor)\n    LEFT JOIN teams t ON t.id = tu.team_id\nWHERE c.committed_at BETWEEN $__unixEpochFrom()*1000000000 AND $__unixEpochTo()*1000000000\n  AND c.contributor IS NOT NULL AND c.status IN ('assisted','unassisted','undetermined','uninstrumented','unmatched','degraded')\n    -- All six statuses are named so this set stays complete as dun's list\n    -- grows. Only two are compared: the other four mean no evidence was\n    -- collected, and counting them as unassisted would report absence as a\n    -- measured negative (NAV-21). CASE maps them to NULL, which drops them.\n    AND CASE c.status WHEN 'assisted' THEN 1 WHEN 'unassisted' THEN 1 END = 1\n  AND c.purpose IN ('feature','fix','test','docs','refactor') AND ('${contributor:raw}' = '__all__' OR c.contributor = '${contributor:raw}')\n    AND ('${team:raw}' = '__all__' OR COALESCE(t.name,'(unassigned)') = '${team:raw}')\nGROUP BY c.purpose, c.status\nHAVING COUNT(*) >= 5\nORDER BY c.purpose\n"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "custom": {
-            "axisLabel": ""
-          }
-        },
-        "overrides": []
-      },
-      "options": {
-        "xField": "metric",
-        "showValue": "always",
-        "text": {
-          "valueSize": 11
-        },
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom"
-        },
-        "orientation": "auto"
-      }
-    },
-    {
-      "type": "barchart",
-      "title": "Where the work sits, by change size",
-      "description": "Commit counts per size bucket, each side of the split. Complexity is not measured directly, so change size stands in for it — two cohorts with different size profiles are not comparable on a single ratio. Compares two measured cohorts only: commits with no evidence collected (undetermined, uninstrumented, unmatched, degraded) are excluded, not counted as unassisted — that would report absence as a measured negative.",
-      "datasource": "${DS_WHODUNIT}",
-      "gridPos": {
-        "h": 9,
-        "w": 12,
-        "x": 12,
-        "y": 11
-      },
-      "id": 5,
-      "targets": [
-        {
-          "refId": "A",
-          "format": "table",
-          "datasource": "${DS_WHODUNIT}",
-          "rawSql": "\nSELECT b.bucket AS metric, b.series, ROUND(b.n) AS value FROM (\n  SELECT CASE WHEN c.lines_added+c.lines_removed < 50 THEN 'small (<50)'\n              WHEN c.lines_added+c.lines_removed < 300 THEN 'medium (50-299)'\n              ELSE 'large (300+)' END bucket,\n         CASE WHEN c.status='assisted' THEN 'AI-assisted' ELSE 'Unassisted' END series,\n         COUNT(*) n,\n         MIN(CASE WHEN c.lines_added+c.lines_removed < 50 THEN 1\n                  WHEN c.lines_added+c.lines_removed < 300 THEN 2 ELSE 3 END) ord\n  FROM whodunit_commits c LEFT JOIN whodunit_identities wi ON wi.alias = c.contributor\n    LEFT JOIN team_users tu ON tu.user_id = COALESCE(wi.canonical, c.contributor)\n    LEFT JOIN teams t ON t.id = tu.team_id\n  WHERE c.committed_at BETWEEN $__unixEpochFrom()*1000000000 AND $__unixEpochTo()*1000000000\n    AND c.contributor IS NOT NULL AND c.status IN ('assisted','unassisted','undetermined','uninstrumented','unmatched','degraded')\n    -- All six statuses are named so this set stays complete as dun's list\n    -- grows. Only two are compared: the other four mean no evidence was\n    -- collected, and counting them as unassisted would report absence as a\n    -- measured negative (NAV-21). CASE maps them to NULL, which drops them.\n    AND CASE c.status WHEN 'assisted' THEN 1 WHEN 'unassisted' THEN 1 END = 1 AND ('${contributor:raw}' = '__all__' OR c.contributor = '${contributor:raw}')\n    AND ('${team:raw}' = '__all__' OR COALESCE(t.name,'(unassigned)') = '${team:raw}')\n  GROUP BY bucket, series\n) b ORDER BY b.ord\n"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "custom": {
-            "axisLabel": ""
-          }
-        },
-        "overrides": []
-      },
-      "options": {
-        "xField": "metric",
-        "showValue": "always",
-        "text": {
-          "valueSize": 11
-        },
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom"
-        },
-        "orientation": "auto"
-      }
-    },
-    {
-      "type": "row",
-      "title": "Conditioned on work type and complexity",
-      "gridPos": {
-        "h": 1,
-        "w": 24,
-        "x": 0,
-        "y": 20
-      },
-      "id": 6,
-      "collapsed": false,
-      "panels": []
     },
     {
       "type": "stat",
@@ -243,12 +155,12 @@
       "description": "The same difference computed two ways. Pooled compares all assisted work against all unassisted work. Conditioned compares only like with like — same work type, same complexity band — and reweights onto a common mix. The gap between them is how much of the pooled figure was the mix of work each cohort picked up, rather than how productive it was. Neither is a verdict; both are differences between self-selected cohorts. Output here is lines delivered, not commits: inside a single work-type and complexity cell most contributor-days hold one commit, so a commit count pins both sides near 1 and measures the grid rather than the work.",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
-        "h": 6,
-        "w": 9,
-        "x": 0,
-        "y": 21
+        "h": 9,
+        "w": 7,
+        "x": 10,
+        "y": 5
       },
-      "id": 7,
+      "id": 4,
       "targets": [
         {
           "refId": "A",
@@ -288,15 +200,217 @@
       }
     },
     {
-      "type": "table",
-      "title": "Every cell, computed separately",
-      "description": "Lines delivered per person-day inside each work type and complexity band, largest cells first, so the best-evidenced rows are read before the thinnest. A cell appears only when both sides hold at least 5 commits — the rest are withheld rather than shown thin. Cells disagreeing in direction mean no single figure describes this data. Output here is lines delivered, not commits: inside a single work-type and complexity cell most contributor-days hold one commit, so a commit count pins both sides near 1 and measures the grid rather than the work.",
+      "type": "gauge",
+      "title": "Rework rate, each side",
+      "description": "Share of commits whose purpose is a fix. A difference in output means nothing if it arrives with more rework, so read this before any row of the table. This is a fix RATE, not a defect rate — it counts commits labelled fix, not bugs found. Compares two measured cohorts only: commits with no evidence collected (undetermined, uninstrumented, unmatched, degraded) are excluded, not counted as unassisted — that would report absence as a measured negative.",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
-        "h": 11,
-        "w": 15,
-        "x": 9,
-        "y": 21
+        "h": 9,
+        "w": 7,
+        "x": 17,
+        "y": 5
+      },
+      "id": 5,
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "datasource": "${DS_WHODUNIT}",
+          "rawSql": "\nSELECT CASE WHEN c.status='assisted' THEN 'AI-assisted' ELSE 'Unassisted' END AS metric,\n       ROUND(100*SUM(c.purpose='fix')/COUNT(*),1) AS value\nFROM whodunit_commits c LEFT JOIN whodunit_identities wi ON wi.alias = c.contributor\n    LEFT JOIN team_users tu ON tu.user_id = COALESCE(wi.canonical, c.contributor)\n    LEFT JOIN teams t ON t.id = tu.team_id\nWHERE c.committed_at BETWEEN $__unixEpochFrom()*1000000000 AND $__unixEpochTo()*1000000000\n  AND c.contributor IS NOT NULL AND c.status IN ('assisted','unassisted','undetermined','uninstrumented','unmatched','degraded')\n    -- All six statuses are named so this set stays complete as dun's list\n    -- grows. Only two are compared: the other four mean no evidence was\n    -- collected, and counting them as unassisted would report absence as a\n    -- measured negative (NAV-21). CASE maps them to NULL, which drops them.\n    AND CASE c.status WHEN 'assisted' THEN 1 WHEN 'unassisted' THEN 1 END = 1 AND ('${contributor:raw}' = '__all__' OR c.contributor = '${contributor:raw}')\n    AND ('${team:raw}' = '__all__' OR COALESCE(t.name,'(unassigned)') = '${team:raw}')\nGROUP BY c.status\nHAVING COUNT(*) >= 5\n"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 60,
+          "decimals": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#4caf78",
+                "value": null
+              },
+              {
+                "color": "#e0a63a",
+                "value": 25
+              },
+              {
+                "color": "#d64545",
+                "value": 40
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/^value$/",
+          "values": true
+        },
+        "showThresholdMarkers": false,
+        "orientation": "horizontal",
+        "text": {
+          "valueSize": 22,
+          "titleSize": 13
+        }
+      }
+    },
+    {
+      "type": "row",
+      "title": "Conditioned on work type and complexity",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 14
+      },
+      "id": 6,
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "type": "table",
+      "title": "Difference by work type × complexity",
+      "description": "Lines delivered per person-day, assisted against unassisted, inside each cell. Green favours assisted, red favours unassisted, grey means under 5 commits on a side and withheld. Cells disagreeing in colour are the point: no single figure describes that data, and the pooled number was measuring the mix. The n columns give both cohort sizes.",
+      "datasource": "${DS_WHODUNIT}",
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 0,
+        "y": 15
+      },
+      "id": 7,
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "datasource": "${DS_WHODUNIT}",
+          "rawSql": "\nWITH c AS (\n  SELECT c.purpose,\n         CASE WHEN c.files_changed < 3 THEN '1-2 files'\n              WHEN c.files_changed <= 20 THEN '3-20 files'\n              ELSE '20+ files' END band,\n         c.status, c.lines_added + c.lines_removed AS churn,\n         COALESCE(wi.canonical, c.contributor) AS person,\n         COALESCE(t.name,'(unassigned)') AS team,\n         c.committed_at,\n         DATE(FROM_UNIXTIME(c.committed_at/1000000000)) AS d\n  FROM whodunit_commits c LEFT JOIN whodunit_identities wi ON wi.alias = c.contributor\n    LEFT JOIN team_users tu ON tu.user_id = COALESCE(wi.canonical, c.contributor)\n    LEFT JOIN teams t ON t.id = tu.team_id\n  WHERE c.committed_at BETWEEN $__unixEpochFrom()*1000000000 AND $__unixEpochTo()*1000000000\n    AND c.contributor IS NOT NULL AND c.status IN ('assisted','unassisted','undetermined','uninstrumented','unmatched','degraded')\n    -- All six named so the set stays complete as dun's list grows; only two\n    -- are compared, because the other four mean no evidence was collected\n    -- and counting them as unassisted reports absence as a measured\n    -- negative (NAV-21).\n    AND CASE c.status WHEN 'assisted' THEN 1 WHEN 'unassisted' THEN 1 END = 1 AND ('${contributor:raw}' = '__all__' OR c.contributor = '${contributor:raw}')\n    AND ('${team:raw}' = '__all__' OR COALESCE(t.name,'(unassigned)') = '${team:raw}')\n),\ncell AS (\n  SELECT purpose, band, status, COUNT(*) commits, SUM(churn) delivered,\n         COUNT(DISTINCT person, d) person_days\n  FROM c GROUP BY purpose, band, status\n),\npv AS (\n  SELECT purpose, band,\n    MAX(CASE WHEN status='assisted'   THEN delivered/NULLIF(person_days,0) END) a,\n    MAX(CASE WHEN status='unassisted' THEN delivered/NULLIF(person_days,0) END) u,\n    MAX(CASE WHEN status='assisted'   THEN commits END) na,\n    MAX(CASE WHEN status='unassisted' THEN commits END) nu\n  FROM cell GROUP BY purpose, band\n),\ndlt AS (\n  SELECT purpose, band,\n    CASE WHEN na >= 5 AND nu >= 5 AND u > 0 THEN ROUND(100*(a-u)/u,0) END delta,\n    CONCAT(COALESCE(na,0),'/',COALESCE(nu,0)) n\n  FROM pv\n)\nSELECT purpose AS `Work type`,\n  MAX(CASE WHEN band='1-2 files'  THEN delta END) AS `1-2 files`,\n  MAX(CASE WHEN band='3-20 files' THEN delta END) AS `3-20 files`,\n  MAX(CASE WHEN band='20+ files'  THEN delta END) AS `20+ files`,\n  MAX(CASE WHEN band='1-2 files'  THEN n END) AS `n 1-2`,\n  MAX(CASE WHEN band='3-20 files' THEN n END) AS `n 3-20`,\n  MAX(CASE WHEN band='20+ files'  THEN n END) AS `n 20+`\nFROM dlt\nWHERE purpose IN ('feature','fix','refactor','test','docs')\nGROUP BY purpose\nORDER BY FIELD(purpose,'feature','fix','refactor','test','docs')\n"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "center"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "^(1-2|3-20|20\\+) files$"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percent"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background",
+                  "mode": "gradient"
+                }
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "continuous-RdYlGr"
+                }
+              },
+              {
+                "id": "min",
+                "value": -100
+              },
+              {
+                "id": "max",
+                "value": 200
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "special",
+                    "options": {
+                      "match": "null",
+                      "result": {
+                        "text": "—",
+                        "color": "#3a3d44"
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "^n .*"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 70
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#777"
+                }
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Work type"
+            },
+            "properties": [
+              {
+                "id": "custom.align",
+                "value": "left"
+              },
+              {
+                "id": "custom.width",
+                "value": 110
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "cellHeight": "lg",
+        "showHeader": true
+      }
+    },
+    {
+      "type": "histogram",
+      "title": "How change size is distributed, each side",
+      "description": "Every commit, binned by lines changed, one distribution per cohort. Two cohorts can share a mean and differ entirely in shape; only the distribution shows that. Commits above 2,000 lines are cut from the plot so the bins stay readable — the means on the headline row include them.",
+      "datasource": "${DS_WHODUNIT}",
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 12,
+        "y": 15
       },
       "id": 8,
       "targets": [
@@ -304,14 +418,319 @@
           "refId": "A",
           "format": "table",
           "datasource": "${DS_WHODUNIT}",
-          "rawSql": "\nWITH c AS (\n  SELECT c.purpose,\n         CASE WHEN c.files_changed < 3 THEN '1-2 files'\n              WHEN c.files_changed <= 20 THEN '3-20 files'\n              ELSE '20+ files' END band,\n         c.status, c.lines_added + c.lines_removed AS churn,\n         c.contributor, c.committed_at\n  FROM whodunit_commits c LEFT JOIN whodunit_identities wi ON wi.alias = c.contributor\n    LEFT JOIN team_users tu ON tu.user_id = COALESCE(wi.canonical, c.contributor)\n    LEFT JOIN teams t ON t.id = tu.team_id\n  WHERE c.committed_at BETWEEN $__unixEpochFrom()*1000000000 AND $__unixEpochTo()*1000000000\n    AND c.contributor IS NOT NULL AND c.status IN ('assisted','unassisted','undetermined','uninstrumented','unmatched','degraded')\n    -- All six named so the set stays complete as dun's list grows; only two\n    -- are compared, because the other four mean no evidence was collected\n    -- and counting them as unassisted reports absence as a measured\n    -- negative (NAV-21).\n    AND CASE c.status WHEN 'assisted' THEN 1 WHEN 'unassisted' THEN 1 END = 1 AND ('${contributor:raw}' = '__all__' OR c.contributor = '${contributor:raw}')\n    AND ('${team:raw}' = '__all__' OR COALESCE(t.name,'(unassigned)') = '${team:raw}')\n),\ncell AS (\n  SELECT purpose, band, status,\n         COUNT(*) commits, SUM(churn) delivered,\n         COUNT(DISTINCT CONCAT(contributor,'|',DATE(FROM_UNIXTIME(committed_at/1000000000)))) person_days\n  FROM c GROUP BY purpose, band, status\n),\npivot AS (\n  SELECT purpose, band,\n    MAX(CASE WHEN status='assisted'   THEN delivered/NULLIF(person_days,0) END) a,\n    MAX(CASE WHEN status='unassisted' THEN delivered/NULLIF(person_days,0) END) u,\n    MAX(CASE WHEN status='assisted'   THEN commits END) na,\n    MAX(CASE WHEN status='unassisted' THEN commits END) nu\n  FROM cell GROUP BY purpose, band\n)\nSELECT purpose AS `Work type`, band AS `Complexity`,\n       ROUND(a,0) AS `Assisted lines/person-day`, ROUND(u,0) AS `Unassisted lines/person-day`,\n       ROUND(100*(a-u)/u,0) AS `Difference %`,\n       CONCAT(na,' / ',nu) AS `n assisted / n not`\nFROM pivot\nWHERE na >= 5 AND nu >= 5 AND u > 0\nORDER BY na + nu DESC\n"
+          "rawSql": "\nWITH c AS (\n  SELECT c.purpose,\n         CASE WHEN c.files_changed < 3 THEN '1-2 files'\n              WHEN c.files_changed <= 20 THEN '3-20 files'\n              ELSE '20+ files' END band,\n         c.status, c.lines_added + c.lines_removed AS churn,\n         COALESCE(wi.canonical, c.contributor) AS person,\n         COALESCE(t.name,'(unassigned)') AS team,\n         c.committed_at,\n         DATE(FROM_UNIXTIME(c.committed_at/1000000000)) AS d\n  FROM whodunit_commits c LEFT JOIN whodunit_identities wi ON wi.alias = c.contributor\n    LEFT JOIN team_users tu ON tu.user_id = COALESCE(wi.canonical, c.contributor)\n    LEFT JOIN teams t ON t.id = tu.team_id\n  WHERE c.committed_at BETWEEN $__unixEpochFrom()*1000000000 AND $__unixEpochTo()*1000000000\n    AND c.contributor IS NOT NULL AND c.status IN ('assisted','unassisted','undetermined','uninstrumented','unmatched','degraded')\n    -- All six named so the set stays complete as dun's list grows; only two\n    -- are compared, because the other four mean no evidence was collected\n    -- and counting them as unassisted reports absence as a measured\n    -- negative (NAV-21).\n    AND CASE c.status WHEN 'assisted' THEN 1 WHEN 'unassisted' THEN 1 END = 1 AND ('${contributor:raw}' = '__all__' OR c.contributor = '${contributor:raw}')\n    AND ('${team:raw}' = '__all__' OR COALESCE(t.name,'(unassigned)') = '${team:raw}')\n)\nSELECT CASE WHEN status='assisted'   THEN churn END AS `AI-assisted`,\n       CASE WHEN status='unassisted' THEN churn END AS `Unassisted`\nFROM c\nWHERE churn BETWEEN 1 AND 2000\n"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "fillOpacity": 55,
+            "lineWidth": 1
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "AI-assisted"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#4caf78"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Unassisted"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#8a8f9a"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "bucketCount": 30,
+        "combine": false,
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      }
+    },
+    {
+      "type": "row",
+      "title": "Each person against themselves",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 24
+      },
+      "id": 9,
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "type": "barchart",
+      "title": "Own difference — assisted vs unassisted, same person",
+      "description": "For each person: lines per active day on their assisted commits, against the same on their unassisted commits. Holding the person constant removes the confounder the cohort comparison cannot — who chose to use the tool. If most bars point one way, that is stronger evidence than any pooled figure. Needs 5 commits each side.",
+      "datasource": "${DS_WHODUNIT}",
+      "gridPos": {
+        "h": 10,
+        "w": 14,
+        "x": 0,
+        "y": 25
+      },
+      "id": 10,
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "datasource": "${DS_WHODUNIT}",
+          "rawSql": "\nWITH c AS (\n  SELECT c.purpose,\n         CASE WHEN c.files_changed < 3 THEN '1-2 files'\n              WHEN c.files_changed <= 20 THEN '3-20 files'\n              ELSE '20+ files' END band,\n         c.status, c.lines_added + c.lines_removed AS churn,\n         COALESCE(wi.canonical, c.contributor) AS person,\n         COALESCE(t.name,'(unassigned)') AS team,\n         c.committed_at,\n         DATE(FROM_UNIXTIME(c.committed_at/1000000000)) AS d\n  FROM whodunit_commits c LEFT JOIN whodunit_identities wi ON wi.alias = c.contributor\n    LEFT JOIN team_users tu ON tu.user_id = COALESCE(wi.canonical, c.contributor)\n    LEFT JOIN teams t ON t.id = tu.team_id\n  WHERE c.committed_at BETWEEN $__unixEpochFrom()*1000000000 AND $__unixEpochTo()*1000000000\n    AND c.contributor IS NOT NULL AND c.status IN ('assisted','unassisted','undetermined','uninstrumented','unmatched','degraded')\n    -- All six named so the set stays complete as dun's list grows; only two\n    -- are compared, because the other four mean no evidence was collected\n    -- and counting them as unassisted reports absence as a measured\n    -- negative (NAV-21).\n    AND CASE c.status WHEN 'assisted' THEN 1 WHEN 'unassisted' THEN 1 END = 1 AND ('${contributor:raw}' = '__all__' OR c.contributor = '${contributor:raw}')\n    AND ('${team:raw}' = '__all__' OR COALESCE(t.name,'(unassigned)') = '${team:raw}')\n),\npp AS (\n  SELECT person, team, status, COUNT(*) commits, SUM(churn) delivered,\n         COUNT(DISTINCT d) days\n  FROM c GROUP BY person, team, status\n),\npv AS (\n  SELECT person, team,\n    MAX(CASE WHEN status='assisted'   THEN delivered/NULLIF(days,0) END) a,\n    MAX(CASE WHEN status='unassisted' THEN delivered/NULLIF(days,0) END) u,\n    MAX(CASE WHEN status='assisted'   THEN commits END) na,\n    MAX(CASE WHEN status='unassisted' THEN commits END) nu\n  FROM pp GROUP BY person, team\n)\nSELECT CONCAT(SUBSTRING_INDEX(person,'@',1),' · ',team) AS person,\n       ROUND(100*(a-u)/u,0) AS `own difference %`\nFROM pv\nWHERE na >= 5 AND nu >= 5 AND u > 0\nORDER BY `own difference %` DESC\n"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 0,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#d64545",
+                "value": null
+              },
+              {
+                "color": "#4caf78",
+                "value": 0
+              }
+            ]
+          },
+          "custom": {
+            "axisLabel": ""
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "xField": "person",
+        "orientation": "horizontal",
+        "showValue": "always",
+        "text": {
+          "valueSize": 12
+        },
+        "legend": {
+          "showLegend": false
+        },
+        "barWidth": 0.7
+      }
+    },
+    {
+      "type": "barchart",
+      "title": "Does heavier use go with more output?",
+      "description": "One bar per person, ordered left to right by the share of their commits that were assisted. Bar height is lines per active day across all their commits. Bars rising left to right say heavier users deliver more per day; a flat row says use and output are unrelated here. Either way it is a correlation across self-selected people, not an effect. Needs 10 commits per person. The axis is logarithmic, so bars are comparable when one person sits far above the rest.",
+      "datasource": "${DS_WHODUNIT}",
+      "gridPos": {
+        "h": 10,
+        "w": 10,
+        "x": 14,
+        "y": 25
+      },
+      "id": 11,
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "datasource": "${DS_WHODUNIT}",
+          "rawSql": "\nWITH c AS (\n  SELECT c.purpose,\n         CASE WHEN c.files_changed < 3 THEN '1-2 files'\n              WHEN c.files_changed <= 20 THEN '3-20 files'\n              ELSE '20+ files' END band,\n         c.status, c.lines_added + c.lines_removed AS churn,\n         COALESCE(wi.canonical, c.contributor) AS person,\n         COALESCE(t.name,'(unassigned)') AS team,\n         c.committed_at,\n         DATE(FROM_UNIXTIME(c.committed_at/1000000000)) AS d\n  FROM whodunit_commits c LEFT JOIN whodunit_identities wi ON wi.alias = c.contributor\n    LEFT JOIN team_users tu ON tu.user_id = COALESCE(wi.canonical, c.contributor)\n    LEFT JOIN teams t ON t.id = tu.team_id\n  WHERE c.committed_at BETWEEN $__unixEpochFrom()*1000000000 AND $__unixEpochTo()*1000000000\n    AND c.contributor IS NOT NULL AND c.status IN ('assisted','unassisted','undetermined','uninstrumented','unmatched','degraded')\n    -- All six named so the set stays complete as dun's list grows; only two\n    -- are compared, because the other four mean no evidence was collected\n    -- and counting them as unassisted reports absence as a measured\n    -- negative (NAV-21).\n    AND CASE c.status WHEN 'assisted' THEN 1 WHEN 'unassisted' THEN 1 END = 1 AND ('${contributor:raw}' = '__all__' OR c.contributor = '${contributor:raw}')\n    AND ('${team:raw}' = '__all__' OR COALESCE(t.name,'(unassigned)') = '${team:raw}')\n),\npp AS (\n  SELECT person, team,\n         100*SUM(status='assisted')/COUNT(*) share,\n         SUM(churn)/COUNT(DISTINCT d) per_day,\n         COUNT(*) commits\n  FROM c GROUP BY person, team\n)\n-- People sorted by how much of their work was assisted, left to right.\n-- The bar is their output per active day. Rising left-to-right says the\n-- two move together; flat says they do not. Correlation across\n-- self-selected people, not an effect.\nSELECT CONCAT(SUBSTRING_INDEX(person,'@',1),' · ',ROUND(share,0),'% assisted') AS person,\n       ROUND(per_day,0) AS `lines per active day`\nFROM pp WHERE commits >= 10\nORDER BY share\n"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "continuous-BlPu"
+          },
+          "custom": {
+            "axisLabel": "lines / active day (log)",
+            "fillOpacity": 85,
+            "gradientMode": "scheme",
+            "scaleDistribution": {
+              "type": "log",
+              "log": 10
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "xField": "person",
+        "orientation": "vertical",
+        "showValue": "never",
+        "legend": {
+          "showLegend": false
+        },
+        "barWidth": 0.8,
+        "xTickLabelRotation": -45,
+        "xTickLabelMaxLength": 22
+      }
+    },
+    {
+      "type": "row",
+      "title": "Over time",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 35
+      },
+      "id": 12,
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "type": "timeseries",
+      "title": "Pooled and conditioned, week by week",
+      "description": "The two headline figures recomputed each week. The gap between the lines is the mix effect over time — how much of the pooled figure each week was which work got picked up. Conditioned uses 3 commits a side per cell at week grain, pooled uses 5; a week that clears neither is a gap, not zero.",
+      "datasource": "${DS_WHODUNIT}",
+      "gridPos": {
+        "h": 9,
+        "w": 14,
+        "x": 0,
+        "y": 36
+      },
+      "id": 13,
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "datasource": "${DS_WHODUNIT}",
+          "rawSql": "\nWITH c AS (\n  SELECT c.purpose,\n         CASE WHEN c.files_changed < 3 THEN '1-2 files'\n              WHEN c.files_changed <= 20 THEN '3-20 files'\n              ELSE '20+ files' END band,\n         c.status, c.lines_added + c.lines_removed AS churn,\n         COALESCE(wi.canonical, c.contributor) AS person,\n         COALESCE(t.name,'(unassigned)') AS team,\n         c.committed_at,\n         DATE(FROM_UNIXTIME(c.committed_at/1000000000)) AS d\n  FROM whodunit_commits c LEFT JOIN whodunit_identities wi ON wi.alias = c.contributor\n    LEFT JOIN team_users tu ON tu.user_id = COALESCE(wi.canonical, c.contributor)\n    LEFT JOIN teams t ON t.id = tu.team_id\n  WHERE c.committed_at BETWEEN $__unixEpochFrom()*1000000000 AND $__unixEpochTo()*1000000000\n    AND c.contributor IS NOT NULL AND c.status IN ('assisted','unassisted','undetermined','uninstrumented','unmatched','degraded')\n    -- All six named so the set stays complete as dun's list grows; only two\n    -- are compared, because the other four mean no evidence was collected\n    -- and counting them as unassisted reports absence as a measured\n    -- negative (NAV-21).\n    AND CASE c.status WHEN 'assisted' THEN 1 WHEN 'unassisted' THEN 1 END = 1 AND ('${contributor:raw}' = '__all__' OR c.contributor = '${contributor:raw}')\n    AND ('${team:raw}' = '__all__' OR COALESCE(t.name,'(unassigned)') = '${team:raw}')\n),\nwk AS (\n  SELECT DATE_SUB(d, INTERVAL WEEKDAY(d) DAY) AS week, purpose, band, status,\n         COUNT(*) commits, SUM(churn) delivered, COUNT(DISTINCT person, d) person_days\n  FROM c GROUP BY week, purpose, band, status\n),\ntot AS (\n  SELECT week, status, SUM(commits) commits, SUM(delivered) delivered,\n         SUM(person_days) person_days\n  FROM wk GROUP BY week, status\n),\npooled AS (\n  SELECT week,\n    ROUND(100*(MAX(CASE WHEN status='assisted' THEN delivered/NULLIF(person_days,0) END)\n              -MAX(CASE WHEN status='unassisted' THEN delivered/NULLIF(person_days,0) END))\n            / MAX(CASE WHEN status='unassisted' THEN delivered/NULLIF(person_days,0) END),0) v\n  FROM tot GROUP BY week\n  HAVING MAX(CASE WHEN status='assisted' THEN commits END) >= 5\n     AND MAX(CASE WHEN status='unassisted' THEN commits END) >= 5\n),\npv AS (\n  SELECT week, purpose, band,\n    MAX(CASE WHEN status='assisted'   THEN delivered/NULLIF(person_days,0) END) a,\n    MAX(CASE WHEN status='unassisted' THEN delivered/NULLIF(person_days,0) END) u,\n    MAX(CASE WHEN status='assisted'   THEN commits END) na,\n    MAX(CASE WHEN status='unassisted' THEN commits END) nu\n  FROM wk GROUP BY week, purpose, band\n),\ncond AS (\n  SELECT week, ROUND(100*(SUM(a*nu)/SUM(nu) - SUM(u*nu)/SUM(nu)) / (SUM(u*nu)/SUM(nu)),0) v\n  FROM pv WHERE na >= 3 AND nu >= 3 AND u > 0 GROUP BY week\n)\nSELECT CAST(p.week AS DATETIME) AS time, p.v AS `Pooled`, cnd.v AS `Conditioned`\nFROM pooled p LEFT JOIN cond cnd ON cnd.week = p.week\nORDER BY time\n"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "custom": {
+            "lineWidth": 2,
+            "pointSize": 6,
+            "showPoints": "always",
+            "spanNulls": false
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Pooled"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#8a8f9a"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Conditioned"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#4caf78"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "time"
+            },
+            "properties": []
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "type": "heatmap",
+      "title": "Lines per person-day, by week and weekday",
+      "description": "Delivered lines per person-day, both cohorts together, laid out as weeks across and weekdays down. Shows the working rhythm the averages hide — and whether the heavy days cluster.",
+      "datasource": "${DS_WHODUNIT}",
+      "gridPos": {
+        "h": 9,
+        "w": 10,
+        "x": 14,
+        "y": 36
+      },
+      "id": 14,
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "datasource": "${DS_WHODUNIT}",
+          "rawSql": "\nWITH c AS (\n  SELECT c.purpose,\n         CASE WHEN c.files_changed < 3 THEN '1-2 files'\n              WHEN c.files_changed <= 20 THEN '3-20 files'\n              ELSE '20+ files' END band,\n         c.status, c.lines_added + c.lines_removed AS churn,\n         COALESCE(wi.canonical, c.contributor) AS person,\n         COALESCE(t.name,'(unassigned)') AS team,\n         c.committed_at,\n         DATE(FROM_UNIXTIME(c.committed_at/1000000000)) AS d\n  FROM whodunit_commits c LEFT JOIN whodunit_identities wi ON wi.alias = c.contributor\n    LEFT JOIN team_users tu ON tu.user_id = COALESCE(wi.canonical, c.contributor)\n    LEFT JOIN teams t ON t.id = tu.team_id\n  WHERE c.committed_at BETWEEN $__unixEpochFrom()*1000000000 AND $__unixEpochTo()*1000000000\n    AND c.contributor IS NOT NULL AND c.status IN ('assisted','unassisted','undetermined','uninstrumented','unmatched','degraded')\n    -- All six named so the set stays complete as dun's list grows; only two\n    -- are compared, because the other four mean no evidence was collected\n    -- and counting them as unassisted reports absence as a measured\n    -- negative (NAV-21).\n    AND CASE c.status WHEN 'assisted' THEN 1 WHEN 'unassisted' THEN 1 END = 1 AND ('${contributor:raw}' = '__all__' OR c.contributor = '${contributor:raw}')\n    AND ('${team:raw}' = '__all__' OR COALESCE(t.name,'(unassigned)') = '${team:raw}')\n)\nSELECT CAST(DATE_SUB(d, INTERVAL WEEKDAY(d) DAY) AS DATETIME) AS time,\n       DAYNAME(d) AS metric,\n       ROUND(SUM(churn)/COUNT(DISTINCT person, d),0) AS value\nFROM c\nGROUP BY time, metric, WEEKDAY(d)\nORDER BY time, WEEKDAY(d)\n"
         }
       ],
       "fieldConfig": {
         "defaults": {},
         "overrides": []
       },
-      "options": {}
+      "options": {
+        "calculate": false,
+        "yAxis": {
+          "axisPlacement": "left",
+          "reverse": false
+        },
+        "color": {
+          "mode": "scheme",
+          "scheme": "Greens",
+          "steps": 32
+        },
+        "cellGap": 2,
+        "legend": {
+          "show": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "yHistogram": false
+        },
+        "rowsFrame": {
+          "layout": "auto"
+        }
+      }
     },
     {
       "type": "barchart",
@@ -320,26 +739,59 @@
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
         "h": 8,
-        "w": 9,
+        "w": 24,
         "x": 0,
-        "y": 27
+        "y": 45
       },
-      "id": 9,
+      "id": 15,
       "targets": [
         {
           "refId": "A",
           "format": "table",
           "datasource": "${DS_WHODUNIT}",
-          "rawSql": "\nWITH iss AS (\n  SELECT i.id,\n         MAX(CASE WHEN w.status='assisted' THEN 1 ELSE 0 END) assisted,\n         MIN(w.purpose) purpose,\n         CASE WHEN SUM(w.files_changed) < 3 THEN '1-2 files'\n              WHEN SUM(w.files_changed) <= 20 THEN '3-20 files'\n              ELSE '20+ files' END band,\n         TIMESTAMPDIFF(HOUR, i.created_date, i.resolution_date)/24 days\n  FROM issues i\n  JOIN issue_commits ic ON ic.issue_id = i.id\n  JOIN whodunit_commits w ON w.commit_sha = ic.commit_sha\n  LEFT JOIN whodunit_identities wi ON wi.alias = w.contributor\n    LEFT JOIN team_users tu ON tu.user_id = COALESCE(wi.canonical, w.contributor)\n    LEFT JOIN teams t ON t.id = tu.team_id\n  WHERE i.status = 'DONE' AND i.resolution_date IS NOT NULL\n    -- Bare-integer keys on some trackers match unrelated commits, so the\n    -- join is guarded to the PROJECT-123 shape (check-issue-key-guard.py).\n    AND i.issue_key REGEXP '^[A-Z][A-Z0-9]+-[0-9]+$'\n    AND $__timeFilter(i.resolution_date)\n    AND ('${contributor:raw}' = '__all__' OR w.contributor = '${contributor:raw}')\n    AND ('${team:raw}' = '__all__' OR COALESCE(t.name,'(unassigned)') = '${team:raw}')\n  GROUP BY i.id\n)\nSELECT CONCAT(purpose,' · ',band) AS metric,\n       CASE WHEN assisted=1 THEN 'AI-assisted' ELSE 'Unassisted' END AS series,\n       ROUND(AVG(days),2) AS value\nFROM iss\nGROUP BY purpose, band, assisted\nHAVING COUNT(*) >= 5\nORDER BY metric\n"
+          "rawSql": "\nWITH iss AS (\n  SELECT i.id,\n         MAX(CASE WHEN w.status='assisted' THEN 1 ELSE 0 END) assisted,\n         MIN(w.purpose) purpose,\n         CASE WHEN SUM(w.files_changed) < 3 THEN '1-2 files'\n              WHEN SUM(w.files_changed) <= 20 THEN '3-20 files'\n              ELSE '20+ files' END band,\n         TIMESTAMPDIFF(HOUR, i.created_date, i.resolution_date)/24 days\n  FROM issues i\n  JOIN issue_commits ic ON ic.issue_id = i.id\n  JOIN whodunit_commits w ON w.commit_sha = ic.commit_sha\n  LEFT JOIN whodunit_identities wi ON wi.alias = w.contributor\n    LEFT JOIN team_users tu ON tu.user_id = COALESCE(wi.canonical, w.contributor)\n    LEFT JOIN teams t ON t.id = tu.team_id\n  WHERE i.status = 'DONE' AND i.resolution_date IS NOT NULL\n    -- Bare-integer keys on some trackers match unrelated commits, so the\n    -- join is guarded to the PROJECT-123 shape (check-issue-key-guard.py).\n    AND i.issue_key REGEXP '^[A-Z][A-Z0-9]+-[0-9]+$'\n    AND $__timeFilter(i.resolution_date)\n    AND ('${contributor:raw}' = '__all__' OR w.contributor = '${contributor:raw}')\n    AND ('${team:raw}' = '__all__' OR COALESCE(t.name,'(unassigned)') = '${team:raw}')\n  GROUP BY i.id\n)\nSELECT CONCAT(purpose,' · ',band) AS metric,\n       ROUND(AVG(CASE WHEN assisted=1 THEN days END),2) AS `AI-assisted`,\n       ROUND(AVG(CASE WHEN assisted=0 THEN days END),2) AS `Unassisted`\nFROM iss\nGROUP BY purpose, band\nHAVING SUM(assisted=1) >= 5 OR SUM(assisted=0) >= 5\nORDER BY metric\n"
         }
       ],
       "fieldConfig": {
         "defaults": {
+          "unit": "d",
+          "decimals": 1,
           "custom": {
             "axisLabel": ""
           }
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "AI-assisted"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#4caf78"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Unassisted"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#8a8f9a"
+                }
+              }
+            ]
+          }
+        ]
       },
       "options": {
         "xField": "metric",
@@ -349,7 +801,8 @@
         },
         "legend": {
           "displayMode": "list",
-          "placement": "bottom"
+          "placement": "bottom",
+          "showLegend": true
         },
         "orientation": "auto"
       }
