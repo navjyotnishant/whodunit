@@ -120,7 +120,7 @@
     },
     {
       "title": "Which MCP servers are used",
-      "description": "Calls per server, with transport aliases folded together — the same server arrives named five different ways depending on which agent invoked it, and unnormalised the busiest one looks like five minor ones. This answers whether an integration someone is paying for is actually being called.",
+      "description": "Calls per server, with transport aliases folded together \u2014 the same server arrives named five different ways depending on which agent invoked it, and unnormalised the busiest one looks like five minor ones. This answers whether an integration someone is paying for is actually being called.",
       "type": "barchart",
       "gridPos": {
         "x": 4,
@@ -252,7 +252,7 @@
     },
     {
       "title": "Tools called most, within MCP",
-      "description": "The individual tool behind each call, not just the server. This is the granularity that answers whether an integration is used for the thing it was bought for — a Jira MCP called only to read issues is a different purchase from one used to file and transition them.",
+      "description": "The individual tool behind each call, not just the server. This is the granularity that answers whether an integration is used for the thing it was bought for \u2014 a Jira MCP called only to read issues is a different purchase from one used to file and transition them.",
       "type": "barchart",
       "gridPos": {
         "x": 14,
@@ -272,7 +272,7 @@
             "type": "mysql",
             "uid": "${datasource}"
           },
-          "rawSql": "SELECT REPLACE(SUBSTRING_INDEX(e.tool, '__', -1), '_', ' ') AS `tool`,\n       COUNT(*) AS `calls`\nFROM whodunit_events e\nLEFT JOIN whodunit_identities wi ON wi.alias = e.contributor\nLEFT JOIN team_users tu ON tu.user_id = COALESCE(wi.canonical, e.contributor)\nLEFT JOIN teams t ON t.id = tu.team_id\nWHERE e.tool LIKE 'mcp\\\\_\\\\_%' AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  AND ('${team:raw}' = '__all__' OR COALESCE(t.name, '(unassigned)') = '${team:raw}')\n  AND ('${contributor:raw}' = '__all__'\n       OR COALESCE(wi.canonical, e.contributor) = '${contributor:raw}')\nGROUP BY REPLACE(SUBSTRING_INDEX(e.tool, '__', -1), '_', ' ')\nORDER BY `calls` DESC\nLIMIT 12"
+          "rawSql": "SELECT CONCAT(REPLACE(SUBSTRING_INDEX(e.tool, '__', -1), '_', ' '), ' (', COALESCE(NULLIF(LOWER(TRIM(REPLACE(REGEXP_REPLACE(e.mcp_server,'^(mcp__codex_apps__|plugin:[^:]+:|claude\\\\.ai |claude_ai_|mcp__)',''),'-server',''))),''), 'unknown'), ')') AS `tool`,\n       COUNT(*) AS `calls`\nFROM whodunit_events e\nLEFT JOIN whodunit_identities wi ON wi.alias = e.contributor\nLEFT JOIN team_users tu ON tu.user_id = COALESCE(wi.canonical, e.contributor)\nLEFT JOIN teams t ON t.id = tu.team_id\nWHERE e.tool LIKE 'mcp\\\\_\\\\_%' AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  AND ('${team:raw}' = '__all__' OR COALESCE(t.name, '(unassigned)') = '${team:raw}')\n  AND ('${contributor:raw}' = '__all__'\n       OR COALESCE(wi.canonical, e.contributor) = '${contributor:raw}')\nGROUP BY `tool`\nORDER BY `calls` DESC\nLIMIT 12"
         }
       ],
       "fieldConfig": {
@@ -373,7 +373,7 @@
     },
     {
       "title": "Sessions reaching for an integration",
-      "description": "How many sessions used any MCP at all, against those that used none. A session is one working stretch, so this reads as how often integrations enter the work rather than how many calls they generate — one automated loop can produce hundreds of calls in a single session.",
+      "description": "How many sessions used any MCP at all, against those that used none. A session is one working stretch, so this reads as how often integrations enter the work rather than how many calls they generate \u2014 one automated loop can produce hundreds of calls in a single session.",
       "type": "piechart",
       "gridPos": {
         "x": 12,
