@@ -39,6 +39,7 @@ destructive if pointed at production.
 """
 
 import argparse
+import json
 import random
 import subprocess
 import sys
@@ -711,6 +712,79 @@ def report(container, db):
     print("\n" + mysql(q, container, db).rstrip())
 
 
+def publish_dashboards(container, db, grafana, user, password, ds_uid, folder):
+    """Import the dashboards as demo copies, with a board already chosen.
+
+    Two things differ from the normal import, and both matter.
+
+    The uid is suffixed. Grafana's uid namespace is global, so importing
+    the repo's dashboards under their own uids MOVES the real ones into
+    this folder and rebinds them to the demo datasource rather than
+    creating a second set. That happened once and is not obvious until
+    the real dashboards are already gone from where they were.
+
+    The board variable is pre-selected. It ships with current={} — pinning
+    one installer's team id onto everyone else is the bug
+    export-dashboards.py exists to strip — but with includeAll=false and
+    nothing selected, every $board panel on the executive dashboard gets
+    an unresolved variable and the whole dashboard reads as broken. A demo
+    copy is for one machine, so it can hold a real selection.
+    """
+    import urllib.request, urllib.error, base64, os, glob as _glob
+
+    def api(path, payload=None, method=None):
+        url = grafana.rstrip("/") + path
+        data = json.dumps(payload).encode() if payload is not None else None
+        req = urllib.request.Request(url, data=data, method=method or ("POST" if data else "GET"))
+        req.add_header("Content-Type", "application/json")
+        req.add_header("Authorization", "Basic " +
+                       base64.b64encode(f"{user}:{password}".encode()).decode())
+        try:
+            with urllib.request.urlopen(req) as r:
+                return json.loads(r.read() or "{}")
+        except urllib.error.HTTPError as e:
+            return json.loads(e.read() or "{}")
+
+    folders = api("/api/folders")
+    folder_uid = next((f["uid"] for f in folders if f.get("title") == folder), None)
+    if not folder_uid:
+        folder_uid = (api("/api/folders", {"title": folder}) or {}).get("uid")
+
+    # The board with the most recently resolved issues, not the first
+    # alphabetically. Ordering by name picked EngageHub, which has 84
+    # resolved issues in the window against whodunit's 147, so the
+    # dashboard opened on the thinner board and read as broken. The
+    # default selection decides what a viewer sees before they touch
+    # anything, so it should be the board with something to show.
+    board = mysql("""
+        SELECT b.id, b.name FROM boards b
+        JOIN board_issues bi ON bi.board_id = b.id
+        JOIN issues i ON i.id = bi.issue_id
+        WHERE (b.id LIKE 'linear:%' OR b.id LIKE 'jira:%')
+          AND i.resolution_date > NOW() - INTERVAL 30 DAY
+        GROUP BY b.id, b.name
+        ORDER BY COUNT(*) DESC LIMIT 1
+    """, container, db).strip().split("\t")
+
+    here = os.path.dirname(os.path.abspath(__file__))
+    n = 0
+    for path in sorted(_glob.glob(os.path.join(here, "dashboards-import", "*.json"))):
+        d = json.load(open(path))
+        d["uid"] = (d["uid"] + "-demo")[:40]
+        d["title"] = d["title"] + " (demo)"
+        if len(board) == 2:
+            for v in d.get("templating", {}).get("list", []):
+                if v.get("name") == "board":
+                    sel = {"selected": True, "text": board[1], "value": board[0]}
+                    v["current"], v["options"] = sel, [sel]
+        api("/api/dashboards/import", {
+            "dashboard": d, "overwrite": True, "folderUid": folder_uid,
+            "inputs": [{"name": "DS_WHODUNIT", "type": "datasource",
+                        "pluginId": "mysql", "value": ds_uid}]})
+        n += 1
+    print(f"dashboards: {n} imported into {folder!r}, board preselected")
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--container", default="devlake-mysql-1")
@@ -718,6 +792,13 @@ def main():
                     help="target database (never the real one)")
     ap.add_argument("--keep", action="store_true",
                     help="augment an existing copy instead of re-cloning")
+    ap.add_argument("--datasource",
+                    help="Grafana datasource uid for the demo database; "
+                         "given, the dashboards are published too")
+    ap.add_argument("--folder", default="Whodunit Demo")
+    ap.add_argument("--grafana", default="http://localhost:3002")
+    ap.add_argument("--grafana-user", default="admin")
+    ap.add_argument("--grafana-password", default="admin123")
     args = ap.parse_args()
 
     # The guard that matters. Every statement below is an UPDATE or INSERT,
@@ -740,6 +821,11 @@ def main():
 
     augment(args.container, args.database)
     report(args.container, args.database)
+
+    if args.datasource:
+        publish_dashboards(args.container, args.database, args.grafana,
+                           args.grafana_user, args.grafana_password,
+                           args.datasource, args.folder)
 
     print(f"\n{args.database} is ready. {SOURCE} was not modified.")
     return 0
