@@ -774,12 +774,12 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT e.tool AS `tool`,\n       SUM(CASE WHEN e.agent='claude-code' THEN 1 ELSE 0 END) AS `claude-code`,\n       SUM(CASE WHEN e.agent='codex' THEN 1 ELSE 0 END) AS `codex`,\n       SUM(CASE WHEN e.agent='agy' THEN 1 ELSE 0 END) AS `agy`\nFROM whodunit_events e\nWHERE e.tool <> ''\n  AND e.agent IN ($agent)\n  AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nGROUP BY e.tool ORDER BY `claude-code` DESC"
+          "rawSql": "-- Top 15 by total calls. Without the cap this drew every distinct tool —\n-- 145 on the real lake — as one unreadable band of labels. MCP tools are\n-- shortened to \"server · tool\" so the axis reads; the raw name is in the\n-- MCP dashboards.\nSELECT REPLACE(REGEXP_REPLACE(e.tool, '^mcp__(codex_apps__|claude_ai_|plugin_[a-z]+_)?', ''), '__', ' · ') AS `tool`,\n       SUM(CASE WHEN e.agent='claude-code' THEN 1 ELSE 0 END) AS `claude-code`,\n       SUM(CASE WHEN e.agent='codex' THEN 1 ELSE 0 END) AS `codex`,\n       SUM(CASE WHEN e.agent='agy' THEN 1 ELSE 0 END) AS `agy`\nFROM whodunit_events e\nWHERE e.tool <> ''\n  AND e.agent IN ($agent)\n  AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nGROUP BY `tool`\nORDER BY COUNT(*) DESC\nLIMIT 15"
         }
       ],
       "options": {
         "xField": "tool",
-        "xTickLabelRotation": -45,
+        "xTickLabelRotation": 0,
         "legend": {
           "showLegend": true,
           "displayMode": "list",
@@ -792,10 +792,10 @@
         "stacking": "normal",
         "showValue": "never",
         "groupWidth": 0.7,
-        "barWidth": 0.9,
-        "orientation": "auto"
+        "barWidth": 0.8,
+        "orientation": "horizontal"
       },
-      "description": "Which agent reaches for which tool, from the tool calls recorded in each session — not a fixed list of features.",
+      "description": "Which agent reaches for which tool, from the tool calls recorded in each session — not a fixed list of features. Shows the 15 most-called tools; the long tail is on the MCP & Tools dashboard.",
       "fieldConfig": {
         "defaults": {
           "unit": "short",
