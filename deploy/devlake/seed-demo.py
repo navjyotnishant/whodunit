@@ -384,6 +384,28 @@ def augment(container, db):
     """, container, db)
     print("last 30 days: adoption ramped 25% -> 76%, volume outliers thinned")
 
+    # --- two people who have not started -------------------------------
+    #
+    # The hash spread gives everyone some assisted commits, so nothing on
+    # the team views can show the one list a manager actually acts on: who
+    # has not used the tool at all. Two contributors are pushed back to
+    # unassisted on every commit — chosen by position in the roster, not
+    # by name, so a re-run picks the same two. The real contributor is
+    # never one of them.
+    quiet = [p for p in people if p != REAL_CONTRIBUTOR][2::5][:2]
+    if quiet:
+        names = ",".join(f"'{p}'" for p in quiet)
+        mysql(f"""
+            UPDATE whodunit_commits
+            SET status = 'unassisted', method = '', ratio = NULL
+            WHERE contributor IN ({names}) AND status = 'assisted'
+        """, container, db)
+        mysql(f"""
+            UPDATE whodunit_sessions SET tool_calls = 0, mcp_calls = 0
+            WHERE contributor IN ({names})
+        """, container, db)
+    print(f"not started: {len(quiet)} contributors left with no assisted commits")
+
     # --- three agents, in a fixed mix ------------------------------------
     #
     # 15 panels across 6 dashboards break down by agent or model, and the
