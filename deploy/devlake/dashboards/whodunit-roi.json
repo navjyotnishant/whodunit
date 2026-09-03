@@ -160,7 +160,7 @@
     },
     {
       "type": "bargauge",
-      "title": "Paid seats against active users",
+      "title": "Paid seats vs active users",
       "description": "Seats is what you typed. Active users is measured: people with at least one verified AI-assisted commit in range. The gap between the bars is licence spend with no measured use behind it.",
       "datasource": "${datasource}",
       "gridPos": {
@@ -318,7 +318,7 @@
     },
     {
       "type": "stat",
-      "title": "Per active user, per month",
+      "title": "Per active user",
       "description": "Monthly licence spend divided by active users. The real per-head price once unused seats are counted \u2014 the figure to compare against a seat's list price.",
       "datasource": "${datasource}",
       "gridPos": {
@@ -366,7 +366,7 @@
     },
     {
       "type": "stat",
-      "title": "Unused seats, per month",
+      "title": "Unused seats / month",
       "description": "Seats with no measured use in range, times cost per seat. Zero or negative means every seat was used. The one number on this page that is a saving you can actually make.",
       "datasource": "${datasource}",
       "gridPos": {
@@ -675,7 +675,7 @@
     },
     {
       "type": "stat",
-      "title": "Hours per seat, per month",
+      "title": "Hours per seat / month",
       "description": "Cost per seat divided by the hourly rate, both typed. If a developer saves this many hours a month, the seat has paid for itself. Judge whether that is plausible \u2014 the page does not.",
       "datasource": "${datasource}",
       "gridPos": {
@@ -723,7 +723,7 @@
     },
     {
       "type": "stat",
-      "title": "Hours per active user, per month",
+      "title": "Hours per active user / month",
       "description": "Total monthly spend divided by active users, then by the hourly rate. Higher than the per-seat figure whenever seats sit unused \u2014 the idle seats have to be earned back by the people who do use it.",
       "datasource": "${datasource}",
       "gridPos": {
@@ -819,7 +819,7 @@
     },
     {
       "type": "stat",
-      "title": "Minutes per active user, per working day",
+      "title": "Minutes per user / working day",
       "description": "Monthly spend per active user at the hourly rate, spread over 21.7 working days. The daily saving each user needs to make. Small numbers here are the whole argument for the tool; large ones are the argument against.",
       "datasource": "${datasource}",
       "gridPos": {
@@ -880,7 +880,7 @@
     },
     {
       "type": "table",
-      "title": "ROI at each level of hours saved \u2014 pick the row you believe",
+      "title": "ROI by hours saved \u2014 pick the row you believe",
       "description": "Return on licence spend if each active user saved the hours in the first column, every month, valued at the typed hourly rate. Nothing in this table is measured except the count of active users; the hours are the assumption, laid out so you can see which one you are making. The row where ROI crosses zero is the break-even figure above.",
       "datasource": "${datasource}",
       "gridPos": {
@@ -925,11 +925,11 @@
               },
               {
                 "id": "custom.width",
-                "value": 230
+                "value": 170
               },
               {
                 "id": "displayName",
-                "value": "Hours saved per developer per month"
+                "value": "Hours saved / dev / month"
               }
             ]
           },
@@ -1006,7 +1006,7 @@
     },
     {
       "type": "stat",
-      "title": "If the conditioned difference were all time returned \u2014 ROI, hypothetical",
+      "title": "ROI if the difference were time",
       "description": "A hypothesis, not a measurement. Takes the conditioned output difference from the Productivity page, treats that share of each active user's typed working hours as time returned, values it at the hourly rate, and sets it against licence spend. The 'if' carries the weight: the difference is between self-selected cohorts and is not known to be time. Shown because it is the number people ask for, with its condition in the title.",
       "datasource": "${datasource}",
       "gridPos": {
@@ -1054,7 +1054,7 @@
     },
     {
       "type": "stat",
-      "title": "Hours that hypothesis implies, per user per month",
+      "title": "Implied hours / month",
       "description": "The conditioned difference applied to the typed working hours per month \u2014 the hours-saved figure the hypothesis beside it rests on. Find this value in the sensitivity table to see what it assumes.",
       "datasource": "${datasource}",
       "gridPos": {
@@ -1347,7 +1347,7 @@
     },
     {
       "type": "stat",
-      "title": "Token spend as a share of licence spend",
+      "title": "Token spend vs licence spend",
       "description": "What the same usage would have cost at API list price, as a percentage of what the licences cost over the range. Over 100% says the subscription is cheaper than pay-per-token; under says the reverse.",
       "datasource": "${datasource}",
       "gridPos": {
@@ -1395,7 +1395,7 @@
     },
     {
       "type": "barchart",
-      "title": "Token spend by model, at list price",
+      "title": "Token spend by model, list price",
       "description": "The same per-model pricing, split by model. Each bar is priced at that model's own rate, so the bars are comparable as money, not just as token counts. Models with no price row are absent here and listed in the unpriced panel.",
       "datasource": "${datasource}",
       "gridPos": {
@@ -1440,7 +1440,7 @@
     },
     {
       "type": "table",
-      "title": "Price list applied \u2014 per million tokens",
+      "title": "Price list applied, per million tokens",
       "description": "The list prices in use, for models seen in the selected range. Source 'fetched' means read from the provider's pricing page on the date shown; 'baked <date>' means the page could not be parsed and a dated snapshot was written instead. Rerun fetch-model-prices.py to refresh. A model missing here is unpriced, not free.",
       "datasource": "${datasource}",
       "gridPos": {
