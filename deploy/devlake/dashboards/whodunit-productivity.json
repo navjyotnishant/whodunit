@@ -156,7 +156,7 @@
       }
     },
     {
-      "type": "stat",
+      "type": "gauge",
       "title": "Pooled vs conditioned",
       "description": "The same difference computed two ways. Pooled compares all assisted work against all unassisted work. Conditioned compares only like with like \u2014 same work type, same complexity band \u2014 and reweights onto a common mix. The gap between them is how much of the pooled figure was the mix of work each cohort picked up, rather than how productive it was. Neither is a verdict; both are differences between self-selected cohorts. Output here is lines delivered, not commits: inside a single work-type and complexity cell most contributor-days hold one commit, so a commit count pins both sides near 1 and measures the grid rather than the work.",
       "datasource": "${datasource}",
@@ -172,16 +172,30 @@
           "refId": "A",
           "format": "table",
           "datasource": "${datasource}",
-          "rawSql": "\nWITH c AS (\n  SELECT c.purpose,\n         CASE WHEN c.files_changed < 3 THEN '1-2 files'\n              WHEN c.files_changed <= 20 THEN '3-20 files'\n              ELSE '20+ files' END band,\n         c.status, c.lines_added + c.lines_removed AS churn,\n         c.contributor, c.committed_at\n  FROM whodunit_commits c LEFT JOIN whodunit_identities wi ON wi.alias = c.contributor\n    LEFT JOIN team_users tu ON tu.user_id = COALESCE(wi.canonical, c.contributor)\n    LEFT JOIN teams t ON t.id = tu.team_id\n  WHERE c.committed_at BETWEEN $__unixEpochFrom()*1000000000 AND $__unixEpochTo()*1000000000\n    AND c.contributor IS NOT NULL AND c.status IN ('assisted','unassisted','undetermined','uninstrumented','unmatched','degraded')\n    -- All six named so the set stays complete as dun's list grows; only two\n    -- are compared, because the other four mean no evidence was collected\n    -- and counting them as unassisted reports absence as a measured\n    -- negative (NAV-21).\n    AND CASE c.status WHEN 'assisted' THEN 1 WHEN 'unassisted' THEN 1 END = 1 AND ('${contributor:raw}' = '__all__' OR c.contributor = '${contributor:raw}')\n    AND ('${team:raw}' = '__all__' OR COALESCE(t.name,'(unassigned)') = '${team:raw}')\n),\ncell AS (\n  SELECT purpose, band, status, COUNT(*) commits, SUM(churn) delivered,\n         COUNT(DISTINCT CONCAT(contributor,'|',DATE(FROM_UNIXTIME(committed_at/1000000000)))) person_days\n  FROM c GROUP BY purpose, band, status\n),\npivot AS (\n  SELECT purpose, band,\n    MAX(CASE WHEN status='assisted'   THEN delivered/NULLIF(person_days,0) END) a,\n    MAX(CASE WHEN status='unassisted' THEN delivered/NULLIF(person_days,0) END) u,\n    MAX(CASE WHEN status='assisted'   THEN commits END) na,\n    MAX(CASE WHEN status='unassisted' THEN commits END) nu\n  FROM cell GROUP BY purpose, band\n),\ntot AS (\n  SELECT status, COUNT(*) commits, SUM(churn) delivered,\n         COUNT(DISTINCT CONCAT(contributor,'|',DATE(FROM_UNIXTIME(committed_at/1000000000)))) person_days\n  FROM c GROUP BY status\n)\nSELECT 'Unconditioned \u2014 all work pooled' AS metric,\n       ROUND(100*(MAX(CASE WHEN status='assisted' THEN delivered/NULLIF(person_days,0) END)\n                - MAX(CASE WHEN status='unassisted' THEN delivered/NULLIF(person_days,0) END))\n             / MAX(CASE WHEN status='unassisted' THEN delivered/NULLIF(person_days,0) END),0) AS value\nFROM tot\nUNION ALL\n-- Weighted by the unassisted cohort's mix, so the strata are compared on a\n-- common composition rather than each cohort's own.\nSELECT 'Conditioned \u2014 same work type and complexity',\n       ROUND(100*(SUM(a*nu)/SUM(nu) - SUM(u*nu)/SUM(nu)) / (SUM(u*nu)/SUM(nu)),0)\nFROM pivot WHERE na >= 5 AND nu >= 5 AND u > 0\n"
+          "rawSql": "\nWITH c AS (\n  SELECT c.purpose,\n         CASE WHEN c.files_changed < 3 THEN '1-2 files'\n              WHEN c.files_changed <= 20 THEN '3-20 files'\n              ELSE '20+ files' END band,\n         c.status, c.lines_added + c.lines_removed AS churn,\n         c.contributor, c.committed_at\n  FROM whodunit_commits c LEFT JOIN whodunit_identities wi ON wi.alias = c.contributor\n    LEFT JOIN team_users tu ON tu.user_id = COALESCE(wi.canonical, c.contributor)\n    LEFT JOIN teams t ON t.id = tu.team_id\n  WHERE c.committed_at BETWEEN $__unixEpochFrom()*1000000000 AND $__unixEpochTo()*1000000000\n    AND c.contributor IS NOT NULL AND c.status IN ('assisted','unassisted','undetermined','uninstrumented','unmatched','degraded')\n    -- All six named so the set stays complete as dun's list grows; only two\n    -- are compared, because the other four mean no evidence was collected\n    -- and counting them as unassisted reports absence as a measured\n    -- negative (NAV-21).\n    AND CASE c.status WHEN 'assisted' THEN 1 WHEN 'unassisted' THEN 1 END = 1 AND ('${contributor:raw}' = '__all__' OR c.contributor = '${contributor:raw}')\n    AND ('${team:raw}' = '__all__' OR COALESCE(t.name,'(unassigned)') = '${team:raw}')\n),\ncell AS (\n  SELECT purpose, band, status, COUNT(*) commits, SUM(churn) delivered,\n         COUNT(DISTINCT CONCAT(contributor,'|',DATE(FROM_UNIXTIME(committed_at/1000000000)))) person_days\n  FROM c GROUP BY purpose, band, status\n),\npivot AS (\n  SELECT purpose, band,\n    MAX(CASE WHEN status='assisted'   THEN delivered/NULLIF(person_days,0) END) a,\n    MAX(CASE WHEN status='unassisted' THEN delivered/NULLIF(person_days,0) END) u,\n    MAX(CASE WHEN status='assisted'   THEN commits END) na,\n    MAX(CASE WHEN status='unassisted' THEN commits END) nu\n  FROM cell GROUP BY purpose, band\n),\ntot AS (\n  SELECT status, COUNT(*) commits, SUM(churn) delivered,\n         COUNT(DISTINCT CONCAT(contributor,'|',DATE(FROM_UNIXTIME(committed_at/1000000000)))) person_days\n  FROM c GROUP BY status\n)\nSELECT 'Pooled \u2014 all work' AS metric,\n       ROUND(100*(MAX(CASE WHEN status='assisted' THEN delivered/NULLIF(person_days,0) END)\n                - MAX(CASE WHEN status='unassisted' THEN delivered/NULLIF(person_days,0) END))\n             / MAX(CASE WHEN status='unassisted' THEN delivered/NULLIF(person_days,0) END),0) AS value\nFROM tot\nUNION ALL\n-- Weighted by the unassisted cohort's mix, so the strata are compared on a\n-- common composition rather than each cohort's own.\nSELECT 'Conditioned \u2014 like with like',\n       ROUND(100*(SUM(a*nu)/SUM(nu) - SUM(u*nu)/SUM(nu)) / (SUM(u*nu)/SUM(nu)),0)\nFROM pivot WHERE na >= 5 AND nu >= 5 AND u > 0\n"
         }
       ],
       "fieldConfig": {
         "defaults": {
           "unit": "percent",
           "decimals": 0,
+          "min": -100,
+          "max": 100,
           "color": {
-            "mode": "fixed",
-            "fixedColor": "text"
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#d64545",
+                "value": null
+              },
+              {
+                "color": "#4caf78",
+                "value": 0
+              }
+            ]
           }
         },
         "overrides": []
@@ -194,15 +208,16 @@
           "fields": "/^value$/",
           "values": true
         },
-        "textMode": "value_and_name",
+        "showThresholdMarkers": false,
+        "showThresholdLabels": false,
         "orientation": "horizontal",
-        "colorMode": "none",
-        "graphMode": "none",
-        "justifyMode": "center",
         "text": {
-          "valueSize": 40,
-          "titleSize": 16
-        }
+          "valueSize": 26,
+          "titleSize": 12
+        },
+        "minVizHeight": 120,
+        "minVizWidth": 120,
+        "sizing": "auto"
       }
     },
     {
