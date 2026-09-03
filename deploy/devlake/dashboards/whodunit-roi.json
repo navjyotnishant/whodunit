@@ -37,7 +37,7 @@
       {
         "type": "textbox",
         "name": "seat_cost",
-        "label": "$ per seat / month",
+        "label": "$ per seat, monthly",
         "description": "Licence cost per seat per month, in dollars. Typed, not measured.",
         "query": "100",
         "current": {
@@ -57,8 +57,8 @@
       {
         "type": "textbox",
         "name": "hourly_rate",
-        "label": "$ per hour, loaded",
-        "description": "Fully loaded hourly cost of a developer. Typed; drives every break-even figure.",
+        "label": "$ per developer hour",
+        "description": "Fully loaded cost of one developer hour \u2014 salary plus employer taxes, benefits, equipment and overhead, typically 1.3\u20131.8\u00d7 base. Base = salary \u00f7 ~2,000 h; loaded \u2248 base \u00d7 1.4 if nobody has the real figure. For a consultancy, use the billable rate. Loaded, not base: a saved hour returns the whole cost of that hour, and a base rate makes break-even look harder than it is.",
         "query": "75",
         "current": {
           "selected": false,
