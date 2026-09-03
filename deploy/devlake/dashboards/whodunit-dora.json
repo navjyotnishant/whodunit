@@ -80,7 +80,7 @@
         "name": "evidence",
         "type": "custom",
         "label": "Evidence",
-        "query": "intersected — agent lines survived : intersected,observed — agent edited the files : observed,inferred — from surrounding evidence : inferred,declared — stated only : declared,undetermined — no evidence either way : undetermined",
+        "query": "intersected \u2014 agent lines survived : intersected,observed \u2014 agent edited the files : observed,inferred \u2014 from surrounding evidence : inferred,declared \u2014 stated only : declared,undetermined \u2014 no evidence either way : undetermined",
         "options": [],
         "current": {
           "selected": true,
@@ -230,7 +230,7 @@
           "values": true
         }
       },
-      "description": "How each commit's attribution was established, strongest first: **intersected** (the agent's lines are in the diff), **observed** (touched the file, text changed after), **declared** (stated, not measured).\n\nThe rest say why there is none: **unassisted** a human wrote it, **uninstrumented** predates the hooks, **degraded** is a fault.\n\nCounts every commit — the cohort panels below count only matched purposes.",
+      "description": "How each commit's attribution was established, strongest first: **intersected** (the agent's lines are in the diff), **observed** (touched the file, text changed after), **declared** (stated, not measured).\n\nThe rest say why there is none: **unassisted** a human wrote it, **uninstrumented** predates the hooks, **degraded** is a fault.\n\nCounts every commit \u2014 the cohort panels below count only matched purposes.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -424,7 +424,7 @@
         "w": 8,
         "h": 6
       },
-      "description": "Mean lines changed per assisted commit divided by the same for unassisted ones, within purposes where both sides have 20+ commits — so `feature` is not measured against `docs`. **1.3x means assisted commits are about a third larger**; the two averages it came from are beside it.\n\n**Size, not productivity.** Larger may mean more work delivered, or more code for the same result. Not colour-coded: green for bigger would assert an answer nobody has earned.",
+      "description": "Mean lines changed per assisted commit divided by the same for unassisted ones, within purposes where both sides have 20+ commits \u2014 so `feature` is not measured against `docs`. **1.3x means assisted commits are about a third larger**; the two averages it came from are beside it.\n\n**Size, not productivity.** Larger may mean more work delivered, or more code for the same result. Not colour-coded: green for bigger would assert an answer nobody has earned.",
       "targets": [
         {
           "refId": "A",
@@ -528,7 +528,7 @@
         "w": 8,
         "h": 6
       },
-      "description": "The denominator behind the figure beside this: AI-assisted against not-AI-assisted commits, counted only where **both** sides reach 20 — today `feature`, `fix` and `docs`.\n\n**A subset, two ways.** Some types are excluded, and so are the four states meaning no evidence was available. Smaller than Evidence strength, which counts every commit.",
+      "description": "The denominator behind the figure beside this: AI-assisted against not-AI-assisted commits, counted only where **both** sides reach 20 \u2014 today `feature`, `fix` and `docs`.\n\n**A subset, two ways.** Some types are excluded, and so are the four states meaning no evidence was available. Smaller than Evidence strength, which counts every commit.",
       "targets": [
         {
           "refId": "A",
@@ -577,7 +577,8 @@
         "w": 24,
         "h": 1
       },
-      "panels": []
+      "panels": [],
+      "id": 213
     },
     {
       "id": 7,
@@ -626,7 +627,7 @@
         "w": 8,
         "h": 5
       },
-      "description": "Output tokens spent per line of assisted work that **reached a commit**.\n\nThe denominator is what distinguishes this from the token-per-attributed-line panel above: that one divides by agent activity, this one by work that shipped. Tokens spent on edits that were abandoned or rewritten count in the numerator and not the denominator, which is the point — that gap is the cost of work that did not land.\n\nTokens, never currency: under a subscription the marginal cost of a token is zero, so a price table would report money nobody spent.\n\nSessions and commits are counted over the same window but are not joined row-to-row — a session can span commits and a commit can span sessions. Read it as a rate for the period, not as an attribution per commit.",
+      "description": "Output tokens spent per line of assisted work that **reached a commit**.\n\nThe denominator is what distinguishes this from the token-per-attributed-line panel above: that one divides by agent activity, this one by work that shipped. Tokens spent on edits that were abandoned or rewritten count in the numerator and not the denominator, which is the point \u2014 that gap is the cost of work that did not land.\n\nTokens, never currency: under a subscription the marginal cost of a token is zero, so a price table would report money nobody spent.\n\nSessions and commits are counted over the same window but are not joined row-to-row \u2014 a session can span commits and a commit can span sessions. Read it as a rate for the period, not as an attribution per commit.",
       "targets": [
         {
           "refId": "A",
@@ -677,7 +678,7 @@
         "w": 8,
         "h": 4
       },
-      "description": "What the agent spent, in tokens, per thousand lines it wrote.\n\n**This replaced a dollar figure** derived from a hand-typed monthly spend divided evenly over every line — an allocation dressed as a measurement, which reported the same unit cost whether the agent ran once or a thousand times, and defaulted to a $200 placeholder that was nobody's actual bill.\n\nTokens rather than currency, deliberately: under a subscription the marginal cost of a token is zero, so multiplying by an API rate would report money nobody spent — and nothing in a transcript says which billing model a user is on. Multiply by your own contract if you need a figure.\n\nEmpty where no session reported tokens: Antigravity reports none at all, and that is a property of the agent rather than a gap.",
+      "description": "What the agent spent, in tokens, per thousand lines it wrote.\n\n**This replaced a dollar figure** derived from a hand-typed monthly spend divided evenly over every line \u2014 an allocation dressed as a measurement, which reported the same unit cost whether the agent ran once or a thousand times, and defaulted to a $200 placeholder that was nobody's actual bill.\n\nTokens rather than currency, deliberately: under a subscription the marginal cost of a token is zero, so multiplying by an API rate would report money nobody spent \u2014 and nothing in a transcript says which billing model a user is on. Multiply by your own contract if you need a figure.\n\nEmpty where no session reported tokens: Antigravity reports none at all, and that is a property of the agent rather than a gap.",
       "targets": [
         {
           "refId": "A",
@@ -725,7 +726,7 @@
         "w": 14,
         "h": 8
       },
-      "description": "Share of each cohort's commits labelled `fix`, by change size.\n\n**Read the crossover, not the totals.** Unbanded, assisted work looks better — 28.4% against 33.3% — but that is a size-mix artefact: assisted commits skew larger, and large commits are rarely labelled fixes. Banded, assisted is lower at small and large sizes and higher in the middle.\n\n**A rework proxy, not a defect rate.** `purpose` comes from commit prefixes, so this measures what commits were *labelled*.",
+      "description": "Share of each cohort's commits labelled `fix`, by change size.\n\n**Read the crossover, not the totals.** Unbanded, assisted work looks better \u2014 28.4% against 33.3% \u2014 but that is a size-mix artefact: assisted commits skew larger, and large commits are rarely labelled fixes. Banded, assisted is lower at small and large sizes and higher in the middle.\n\n**A rework proxy, not a defect rate.** `purpose` comes from commit prefixes, so this measures what commits were *labelled*.",
       "targets": [
         {
           "refId": "A",
@@ -826,7 +827,7 @@
         "w": 10,
         "h": 8
       },
-      "description": "Tool calls by the permission mode the session ran under.\n\n**Tool calls are not shipped work.** A mode that permits more actions produces more by construction; whether that becomes delivered code is the question this raises and cannot answer.\n\nA mode with no tool calls is **absent, not a zero slice** — `never` sessions exist and simply made none.",
+      "description": "Tool calls by the permission mode the session ran under.\n\n**Tool calls are not shipped work.** A mode that permits more actions produces more by construction; whether that becomes delivered code is the question this raises and cannot answer.\n\nA mode with no tool calls is **absent, not a zero slice** \u2014 `never` sessions exist and simply made none.",
       "targets": [
         {
           "refId": "A",
@@ -978,7 +979,7 @@
           "values": false
         }
       },
-      "description": "Share of deployments that required a fix afterwards, from DevLake's own incident linkage.\n\n**Needs a deployment pattern configured**, or every CI run is unclassified and this reads empty rather than zero. Also needs incidents, which most trackers do not provide for free.\n\nThis is a delivery metric, not an AI metric — it is here so adoption can be read against it, not because whodunit measures it."
+      "description": "Share of deployments that required a fix afterwards, from DevLake's own incident linkage.\n\n**Needs a deployment pattern configured**, or every CI run is unclassified and this reads empty rather than zero. Also needs incidents, which most trackers do not provide for free.\n\nThis is a delivery metric, not an AI metric \u2014 it is here so adoption can be read against it, not because whodunit measures it."
     },
     {
       "id": 12,
@@ -1071,7 +1072,7 @@
           "values": false
         }
       },
-      "description": "Open to merge, across every merged PR — median rather than mean, since a few long PRs drag an average that a median ignores (measured here: 14.4h mean against a 1.3h median).\n\n**Not comparable to anything yet.** Every collected PR is assisted and all of them fall in one month, so neither an assisted-vs-unassisted split nor a before-and-after window has a second side to compare with. Check the PR count beside it: a median over a handful is one PR moving."
+      "description": "Open to merge, across every merged PR \u2014 median rather than mean, since a few long PRs drag an average that a median ignores (measured here: 14.4h mean against a 1.3h median).\n\n**Not comparable to anything yet.** Every collected PR is assisted and all of them fall in one month, so neither an assisted-vs-unassisted split nor a before-and-after window has a second side to compare with. Check the PR count beside it: a median over a handful is one PR moving."
     },
     {
       "id": 14,
@@ -1555,7 +1556,7 @@
               "type": "auto"
             }
           },
-          "noValue": "withheld — under 10 weeks"
+          "noValue": "withheld \u2014 under 10 weeks"
         },
         "overrides": [
           {
@@ -1600,7 +1601,169 @@
           "fields": ""
         }
       },
-      "description": "Pearson correlation between weekly adoption and each delivery metric, with the weeks each rests on.\n\n**Withheld below 10 weeks** — three points can produce r = 0.99 by coincidence. Correlation is not causation even at high n.\n\nAdoption covers every instrumented repository; the outcomes only the project with deployments."
+      "description": "Pearson correlation between weekly adoption and each delivery metric, with the weeks each rests on.\n\n**Withheld below 10 weeks** \u2014 three points can produce r = 0.99 by coincidence. Correlation is not causation even at high n.\n\nAdoption covers every instrumented repository; the outcomes only the project with deployments."
+    },
+    {
+      "type": "row",
+      "title": "Productivity, under several definitions",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 74
+      },
+      "id": 214,
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "type": "table",
+      "title": "Output per unit of effort \u2014 five definitions",
+      "description": "There is no single productivity ratio. Each row divides output by a different measure of effort; read the row matching how your team defines it. The spread between rows is the point \u2014 one number would hide it. Difference, not gain: the two cohorts are self-selected, not randomised. Blank instead of a percentage when either side has under 5 commits.",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "h": 9,
+        "w": 13,
+        "x": 0,
+        "y": 75
+      },
+      "id": 215,
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "datasource": "${datasource}",
+          "rawSql": "\n-- Five definitions of Output/Effort, each computed both sides of the\n-- assisted split. No definition is privileged: a team that counts issues\n-- disagrees with one that counts lines, and both are shown rather than\n-- one being chosen for them.\n--\n-- Every denominator here is a measure of EFFORT. \"Per person\" is\n-- deliberately absent: assisted contributors were active on far more days,\n-- so a per-person ratio reports more time spent as though it were more\n-- output per unit of time. It read +137% where per-person-day read +3%.\nWITH c AS (\n  SELECT c.*, COALESCE(t.name,'(unassigned)') team\n  FROM whodunit_commits c LEFT JOIN whodunit_identities wi ON wi.alias = c.contributor\n    LEFT JOIN team_users tu ON tu.user_id = COALESCE(wi.canonical, c.contributor)\n    LEFT JOIN teams t ON t.id = tu.team_id\n  WHERE c.committed_at BETWEEN $__unixEpochFrom()*1000000000 AND $__unixEpochTo()*1000000000\n    AND c.contributor IS NOT NULL AND c.status IN ('assisted','unassisted') AND ('${contributor:raw}' = '__all__' OR c.contributor = '${contributor:raw}')\n    AND ('${team:raw}' = '__all__' OR COALESCE(t.name,'(unassigned)') = '${team:raw}')\n),\nagg AS (\n  SELECT status, COUNT(*) commits,\n         SUM(lines_added+lines_removed) total_lines,\n         SUM(files_changed) files,\n         COUNT(DISTINCT CONCAT(contributor,'|',DATE(FROM_UNIXTIME(committed_at/1000000000)))) person_days\n  FROM c GROUP BY status\n),\nn AS (SELECT MAX(CASE WHEN status='assisted' THEN commits END) na,\n             MAX(CASE WHEN status='unassisted' THEN commits END) nu FROM agg)\nSELECT d.definition, d.a AS `AI-assisted`, d.u AS `Unassisted`,\n       CASE WHEN d.u > 0 AND n.na >= 5 AND n.nu >= 5\n            THEN ROUND(100*(d.a-d.u)/d.u,0) END AS `Difference %`,\n       CONCAT(n.na,' / ',n.nu) AS `n assisted / n not`\nFROM (\n  SELECT 'Commits per person-day' definition, 1 ord,\n    ROUND(MAX(CASE WHEN status='assisted'   THEN commits/NULLIF(person_days,0) END),2) a,\n    ROUND(MAX(CASE WHEN status='unassisted' THEN commits/NULLIF(person_days,0) END),2) u FROM agg\n  UNION ALL SELECT 'Lines per person-day', 2,\n    ROUND(MAX(CASE WHEN status='assisted'   THEN total_lines/NULLIF(person_days,0) END),0),\n    ROUND(MAX(CASE WHEN status='unassisted' THEN total_lines/NULLIF(person_days,0) END),0) FROM agg\n  UNION ALL SELECT 'Lines per commit', 3,\n    ROUND(MAX(CASE WHEN status='assisted'   THEN total_lines/NULLIF(commits,0) END),0),\n    ROUND(MAX(CASE WHEN status='unassisted' THEN total_lines/NULLIF(commits,0) END),0) FROM agg\n  UNION ALL SELECT 'Files per commit', 4,\n    ROUND(MAX(CASE WHEN status='assisted'   THEN files/NULLIF(commits,0) END),1),\n    ROUND(MAX(CASE WHEN status='unassisted' THEN files/NULLIF(commits,0) END),1) FROM agg\n  UNION ALL SELECT 'Files per person-day', 5,\n    ROUND(MAX(CASE WHEN status='assisted'   THEN files/NULLIF(person_days,0) END),1),\n    ROUND(MAX(CASE WHEN status='unassisted' THEN files/NULLIF(person_days,0) END),1) FROM agg\n) d CROSS JOIN n ORDER BY d.ord\n"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "type": "barchart",
+      "title": "Rework rate \u2014 the gate on every number left",
+      "description": "Share of commits whose purpose is a fix. A difference in output means nothing if it arrives with more rework, so read this before any row of the table. This is a fix RATE, not a defect rate \u2014 it counts commits labelled fix, not bugs found.",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "h": 9,
+        "w": 11,
+        "x": 13,
+        "y": 75
+      },
+      "id": 216,
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "datasource": "${datasource}",
+          "rawSql": "\nSELECT CASE WHEN c.status='assisted' THEN 'AI-assisted' ELSE 'Unassisted' END AS metric,\n       ROUND(100*SUM(c.purpose='fix')/COUNT(*),1) AS value\nFROM whodunit_commits c LEFT JOIN whodunit_identities wi ON wi.alias = c.contributor\n    LEFT JOIN team_users tu ON tu.user_id = COALESCE(wi.canonical, c.contributor)\n    LEFT JOIN teams t ON t.id = tu.team_id\nWHERE c.committed_at BETWEEN $__unixEpochFrom()*1000000000 AND $__unixEpochTo()*1000000000\n  AND c.contributor IS NOT NULL AND c.status IN ('assisted','unassisted') AND ('${contributor:raw}' = '__all__' OR c.contributor = '${contributor:raw}')\n    AND ('${team:raw}' = '__all__' OR COALESCE(t.name,'(unassigned)') = '${team:raw}')\nGROUP BY c.status\nHAVING COUNT(*) >= 5\n"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "axisLabel": ""
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "xField": "metric",
+        "showValue": "always",
+        "text": {
+          "valueSize": 11
+        },
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "orientation": "auto"
+      }
+    },
+    {
+      "type": "barchart",
+      "title": "Same comparison, split by work type",
+      "description": "Average change size per commit, by purpose. This is the check on the table above: if assisted work skews toward features and unassisted toward docs, an overall difference is composition, not productivity. A purpose with under 5 commits on a side is omitted.",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 84
+      },
+      "id": 217,
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "datasource": "${datasource}",
+          "rawSql": "\nSELECT c.purpose AS metric,\n       CASE WHEN c.status='assisted' THEN 'AI-assisted' ELSE 'Unassisted' END AS series,\n       ROUND(AVG(c.lines_added+c.lines_removed),0) AS value\nFROM whodunit_commits c LEFT JOIN whodunit_identities wi ON wi.alias = c.contributor\n    LEFT JOIN team_users tu ON tu.user_id = COALESCE(wi.canonical, c.contributor)\n    LEFT JOIN teams t ON t.id = tu.team_id\nWHERE c.committed_at BETWEEN $__unixEpochFrom()*1000000000 AND $__unixEpochTo()*1000000000\n  AND c.contributor IS NOT NULL AND c.status IN ('assisted','unassisted')\n  AND c.purpose IN ('feature','fix','test','docs','refactor') AND ('${contributor:raw}' = '__all__' OR c.contributor = '${contributor:raw}')\n    AND ('${team:raw}' = '__all__' OR COALESCE(t.name,'(unassigned)') = '${team:raw}')\nGROUP BY c.purpose, c.status\nHAVING COUNT(*) >= 5\nORDER BY c.purpose\n"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "axisLabel": ""
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "xField": "metric",
+        "showValue": "always",
+        "text": {
+          "valueSize": 11
+        },
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "orientation": "auto"
+      }
+    },
+    {
+      "type": "barchart",
+      "title": "Where the work sits, by change size",
+      "description": "Commit counts per size bucket, each side of the split. Complexity is not measured directly, so change size stands in for it \u2014 two cohorts with different size profiles are not comparable on a single ratio.",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 84
+      },
+      "id": 218,
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "datasource": "${datasource}",
+          "rawSql": "\nSELECT b.bucket AS metric, b.series, ROUND(b.n) AS value FROM (\n  SELECT CASE WHEN c.lines_added+c.lines_removed < 50 THEN 'small (<50)'\n              WHEN c.lines_added+c.lines_removed < 300 THEN 'medium (50-299)'\n              ELSE 'large (300+)' END bucket,\n         CASE WHEN c.status='assisted' THEN 'AI-assisted' ELSE 'Unassisted' END series,\n         COUNT(*) n,\n         MIN(CASE WHEN c.lines_added+c.lines_removed < 50 THEN 1\n                  WHEN c.lines_added+c.lines_removed < 300 THEN 2 ELSE 3 END) ord\n  FROM whodunit_commits c LEFT JOIN whodunit_identities wi ON wi.alias = c.contributor\n    LEFT JOIN team_users tu ON tu.user_id = COALESCE(wi.canonical, c.contributor)\n    LEFT JOIN teams t ON t.id = tu.team_id\n  WHERE c.committed_at BETWEEN $__unixEpochFrom()*1000000000 AND $__unixEpochTo()*1000000000\n    AND c.contributor IS NOT NULL AND c.status IN ('assisted','unassisted') AND ('${contributor:raw}' = '__all__' OR c.contributor = '${contributor:raw}')\n    AND ('${team:raw}' = '__all__' OR COALESCE(t.name,'(unassigned)') = '${team:raw}')\n  GROUP BY bucket, series\n) b ORDER BY b.ord\n"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "axisLabel": ""
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "xField": "metric",
+        "showValue": "always",
+        "text": {
+          "valueSize": 11
+        },
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "orientation": "auto"
+      }
     }
   ]
 }
