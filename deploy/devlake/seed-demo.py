@@ -736,6 +736,14 @@ def augment(container, db):
             WHERE e.session = s.session AND e.repo_id = s.repo_id
               AND e.mcp_server IS NOT NULL), 0)
     """, container, db)
+    # The two non-starters make no MCP calls either. Applied here, after the
+    # per-team profiles above, because that block assigns a server to every
+    # event and would otherwise hand them integrations they never used.
+    if quiet:
+        mysql(f"""
+            UPDATE whodunit_events SET mcp_server = NULL
+            WHERE contributor IN ({names})
+        """, container, db)
     print("mcp: per-team server profiles, tool names aligned, session counts rebuilt")
 
     # --- issues: spread delivery across the window -----------------------
