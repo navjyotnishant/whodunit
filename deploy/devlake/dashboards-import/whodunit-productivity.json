@@ -223,6 +223,139 @@
         },
         "orientation": "auto"
       }
+    },
+    {
+      "type": "row",
+      "title": "Conditioned on work type and complexity",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 20
+      },
+      "id": 6,
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "type": "stat",
+      "title": "Does conditioning change the answer?",
+      "description": "The same ratio computed two ways. The first pools all work; the second compares only like with like and reweights the strata onto a common mix. When they disagree, the pooled figure was measuring which work each cohort happened to do — not how productive it was. A conditioned figure below an unconditioned one is the ordinary case, because agents get reached for on the easier tasks.",
+      "datasource": "${DS_WHODUNIT}",
+      "gridPos": {
+        "h": 6,
+        "w": 9,
+        "x": 0,
+        "y": 21
+      },
+      "id": 7,
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "datasource": "${DS_WHODUNIT}",
+          "rawSql": "\nWITH c AS (\n  SELECT c.purpose,\n         CASE WHEN c.files_changed < 3 THEN '1-2 files'\n              WHEN c.files_changed <= 20 THEN '3-20 files'\n              ELSE '20+ files' END band,\n         c.status, c.lines_added + c.lines_removed AS churn,\n         c.contributor, c.committed_at\n  FROM whodunit_commits c LEFT JOIN whodunit_identities wi ON wi.alias = c.contributor\n    LEFT JOIN team_users tu ON tu.user_id = COALESCE(wi.canonical, c.contributor)\n    LEFT JOIN teams t ON t.id = tu.team_id\n  WHERE c.committed_at BETWEEN $__unixEpochFrom()*1000000000 AND $__unixEpochTo()*1000000000\n    AND c.contributor IS NOT NULL AND c.status IN ('assisted','unassisted','undetermined','uninstrumented','unmatched','degraded')\n    -- All six named so the set stays complete as dun's list grows; only two\n    -- are compared, because the other four mean no evidence was collected\n    -- and counting them as unassisted reports absence as a measured\n    -- negative (NAV-21).\n    AND CASE c.status WHEN 'assisted' THEN 1 WHEN 'unassisted' THEN 1 END = 1 AND ('${contributor:raw}' = '__all__' OR c.contributor = '${contributor:raw}')\n    AND ('${team:raw}' = '__all__' OR COALESCE(t.name,'(unassigned)') = '${team:raw}')\n),\ncell AS (\n  SELECT purpose, band, status, COUNT(*) commits,\n         COUNT(DISTINCT CONCAT(contributor,'|',DATE(FROM_UNIXTIME(committed_at/1000000000)))) person_days\n  FROM c GROUP BY purpose, band, status\n),\npivot AS (\n  SELECT purpose, band,\n    MAX(CASE WHEN status='assisted'   THEN commits/NULLIF(person_days,0) END) a,\n    MAX(CASE WHEN status='unassisted' THEN commits/NULLIF(person_days,0) END) u,\n    MAX(CASE WHEN status='assisted'   THEN commits END) na,\n    MAX(CASE WHEN status='unassisted' THEN commits END) nu\n  FROM cell GROUP BY purpose, band\n),\ntot AS (\n  SELECT status, COUNT(*) commits,\n         COUNT(DISTINCT CONCAT(contributor,'|',DATE(FROM_UNIXTIME(committed_at/1000000000)))) person_days\n  FROM c GROUP BY status\n)\nSELECT 'Unconditioned — all work pooled' AS metric,\n       ROUND(100*(MAX(CASE WHEN status='assisted' THEN commits/NULLIF(person_days,0) END)\n                - MAX(CASE WHEN status='unassisted' THEN commits/NULLIF(person_days,0) END))\n             / MAX(CASE WHEN status='unassisted' THEN commits/NULLIF(person_days,0) END),0) AS value\nFROM tot\nUNION ALL\n-- Weighted by the unassisted cohort's mix, so the strata are compared on a\n-- common composition rather than each cohort's own.\nSELECT 'Conditioned — same work type and complexity',\n       ROUND(100*(SUM(a*nu)/SUM(nu) - SUM(u*nu)/SUM(nu)) / (SUM(u*nu)/SUM(nu)),0)\nFROM pivot WHERE na >= 5 AND nu >= 5 AND u > 0\n"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "text",
+                "value": 0
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/^value$/",
+          "values": true
+        },
+        "textMode": "value_and_name",
+        "orientation": "horizontal",
+        "colorMode": "value"
+      }
+    },
+    {
+      "type": "table",
+      "title": "Every cell, computed separately",
+      "description": "Commits per person-day inside each work type and complexity band, ordered by how far each cell departs from parity. A cell appears only when both sides hold at least 5 commits — the rest are withheld rather than shown thin. Cells disagreeing in direction are the finding: they mean no single figure describes this data.",
+      "datasource": "${DS_WHODUNIT}",
+      "gridPos": {
+        "h": 11,
+        "w": 15,
+        "x": 9,
+        "y": 21
+      },
+      "id": 8,
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "datasource": "${DS_WHODUNIT}",
+          "rawSql": "\nWITH c AS (\n  SELECT c.purpose,\n         CASE WHEN c.files_changed < 3 THEN '1-2 files'\n              WHEN c.files_changed <= 20 THEN '3-20 files'\n              ELSE '20+ files' END band,\n         c.status, c.lines_added + c.lines_removed AS churn,\n         c.contributor, c.committed_at\n  FROM whodunit_commits c LEFT JOIN whodunit_identities wi ON wi.alias = c.contributor\n    LEFT JOIN team_users tu ON tu.user_id = COALESCE(wi.canonical, c.contributor)\n    LEFT JOIN teams t ON t.id = tu.team_id\n  WHERE c.committed_at BETWEEN $__unixEpochFrom()*1000000000 AND $__unixEpochTo()*1000000000\n    AND c.contributor IS NOT NULL AND c.status IN ('assisted','unassisted','undetermined','uninstrumented','unmatched','degraded')\n    -- All six named so the set stays complete as dun's list grows; only two\n    -- are compared, because the other four mean no evidence was collected\n    -- and counting them as unassisted reports absence as a measured\n    -- negative (NAV-21).\n    AND CASE c.status WHEN 'assisted' THEN 1 WHEN 'unassisted' THEN 1 END = 1 AND ('${contributor:raw}' = '__all__' OR c.contributor = '${contributor:raw}')\n    AND ('${team:raw}' = '__all__' OR COALESCE(t.name,'(unassigned)') = '${team:raw}')\n),\ncell AS (\n  SELECT purpose, band, status,\n         COUNT(*) commits,\n         COUNT(DISTINCT CONCAT(contributor,'|',DATE(FROM_UNIXTIME(committed_at/1000000000)))) person_days\n  FROM c GROUP BY purpose, band, status\n),\npivot AS (\n  SELECT purpose, band,\n    MAX(CASE WHEN status='assisted'   THEN commits/NULLIF(person_days,0) END) a,\n    MAX(CASE WHEN status='unassisted' THEN commits/NULLIF(person_days,0) END) u,\n    MAX(CASE WHEN status='assisted'   THEN commits END) na,\n    MAX(CASE WHEN status='unassisted' THEN commits END) nu\n  FROM cell GROUP BY purpose, band\n)\nSELECT purpose AS `Work type`, band AS `Complexity`,\n       ROUND(a,2) AS `Assisted /person-day`, ROUND(u,2) AS `Unassisted /person-day`,\n       ROUND(100*(a-u)/u,0) AS `Difference %`,\n       CONCAT(na,' / ',nu) AS `n assisted / n not`\nFROM pivot\nWHERE na >= 5 AND nu >= 5 AND u > 0\nORDER BY ABS(100*(a-u)/u) DESC\n"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "type": "barchart",
+      "title": "Cycle time per stratum, where the issue data supports it",
+      "description": "Mean days from issue creation to resolution, split by work type and complexity. This is the grain the productivity formula is usually stated on, and it is much thinner than the commit grain — most strata have under 5 issues a side and are omitted entirely. An empty chart here means not enough issues, not no difference.",
+      "datasource": "${DS_WHODUNIT}",
+      "gridPos": {
+        "h": 8,
+        "w": 9,
+        "x": 0,
+        "y": 27
+      },
+      "id": 9,
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "datasource": "${DS_WHODUNIT}",
+          "rawSql": "\nWITH iss AS (\n  SELECT i.id,\n         MAX(CASE WHEN w.status='assisted' THEN 1 ELSE 0 END) assisted,\n         MIN(w.purpose) purpose,\n         CASE WHEN SUM(w.files_changed) < 3 THEN '1-2 files'\n              WHEN SUM(w.files_changed) <= 20 THEN '3-20 files'\n              ELSE '20+ files' END band,\n         TIMESTAMPDIFF(HOUR, i.created_date, i.resolution_date)/24 days\n  FROM issues i\n  JOIN issue_commits ic ON ic.issue_id = i.id\n  JOIN whodunit_commits w ON w.commit_sha = ic.commit_sha\n  LEFT JOIN whodunit_identities wi ON wi.alias = w.contributor\n    LEFT JOIN team_users tu ON tu.user_id = COALESCE(wi.canonical, w.contributor)\n    LEFT JOIN teams t ON t.id = tu.team_id\n  WHERE i.status = 'DONE' AND i.resolution_date IS NOT NULL\n    -- Bare-integer keys on some trackers match unrelated commits, so the\n    -- join is guarded to the PROJECT-123 shape (check-issue-key-guard.py).\n    AND i.issue_key REGEXP '^[A-Z][A-Z0-9]+-[0-9]+$'\n    AND $__timeFilter(i.resolution_date)\n    AND ('${contributor:raw}' = '__all__' OR w.contributor = '${contributor:raw}')\n    AND ('${team:raw}' = '__all__' OR COALESCE(t.name,'(unassigned)') = '${team:raw}')\n  GROUP BY i.id\n)\nSELECT CONCAT(purpose,' · ',band) AS metric,\n       CASE WHEN assisted=1 THEN 'AI-assisted' ELSE 'Unassisted' END AS series,\n       ROUND(AVG(days),2) AS value\nFROM iss\nGROUP BY purpose, band, assisted\nHAVING COUNT(*) >= 5\nORDER BY metric\n"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "axisLabel": ""
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "xField": "metric",
+        "showValue": "always",
+        "text": {
+          "valueSize": 11
+        },
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "orientation": "auto"
+      }
     }
   ],
   "editable": true,
