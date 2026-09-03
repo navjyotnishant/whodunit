@@ -78,7 +78,7 @@
         "type": "textbox",
         "name": "price_in",
         "label": "$ per M input tokens",
-        "description": "API list price per million input tokens. Only used by the token-spend row.",
+        "description": "List price per million input tokens, from your provider's pricing page (anthropic.com/pricing, openai.com/pricing). Each model has its own; this box applies one price to all, so the token row is relative weight, not an invoice. If you pay a subscription, leave the default and ignore the token row.",
         "query": "3",
         "current": {
           "selected": false,
@@ -98,7 +98,7 @@
         "type": "textbox",
         "name": "price_out",
         "label": "$ per M output tokens",
-        "description": "API list price per million output tokens. Only used by the token-spend row.",
+        "description": "List price per million output tokens, from the same pricing page. Output is usually 4\u20135\u00d7 the input price. Only the token-spend row uses it.",
         "query": "15",
         "current": {
           "selected": false,
