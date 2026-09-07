@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-09-07
+
 ### Added
 
 - Linux packages. Every release now carries a `.deb` and an `.rpm` for
@@ -14,11 +16,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   installs with `sudo dpkg -i` or `sudo rpm -i` and nothing else. The
   package depends on `git` and installs only `/usr/bin/dun`; hooks and
   config stay per-repository and per-user as before.
-
-## [0.5.0] - 2026-08-26
-
-### Added
-
 - **Every dashboard grain now records who did the work itself, rather than looking it up through a shared row.** `whodunit_commits`, `whodunit_events` and `whodunit_sessions` each carry a `contributor` column, populated on the write path. Previously all three resolved the one fact every per-person panel filters on through a join to `whodunit_repos`, a row that everyone syncing the same repository shares, so the filter was only as correct as whichever sync ran last. Session panels were a third of that surface: 24 of the 68 dashboard targets that reached contributor through the join were sessions. The column is nullable and an unknown contributor is written as NULL rather than an empty string, because an empty string asserts that a person with no name did the work. Rows synced before the column existed are deliberately not backfilled from `whodunit_repos`: backfilling through the join that caused the collision would write a confident wrong name onto history.
 - A `teams` map in `~/.whodunit/config.json` and a `$team` dropdown on the five dashboards that carry a contributor filter, so a manager can read group-level adoption instead of a list of named individuals. The map is keyed by team rather than by person, because that is the shape somebody maintains by hand: a team gains a member far more often than a person changes team. Config wins over DevLake's own team tables outright, since those are populated by a connector nobody here controls and a value someone typed on purpose should not be overruled by one that arrived on a sync. Aliases resolve before the team lookup, so a person's second machine lands in the same team as their first instead of splitting across a team and `(unassigned)`. `(unassigned)` is always offered in the dropdown even when nobody is currently unassigned, because someone will commit from an unmapped address and a list built from current membership hides them the moment they appear. The two dashboards with no contributor filter get no team filter, which would have been a control that does nothing.
 - **Identity aliases now reach the dashboards.** `dun identities` and the `identities` config map already merged the addresses one person commits from, but neither reached Grafana: selecting a contributor still dropped every commit that person made from a different address. Measured on the development install, 148 of 1,263 commits sat under a GitHub noreply address and the rest under the real one, one person, and filtering to either lost the other. A `whodunit_identities` table publishes the map and 51 contributor filters compare against `COALESCE(canonical, contributor)` through a LEFT JOIN. Chains are flattened before they are written rather than followed in SQL, so what the dashboard resolves cannot disagree with what `dun identities` prints. Resolution is read-time only: the literal committer email stays in every commit row and every commit object, so a wrong entry is corrected by editing one line rather than by re-syncing history. With no aliases configured all 51 targets return byte-identical results to the plain form, so the feature is inert until you configure one. Five panels resolve contributor inside a subquery a pattern rewrite cannot reach and keep the direct comparison; they are correct as they stand and are not alias-aware yet.
