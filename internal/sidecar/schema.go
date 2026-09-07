@@ -27,9 +27,19 @@
 //
 // # Identity
 //
-// contributor lives on repos, not on every commit row: a repository has
-// one contributor locally, so repeating it per row would be storage spent
-// on a constant.
+// contributor is part of the repos key, not a column on it.
+//
+// It reads as storage spent on a constant — a repository has one
+// contributor *locally*, so why repeat it? That premise is true on one
+// machine and false in the database this sidecar exists to populate.
+// repo_id is the repository's root commit SHA, identical for everyone who
+// clones it, so keying on repo_id alone means the second person to sync
+// overwrites the first.
+//
+// The lost row is not the damage. whodunit_commits joins here for the
+// contributor, so every commit the first person synced is reattributed to
+// the second: no error, and a dashboard that reads confidently wrong
+// (WHO-167, decided in docs/decisions/0001-contributor-key.md).
 //
 // The identity is the git committer email, which is already in every
 // commit object. The column adds convenience for querying, not new
@@ -43,7 +53,7 @@ package sidecar
 // SchemaVersion is bumped when the table definitions change in a way that
 // requires attention. It is stored on every synced row so a reader can
 // tell which definition produced a number, months later.
-const SchemaVersion = 1
+const SchemaVersion = 2
 
 // TablePrefix namespaces every table. DevLake shares the database, so
 // unprefixed names would eventually collide with theirs or a plugin's.
@@ -61,13 +71,63 @@ const TablePrefix = "whodunit_"
 // Indexes are separate (see Indexes): MySQL has no
 // CREATE INDEX IF NOT EXISTS, and inline INDEX clauses are MySQL-only.
 const Schema = `
+-- Which schema version this database has actually had applied.
+--
+-- Separate from the schema_version stamped on synced rows: that records
+-- which definition produced a number, this records what the database has
+-- been migrated to. A rebuild is gated on it, so it must be readable
+-- before any table it gates is touched, and it must survive that rebuild.
+--
+-- One row, id = 1. A single-row table rather than a key-value store
+-- because there is exactly one fact here and inventing a schema registry
+-- for it would be more machinery than the question deserves.
+CREATE TABLE IF NOT EXISTS whodunit_schema (
+	id         INTEGER NOT NULL,
+	version    BIGINT  NOT NULL,
+	applied_at BIGINT  NOT NULL,
+	PRIMARY KEY (id)
+);
+
+-- Which addresses belong to the same person.
+--
+-- One person picks up a second identity the moment one machine is
+-- configured with a GitHub noreply address and another with their real
+-- one. Nothing announces it: both are valid, both commit, and the
+-- dashboards show two contributors. Measured on one install, 148 of 1,263
+-- commits sat under a second address, so filtering to either silently
+-- dropped a ninth of the work.
+--
+-- Read-time resolution, deliberately. The literal committer email stays in
+-- every commit row, every event row and every commit object. This is a
+-- lookup table joined when a dashboard asks who someone is. A wrong entry
+-- is corrected by editing one line rather than by re-syncing history, and
+-- that reversibility is the reason it is a table rather than a rewrite.
+--
+-- Chains are flattened before they are written: alias holds every address,
+-- canonical holds where it ends up, so SQL never has to follow c -> b -> a
+-- recursively and cannot disagree with config.ResolveIdentity about the
+-- answer (WHO-208).
+--
+-- Not new personal data: both addresses already appear in every commit
+-- object this maps between (NAV-25).
+CREATE TABLE IF NOT EXISTS whodunit_identities (
+	alias        VARCHAR(320) NOT NULL,
+	canonical    VARCHAR(320) NOT NULL,
+	synced_at    BIGINT       NOT NULL,
+	PRIMARY KEY (alias)
+);
+
 -- One row per repository. Holds facts that do not vary per commit.
 CREATE TABLE IF NOT EXISTS whodunit_repos (
 	repo_id      VARCHAR(64)  NOT NULL,
 	contributor  VARCHAR(320) NOT NULL DEFAULT '',
 	spec_version VARCHAR(16)  NOT NULL DEFAULT '',
 	synced_at    BIGINT       NOT NULL,
-	PRIMARY KEY (repo_id)
+
+	-- 1536 bytes under utf8mb4, against InnoDB's 3072-byte index limit.
+	-- Measured rather than assumed, which is what ruled out hashing the
+	-- address into a fixed-width surrogate.
+	PRIMARY KEY (repo_id, contributor)
 );
 
 -- One row per commit: the dashboard grain.
@@ -82,6 +142,17 @@ CREATE TABLE IF NOT EXISTS whodunit_repos (
 CREATE TABLE IF NOT EXISTS whodunit_commits (
 	commit_sha    VARCHAR(64)  NOT NULL,
 	repo_id       VARCHAR(64)  NOT NULL,
+	-- Who synced this row, carried rather than joined.
+	--
+	-- repo_id is the root commit SHA, identical for everyone who clones
+	-- the repository, so resolving identity through whodunit_repos meant
+	-- resolving it through a row two people share (WHO-192).
+	--
+	-- NULLable, unlike the columns around it. A row synced before this
+	-- column existed has no contributor to report, and '' would assert
+	-- "measured, and it was nobody" about something never measured
+	-- (NAV-21). A panel renders NULL as unattributed, never as a person.
+	contributor   VARCHAR(320),
 	committed_at  BIGINT       NOT NULL,
 	status        VARCHAR(32)  NOT NULL,
 	method        VARCHAR(32)  NOT NULL,
@@ -132,6 +203,11 @@ CREATE TABLE IF NOT EXISTS whodunit_events (
 	-- keeps sync idempotent.
 	event_id      VARCHAR(64)  NOT NULL,
 	repo_id       VARCHAR(64)  NOT NULL,
+
+	-- Carried, not joined — see whodunit_commits above for why, and
+	-- NULLable for the same reason (WHO-192, NAV-21).
+	contributor   VARCHAR(320),
+
 	observed_at   BIGINT       NOT NULL,
 	agent         VARCHAR(64)  NOT NULL,
 	agent_version VARCHAR(64)  NOT NULL DEFAULT '',
@@ -170,6 +246,10 @@ CREATE TABLE IF NOT EXISTS whodunit_events (
 -- compatible with the no-prompt-text rule.
 CREATE TABLE IF NOT EXISTS whodunit_sessions (
 	repo_id        VARCHAR(64)  NOT NULL,
+
+	-- Carried, not joined — see whodunit_commits above (WHO-170).
+	contributor    VARCHAR(320),
+
 	session        VARCHAR(128) NOT NULL,
 	agent          VARCHAR(64)  NOT NULL DEFAULT '',
 	agent_version  VARCHAR(64)  NOT NULL DEFAULT '',
@@ -287,6 +367,16 @@ CREATE TABLE IF NOT EXISTS whodunit_event_lines (
 //   - BIGINT and VARCHAR(n) rather than INTEGER/TEXT. SQLite accepts both
 //     under its type affinity rules; MySQL needs the length.
 var Migrations = []string{
+	// WHO-192. NULLable on purpose: a row synced before this column
+	// existed has no contributor, and '' would claim one was measured.
+	// Existing rows keep NULL rather than being backfilled from
+	// whodunit_repos — that join is exactly the collision this epic
+	// removed, so backfilling through it would write the wrong name
+	// confidently onto history (NAV-21).
+	`ALTER TABLE whodunit_commits ADD COLUMN contributor VARCHAR(320)`,
+	`ALTER TABLE whodunit_events ADD COLUMN contributor VARCHAR(320)`,
+	`ALTER TABLE whodunit_sessions ADD COLUMN contributor VARCHAR(320)`,
+
 	`ALTER TABLE whodunit_events ADD COLUMN outcome VARCHAR(16) NOT NULL DEFAULT ''`,
 
 	// NAV-88. NULLable, unlike the columns declared in Schema above.

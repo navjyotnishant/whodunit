@@ -1,0 +1,989 @@
+{
+  "uid": "whodunit-hours-board",
+  "title": "Agent Activity Hours \u2014 Rhythm",
+  "tags": [
+    "whodunit"
+  ],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 0,
+  "refresh": "",
+  "time": {
+    "from": "now-30d",
+    "to": "now"
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "agent",
+        "type": "query",
+        "datasource": "${datasource}",
+        "label": "Agent",
+        "query": "SELECT DISTINCT agent FROM whodunit_sessions WHERE agent <> '' UNION SELECT DISTINCT agent FROM whodunit_events WHERE agent <> ''",
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "$__all"
+        },
+        "includeAll": true,
+        "multi": true,
+        "refresh": 1,
+        "hide": 0
+      },
+      {
+        "name": "tz",
+        "type": "custom",
+        "label": "Timezone",
+        "query": "UTC : +00:00,US Central : -05:00,US Pacific : -08:00,India : +05:30,Central Europe : +01:00",
+        "options": [
+          {
+            "text": "UTC",
+            "value": "+00:00",
+            "selected": false
+          },
+          {
+            "text": "US Central",
+            "value": "-05:00",
+            "selected": true
+          },
+          {
+            "text": "US Pacific",
+            "value": "-08:00",
+            "selected": false
+          },
+          {
+            "text": "India",
+            "value": "+05:30",
+            "selected": false
+          },
+          {
+            "text": "Central Europe",
+            "value": "+01:00",
+            "selected": false
+          }
+        ],
+        "current": {
+          "selected": true,
+          "text": "US Central",
+          "value": "-05:00"
+        }
+      },
+      {
+        "name": "evidence",
+        "type": "custom",
+        "label": "Evidence",
+        "query": "intersected \u2014 agent lines survived : intersected,observed \u2014 agent edited the files : observed,inferred \u2014 from surrounding evidence : inferred,declared \u2014 stated only : declared,undetermined \u2014 no evidence either way : undetermined",
+        "options": [],
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "__all__"
+        },
+        "includeAll": true,
+        "allValue": "__all__",
+        "multi": false,
+        "hide": 0
+      }
+    ]
+  },
+  "panels": [
+    {
+      "type": "text",
+      "title": "",
+      "gridPos": {
+        "h": 4,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 1,
+      "options": {
+        "mode": "html",
+        "content": "<h3 style='margin:0 0 6px'>When the agent is working, and whether that is when people are</h3><p style='margin:0'>Every agent event stamped with its hour and weekday in the timezone you pick. The grid is the page: a normal working week is a warm block from nine to six, Monday to Friday. Warmth outside it is either people working late or agents left running \u2014 the page cannot tell which, and says so. Session depth by starting hour shows whether the long delegated tasks start at the end of the day.</p>"
+      }
+    },
+    {
+      "type": "row",
+      "title": "The week, hour by hour",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 4
+      },
+      "id": 2,
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "type": "table",
+      "title": "Agent activity by weekday and hour",
+      "description": "Events per hour of the week, as a grid: rows are days, columns are hours in the chosen timezone, colour is volume. The working week should be a warm block from nine to six; anything warm outside it is worth a question. Empty cells are hours with nothing, not zero events.",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "h": 9,
+        "w": 24,
+        "x": 0,
+        "y": 5
+      },
+      "id": 3,
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "datasource": "${datasource}",
+          "rawSql": "\nSELECT CASE DAYOFWEEK(CONVERT_TZ(FROM_UNIXTIME(e.observed_at/1000000000), '+00:00', '$tz')) WHEN 1 THEN '7 Sun' WHEN 2 THEN '1 Mon' WHEN 3 THEN '2 Tue' WHEN 4 THEN '3 Wed' WHEN 5 THEN '4 Thu' WHEN 6 THEN '5 Fri' ELSE '6 Sat' END AS `Day`,\n       LPAD(HOUR(CONVERT_TZ(FROM_UNIXTIME(e.observed_at/1000000000), '+00:00', '$tz')),2,'0') AS `Hour`, COUNT(*) AS `events`\nFROM whodunit_events e WHERE e.observed_at BETWEEN $__unixEpochFrom()*1000000000 AND $__unixEpochTo()*1000000000 AND e.agent IN ($agent) GROUP BY `Day`, `Hour` ORDER BY `Day`, `Hour`"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "center",
+            "cellOptions": {
+              "type": "color-background",
+              "mode": "gradient",
+              "applyToRow": false
+            },
+            "minWidth": 38,
+            "width": 40
+          },
+          "color": {
+            "mode": "continuous-BlPu"
+          },
+          "min": 0,
+          "noValue": "",
+          "mappings": [
+            {
+              "type": "special",
+              "options": {
+                "match": "null",
+                "result": {
+                  "text": "",
+                  "color": "transparent",
+                  "index": 0
+                }
+              }
+            }
+          ]
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Day\\Hour"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Day"
+              },
+              {
+                "id": "custom.align",
+                "value": "left"
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "auto"
+                }
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "text"
+                }
+              },
+              {
+                "id": "custom.width",
+                "value": 64
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "cellHeight": "sm",
+        "showHeader": true
+      },
+      "transformations": [
+        {
+          "id": "groupingToMatrix",
+          "options": {
+            "columnField": "Hour",
+            "rowField": "Day",
+            "valueField": "events",
+            "emptyValue": "null"
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "sort": [
+              {
+                "field": "Day\\Hour"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "After hours",
+      "description": "Share of agent events before 09:00 or after 18:00 in the chosen timezone. Agent time, not necessarily a person's \u2014 a long delegated task runs on after the person has left.",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "h": 5,
+        "w": 8,
+        "x": 0,
+        "y": 14
+      },
+      "id": 4,
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "datasource": "${datasource}",
+          "rawSql": "\nSELECT ROUND(100*SUM(HOUR(CONVERT_TZ(FROM_UNIXTIME(e.observed_at/1000000000), '+00:00', '$tz')) < 9 OR HOUR(CONVERT_TZ(FROM_UNIXTIME(e.observed_at/1000000000), '+00:00', '$tz')) >= 18)/COUNT(*),0) AS value FROM whodunit_events e WHERE e.observed_at BETWEEN $__unixEpochFrom()*1000000000 AND $__unixEpochTo()*1000000000 AND e.agent IN ($agent)"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 0,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#e0a63a"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/^value$/"
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "text": {
+          "valueSize": 36
+        }
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Weekend",
+      "description": "Share of agent events on Saturday or Sunday in the chosen timezone. Same caveat: the agent was busy, which is not the same as a person being.",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "h": 5,
+        "w": 8,
+        "x": 8,
+        "y": 14
+      },
+      "id": 5,
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "datasource": "${datasource}",
+          "rawSql": "\nSELECT ROUND(100*SUM(DAYOFWEEK(CONVERT_TZ(FROM_UNIXTIME(e.observed_at/1000000000), '+00:00', '$tz')) IN (1,7))/COUNT(*),0) AS value FROM whodunit_events e WHERE e.observed_at BETWEEN $__unixEpochFrom()*1000000000 AND $__unixEpochTo()*1000000000 AND e.agent IN ($agent)"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 0,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#e0a63a"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/^value$/"
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "text": {
+          "valueSize": 36
+        }
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Peak hour",
+      "description": "The single busiest hour of the day for agent activity, in the chosen timezone, over the whole range.",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "h": 5,
+        "w": 8,
+        "x": 16,
+        "y": 14
+      },
+      "id": 6,
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "datasource": "${datasource}",
+          "rawSql": "\nSELECT CONCAT(LPAD(t.h,2,'0'),':00') AS value FROM (\n  SELECT HOUR(CONVERT_TZ(FROM_UNIXTIME(e.observed_at/1000000000), '+00:00', '$tz')) h, COUNT(*) n FROM whodunit_events e WHERE e.observed_at BETWEEN $__unixEpochFrom()*1000000000 AND $__unixEpochTo()*1000000000 AND e.agent IN ($agent) GROUP BY h ORDER BY n DESC LIMIT 1) t"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#5b8def"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/^value$/"
+        },
+        "colorMode": "none",
+        "graphMode": "none",
+        "textMode": "value",
+        "text": {
+          "valueSize": 36
+        }
+      }
+    },
+    {
+      "type": "row",
+      "title": "When sessions start, and how deep they go",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 18
+      },
+      "id": 7,
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "type": "barchart",
+      "title": "Sessions by starting hour and depth",
+      "description": "Sessions bucketed by the hour they started, stacked by depth: chat under 10 tool calls, working 10 to 49, agentic 50 or more. Agentic sessions clustering late in the day is the hand-it-over-and-go-home pattern, and it is what makes the after-hours figure above mostly agent time.",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 0,
+        "y": 19
+      },
+      "id": 8,
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "datasource": "${datasource}",
+          "rawSql": "\nSELECT LPAD(HOUR(CONVERT_TZ(FROM_UNIXTIME(s.first_seen/1000000000),'+00:00','$tz')),2,'0') AS `hour`,\n       SUM(s.tool_calls < 10) AS `Chat`, SUM(s.tool_calls BETWEEN 10 AND 49) AS `Working`, SUM(s.tool_calls >= 50) AS `Agentic`\nFROM whodunit_sessions s WHERE s.first_seen BETWEEN $__unixEpochFrom()*1000000000 AND $__unixEpochTo()*1000000000 AND s.agent IN ($agent)\nGROUP BY `hour` ORDER BY `hour`"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "axisLabel": ""
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Chat"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#8a8f9a"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Working"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#5b8def"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Agentic"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#4caf78"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "xField": "hour",
+        "stacking": "normal",
+        "showValue": "never",
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "barWidth": 0.9
+      }
+    },
+    {
+      "id": 9,
+      "type": "barchart",
+      "title": "How long sessions run",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 12,
+        "y": 19
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT b AS `length`, COUNT(*) AS `sessions` FROM (\n  SELECT CASE\n    WHEN TIMESTAMPDIFF(MINUTE, FROM_UNIXTIME(first_seen/1000000000), FROM_UNIXTIME(last_seen/1000000000)) < 15 THEN '1. under 15m'\n    WHEN TIMESTAMPDIFF(MINUTE, FROM_UNIXTIME(first_seen/1000000000), FROM_UNIXTIME(last_seen/1000000000)) < 60 THEN '2. 15-60m'\n    WHEN TIMESTAMPDIFF(MINUTE, FROM_UNIXTIME(first_seen/1000000000), FROM_UNIXTIME(last_seen/1000000000)) < 240 THEN '3. 1-4h'\n    ELSE '4. over 4h' END AS b\n  FROM whodunit_sessions s\n  WHERE s.last_seen BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  AND s.agent IN ($agent)\n) t GROUP BY b ORDER BY b"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "fillOpacity": 80
+          }
+        }
+      },
+      "options": {
+        "xTickLabelRotation": 0,
+        "legend": {
+          "showLegend": false
+        },
+        "tooltip": {
+          "mode": "multi"
+        },
+        "xField": "length"
+      },
+      "description": "Wall-clock first to last event. A session left open overnight inflates this \u2014 read it as span, not effort."
+    },
+    {
+      "type": "row",
+      "title": "Per person",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 28
+      },
+      "id": 10,
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "type": "table",
+      "title": "Rhythm per person",
+      "description": "For each person: events, their busiest hour, and the share of their agent activity after hours and at weekends. Sorted by after-hours share. This describes when their agent was active, not their working hours; the two diverge exactly when work is delegated.",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 29
+      },
+      "id": 11,
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "datasource": "${datasource}",
+          "rawSql": "\nWITH ev AS (\n  SELECT e.contributor, HOUR(CONVERT_TZ(FROM_UNIXTIME(e.observed_at/1000000000), '+00:00', '$tz')) h, DAYOFWEEK(CONVERT_TZ(FROM_UNIXTIME(e.observed_at/1000000000), '+00:00', '$tz')) dow\n  FROM whodunit_events e WHERE e.observed_at BETWEEN $__unixEpochFrom()*1000000000 AND $__unixEpochTo()*1000000000 AND e.agent IN ($agent) AND e.contributor IS NOT NULL),\npeak AS (SELECT contributor, h FROM (\n  SELECT contributor, h, ROW_NUMBER() OVER (PARTITION BY contributor ORDER BY COUNT(*) DESC) rn FROM ev GROUP BY contributor, h) x WHERE rn = 1)\nSELECT SUBSTRING_INDEX(ev.contributor,'@',1) AS `Person`, COUNT(*) AS `Events`,\n       CONCAT(LPAD(MAX(peak.h),2,'0'),':00') AS `Peak hour`,\n       ROUND(100*SUM(ev.h < 9 OR ev.h >= 18)/COUNT(*),0) AS `After hours %`,\n       ROUND(100*SUM(ev.dow IN (1,7))/COUNT(*),0) AS `Weekend %`\nFROM ev JOIN peak ON peak.contributor = ev.contributor\nGROUP BY ev.contributor ORDER BY `After hours %` DESC LIMIT 25"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "right"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "Person|Peak hour"
+            },
+            "properties": [
+              {
+                "id": "custom.align",
+                "value": "left"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "After hours %|Weekend %"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percent"
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "gauge",
+                  "mode": "basic"
+                }
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#e0a63a"
+                }
+              },
+              {
+                "id": "min",
+                "value": 0
+              },
+              {
+                "id": "max",
+                "value": 100
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "cellHeight": "sm"
+      }
+    },
+    {
+      "type": "row",
+      "title": "Kept from the original",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 39
+      },
+      "id": 12,
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "id": 13,
+      "type": "barchart",
+      "title": "Agent activity by hour of day",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 40
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT LPAD(HOUR(CONVERT_TZ(FROM_UNIXTIME(e.observed_at/1000000000), '+00:00', '$tz')),2,'0') AS `hour`,\n       SUM(CASE WHEN e.agent='claude-code' THEN 1 ELSE 0 END) AS `claude-code`,\n       SUM(CASE WHEN e.agent='codex' THEN 1 ELSE 0 END) AS `codex`,\n       SUM(CASE WHEN e.agent='agy' THEN 1 ELSE 0 END) AS `agy`\nFROM whodunit_events e\nWHERE e.agent IN ($agent)\n  AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nGROUP BY `hour` ORDER BY `hour`"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 80,
+            "lineWidth": 1,
+            "thresholdsStyle": {
+              "mode": "off"
+            },
+            "axisPlacement": "auto",
+            "axisLabel": "",
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            }
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "claude-code"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "blue"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "codex"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "green"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "agy"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "purple"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "xTickLabelRotation": 0,
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "multi"
+        },
+        "xField": "hour",
+        "stacking": "normal",
+        "showValue": "never",
+        "groupWidth": 0.7,
+        "barWidth": 0.9,
+        "orientation": "auto"
+      },
+      "description": "Stacked by agent. Hours with no bar are hours nobody worked \u2014 not missing data."
+    },
+    {
+      "id": 14,
+      "type": "barchart",
+      "title": "Agent activity by day of week",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 40
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT CASE DAYOFWEEK(CONVERT_TZ(FROM_UNIXTIME(e.observed_at/1000000000), '+00:00', '$tz'))\n         WHEN 1 THEN 'Sun' WHEN 2 THEN 'Mon' WHEN 3 THEN 'Tue' WHEN 4 THEN 'Wed'\n         WHEN 5 THEN 'Thu' WHEN 6 THEN 'Fri' ELSE 'Sat' END AS `day`,\n       SUM(CASE WHEN e.agent='claude-code' THEN 1 ELSE 0 END) AS `claude-code`,\n       SUM(CASE WHEN e.agent='codex' THEN 1 ELSE 0 END) AS `codex`,\n       SUM(CASE WHEN e.agent='agy' THEN 1 ELSE 0 END) AS `agy`\nFROM whodunit_events e\nWHERE e.agent IN ($agent)\n  AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nGROUP BY DAYOFWEEK(CONVERT_TZ(FROM_UNIXTIME(e.observed_at/1000000000), '+00:00', '$tz')), `day` ORDER BY DAYOFWEEK(CONVERT_TZ(FROM_UNIXTIME(e.observed_at/1000000000), '+00:00', '$tz'))"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 80,
+            "lineWidth": 1,
+            "thresholdsStyle": {
+              "mode": "off"
+            },
+            "axisPlacement": "auto",
+            "axisLabel": "",
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            }
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "claude-code"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "blue"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "codex"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "green"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "agy"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "purple"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "xTickLabelRotation": 0,
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "multi"
+        },
+        "xField": "day",
+        "stacking": "normal",
+        "showValue": "never",
+        "groupWidth": 0.7,
+        "barWidth": 0.9,
+        "orientation": "auto"
+      },
+      "description": "Stacked by agent. A flat weekend is normal; a flat Monday may be worth asking about."
+    },
+    {
+      "id": 15,
+      "type": "barchart",
+      "title": "Tools used, by agent",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 40
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "-- Top 15 by total calls. Without the cap this drew every distinct tool \u2014\n-- 145 on the real lake \u2014 as one unreadable band of labels. MCP tools are\n-- shortened to \"server \u00b7 tool\" so the axis reads; the raw name is in the\n-- MCP dashboards.\nSELECT REPLACE(REGEXP_REPLACE(e.tool, '^mcp__(codex_apps__|claude_ai_|plugin_[a-z]+_)?', ''), '__', ' \u00b7 ') AS `tool`,\n       SUM(CASE WHEN e.agent='claude-code' THEN 1 ELSE 0 END) AS `claude-code`,\n       SUM(CASE WHEN e.agent='codex' THEN 1 ELSE 0 END) AS `codex`,\n       SUM(CASE WHEN e.agent='agy' THEN 1 ELSE 0 END) AS `agy`\nFROM whodunit_events e\nWHERE e.tool <> ''\n  AND e.agent IN ($agent)\n  AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nGROUP BY `tool`\nORDER BY COUNT(*) DESC\nLIMIT 15"
+        }
+      ],
+      "options": {
+        "xField": "tool",
+        "xTickLabelRotation": 0,
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "multi"
+        },
+        "stacking": "normal",
+        "showValue": "never",
+        "groupWidth": 0.7,
+        "barWidth": 0.8,
+        "orientation": "horizontal"
+      },
+      "description": "Which agent reaches for which tool, from the tool calls recorded in each session \u2014 not a fixed list of features. Shows the 15 most-called tools; the long tail is on the MCP & Tools dashboard.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 80,
+            "lineWidth": 1,
+            "thresholdsStyle": {
+              "mode": "off"
+            },
+            "axisPlacement": "auto",
+            "axisLabel": "",
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            }
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "claude-code"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "blue"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "codex"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "green"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "agy"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "purple"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": 16,
+      "type": "table",
+      "title": "Agent comparison",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 48
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT a.agent AS `agent`,\n       COALESCE(s.sessions, 0)      AS `sessions`,\n       COALESCE(s.tool_calls, 0)    AS `tool calls`,\n       COALESCE(e.events, 0)        AS `file edits`,\n       COALESCE(e.`lines`, 0)         AS `lines written`,\n       COALESCE(c.commits, 0)       AS `commits`\nFROM (\n  SELECT DISTINCT agent FROM whodunit_sessions WHERE agent <> ''\n  UNION SELECT DISTINCT agent FROM whodunit_events WHERE agent <> ''\n) a\nLEFT JOIN (\n  SELECT agent, COUNT(*) sessions, SUM(tool_calls) tool_calls\n  FROM whodunit_sessions\n  WHERE last_seen BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  GROUP BY agent\n) s ON s.agent = a.agent\nLEFT JOIN (\n  SELECT agent, COUNT(*) events, SUM(lines_added + lines_removed) `lines`\n  FROM whodunit_events\n  WHERE observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  GROUP BY agent\n) e ON e.agent = a.agent\nLEFT JOIN (\n  SELECT agent, COUNT(*) commits FROM whodunit_commits\n  WHERE agent <> '' AND status = 'assisted'\n    AND committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  GROUP BY agent\n) c ON c.agent = a.agent\nORDER BY `file edits` DESC, `sessions` DESC"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "align": "right"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "agent"
+            },
+            "properties": [
+              {
+                "id": "custom.align",
+                "value": "left"
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true
+      },
+      "description": "Every agent this machine has seen, whether or not it produced anything. An agent with sessions but no edits is running and contributing nothing measurable \u2014 worth knowing, and invisible in a merged total."
+    },
+    {
+      "type": "text",
+      "title": "",
+      "gridPos": {
+        "h": 3,
+        "w": 24,
+        "x": 0,
+        "y": 57
+      },
+      "id": 17,
+      "options": {
+        "mode": "html",
+        "content": "<p style='margin:0'><b>Read with care.</b> After-hours activity is where the agent was busy, not where a person was; a task handed over at six and finished at eight is agent time, not overtime. The timezone applies to everyone, so a distributed team reads oddly until the events carry each person's own zone. Per-person rows show the 25 most after-hours people, not everyone.</p>"
+      }
+    }
+  ],
+  "editable": true,
+  "graphTooltip": 1
+}

@@ -174,8 +174,8 @@ func TestSplitStatementsDropsCommentOnlyFragments(t *testing.T) {
 	// The MySQL driver refuses multiple statements per Exec, and a
 	// trailing comment block would otherwise be sent as a statement.
 	stmts := splitStatements(Schema)
-	if len(stmts) != 6 {
-		t.Fatalf("want 6 statements for 6 tables, got %d", len(stmts))
+	if len(stmts) != 8 {
+		t.Fatalf("want 8 statements for 8 tables, got %d", len(stmts))
 	}
 	for _, s := range stmts {
 		if s == "" {
@@ -277,7 +277,7 @@ func TestSessionRowsCarryEveryField(t *testing.T) {
 		ToolCalls:     23,
 		DistinctTools: 5,
 		MCPCalls:      3,
-	}}, "repo", now)
+	}}, "repo", "dev@example.com", now)
 
 	if len(rows) != 1 {
 		t.Fatalf("got %d rows, want 1", len(rows))
@@ -325,7 +325,7 @@ func TestSessionsRoundTripThroughTheStore(t *testing.T) {
 		FirstSeen: now.Add(-time.Hour), LastSeen: now,
 		UserMessages: 7, AgentMessages: 11, ToolCalls: 23,
 		DistinctTools: 5, MCPCalls: 3,
-	}}, "repo", now)
+	}}, "repo", "dev@example.com", now)
 
 	counts, err := Write(db, p)
 	if err != nil {
@@ -343,5 +343,169 @@ func TestSessionsRoundTripThroughTheStore(t *testing.T) {
 	}
 	if toolCalls != 23 || mcp != 3 {
 		t.Errorf("tool_calls=%d mcp_calls=%d, want 23 and 3", toolCalls, mcp)
+	}
+}
+
+// Two people syncing the same repository must both survive.
+//
+// WHO-173, and the measurement the whole WHO-167 epic rests on. repo_id is
+// the repository's root commit SHA, identical for everyone who clones it,
+// so on the old key of (repo_id) alone the second person's sync overwrote
+// the first person's row rather than adding to it.
+//
+// The damage is not the lost row. whodunit_commits joins to whodunit_repos
+// for the contributor, so every commit the first person had already synced
+// was silently reattributed to the second. Nothing failed; the dashboards
+// rendered a confident wrong answer.
+//
+// Written through Write rather than raw SQL on purpose: the overwrite is a
+// property of the real write path, and a test that inserts directly would
+// prove something about SQL rather than about this tool.
+func TestTwoContributorsOnOneRepositoryBothSurvive(t *testing.T) {
+	db := openStore(t)
+	now := time.Date(2026, 8, 25, 12, 0, 0, 0, time.UTC)
+
+	first := samplePayload(now)
+	first.Repo.Contributor = "first@example.com"
+	if _, err := Write(db, first); err != nil {
+		t.Fatalf("first sync: %v", err)
+	}
+
+	// The same repository, a different person. On a shared database this is
+	// the ordinary case, not an edge one.
+	second := samplePayload(now)
+	second.Repo.Contributor = "second@example.com"
+	if _, err := Write(db, second); err != nil {
+		t.Fatalf("second sync: %v", err)
+	}
+
+	var n int
+	if err := db.QueryRow(
+		`SELECT COUNT(*) FROM whodunit_repos WHERE repo_id = ?`, "repo").Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+	if n != 2 {
+		t.Errorf("got %d row(s) for one repository with two contributors, want 2 "+
+			"— the second sync overwrote the first, and every commit already "+
+			"synced by the first person is now attributed to the second", n)
+	}
+
+	// Both by name, so a test that counts two rows for the wrong reason
+	// still fails.
+	for _, want := range []string{"first@example.com", "second@example.com"} {
+		var got int
+		if err := db.QueryRow(
+			`SELECT COUNT(*) FROM whodunit_repos WHERE repo_id = ? AND contributor = ?`,
+			"repo", want).Scan(&got); err != nil {
+			t.Fatal(err)
+		}
+		if got != 1 {
+			t.Errorf("contributor %s has %d row(s), want 1", want, got)
+		}
+	}
+}
+
+// Re-syncing identical data must still add nothing.
+//
+// WHO-178. Widening the key is only safe if it does not turn a repeated
+// sync into a duplicate: the local journal is the source of truth and a
+// sync is a projection of it, run on every push.
+func TestResyncingTheSameContributorAddsNoRow(t *testing.T) {
+	db := openStore(t)
+	now := time.Date(2026, 8, 25, 12, 0, 0, 0, time.UTC)
+
+	p := samplePayload(now)
+	p.Repo.Contributor = "same@example.com"
+	for i := 0; i < 3; i++ {
+		if _, err := Write(db, p); err != nil {
+			t.Fatalf("sync %d: %v", i+1, err)
+		}
+	}
+
+	var n int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM whodunit_repos`).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+	if n != 1 {
+		t.Errorf("three identical syncs produced %d row(s), want 1", n)
+	}
+}
+
+// The point of carrying contributor: filter without a join.
+//
+// WHO-192. Before this, a per-person panel resolved identity through
+// whodunit_repos — the row two people syncing one repository share. The
+// filter was therefore only as correct as the row that had last been
+// overwritten.
+func TestCommitsAndEventsFilterByContributorWithoutAJoin(t *testing.T) {
+	db := openStore(t)
+	now := time.Date(2026, 8, 25, 12, 0, 0, 0, time.UTC)
+
+	for _, who := range []string{"first@example.com", "second@example.com"} {
+		p := samplePayload(now)
+		p.Repo.Contributor = who
+		for i := range p.Commits {
+			p.Commits[i].Contributor = who
+			p.Commits[i].CommitSHA = who[:5] + p.Commits[i].CommitSHA
+		}
+		for i := range p.Events {
+			p.Events[i].Contributor = who
+			p.Events[i].EventID = who[:5] + p.Events[i].EventID
+		}
+		if _, err := Write(db, p); err != nil {
+			t.Fatalf("%s: %v", who, err)
+		}
+	}
+
+	// No whodunit_repos in either query. That is the assertion.
+	for _, q := range []struct{ table, sql string }{
+		{"whodunit_commits", `SELECT COUNT(*) FROM whodunit_commits WHERE contributor = ?`},
+		{"whodunit_events", `SELECT COUNT(*) FROM whodunit_events WHERE contributor = ?`},
+	} {
+		var n int
+		if err := db.QueryRow(q.sql, "first@example.com").Scan(&n); err != nil {
+			t.Fatalf("%s: %v", q.table, err)
+		}
+		if n == 0 {
+			t.Errorf("%s has no rows for the first contributor; identity did "+
+				"not reach the grain the dashboards query", q.table)
+		}
+
+		var other int
+		if err := db.QueryRow(q.sql, "second@example.com").Scan(&other); err != nil {
+			t.Fatalf("%s: %v", q.table, err)
+		}
+		if other == 0 {
+			t.Errorf("%s has no rows for the second contributor", q.table)
+		}
+	}
+}
+
+// A row synced before the column existed reads as absent, not as a person.
+//
+// NAV-21. The empty string would be a claim that someone with no name did
+// the work; NULL is the honest answer, and a panel renders it as
+// unattributed.
+func TestAnUnknownContributorIsNullNotEmpty(t *testing.T) {
+	db := openStore(t)
+	now := time.Date(2026, 8, 25, 12, 0, 0, 0, time.UTC)
+
+	p := samplePayload(now)
+	p.Repo.Contributor = "someone@example.com"
+	for i := range p.Commits {
+		p.Commits[i].Contributor = "" // as an old row arrives
+	}
+	if _, err := Write(db, p); err != nil {
+		t.Fatal(err)
+	}
+
+	var isNull bool
+	if err := db.QueryRow(
+		`SELECT contributor IS NULL FROM whodunit_commits LIMIT 1`).Scan(&isNull); err != nil {
+		t.Fatal(err)
+	}
+	if !isNull {
+		t.Error("an unknown contributor was stored as the empty string; that " +
+			"asserts a person with no name rather than an absent value (NAV-21)")
 	}
 }

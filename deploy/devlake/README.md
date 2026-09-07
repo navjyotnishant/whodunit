@@ -108,6 +108,26 @@ Panels are empty rather than zero where an agent cannot report: Antigravity
 records no tokens or timing at all, and Codex reports cache reads but never
 writes. A zero on a cost panel reads as "this agent is free".
 
+### Token prices are fetched per model, not typed
+
+The Investment Case dashboard prices each session's tokens at the list price
+of the model that session used. One price for all models is wrong the moment
+two are in use — Opus is five times Sonnet — so the prices live in a table,
+`whodunit_model_prices`, filled from the providers' pricing pages:
+
+```
+python3 fetch-model-prices.py --database lake --database lake_demo
+```
+
+Run it after `dun sync` brings in a model you have not seen before, and now
+and then to pick up price changes; the dashboard shows the date each price
+was fetched. The script fails closed: a page that no longer parses is
+replaced by a dated snapshot baked into the script, and the dashboard says
+`baked <date>` instead of `fetched` so a stale price is never mistaken for a
+current one. OpenAI's page is rendered by JavaScript and parses thin from
+static HTML, so it is expected to show as baked until that changes. A
+session whose model has no row is reported as unpriced, not priced at zero.
+
 ### The DORA dashboard needs DevLake configured
 
 The other five read only the `whodunit_*` tables the CLI syncs, so they work

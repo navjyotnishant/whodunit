@@ -78,6 +78,20 @@ func EnsureSchema(db *Store) error {
 	for _, stmt := range Migrations {
 		_, _ = db.Exec(stmt)
 	}
+
+	// Destructive migrations run after the additive ones and before the
+	// indexes, because a rebuild drops and recreates its table — indexes
+	// created before it would go with the table they were built on.
+	//
+	// Unlike Migrations above, an error here is fatal. Those are
+	// best-effort by design; this one has either rebuilt a table or left
+	// the database in the shape it found, and continuing as though a
+	// failed migration had succeeded is how a wrong key survives into
+	// production.
+	if _, err := Migrate(db, time.Now()); err != nil {
+		return err
+	}
+
 	for _, stmt := range Indexes {
 		_, _ = db.Exec(stmt)
 	}
@@ -149,9 +163,23 @@ func WriteProgress(db *Store, p Payload, onRow func(done, total int)) (Counts, e
 	}
 	counts.Repos = 1
 
+	// Written before the grains that reference them, though nothing
+	// enforces the order: the join is a LEFT JOIN, so a dashboard reading
+	// mid-sync sees unresolved aliases rather than an error.
+	for _, id := range p.Identities {
+		if _, err := tx.Exec(upsertIdentity(mysql),
+			id.Alias, id.Canonical, id.SyncedAt.UnixNano()); err != nil {
+			return counts, fmt.Errorf("write identity: %w", err)
+		}
+	}
+
 	for _, c := range p.Commits {
 		if _, err := tx.Exec(upsertCommit(mysql),
-			c.CommitSHA, c.RepoID, c.CommittedAt.UnixNano(), c.Status, c.Method,
+			// nullString, not the empty string: a row whose contributor
+			// is unknown must read as absent rather than as a person
+			// with no name (NAV-21).
+			c.CommitSHA, c.RepoID, nullString(c.Contributor),
+			c.CommittedAt.UnixNano(), c.Status, c.Method,
 			c.Agent, c.AgentVersion, c.Purpose, c.Ratio, c.LinesAdded, c.LinesRemoved,
 			c.FilesChanged, c.SpecVersion, c.SchemaVersion, c.SyncedAt.UnixNano(),
 			nullString(c.ChangedBy)); err != nil {
@@ -163,7 +191,8 @@ func WriteProgress(db *Store, p Payload, onRow func(done, total int)) (Counts, e
 
 	for _, e := range p.Events {
 		if _, err := tx.Exec(upsertEvent(mysql),
-			e.EventID, e.RepoID, e.ObservedAt.UnixNano(), e.Agent, e.AgentVersion,
+			e.EventID, e.RepoID, nullString(e.Contributor),
+			e.ObservedAt.UnixNano(), e.Agent, e.AgentVersion,
 			e.Session, e.Event, e.Tool, e.File, e.LinesAdded, e.LinesRemoved,
 			e.HunkHash, e.SpecVersion, e.Outcome, e.SyncedAt.UnixNano(),
 			nullString(e.Model), nullString(e.Branch), nullString(e.MCPServer),
@@ -176,7 +205,7 @@ func WriteProgress(db *Store, p Payload, onRow func(done, total int)) (Counts, e
 
 	for _, s := range p.Sessions {
 		if _, err := tx.Exec(upsertSession(mysql),
-			s.RepoID, s.Session, s.Agent, s.AgentVersion,
+			s.RepoID, nullString(s.Contributor), s.Session, s.Agent, s.AgentVersion,
 			s.FirstSeen.UnixNano(), s.LastSeen.UnixNano(),
 			s.UserMessages, s.AgentMessages, s.ToolCalls, s.DistinctTools,
 			s.MCPCalls, s.SyncedAt.UnixNano(),
@@ -234,19 +263,31 @@ type Counts struct {
 func upsertRepo(mysql bool) string {
 	cols := `INSERT INTO whodunit_repos (repo_id, contributor, spec_version, synced_at) VALUES (?, ?, ?, ?)`
 	if mysql {
-		return cols + ` ON DUPLICATE KEY UPDATE contributor=VALUES(contributor), spec_version=VALUES(spec_version), synced_at=VALUES(synced_at)`
+		return cols + ` ON DUPLICATE KEY UPDATE spec_version=VALUES(spec_version), synced_at=VALUES(synced_at)`
 	}
-	return cols + ` ON CONFLICT(repo_id) DO UPDATE SET contributor=excluded.contributor, spec_version=excluded.spec_version, synced_at=excluded.synced_at`
+	// The conflict target is the full key. Narrowing it to repo_id would
+	// restore the overwrite the key change exists to prevent, and it would
+	// do so silently.
+	return cols + ` ON CONFLICT(repo_id, contributor) DO UPDATE SET spec_version=excluded.spec_version, synced_at=excluded.synced_at`
+}
+
+func upsertIdentity(mysql bool) string {
+	cols := `INSERT INTO whodunit_identities (alias, canonical, synced_at) VALUES (?, ?, ?)`
+	if mysql {
+		return cols + ` ON DUPLICATE KEY UPDATE canonical=VALUES(canonical), synced_at=VALUES(synced_at)`
+	}
+	return cols + ` ON CONFLICT(alias) DO UPDATE SET canonical=excluded.canonical, synced_at=excluded.synced_at`
 }
 
 func upsertCommit(mysql bool) string {
 	cols := `INSERT INTO whodunit_commits
-		(commit_sha, repo_id, committed_at, status, method, agent, agent_version,
-		 purpose, ratio, lines_added, lines_removed, files_changed, spec_version,
-		 schema_version, synced_at, changed_by)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+		(commit_sha, repo_id, contributor, committed_at, status, method, agent,
+		 agent_version, purpose, ratio, lines_added, lines_removed, files_changed,
+		 spec_version, schema_version, synced_at, changed_by)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 	if mysql {
 		return cols + ` ON DUPLICATE KEY UPDATE
+			contributor=VALUES(contributor),
 			status=VALUES(status), method=VALUES(method), agent=VALUES(agent),
 			agent_version=VALUES(agent_version), purpose=VALUES(purpose),
 			ratio=VALUES(ratio), lines_added=VALUES(lines_added),
@@ -255,6 +296,7 @@ func upsertCommit(mysql bool) string {
 			synced_at=VALUES(synced_at), changed_by=VALUES(changed_by)`
 	}
 	return cols + ` ON CONFLICT(commit_sha, repo_id) DO UPDATE SET
+		contributor=excluded.contributor,
 		status=excluded.status, method=excluded.method, agent=excluded.agent,
 		agent_version=excluded.agent_version, purpose=excluded.purpose,
 		ratio=excluded.ratio, lines_added=excluded.lines_added,
@@ -265,10 +307,10 @@ func upsertCommit(mysql bool) string {
 
 func upsertEvent(mysql bool) string {
 	cols := `INSERT INTO whodunit_events
-		(event_id, repo_id, observed_at, agent, agent_version, session, event,
+		(event_id, repo_id, contributor, observed_at, agent, agent_version, session, event,
 		 tool, file, lines_added, lines_removed, hunk_hash, spec_version, outcome, synced_at,
 		 model, branch, mcp_server, user_modified)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 	// outcome is refreshed on conflict, unlike the rest of the row: an
 	// event's identity is fixed but its outcome can be backfilled by a
 	// later ingest that finally saw the tool result.
@@ -322,14 +364,15 @@ func nullString(s string) any {
 
 func upsertSession(mysql bool) string {
 	cols := `INSERT INTO whodunit_sessions
-		(repo_id, session, agent, agent_version, first_seen, last_seen,
+		(repo_id, contributor, session, agent, agent_version, first_seen, last_seen,
 		 user_messages, agent_messages, tool_calls, distinct_tools, mcp_calls, synced_at,
 		 input_tokens, output_tokens, cache_read_tokens, cache_write_tokens,
 		 reasoning_tokens, duration_ms, time_to_first_token_ms,
 		 effort, permission_mode, model, compactions)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 	if mysql {
 		return cols + ` ON DUPLICATE KEY UPDATE
+			contributor=VALUES(contributor),
 			last_seen=VALUES(last_seen), user_messages=VALUES(user_messages),
 			agent_messages=VALUES(agent_messages), tool_calls=VALUES(tool_calls),
 			distinct_tools=VALUES(distinct_tools), mcp_calls=VALUES(mcp_calls),
@@ -347,6 +390,7 @@ func upsertSession(mysql bool) string {
 			compactions=COALESCE(VALUES(compactions), compactions)`
 	}
 	return cols + ` ON CONFLICT(repo_id, session) DO UPDATE SET
+		contributor=excluded.contributor,
 		last_seen=excluded.last_seen, user_messages=excluded.user_messages,
 		agent_messages=excluded.agent_messages, tool_calls=excluded.tool_calls,
 		distinct_tools=excluded.distinct_tools, mcp_calls=excluded.mcp_calls,

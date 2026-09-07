@@ -1,18 +1,27 @@
 #!/usr/bin/env python3
 # Author: Navjyot Nishant
 # Created: 2026-08-16
-# Last updated: 2026-08-16
-# Description: Fails when a panel matches issue keys against commit
-# messages without constraining the key's shape.
+# Last updated: 2026-08-25
+# Description: Fails when a panel joins issues to commits without
+# constraining the issue key's shape.
 """Check that no panel can attribute a commit to the wrong issue.
 
-Panels link an issue to its commits by searching the commit message for
-the issue key:
+Panels link an issue to its commits one of two ways. The original join
+searched the commit message for the issue key:
 
     LEFT JOIN commits c
       ON c.message REGEXP CONCAT('(^|[^A-Za-z0-9])', i.issue_key, '([^0-9]|$)')
 
-That works for a tracker whose keys look like PROJ-123. It does not work
+The panels now use the collector's own mapping instead, which is far
+cheaper and cannot invent a pair (WHO-216):
+
+    LEFT JOIN issue_commits c ON c.issue_id = i.id
+
+Both are checked, because the guard is what makes the first one safe and
+what will keep the second one safe if a connector ever populates
+issue_commits for a bare-integer board.
+
+The text join works for a tracker whose keys look like PROJ-123. It does not work
 for GitHub, whose issue keys are bare integers: issue `1` matches any
 commit message containing an isolated 1, so unrelated commits are
 attributed to it and their AI attribution comes with them.
@@ -45,13 +54,34 @@ import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 
-# The join that needs the guard: an issue key matched against commit text.
+# Two joins link an issue to its commits, and both need the guard.
+#
+# The text join matches the key against the commit message. It is the one
+# that fabricates attribution on a bare-integer tracker, and it is also
+# slow: it scans every commit per issue, which is what made the cycle
+# panels time out once both cohorts carried data (WHO-216).
+#
+# The foreign-key join reads issue_commits, the collector's own mapping.
+# It is ~30x faster and was measured equivalent on a real database. It
+# cannot fabricate a pair the way the text join can, so the guard is
+# currently inert there — but it is kept and still checked, because
+# nothing stops a connector from populating issue_commits for a
+# bare-integer board later, and a guard removed as "unnecessary" is not
+# there on the day that changes.
+#
 # Counted per occurrence, not searched once — a panel can carry several.
-JOIN = re.compile(r"message\s+REGEXP", re.IGNORECASE)
+JOIN = re.compile(r"message\s+REGEXP|JOIN\s+issue_commits\b", re.IGNORECASE)
 
 # The guard itself. Matched loosely on the distinctive character class so
 # reformatting the SQL does not trip the check.
-GUARD = re.compile(r"issue_key\s+REGEXP\s+'\^\[A-Z\]\[A-Z0-9\]\+-\[0-9\]\+\$'")
+#
+# Anchored to "i.issue_key" — the outer issue being joined. The same regex
+# literal also appears inside the board-prefix subquery, on a different
+# alias (i2), and counting those inflated the total: every panel scored
+# two guards per join, so a real guard could be deleted and the count
+# still cleared. Only the outer occurrence defends the join.
+GUARD = re.compile(
+    r"\bi\.issue_key\s+REGEXP\s+'\^\[A-Z\]\[A-Z0-9\]\+-\[0-9\]\+\$'")
 
 
 def main():
@@ -75,9 +105,9 @@ def main():
                 # delta instead of an obvious one. The Delta panel
                 # shipped in exactly that state (NAV-122).
                 problems.append(
-                    f"{d['uid']}: {p.get('title') or '(untitled)'} matches "
-                    f"issue keys against commit messages in {joins} place(s) "
-                    f"but guards {guards}; every one needs "
+                    f"{d['uid']}: {p.get('title') or '(untitled)'} joins "
+                    f"issues to commits in {joins} place(s) but guards "
+                    f"{guards}; every one needs "
                     f"AND i.issue_key REGEXP '^[A-Z][A-Z0-9]+-[0-9]+$' or, on "
                     f"a tracker with bare-integer keys, it attributes "
                     f"unrelated commits and reports AI-assisted issues that "

@@ -112,7 +112,8 @@ main() {
 	# check-dashboard-list.py fails the build when this list and
 	# dashboards/ disagree.
 	for name in whodunit whodunit-adoption whodunit-cost whodunit-dora \
-		whodunit-exec whodunit-hours whodunit-funnel; do
+		whodunit-exec whodunit-hours whodunit-funnel whodunit-productivity whodunit-board whodunit-leadership whodunit-teams-board whodunit-mcp-board whodunit-roi whodunit-forecast whodunit-adoption-board \
+		whodunit-hours-board whodunit-funnel-board whodunit-attribution-board whodunit-cost-board; do
 		if import_one "$name"; then
 			imported=$((imported + 1))
 		else

@@ -102,21 +102,46 @@ func TestEveryTableIsNamespaced(t *testing.T) {
 		}
 		count++
 	}
-	// repos, commits, events, sessions, event_lines, baselines.
+	// repos, commits, events, sessions, event_lines, baselines, schema,
+	// identities.
 	//
 	// The literal is deliberate: a table appearing without anyone updating
 	// this number means a table was added without deciding whether it
 	// belongs in a shared DevLake database, which is the question the
 	// prefix rule exists to force.
-	if count != 6 {
-		t.Errorf("found %d tables, want 6", count)
+	//
+	// whodunit_schema was the seventh, and the answer is yes: it records
+	// which migrations this database has had applied, which is a fact
+	// about whodunit's tables rather than about the database it shares
+	// (WHO-220). It carries the prefix for the same reason every other
+	// table does.
+	//
+	// whodunit_identities was the eighth, and yes again: it maps between
+	// addresses that already appear in every commit object, so a
+	// dashboard filtered to one person includes every address they commit
+	// from (WHO-208).
+	if count != 8 {
+		t.Errorf("found %d tables, want 8", count)
 	}
 }
 
 func TestNoIdentityColumnOnCommits(t *testing.T) {
-	// Contributor belongs on repos, not on every commit row: a repository
-	// has one contributor, so repeating it per row is storage spent on a
-	// constant. This asserts the shape rather than trusting the DDL text.
+	// Contributor is now carried on commits, and that reverses what this
+	// test used to assert.
+	//
+	// It guarded the premise that a repository has one contributor, so
+	// repeating it per row is storage spent on a constant. True locally,
+	// false in the shared database this sidecar populates: repo_id is the
+	// root commit SHA, identical for everyone who clones the repository,
+	// so identity resolved through a join was identity resolved through a
+	// row two people share (WHO-192,
+	// docs/decisions/0001-contributor-key.md).
+	//
+	// What has NOT changed is the rest of the rule: contributor is the one
+	// identity fact this table carries, and author, committer and email
+	// stay off it. The git objects already hold those, and duplicating
+	// them here would be new surveillance surface rather than a join
+	// removed. That is what this test guards now.
 	db := openDB(t)
 	if _, err := db.Exec(Schema); err != nil {
 		t.Fatalf("schema: %v", err)
@@ -128,6 +153,7 @@ func TestNoIdentityColumnOnCommits(t *testing.T) {
 	}
 	defer rows.Close()
 
+	var sawContributor bool
 	for rows.Next() {
 		var cid int
 		var name, ctype string
@@ -137,9 +163,19 @@ func TestNoIdentityColumnOnCommits(t *testing.T) {
 			t.Fatalf("scan: %v", err)
 		}
 		switch name {
-		case "contributor", "author", "committer", "email":
-			t.Errorf("whodunit_commits has an identity column %q; it belongs on whodunit_repos", name)
+		case "author", "committer", "email":
+			t.Errorf("whodunit_commits has an identity column %q; contributor "+
+				"is the only identity this table carries, and git already "+
+				"holds the rest", name)
 		}
+		if name == "contributor" {
+			sawContributor = true
+		}
+	}
+	if !sawContributor {
+		t.Error("whodunit_commits has no contributor column; the dashboard " +
+			"grain would be back to resolving identity through a join that " +
+			"two people share")
 	}
 }
 
@@ -204,7 +240,7 @@ func TestCommitRowsFromKeepsUntrailedCommits(t *testing.T) {
 		}},
 	}
 
-	rows := CommitRowsFrom(commits, "repo", now)
+	rows := CommitRowsFrom(commits, "repo", "dev@example.com", now)
 	if len(rows) != 2 {
 		t.Fatalf("want 2 rows, got %d", len(rows))
 	}
@@ -231,7 +267,7 @@ func TestCommitRowsCarryRatioOnlyWhenPresent(t *testing.T) {
 		{SHA: "without", Trailer: &spec.Trailer{Status: spec.StatusAssisted, Method: spec.MethodObserved}},
 	}
 
-	rows := CommitRowsFrom(commits, "repo", now)
+	rows := CommitRowsFrom(commits, "repo", "dev@example.com", now)
 	if rows[0].Ratio == nil || *rows[0].Ratio != 0.42 {
 		t.Errorf("ratio lost in mapping: %+v", rows[0].Ratio)
 	}
@@ -247,7 +283,7 @@ func TestEventRowsPreserveTheJournalGrain(t *testing.T) {
 			Tool: "Edit", File: "/repo/main.go", LinesAdded: 3, HunkHash: "sha256:x"},
 	}
 
-	rows := EventRowsFrom(entries, "repo", now)
+	rows := EventRowsFrom(entries, "repo", "dev@example.com", now)
 	if len(rows) != 1 {
 		t.Fatalf("want 1 row, got %d", len(rows))
 	}
@@ -284,7 +320,7 @@ func TestSchemaAcceptsEveryRowType(t *testing.T) {
 		SHA: "abc", Timestamp: now, Purpose: purpose.Feature, LinesAdded: 10, LinesRemoved: 2,
 		Files:   []string{"a.go"},
 		Trailer: &spec.Trailer{Status: spec.StatusAssisted, Method: spec.MethodIntersected, Agent: "claude-code", Ratio: &r},
-	}}, "repo", now)[0]
+	}}, "repo", "dev@example.com", now)[0]
 
 	if _, err := db.Exec(`INSERT INTO whodunit_commits
 		(commit_sha, repo_id, committed_at, status, method, agent, agent_version,
@@ -300,7 +336,7 @@ func TestSchemaAcceptsEveryRowType(t *testing.T) {
 	er := EventRowsFrom([]journal.Entry{{
 		Timestamp: now, Agent: "claude-code", Session: "s", Event: "tool_use",
 		Tool: "Write", File: "/repo/a.go", LinesAdded: 10,
-	}}, "repo", now)[0]
+	}}, "repo", "dev@example.com", now)[0]
 
 	if _, err := db.Exec(`INSERT INTO whodunit_events
 		(event_id, repo_id, observed_at, agent, agent_version, session, event, tool, file,
@@ -361,5 +397,88 @@ func TestEventIDSeparatesFields(t *testing.T) {
 	b := journal.Entry{Timestamp: now, Session: "a", Tool: "bc"}
 	if eventID("repo", a) == eventID("repo", b) {
 		t.Error("adjacent fields collided; the id is not separator-delimited")
+	}
+}
+
+// A semicolon inside a SQL comment truncates the statement it sits in.
+//
+// splitStatements splits on ";" before it strips comments, so a comment
+// containing one is cut in half and the tail — including the CREATE TABLE
+// that followed it — is sent to the engine as its own statement. The
+// failure reads as a syntax error on a fragment of English prose, which
+// gives no hint where it came from. Cost a confused debugging round on
+// WHO-208, where a comment ended "...every commit object; this is a lookup
+// table".
+func TestNoSemicolonInsideASchemaComment(t *testing.T) {
+	for i, line := range strings.Split(Schema, "\n") {
+		trimmed := strings.TrimSpace(line)
+		if !strings.HasPrefix(trimmed, "--") {
+			continue
+		}
+		if strings.Contains(trimmed, ";") {
+			t.Errorf("line %d has a semicolon inside a comment, which "+
+				"truncates the statement it belongs to:\n  %s", i+1, trimmed)
+		}
+	}
+}
+
+// Every alias resolves to a canonical address, never to itself.
+//
+// A row mapping an address to itself carries no information, and the join
+// treats a missing row as "its own identity" anyway — so writing it would
+// only make absence harder to read (NAV-21).
+func TestIdentityRowsSkipSelfReferences(t *testing.T) {
+	resolve := func(s string) string {
+		if s == "b@x.com" {
+			return "a@x.com"
+		}
+		return s
+	}
+	rows := IdentityRowsFrom(
+		map[string]string{"b@x.com": "a@x.com", "a@x.com": "a@x.com"},
+		resolve, time.Now())
+
+	if len(rows) != 1 {
+		t.Fatalf("got %d row(s), want 1 — a self-reference was written", len(rows))
+	}
+	if rows[0].Alias != "b@x.com" || rows[0].Canonical != "a@x.com" {
+		t.Errorf("got %v", rows[0])
+	}
+}
+
+// A chain must be flattened, so SQL never has to follow one.
+//
+// Writing c -> b verbatim would make the dashboard responsible for
+// following the chain to a, which MySQL and SQLite express differently and
+// neither expresses simply. Flattening here means the dashboard joins once
+// and cannot disagree with config.ResolveIdentity about the answer.
+func TestIdentityChainsAreFlattened(t *testing.T) {
+	// c -> b -> a, as config.ResolveIdentity would resolve it.
+	resolve := func(s string) string {
+		for _, step := range []struct{ from, to string }{{"c@x.com", "b@x.com"}, {"b@x.com", "a@x.com"}} {
+			if s == step.from {
+				s = step.to
+			}
+		}
+		if s == "b@x.com" {
+			s = "a@x.com"
+		}
+		return s
+	}
+	rows := IdentityRowsFrom(map[string]string{"c@x.com": "b@x.com"}, resolve, time.Now())
+
+	if len(rows) != 1 {
+		t.Fatalf("got %d row(s), want 1", len(rows))
+	}
+	if rows[0].Canonical != "a@x.com" {
+		t.Errorf("chain resolved to %q, want a@x.com — SQL would have to "+
+			"follow the chain itself", rows[0].Canonical)
+	}
+}
+
+// No configured aliases means no rows: the feature is inert until used.
+func TestNoAliasesMeansNoRows(t *testing.T) {
+	if rows := IdentityRowsFrom(nil, func(s string) string { return s }, time.Now()); rows != nil {
+		t.Errorf("got %d row(s) from an empty map", len(rows))
 	}
 }

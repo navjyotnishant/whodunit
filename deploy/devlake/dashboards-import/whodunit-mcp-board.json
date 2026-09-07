@@ -1,0 +1,931 @@
+{
+  "uid": "whodunit-mcp-board",
+  "title": "MCP & Tools",
+  "tags": [
+    "whodunit"
+  ],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 0,
+  "refresh": "",
+  "time": {
+    "from": "now-90d",
+    "to": "now"
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "contributor",
+        "type": "query",
+        "datasource": "${DS_WHODUNIT}",
+        "query": "SELECT DISTINCT COALESCE(NULLIF(contributor, ''), '(unattributed)') AS __text, COALESCE(NULLIF(contributor, ''), '') AS __value FROM whodunit_repos ORDER BY 1",
+        "includeAll": true,
+        "multi": false,
+        "current": {},
+        "label": "Contributor",
+        "refresh": 1,
+        "allValue": "__all__",
+        "options": []
+      },
+      {
+        "name": "team",
+        "type": "query",
+        "datasource": "${DS_WHODUNIT}",
+        "query": "SELECT DISTINCT COALESCE(NULLIF(t.name, ''), '(unassigned)') AS __text, COALESCE(NULLIF(t.name, ''), '(unassigned)') AS __value FROM whodunit_repos r LEFT JOIN team_users tu ON tu.user_id = r.contributor LEFT JOIN teams t ON t.id = tu.team_id ORDER BY 1",
+        "includeAll": true,
+        "multi": false,
+        "current": {},
+        "label": "Team",
+        "refresh": 1,
+        "allValue": "__all__",
+        "options": []
+      }
+    ]
+  },
+  "panels": [
+    {
+      "type": "text",
+      "title": "",
+      "gridPos": {
+        "h": 4,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 1,
+      "options": {
+        "mode": "html",
+        "content": "<h3 style='margin:0 0 6px'>Which integrations the team has actually picked up, how deeply, and who has not</h3><p style='margin:0'>An MCP server is an integration the agent can call — an issue tracker, a browser, a design tool. Every call is recorded with the server and tool name, never its content. This page reads breadth (how many people use each one) separately from depth (how hard the people who use it lean on it), because a server with two heavy users and one with nine light ones look identical as a call count.</p>"
+      }
+    },
+    {
+      "type": "row",
+      "title": "Where each integration stands",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 4
+      },
+      "id": 2,
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "type": "heatmap",
+      "title": "Calls per server, per week",
+      "description": "Every MCP server as a row, weeks across, colour by call volume. The pattern to read is horizontal: a row that brightens is an integration being picked up, one that fades is being abandoned. A row that appears late is a new integration.",
+      "datasource": "${DS_WHODUNIT}",
+      "gridPos": {
+        "h": 10,
+        "w": 14,
+        "x": 0,
+        "y": 5
+      },
+      "id": 3,
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "datasource": "${DS_WHODUNIT}",
+          "rawSql": "\nWITH c AS (\n  SELECT CASE WHEN e.mcp_server IS NULL OR e.mcp_server = '' THEN '' ELSE LOWER(TRIM(REPLACE(REGEXP_REPLACE(e.mcp_server,'^(mcp__codex_apps__|plugin:[^:]+:|claude\\\\.ai |claude_ai_|mcp__)',''),'-server',''))) END AS server,\n         e.tool, e.session, COALESCE(wi.canonical, e.contributor) AS person,\n         COALESCE(t.name,'(unassigned)') AS team, e.observed_at, DATE_SUB(DATE(FROM_UNIXTIME(e.observed_at/1e9)), INTERVAL WEEKDAY(FROM_UNIXTIME(e.observed_at/1e9)) DAY) AS w\n  FROM whodunit_events e LEFT JOIN whodunit_identities wi ON wi.alias = e.contributor\n    LEFT JOIN team_users tu ON tu.user_id = COALESCE(wi.canonical, e.contributor)\n    LEFT JOIN teams t ON t.id = tu.team_id\n  WHERE e.observed_at BETWEEN $__unixEpochFrom()*1000000000 AND $__unixEpochTo()*1000000000 AND e.tool <> '' AND ('${contributor:raw}' = '__all__' OR COALESCE(wi.canonical, e.contributor) = '${contributor:raw}')\n    AND ('${team:raw}' = '__all__' OR COALESCE(t.name,'(unassigned)') = '${team:raw}'))\nSELECT CAST(w AS DATETIME) AS time, server AS metric, COUNT(*) AS value\nFROM c WHERE server <> '' GROUP BY w, server ORDER BY time, server"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {
+        "calculate": false,
+        "yAxis": {
+          "axisPlacement": "left",
+          "reverse": false
+        },
+        "color": {
+          "mode": "scheme",
+          "scheme": "Blues",
+          "steps": 24
+        },
+        "cellGap": 2,
+        "legend": {
+          "show": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "yHistogram": false
+        },
+        "rowsFrame": {
+          "layout": "auto"
+        }
+      }
+    },
+    {
+      "type": "bargauge",
+      "title": "Servers by calls",
+      "description": "MCP servers ranked by calls in range. Volume alone — see the breadth-and-depth row for who is behind it.",
+      "datasource": "${DS_WHODUNIT}",
+      "gridPos": {
+        "h": 10,
+        "w": 6,
+        "x": 14,
+        "y": 5
+      },
+      "id": 4,
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "datasource": "${DS_WHODUNIT}",
+          "rawSql": "\nWITH c AS (\n  SELECT CASE WHEN e.mcp_server IS NULL OR e.mcp_server = '' THEN '' ELSE LOWER(TRIM(REPLACE(REGEXP_REPLACE(e.mcp_server,'^(mcp__codex_apps__|plugin:[^:]+:|claude\\\\.ai |claude_ai_|mcp__)',''),'-server',''))) END AS server,\n         e.tool, e.session, COALESCE(wi.canonical, e.contributor) AS person,\n         COALESCE(t.name,'(unassigned)') AS team, e.observed_at, DATE_SUB(DATE(FROM_UNIXTIME(e.observed_at/1e9)), INTERVAL WEEKDAY(FROM_UNIXTIME(e.observed_at/1e9)) DAY) AS w\n  FROM whodunit_events e LEFT JOIN whodunit_identities wi ON wi.alias = e.contributor\n    LEFT JOIN team_users tu ON tu.user_id = COALESCE(wi.canonical, e.contributor)\n    LEFT JOIN teams t ON t.id = tu.team_id\n  WHERE e.observed_at BETWEEN $__unixEpochFrom()*1000000000 AND $__unixEpochTo()*1000000000 AND e.tool <> '' AND ('${contributor:raw}' = '__all__' OR COALESCE(wi.canonical, e.contributor) = '${contributor:raw}')\n    AND ('${team:raw}' = '__all__' OR COALESCE(t.name,'(unassigned)') = '${team:raw}'))\nSELECT server AS metric, COUNT(*) AS value FROM c WHERE server <> '' GROUP BY server ORDER BY value DESC"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "decimals": 0,
+          "color": {
+            "mode": "continuous-BlPu"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/^value$/",
+          "values": true
+        },
+        "orientation": "horizontal",
+        "displayMode": "gradient",
+        "showUnfilled": true,
+        "valueMode": "color",
+        "namePlacement": "top",
+        "sizing": "auto"
+      }
+    },
+    {
+      "type": "stat",
+      "title": "MCP share of tool calls",
+      "description": "Share of all agent tool calls that went to an integration rather than a built-in tool. The headline for whether integrations are part of how people work here, or an occasional reach.",
+      "datasource": "${DS_WHODUNIT}",
+      "gridPos": {
+        "h": 10,
+        "w": 4,
+        "x": 20,
+        "y": 5
+      },
+      "id": 5,
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "datasource": "${DS_WHODUNIT}",
+          "rawSql": "\nWITH c AS (\n  SELECT CASE WHEN e.mcp_server IS NULL OR e.mcp_server = '' THEN '' ELSE LOWER(TRIM(REPLACE(REGEXP_REPLACE(e.mcp_server,'^(mcp__codex_apps__|plugin:[^:]+:|claude\\\\.ai |claude_ai_|mcp__)',''),'-server',''))) END AS server,\n         e.tool, e.session, COALESCE(wi.canonical, e.contributor) AS person,\n         COALESCE(t.name,'(unassigned)') AS team, e.observed_at, DATE_SUB(DATE(FROM_UNIXTIME(e.observed_at/1e9)), INTERVAL WEEKDAY(FROM_UNIXTIME(e.observed_at/1e9)) DAY) AS w\n  FROM whodunit_events e LEFT JOIN whodunit_identities wi ON wi.alias = e.contributor\n    LEFT JOIN team_users tu ON tu.user_id = COALESCE(wi.canonical, e.contributor)\n    LEFT JOIN teams t ON t.id = tu.team_id\n  WHERE e.observed_at BETWEEN $__unixEpochFrom()*1000000000 AND $__unixEpochTo()*1000000000 AND e.tool <> '' AND ('${contributor:raw}' = '__all__' OR COALESCE(wi.canonical, e.contributor) = '${contributor:raw}')\n    AND ('${team:raw}' = '__all__' OR COALESCE(t.name,'(unassigned)') = '${team:raw}'))\nSELECT ROUND(100*SUM(server <> '')/COUNT(*),1) AS value FROM c"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 1,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#9b7bd6"
+          },
+          "noValue": "no calls"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/^value$/"
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "text": {
+          "valueSize": 46
+        }
+      }
+    },
+    {
+      "type": "row",
+      "title": "Breadth against depth",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 15
+      },
+      "id": 6,
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "type": "xychart",
+      "title": "People using it, against calls per person",
+      "description": "One dot per server. Across: how many people used it at all. Up: how many calls each of those people made. Top-right is embedded in how the team works; bottom-right is widely tried and lightly used; top-left is a power tool for a few. Each corner is a different rollout decision.",
+      "datasource": "${DS_WHODUNIT}",
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 0,
+        "y": 16
+      },
+      "id": 7,
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "datasource": "${DS_WHODUNIT}",
+          "rawSql": "\nWITH c AS (\n  SELECT CASE WHEN e.mcp_server IS NULL OR e.mcp_server = '' THEN '' ELSE LOWER(TRIM(REPLACE(REGEXP_REPLACE(e.mcp_server,'^(mcp__codex_apps__|plugin:[^:]+:|claude\\\\.ai |claude_ai_|mcp__)',''),'-server',''))) END AS server,\n         e.tool, e.session, COALESCE(wi.canonical, e.contributor) AS person,\n         COALESCE(t.name,'(unassigned)') AS team, e.observed_at, DATE_SUB(DATE(FROM_UNIXTIME(e.observed_at/1e9)), INTERVAL WEEKDAY(FROM_UNIXTIME(e.observed_at/1e9)) DAY) AS w\n  FROM whodunit_events e LEFT JOIN whodunit_identities wi ON wi.alias = e.contributor\n    LEFT JOIN team_users tu ON tu.user_id = COALESCE(wi.canonical, e.contributor)\n    LEFT JOIN teams t ON t.id = tu.team_id\n  WHERE e.observed_at BETWEEN $__unixEpochFrom()*1000000000 AND $__unixEpochTo()*1000000000 AND e.tool <> '' AND ('${contributor:raw}' = '__all__' OR COALESCE(wi.canonical, e.contributor) = '${contributor:raw}')\n    AND ('${team:raw}' = '__all__' OR COALESCE(t.name,'(unassigned)') = '${team:raw}')),\ns AS (SELECT server, COUNT(DISTINCT person) people, COUNT(*) calls FROM c\n      WHERE server <> '' AND person IS NOT NULL GROUP BY server)\nSELECT people AS `people using it`, ROUND(calls/people,0) AS `calls per person`, server FROM s"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "pointSize": {
+              "fixed": 14
+            },
+            "fillOpacity": 70,
+            "show": "points"
+          },
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#9b7bd6"
+          },
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "mapping": "auto",
+        "series": [],
+        "legend": {
+          "showLegend": false
+        },
+        "tooltip": {
+          "mode": "single"
+        }
+      },
+      "pluginVersion": "11.6.2"
+    },
+    {
+      "type": "table",
+      "title": "Server profile",
+      "description": "Per server: when it was first called, how many people and teams use it, total calls, and calls per session. Calls per session is the depth figure — an integration called once a session is a lookup; one called twenty times is a workflow.",
+      "datasource": "${DS_WHODUNIT}",
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 12,
+        "y": 16
+      },
+      "id": 8,
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "datasource": "${DS_WHODUNIT}",
+          "rawSql": "\nWITH c AS (\n  SELECT CASE WHEN e.mcp_server IS NULL OR e.mcp_server = '' THEN '' ELSE LOWER(TRIM(REPLACE(REGEXP_REPLACE(e.mcp_server,'^(mcp__codex_apps__|plugin:[^:]+:|claude\\\\.ai |claude_ai_|mcp__)',''),'-server',''))) END AS server,\n         e.tool, e.session, COALESCE(wi.canonical, e.contributor) AS person,\n         COALESCE(t.name,'(unassigned)') AS team, e.observed_at, DATE_SUB(DATE(FROM_UNIXTIME(e.observed_at/1e9)), INTERVAL WEEKDAY(FROM_UNIXTIME(e.observed_at/1e9)) DAY) AS w\n  FROM whodunit_events e LEFT JOIN whodunit_identities wi ON wi.alias = e.contributor\n    LEFT JOIN team_users tu ON tu.user_id = COALESCE(wi.canonical, e.contributor)\n    LEFT JOIN teams t ON t.id = tu.team_id\n  WHERE e.observed_at BETWEEN $__unixEpochFrom()*1000000000 AND $__unixEpochTo()*1000000000 AND e.tool <> '' AND ('${contributor:raw}' = '__all__' OR COALESCE(wi.canonical, e.contributor) = '${contributor:raw}')\n    AND ('${team:raw}' = '__all__' OR COALESCE(t.name,'(unassigned)') = '${team:raw}')),\ns AS (SELECT server, COUNT(DISTINCT person) people, COUNT(DISTINCT team) teams, COUNT(*) calls,\n             COUNT(DISTINCT session) sessions,\n             MIN(DATE(FROM_UNIXTIME(observed_at/1e9))) first_used\n      FROM c WHERE server <> '' GROUP BY server)\nSELECT server AS `Server`, DATE_FORMAT(first_used,'%b %e') AS `First used`,\n       people AS `People`, teams AS `Teams`, calls AS `Calls`,\n       ROUND(calls/NULLIF(sessions,0),1) AS `Calls per session`\nFROM s ORDER BY calls DESC"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "right"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Server"
+            },
+            "properties": [
+              {
+                "id": "custom.align",
+                "value": "left"
+              },
+              {
+                "id": "custom.width",
+                "value": 95
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "First used"
+            },
+            "properties": [
+              {
+                "id": "custom.align",
+                "value": "left"
+              },
+              {
+                "id": "custom.width",
+                "value": 80
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Calls per session"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background",
+                  "mode": "gradient"
+                }
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "continuous-BlPu"
+                }
+              },
+              {
+                "id": "min",
+                "value": 0
+              },
+              {
+                "id": "custom.width",
+                "value": 110
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "People"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "gauge",
+                  "mode": "basic"
+                }
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#4caf78"
+                }
+              },
+              {
+                "id": "min",
+                "value": 0
+              },
+              {
+                "id": "max",
+                "value": 12
+              },
+              {
+                "id": "custom.width",
+                "value": 120
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Teams"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 60
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Calls"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 70
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "cellHeight": "md",
+        "sortBy": [
+          {
+            "displayName": "Calls",
+            "desc": true
+          }
+        ]
+      }
+    },
+    {
+      "type": "row",
+      "title": "Who",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 26
+      },
+      "id": 9,
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "type": "table",
+      "title": "Which integrations each team leans on",
+      "description": "Share of a team's MCP calls going to each of the six busiest servers. Read across a row: a team split evenly is exploring; one at 60% on a single server has built a workflow around it. Blank means the team has not called that server in range.",
+      "datasource": "${DS_WHODUNIT}",
+      "gridPos": {
+        "h": 10,
+        "w": 14,
+        "x": 0,
+        "y": 27
+      },
+      "id": 10,
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "datasource": "${DS_WHODUNIT}",
+          "rawSql": "\nWITH c AS (\n  SELECT CASE WHEN e.mcp_server IS NULL OR e.mcp_server = '' THEN '' ELSE LOWER(TRIM(REPLACE(REGEXP_REPLACE(e.mcp_server,'^(mcp__codex_apps__|plugin:[^:]+:|claude\\\\.ai |claude_ai_|mcp__)',''),'-server',''))) END AS server,\n         e.tool, e.session, COALESCE(wi.canonical, e.contributor) AS person,\n         COALESCE(t.name,'(unassigned)') AS team, e.observed_at, DATE_SUB(DATE(FROM_UNIXTIME(e.observed_at/1e9)), INTERVAL WEEKDAY(FROM_UNIXTIME(e.observed_at/1e9)) DAY) AS w\n  FROM whodunit_events e LEFT JOIN whodunit_identities wi ON wi.alias = e.contributor\n    LEFT JOIN team_users tu ON tu.user_id = COALESCE(wi.canonical, e.contributor)\n    LEFT JOIN teams t ON t.id = tu.team_id\n  WHERE e.observed_at BETWEEN $__unixEpochFrom()*1000000000 AND $__unixEpochTo()*1000000000 AND e.tool <> '' AND ('${contributor:raw}' = '__all__' OR COALESCE(wi.canonical, e.contributor) = '${contributor:raw}')\n    AND ('${team:raw}' = '__all__' OR COALESCE(t.name,'(unassigned)') = '${team:raw}')),\nt AS (SELECT team, server, COUNT(*) n FROM c WHERE server <> '' GROUP BY team, server),\ntot AS (SELECT team, SUM(n) total FROM t GROUP BY team),\ntop AS (SELECT server FROM t GROUP BY server ORDER BY SUM(n) DESC LIMIT 6)\nSELECT t.team AS `Team`, t.server AS `Server`, ROUND(100*t.n/tot.total,0) AS `share`\nFROM t JOIN tot ON tot.team = t.team JOIN top ON top.server = t.server\nORDER BY t.team, t.server"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 0,
+          "noValue": "—",
+          "custom": {
+            "align": "center",
+            "cellOptions": {
+              "type": "color-background",
+              "mode": "gradient"
+            }
+          },
+          "color": {
+            "mode": "continuous-BlPu"
+          },
+          "min": 0,
+          "max": 60,
+          "mappings": [
+            {
+              "type": "special",
+              "options": {
+                "match": "null",
+                "result": {
+                  "text": "—",
+                  "color": "transparent",
+                  "index": 0
+                }
+              }
+            }
+          ]
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Team\\Server"
+            },
+            "properties": [
+              {
+                "id": "custom.align",
+                "value": "left"
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "auto"
+                }
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "text"
+                }
+              },
+              {
+                "id": "displayName",
+                "value": "Team"
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "cellHeight": "lg"
+      },
+      "transformations": [
+        {
+          "id": "groupingToMatrix",
+          "options": {
+            "columnField": "Server",
+            "rowField": "Team",
+            "valueField": "share",
+            "emptyValue": "null"
+          }
+        }
+      ]
+    },
+    {
+      "type": "table",
+      "title": "Not using integrations yet",
+      "description": "People with agent tool calls in range and none of them to an MCP server, most active first. They are using the agent; they are not using its integrations. The list to act on when a server has been rolled out and is not being picked up.",
+      "datasource": "${DS_WHODUNIT}",
+      "gridPos": {
+        "h": 10,
+        "w": 10,
+        "x": 14,
+        "y": 27
+      },
+      "id": 11,
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "datasource": "${DS_WHODUNIT}",
+          "rawSql": "\nWITH c AS (\n  SELECT CASE WHEN e.mcp_server IS NULL OR e.mcp_server = '' THEN '' ELSE LOWER(TRIM(REPLACE(REGEXP_REPLACE(e.mcp_server,'^(mcp__codex_apps__|plugin:[^:]+:|claude\\\\.ai |claude_ai_|mcp__)',''),'-server',''))) END AS server,\n         e.tool, e.session, COALESCE(wi.canonical, e.contributor) AS person,\n         COALESCE(t.name,'(unassigned)') AS team, e.observed_at, DATE_SUB(DATE(FROM_UNIXTIME(e.observed_at/1e9)), INTERVAL WEEKDAY(FROM_UNIXTIME(e.observed_at/1e9)) DAY) AS w\n  FROM whodunit_events e LEFT JOIN whodunit_identities wi ON wi.alias = e.contributor\n    LEFT JOIN team_users tu ON tu.user_id = COALESCE(wi.canonical, e.contributor)\n    LEFT JOIN teams t ON t.id = tu.team_id\n  WHERE e.observed_at BETWEEN $__unixEpochFrom()*1000000000 AND $__unixEpochTo()*1000000000 AND e.tool <> '' AND ('${contributor:raw}' = '__all__' OR COALESCE(wi.canonical, e.contributor) = '${contributor:raw}')\n    AND ('${team:raw}' = '__all__' OR COALESCE(t.name,'(unassigned)') = '${team:raw}'))\nSELECT SUBSTRING_INDEX(person,'@',1) AS `Person`, team AS `Team`,\n       COUNT(*) AS `Tool calls`, COUNT(DISTINCT session) AS `Sessions`\nFROM c WHERE person IS NOT NULL\nGROUP BY person, team HAVING SUM(server <> '') = 0\nORDER BY `Tool calls` DESC"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "left"
+          },
+          "noValue": "everyone uses at least one"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "Tool calls|Sessions"
+            },
+            "properties": [
+              {
+                "id": "custom.align",
+                "value": "right"
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "cellHeight": "sm",
+        "sortBy": [
+          {
+            "displayName": "Tool calls",
+            "desc": true
+          }
+        ]
+      }
+    },
+    {
+      "type": "row",
+      "title": "Over time",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 37
+      },
+      "id": 12,
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "type": "timeseries",
+      "title": "MCP against built-in, share of calls per week",
+      "description": "Every tool call each week, split between integrations and built-in tools, as shares that sum to 100. A rising MCP band means integrations are displacing built-in tools, which is what a working rollout looks like.",
+      "datasource": "${DS_WHODUNIT}",
+      "gridPos": {
+        "h": 9,
+        "w": 8,
+        "x": 0,
+        "y": 38
+      },
+      "id": 13,
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "datasource": "${DS_WHODUNIT}",
+          "rawSql": "\nWITH c AS (\n  SELECT CASE WHEN e.mcp_server IS NULL OR e.mcp_server = '' THEN '' ELSE LOWER(TRIM(REPLACE(REGEXP_REPLACE(e.mcp_server,'^(mcp__codex_apps__|plugin:[^:]+:|claude\\\\.ai |claude_ai_|mcp__)',''),'-server',''))) END AS server,\n         e.tool, e.session, COALESCE(wi.canonical, e.contributor) AS person,\n         COALESCE(t.name,'(unassigned)') AS team, e.observed_at, DATE_SUB(DATE(FROM_UNIXTIME(e.observed_at/1e9)), INTERVAL WEEKDAY(FROM_UNIXTIME(e.observed_at/1e9)) DAY) AS w\n  FROM whodunit_events e LEFT JOIN whodunit_identities wi ON wi.alias = e.contributor\n    LEFT JOIN team_users tu ON tu.user_id = COALESCE(wi.canonical, e.contributor)\n    LEFT JOIN teams t ON t.id = tu.team_id\n  WHERE e.observed_at BETWEEN $__unixEpochFrom()*1000000000 AND $__unixEpochTo()*1000000000 AND e.tool <> '' AND ('${contributor:raw}' = '__all__' OR COALESCE(wi.canonical, e.contributor) = '${contributor:raw}')\n    AND ('${team:raw}' = '__all__' OR COALESCE(t.name,'(unassigned)') = '${team:raw}'))\nSELECT CAST(w AS DATETIME) AS time,\n       SUM(server <> '') AS `MCP`,\n       SUM(server = '') AS `Built-in`\nFROM c GROUP BY w ORDER BY time"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 60,
+            "lineWidth": 1,
+            "stacking": {
+              "mode": "percent"
+            },
+            "lineInterpolation": "smooth"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "MCP"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#9b7bd6"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Built-in"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#8a8f9a"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "The six busiest servers, per week",
+      "description": "Weekly calls for the six most-used servers, one line each. Which integrations are growing, which have plateaued, and whether a new one is displacing an old one.",
+      "datasource": "${DS_WHODUNIT}",
+      "gridPos": {
+        "h": 9,
+        "w": 8,
+        "x": 8,
+        "y": 38
+      },
+      "id": 14,
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "datasource": "${DS_WHODUNIT}",
+          "rawSql": "\nWITH c AS (\n  SELECT CASE WHEN e.mcp_server IS NULL OR e.mcp_server = '' THEN '' ELSE LOWER(TRIM(REPLACE(REGEXP_REPLACE(e.mcp_server,'^(mcp__codex_apps__|plugin:[^:]+:|claude\\\\.ai |claude_ai_|mcp__)',''),'-server',''))) END AS server,\n         e.tool, e.session, COALESCE(wi.canonical, e.contributor) AS person,\n         COALESCE(t.name,'(unassigned)') AS team, e.observed_at, DATE_SUB(DATE(FROM_UNIXTIME(e.observed_at/1e9)), INTERVAL WEEKDAY(FROM_UNIXTIME(e.observed_at/1e9)) DAY) AS w\n  FROM whodunit_events e LEFT JOIN whodunit_identities wi ON wi.alias = e.contributor\n    LEFT JOIN team_users tu ON tu.user_id = COALESCE(wi.canonical, e.contributor)\n    LEFT JOIN teams t ON t.id = tu.team_id\n  WHERE e.observed_at BETWEEN $__unixEpochFrom()*1000000000 AND $__unixEpochTo()*1000000000 AND e.tool <> '' AND ('${contributor:raw}' = '__all__' OR COALESCE(wi.canonical, e.contributor) = '${contributor:raw}')\n    AND ('${team:raw}' = '__all__' OR COALESCE(t.name,'(unassigned)') = '${team:raw}')),\ntop AS (SELECT server FROM c WHERE server <> '' GROUP BY server ORDER BY COUNT(*) DESC LIMIT 6)\nSELECT CAST(c.w AS DATETIME) AS time, c.server AS metric, COUNT(*) AS value\nFROM c JOIN top ON top.server = c.server GROUP BY c.w, c.server ORDER BY time, c.server"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "lineWidth": 2,
+            "showPoints": "never",
+            "spanNulls": true,
+            "lineInterpolation": "smooth"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "How many sessions reach for one, and how hard",
+      "description": "Two lines. Share of sessions each week that made at least one MCP call (breadth), and among those, the average number of MCP calls (depth). Breadth rising with depth flat is people trying it; both rising is people relying on it.",
+      "datasource": "${DS_WHODUNIT}",
+      "gridPos": {
+        "h": 9,
+        "w": 8,
+        "x": 16,
+        "y": 38
+      },
+      "id": 15,
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "datasource": "${DS_WHODUNIT}",
+          "rawSql": "\nWITH c AS (\n  SELECT CASE WHEN e.mcp_server IS NULL OR e.mcp_server = '' THEN '' ELSE LOWER(TRIM(REPLACE(REGEXP_REPLACE(e.mcp_server,'^(mcp__codex_apps__|plugin:[^:]+:|claude\\\\.ai |claude_ai_|mcp__)',''),'-server',''))) END AS server,\n         e.tool, e.session, COALESCE(wi.canonical, e.contributor) AS person,\n         COALESCE(t.name,'(unassigned)') AS team, e.observed_at, DATE_SUB(DATE(FROM_UNIXTIME(e.observed_at/1e9)), INTERVAL WEEKDAY(FROM_UNIXTIME(e.observed_at/1e9)) DAY) AS w\n  FROM whodunit_events e LEFT JOIN whodunit_identities wi ON wi.alias = e.contributor\n    LEFT JOIN team_users tu ON tu.user_id = COALESCE(wi.canonical, e.contributor)\n    LEFT JOIN teams t ON t.id = tu.team_id\n  WHERE e.observed_at BETWEEN $__unixEpochFrom()*1000000000 AND $__unixEpochTo()*1000000000 AND e.tool <> '' AND ('${contributor:raw}' = '__all__' OR COALESCE(wi.canonical, e.contributor) = '${contributor:raw}')\n    AND ('${team:raw}' = '__all__' OR COALESCE(t.name,'(unassigned)') = '${team:raw}')),\ns AS (SELECT w, session, SUM(server <> '') mcp FROM c GROUP BY w, session)\nSELECT CAST(w AS DATETIME) AS time,\n       ROUND(100*SUM(mcp > 0)/COUNT(*),0) AS `Sessions using an integration`,\n       ROUND(AVG(CASE WHEN mcp > 0 THEN mcp END),1) AS `MCP calls, when used`\nFROM s GROUP BY w ORDER BY time"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "lineWidth": 2,
+            "showPoints": "always",
+            "pointSize": 5,
+            "spanNulls": true
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Sessions using an integration"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percent"
+              },
+              {
+                "id": "min",
+                "value": 0
+              },
+              {
+                "id": "max",
+                "value": 100
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#9b7bd6"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "MCP calls, when used"
+            },
+            "properties": [
+              {
+                "id": "custom.axisPlacement",
+                "value": "right"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#e0a63a"
+                }
+              },
+              {
+                "id": "min",
+                "value": 0
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "type": "row",
+      "title": "Inside the servers",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 47
+      },
+      "id": 16,
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "title": "Tools called most, within MCP",
+      "description": "The individual tool behind each call, not just the server. This is the granularity that answers whether an integration is used for the thing it was bought for — a Jira MCP called only to read issues is a different purchase from one used to file and transition them.",
+      "type": "barchart",
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 0,
+        "y": 48
+      },
+      "datasource": "${DS_WHODUNIT}",
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "datasource": "${DS_WHODUNIT}",
+          "rawSql": "SELECT CONCAT(REPLACE(SUBSTRING_INDEX(e.tool, '__', -1), '_', ' '), ' (', COALESCE(NULLIF(LOWER(TRIM(REPLACE(REGEXP_REPLACE(e.mcp_server,'^(mcp__codex_apps__|plugin:[^:]+:|claude\\\\.ai |claude_ai_|mcp__)',''),'-server',''))),''), NULLIF(LOWER(TRIM(REPLACE(REGEXP_REPLACE(SUBSTRING_INDEX(SUBSTRING_INDEX(e.tool,'__',2),'__',-1),'^(mcp__codex_apps__|plugin:[^:]+:|claude\\\\.ai |claude_ai_|mcp__)',''),'-server',''))),''), 'unknown'), ')') AS `tool`,\n       COUNT(*) AS `calls`\nFROM whodunit_events e\nLEFT JOIN whodunit_identities wi ON wi.alias = e.contributor\nLEFT JOIN team_users tu ON tu.user_id = COALESCE(wi.canonical, e.contributor)\nLEFT JOIN teams t ON t.id = tu.team_id\nWHERE e.tool LIKE 'mcp\\\\_\\\\_%' AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  AND ('${team:raw}' = '__all__' OR COALESCE(t.name, '(unassigned)') = '${team:raw}')\n  AND ('${contributor:raw}' = '__all__'\n       OR COALESCE(wi.canonical, e.contributor) = '${contributor:raw}')\nGROUP BY 1\nORDER BY `calls` DESC\nLIMIT 12"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "continuous-BlPu"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "xField": "tool",
+        "orientation": "horizontal",
+        "showValue": "always"
+      },
+      "id": 17
+    },
+    {
+      "title": "Built-in tools, for comparison",
+      "description": "The tools agents reach for without an integration. Shown beside the MCP panels because the ratio is the useful part: MCP calls are a small share of a much larger volume of ordinary editing, and a dashboard showing only MCP would imply otherwise.",
+      "type": "barchart",
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 12,
+        "y": 48
+      },
+      "datasource": "${DS_WHODUNIT}",
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "datasource": "${DS_WHODUNIT}",
+          "rawSql": "SELECT e.tool AS `tool`, COUNT(*) AS `calls`\nFROM whodunit_events e\nLEFT JOIN whodunit_identities wi ON wi.alias = e.contributor\nLEFT JOIN team_users tu ON tu.user_id = COALESCE(wi.canonical, e.contributor)\nLEFT JOIN teams t ON t.id = tu.team_id\nWHERE e.tool NOT LIKE 'mcp\\\\_\\\\_%' AND e.tool <> '' AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  AND ('${team:raw}' = '__all__' OR COALESCE(t.name, '(unassigned)') = '${team:raw}')\n  AND ('${contributor:raw}' = '__all__'\n       OR COALESCE(wi.canonical, e.contributor) = '${contributor:raw}')\nGROUP BY e.tool\nORDER BY `calls` DESC\nLIMIT 10"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "continuous-GrYlRd"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "xField": "tool",
+        "orientation": "horizontal",
+        "showValue": "always"
+      },
+      "id": 18
+    },
+    {
+      "type": "text",
+      "title": "",
+      "gridPos": {
+        "h": 3,
+        "w": 24,
+        "x": 0,
+        "y": 57
+      },
+      "id": 19,
+      "options": {
+        "mode": "html",
+        "content": "<p style='margin:0'><b>Not on this page.</b> MCP calls carry no outcome, so there is no per-server failure or success rate — that would need the agent to report one. Server names are normalised across agents (a plugin prefix and a -server suffix are stripped), so the same integration reached through two agents counts once. A person on the not-started list may use integrations through an agent that does not record them; the list says who, not why.</p>"
+      }
+    }
+  ],
+  "editable": true,
+  "graphTooltip": 1,
+  "__inputs": [
+    {
+      "name": "DS_WHODUNIT",
+      "label": "MySQL",
+      "description": "The database holding the whodunit_* tables",
+      "type": "datasource",
+      "pluginId": "mysql",
+      "pluginName": "MySQL"
+    }
+  ]
+}

@@ -1,0 +1,1130 @@
+{
+  "uid": "whodunit-teams-board",
+  "title": "Team Adoption",
+  "tags": [
+    "whodunit"
+  ],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 0,
+  "refresh": "",
+  "time": {
+    "from": "now-90d",
+    "to": "now"
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "contributor",
+        "type": "query",
+        "datasource": {
+          "type": "mysql",
+          "uid": "${DS_WHODUNIT}"
+        },
+        "query": "SELECT DISTINCT COALESCE(NULLIF(contributor, ''), '(unattributed)') AS __text, COALESCE(NULLIF(contributor, ''), '') AS __value FROM whodunit_repos ORDER BY 1",
+        "includeAll": true,
+        "multi": false,
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "__all__"
+        },
+        "label": "Contributor",
+        "refresh": 1,
+        "allValue": "__all__"
+      },
+      {
+        "name": "team",
+        "type": "query",
+        "datasource": {
+          "type": "mysql",
+          "uid": "${DS_WHODUNIT}"
+        },
+        "query": "SELECT DISTINCT COALESCE(NULLIF(t.name, ''), '(unassigned)') AS __text, COALESCE(NULLIF(t.name, ''), '(unassigned)') AS __value FROM whodunit_repos r LEFT JOIN team_users tu ON tu.user_id = r.contributor LEFT JOIN teams t ON t.id = tu.team_id ORDER BY 1",
+        "includeAll": true,
+        "multi": false,
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "__all__"
+        },
+        "label": "Team",
+        "refresh": 1,
+        "allValue": "__all__"
+      },
+      {
+        "name": "evidence",
+        "type": "custom",
+        "label": "Evidence",
+        "query": "intersected \u2014 agent lines survived : intersected,observed \u2014 agent edited the files : observed,inferred \u2014 from surrounding evidence : inferred,declared \u2014 stated only : declared,undetermined \u2014 no evidence either way : undetermined",
+        "options": [],
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "__all__"
+        },
+        "includeAll": true,
+        "allValue": "__all__",
+        "multi": false,
+        "hide": 0
+      }
+    ]
+  },
+  "panels": [
+    {
+      "type": "text",
+      "title": "",
+      "gridPos": {
+        "h": 4,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 1,
+      "options": {
+        "mode": "html",
+        "content": "<h3 style='margin:0 0 6px'>Where each team is, how fast it got there, and who is still to start</h3><p style='margin:0'>Adoption is the share of a team's commits with verified AI assistance. Beyond the level: how quickly each team ramped, how evenly the tool is used inside the team, the people with no assisted commits yet, and whether adoption came with quality. A team is what DevLake's team tables or the whodunit config say it is; anyone unmapped is (unassigned), never dropped.</p>"
+      }
+    },
+    {
+      "type": "row",
+      "title": "Where each team is",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 4
+      },
+      "id": 2,
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "type": "state-timeline",
+      "title": "Adoption band, per team, per week",
+      "description": "One row per team, one cell per week, coloured by adoption band: under 25% red, 25\u201350 amber, 50\u201375 blue, 75+ green. The whole ramp on one strip. A week with under 3 commits is blank.",
+      "datasource": {
+        "type": "mysql",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 16,
+        "x": 0,
+        "y": 5
+      },
+      "id": 3,
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "datasource": {
+            "type": "mysql",
+            "uid": "${datasource}"
+          },
+          "rawSql": "\nWITH c AS (\n  SELECT c.status, c.purpose, COALESCE(wi.canonical, c.contributor) AS person,\n         COALESCE(t.name,'(unassigned)') AS team, c.committed_at,\n         DATE(FROM_UNIXTIME(c.committed_at/1e9)) AS d, DATE_SUB(DATE(FROM_UNIXTIME(c.committed_at/1e9)), INTERVAL WEEKDAY(FROM_UNIXTIME(c.committed_at/1e9)) DAY) AS w\n  FROM whodunit_commits c LEFT JOIN whodunit_identities wi ON wi.alias = c.contributor\n    LEFT JOIN team_users tu ON tu.user_id = COALESCE(wi.canonical, c.contributor)\n    LEFT JOIN teams t ON t.id = tu.team_id\n  WHERE c.committed_at BETWEEN $__unixEpochFrom()*1000000000 AND $__unixEpochTo()*1000000000 AND c.contributor IS NOT NULL AND c.status IN ('assisted','unassisted','undetermined','uninstrumented','unmatched','degraded') AND ('${evidence:raw}' = '__all__' OR c.method = '${evidence:raw}') AND ('${contributor:raw}' = '__all__' OR COALESCE(wi.canonical, c.contributor) = '${contributor:raw}')\n    AND ('${team:raw}' = '__all__' OR COALESCE(t.name,'(unassigned)') = '${team:raw}'))\nSELECT CAST(w AS DATETIME) AS time, team AS metric,\n       ROUND(100*SUM(status='assisted')/COUNT(*),0) AS value\nFROM c GROUP BY w, team HAVING COUNT(*) >= 3 ORDER BY time, team"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 0,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#d64545",
+                "value": null
+              },
+              {
+                "color": "#e0a63a",
+                "value": 25
+              },
+              {
+                "color": "#5b8def",
+                "value": 50
+              },
+              {
+                "color": "#4caf78",
+                "value": 75
+              }
+            ]
+          },
+          "custom": {
+            "fillOpacity": 85,
+            "lineWidth": 0
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "showValue": "auto",
+        "rowHeight": 0.8,
+        "mergeValues": false,
+        "alignValue": "center",
+        "legend": {
+          "showLegend": false
+        },
+        "tooltip": {
+          "mode": "single"
+        }
+      }
+    },
+    {
+      "type": "bargauge",
+      "title": "Adoption leaderboard",
+      "description": "Teams ranked by assisted share of commits in range. Colour is the same band scale as the strip.",
+      "datasource": {
+        "type": "mysql",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 8,
+        "x": 16,
+        "y": 5
+      },
+      "id": 4,
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "datasource": {
+            "type": "mysql",
+            "uid": "${datasource}"
+          },
+          "rawSql": "\nWITH c AS (\n  SELECT c.status, c.purpose, COALESCE(wi.canonical, c.contributor) AS person,\n         COALESCE(t.name,'(unassigned)') AS team, c.committed_at,\n         DATE(FROM_UNIXTIME(c.committed_at/1e9)) AS d, DATE_SUB(DATE(FROM_UNIXTIME(c.committed_at/1e9)), INTERVAL WEEKDAY(FROM_UNIXTIME(c.committed_at/1e9)) DAY) AS w\n  FROM whodunit_commits c LEFT JOIN whodunit_identities wi ON wi.alias = c.contributor\n    LEFT JOIN team_users tu ON tu.user_id = COALESCE(wi.canonical, c.contributor)\n    LEFT JOIN teams t ON t.id = tu.team_id\n  WHERE c.committed_at BETWEEN $__unixEpochFrom()*1000000000 AND $__unixEpochTo()*1000000000 AND c.contributor IS NOT NULL AND c.status IN ('assisted','unassisted','undetermined','uninstrumented','unmatched','degraded') AND ('${evidence:raw}' = '__all__' OR c.method = '${evidence:raw}') AND ('${contributor:raw}' = '__all__' OR COALESCE(wi.canonical, c.contributor) = '${contributor:raw}')\n    AND ('${team:raw}' = '__all__' OR COALESCE(t.name,'(unassigned)') = '${team:raw}'))\nSELECT team AS metric, ROUND(100*SUM(status='assisted')/COUNT(*),0) AS value\nFROM c GROUP BY team ORDER BY value DESC"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "decimals": 0,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#d64545",
+                "value": null
+              },
+              {
+                "color": "#e0a63a",
+                "value": 25
+              },
+              {
+                "color": "#5b8def",
+                "value": 50
+              },
+              {
+                "color": "#4caf78",
+                "value": 75
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/^value$/",
+          "values": true
+        },
+        "orientation": "horizontal",
+        "displayMode": "gradient",
+        "showUnfilled": true,
+        "valueMode": "color",
+        "namePlacement": "top",
+        "sizing": "auto"
+      }
+    },
+    {
+      "type": "row",
+      "title": "How fast",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 14
+      },
+      "id": 5,
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "type": "table",
+      "title": "Weeks from first assisted commit to crossing 50%",
+      "description": "Adoption velocity per team: the week a team's first assisted commit landed, the week its weekly share first reached half, and the gap. A team that has not crossed yet shows a blank \u2014 not yet, not never.",
+      "datasource": {
+        "type": "mysql",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 10,
+        "x": 0,
+        "y": 15
+      },
+      "id": 6,
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "datasource": {
+            "type": "mysql",
+            "uid": "${datasource}"
+          },
+          "rawSql": "\nWITH c AS (\n  SELECT c.status, c.purpose, COALESCE(wi.canonical, c.contributor) AS person,\n         COALESCE(t.name,'(unassigned)') AS team, c.committed_at,\n         DATE(FROM_UNIXTIME(c.committed_at/1e9)) AS d, DATE_SUB(DATE(FROM_UNIXTIME(c.committed_at/1e9)), INTERVAL WEEKDAY(FROM_UNIXTIME(c.committed_at/1e9)) DAY) AS w\n  FROM whodunit_commits c LEFT JOIN whodunit_identities wi ON wi.alias = c.contributor\n    LEFT JOIN team_users tu ON tu.user_id = COALESCE(wi.canonical, c.contributor)\n    LEFT JOIN teams t ON t.id = tu.team_id\n  WHERE c.committed_at BETWEEN $__unixEpochFrom()*1000000000 AND $__unixEpochTo()*1000000000 AND c.contributor IS NOT NULL AND c.status IN ('assisted','unassisted','undetermined','uninstrumented','unmatched','degraded') AND ('${evidence:raw}' = '__all__' OR c.method = '${evidence:raw}') AND ('${contributor:raw}' = '__all__' OR COALESCE(wi.canonical, c.contributor) = '${contributor:raw}')\n    AND ('${team:raw}' = '__all__' OR COALESCE(t.name,'(unassigned)') = '${team:raw}')),\nwk AS (SELECT team, w, SUM(status='assisted')/COUNT(*) share, SUM(status='assisted') a\n       FROM c GROUP BY team, w HAVING COUNT(*) >= 3),\nf AS (SELECT team, MIN(CASE WHEN a > 0 THEN w END) started,\n                    MIN(CASE WHEN share >= 0.5 THEN w END) crossed FROM wk GROUP BY team)\nSELECT team AS `Team`,\n       DATE_FORMAT(started,'%b %e') AS `First assisted week`,\n       DATE_FORMAT(crossed,'%b %e') AS `Crossed 50%`,\n       CASE WHEN crossed IS NOT NULL THEN TIMESTAMPDIFF(WEEK, started, crossed) END AS `Weeks to 50%`\nFROM f WHERE started IS NOT NULL ORDER BY `Weeks to 50%` IS NULL, `Weeks to 50%`"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "center"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Weeks to 50%"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background",
+                  "mode": "gradient"
+                }
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "continuous-GrYlRd"
+                }
+              },
+              {
+                "id": "min",
+                "value": 0
+              },
+              {
+                "id": "max",
+                "value": 8
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "special",
+                    "options": {
+                      "match": "null",
+                      "result": {
+                        "text": "not yet",
+                        "color": "#3a3f4a",
+                        "index": 0
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Team"
+            },
+            "properties": [
+              {
+                "id": "custom.align",
+                "value": "left"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Crossed 50%"
+            },
+            "properties": [
+              {
+                "id": "noValue",
+                "value": "not yet"
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "cellHeight": "md"
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Adoption curves, one line per team",
+      "description": "Weekly assisted share per team on a shared axis, so the shapes compare directly: who started first, who ramped fastest, who has plateaued. Weeks with under 3 commits are gaps.",
+      "datasource": {
+        "type": "mysql",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 14,
+        "x": 10,
+        "y": 15
+      },
+      "id": 7,
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "datasource": {
+            "type": "mysql",
+            "uid": "${datasource}"
+          },
+          "rawSql": "\nWITH c AS (\n  SELECT c.status, c.purpose, COALESCE(wi.canonical, c.contributor) AS person,\n         COALESCE(t.name,'(unassigned)') AS team, c.committed_at,\n         DATE(FROM_UNIXTIME(c.committed_at/1e9)) AS d, DATE_SUB(DATE(FROM_UNIXTIME(c.committed_at/1e9)), INTERVAL WEEKDAY(FROM_UNIXTIME(c.committed_at/1e9)) DAY) AS w\n  FROM whodunit_commits c LEFT JOIN whodunit_identities wi ON wi.alias = c.contributor\n    LEFT JOIN team_users tu ON tu.user_id = COALESCE(wi.canonical, c.contributor)\n    LEFT JOIN teams t ON t.id = tu.team_id\n  WHERE c.committed_at BETWEEN $__unixEpochFrom()*1000000000 AND $__unixEpochTo()*1000000000 AND c.contributor IS NOT NULL AND c.status IN ('assisted','unassisted','undetermined','uninstrumented','unmatched','degraded') AND ('${evidence:raw}' = '__all__' OR c.method = '${evidence:raw}') AND ('${contributor:raw}' = '__all__' OR COALESCE(wi.canonical, c.contributor) = '${contributor:raw}')\n    AND ('${team:raw}' = '__all__' OR COALESCE(t.name,'(unassigned)') = '${team:raw}'))\nSELECT CAST(w AS DATETIME) AS time, team AS metric,\n       ROUND(100*SUM(status='assisted')/COUNT(*),0) AS value\nFROM c GROUP BY w, team HAVING COUNT(*) >= 3 ORDER BY time, team"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "lineWidth": 2,
+            "showPoints": "always",
+            "pointSize": 5,
+            "spanNulls": true,
+            "lineInterpolation": "smooth"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "type": "row",
+      "title": "How evenly",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 23
+      },
+      "id": 8,
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "type": "barchart",
+      "title": "Spread inside each team \u2014 lowest, average, highest member",
+      "description": "For each team: the member with the lowest assisted share, the team average, and the highest. A wide spread is a different problem from a low average \u2014 one is a few people not started, the other is everyone half in. Members with under 5 commits are excluded.",
+      "datasource": {
+        "type": "mysql",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 0,
+        "y": 24
+      },
+      "id": 9,
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "datasource": {
+            "type": "mysql",
+            "uid": "${datasource}"
+          },
+          "rawSql": "\nWITH c AS (\n  SELECT c.status, c.purpose, COALESCE(wi.canonical, c.contributor) AS person,\n         COALESCE(t.name,'(unassigned)') AS team, c.committed_at,\n         DATE(FROM_UNIXTIME(c.committed_at/1e9)) AS d, DATE_SUB(DATE(FROM_UNIXTIME(c.committed_at/1e9)), INTERVAL WEEKDAY(FROM_UNIXTIME(c.committed_at/1e9)) DAY) AS w\n  FROM whodunit_commits c LEFT JOIN whodunit_identities wi ON wi.alias = c.contributor\n    LEFT JOIN team_users tu ON tu.user_id = COALESCE(wi.canonical, c.contributor)\n    LEFT JOIN teams t ON t.id = tu.team_id\n  WHERE c.committed_at BETWEEN $__unixEpochFrom()*1000000000 AND $__unixEpochTo()*1000000000 AND c.contributor IS NOT NULL AND c.status IN ('assisted','unassisted','undetermined','uninstrumented','unmatched','degraded') AND ('${evidence:raw}' = '__all__' OR c.method = '${evidence:raw}') AND ('${contributor:raw}' = '__all__' OR COALESCE(wi.canonical, c.contributor) = '${contributor:raw}')\n    AND ('${team:raw}' = '__all__' OR COALESCE(t.name,'(unassigned)') = '${team:raw}')),\npp AS (SELECT team, person, 100*SUM(status='assisted')/COUNT(*) share\n       FROM c GROUP BY team, person HAVING COUNT(*) >= 5)\nSELECT team AS metric, ROUND(MIN(share),0) AS `Lowest member`,\n       ROUND(AVG(share),0) AS `Team average`, ROUND(MAX(share),0) AS `Highest member`\nFROM pp GROUP BY team ORDER BY `Team average` DESC"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "decimals": 0,
+          "custom": {
+            "axisLabel": ""
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Lowest member"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#d64545"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Team average"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#5b8def"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Highest member"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#4caf78"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "xField": "metric",
+        "orientation": "vertical",
+        "showValue": "always",
+        "text": {
+          "valueSize": 11
+        },
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "barWidth": 0.8,
+        "groupWidth": 0.75
+      }
+    },
+    {
+      "type": "table",
+      "title": "Not started yet",
+      "description": "People with commits in range and none of them AI-assisted, most active first. The list to act on. It says who, not why: a repository without the tool installed, a machine it cannot see, and work chosen to do by hand all look the same here.",
+      "datasource": {
+        "type": "mysql",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 12,
+        "y": 24
+      },
+      "id": 10,
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "datasource": {
+            "type": "mysql",
+            "uid": "${datasource}"
+          },
+          "rawSql": "\nWITH c AS (\n  SELECT c.status, c.purpose, COALESCE(wi.canonical, c.contributor) AS person,\n         COALESCE(t.name,'(unassigned)') AS team, c.committed_at,\n         DATE(FROM_UNIXTIME(c.committed_at/1e9)) AS d, DATE_SUB(DATE(FROM_UNIXTIME(c.committed_at/1e9)), INTERVAL WEEKDAY(FROM_UNIXTIME(c.committed_at/1e9)) DAY) AS w\n  FROM whodunit_commits c LEFT JOIN whodunit_identities wi ON wi.alias = c.contributor\n    LEFT JOIN team_users tu ON tu.user_id = COALESCE(wi.canonical, c.contributor)\n    LEFT JOIN teams t ON t.id = tu.team_id\n  WHERE c.committed_at BETWEEN $__unixEpochFrom()*1000000000 AND $__unixEpochTo()*1000000000 AND c.contributor IS NOT NULL AND c.status IN ('assisted','unassisted','undetermined','uninstrumented','unmatched','degraded') AND ('${evidence:raw}' = '__all__' OR c.method = '${evidence:raw}') AND ('${contributor:raw}' = '__all__' OR COALESCE(wi.canonical, c.contributor) = '${contributor:raw}')\n    AND ('${team:raw}' = '__all__' OR COALESCE(t.name,'(unassigned)') = '${team:raw}'))\nSELECT SUBSTRING_INDEX(person,'@',1) AS `Person`, team AS `Team`,\n       COUNT(*) AS `Commits`, COUNT(DISTINCT d) AS `Active days`,\n       MAX(d) AS `Last commit`\nFROM c GROUP BY person, team\nHAVING SUM(status='assisted') = 0\nORDER BY `Commits` DESC"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "left"
+          },
+          "noValue": "everyone has started"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Commits"
+            },
+            "properties": [
+              {
+                "id": "custom.align",
+                "value": "right"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Active days"
+            },
+            "properties": [
+              {
+                "id": "custom.align",
+                "value": "right"
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "cellHeight": "sm",
+        "sortBy": [
+          {
+            "displayName": "Commits",
+            "desc": true
+          }
+        ]
+      }
+    },
+    {
+      "type": "row",
+      "title": "At what quality",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 33
+      },
+      "id": 11,
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "type": "barchart",
+      "title": "Acceptance and rework, per team",
+      "description": "Acceptance: share of the agent's edits the person kept, from tool-call outcomes. Rework: share of a team's assisted commits that are fixes. High adoption with falling acceptance or rising rework is the pattern to catch early. Rework is a fix rate, not a defect rate.",
+      "datasource": {
+        "type": "mysql",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 0,
+        "y": 34
+      },
+      "id": 12,
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "datasource": {
+            "type": "mysql",
+            "uid": "${datasource}"
+          },
+          "rawSql": "\nWITH c AS (\n  SELECT c.status, c.purpose, COALESCE(wi.canonical, c.contributor) AS person,\n         COALESCE(t.name,'(unassigned)') AS team, c.committed_at,\n         DATE(FROM_UNIXTIME(c.committed_at/1e9)) AS d, DATE_SUB(DATE(FROM_UNIXTIME(c.committed_at/1e9)), INTERVAL WEEKDAY(FROM_UNIXTIME(c.committed_at/1e9)) DAY) AS w\n  FROM whodunit_commits c LEFT JOIN whodunit_identities wi ON wi.alias = c.contributor\n    LEFT JOIN team_users tu ON tu.user_id = COALESCE(wi.canonical, c.contributor)\n    LEFT JOIN teams t ON t.id = tu.team_id\n  WHERE c.committed_at BETWEEN $__unixEpochFrom()*1000000000 AND $__unixEpochTo()*1000000000 AND c.contributor IS NOT NULL AND c.status IN ('assisted','unassisted','undetermined','uninstrumented','unmatched','degraded') AND ('${evidence:raw}' = '__all__' OR c.method = '${evidence:raw}') AND ('${contributor:raw}' = '__all__' OR COALESCE(wi.canonical, c.contributor) = '${contributor:raw}')\n    AND ('${team:raw}' = '__all__' OR COALESCE(t.name,'(unassigned)') = '${team:raw}')),\nrw AS (SELECT team, ROUND(100*SUM(purpose='fix')/COUNT(*),1) rework FROM c\n       WHERE CASE status WHEN 'assisted' THEN 1 END = 1 GROUP BY team),\nac AS (\n  SELECT COALESCE(t.name,'(unassigned)') team,\n         ROUND(100*SUM(e.outcome='accepted')/NULLIF(SUM(e.outcome IN ('accepted','rejected','failed')),0),1) acc\n  FROM whodunit_events e LEFT JOIN whodunit_identities wi ON wi.alias = e.contributor\n    LEFT JOIN team_users tu ON tu.user_id = COALESCE(wi.canonical, e.contributor)\n    LEFT JOIN teams t ON t.id = tu.team_id\n  WHERE e.observed_at BETWEEN $__unixEpochFrom()*1000000000 AND $__unixEpochTo()*1000000000\n    AND e.contributor IS NOT NULL AND ('${contributor:raw}' = '__all__' OR COALESCE(wi.canonical, e.contributor) = '${contributor:raw}')\n    AND ('${team:raw}' = '__all__' OR COALESCE(t.name,'(unassigned)') = '${team:raw}')\n  GROUP BY team)\nSELECT rw.team AS metric, ac.acc AS `Acceptance %`, rw.rework AS `Rework % (assisted)`\nFROM rw LEFT JOIN ac ON ac.team = rw.team ORDER BY rw.team"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "decimals": 0,
+          "custom": {
+            "axisLabel": ""
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Acceptance %"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#4caf78"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Rework % (assisted)"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#e0a63a"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "xField": "metric",
+        "orientation": "vertical",
+        "showValue": "always",
+        "text": {
+          "valueSize": 11
+        },
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "barWidth": 0.7,
+        "groupWidth": 0.7
+      }
+    },
+    {
+      "type": "xychart",
+      "title": "Adoption against acceptance, one dot per team",
+      "description": "Across: team adoption. Up: share of agent edits kept. Top-right is adopting and keeping what it gets; bottom-right is adopting and discarding \u2014 the team to look at. A correlation across four teams, not a law.",
+      "datasource": {
+        "type": "mysql",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 12,
+        "y": 34
+      },
+      "id": 13,
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "datasource": {
+            "type": "mysql",
+            "uid": "${datasource}"
+          },
+          "rawSql": "\nWITH c AS (\n  SELECT c.status, c.purpose, COALESCE(wi.canonical, c.contributor) AS person,\n         COALESCE(t.name,'(unassigned)') AS team, c.committed_at,\n         DATE(FROM_UNIXTIME(c.committed_at/1e9)) AS d, DATE_SUB(DATE(FROM_UNIXTIME(c.committed_at/1e9)), INTERVAL WEEKDAY(FROM_UNIXTIME(c.committed_at/1e9)) DAY) AS w\n  FROM whodunit_commits c LEFT JOIN whodunit_identities wi ON wi.alias = c.contributor\n    LEFT JOIN team_users tu ON tu.user_id = COALESCE(wi.canonical, c.contributor)\n    LEFT JOIN teams t ON t.id = tu.team_id\n  WHERE c.committed_at BETWEEN $__unixEpochFrom()*1000000000 AND $__unixEpochTo()*1000000000 AND c.contributor IS NOT NULL AND c.status IN ('assisted','unassisted','undetermined','uninstrumented','unmatched','degraded') AND ('${evidence:raw}' = '__all__' OR c.method = '${evidence:raw}') AND ('${contributor:raw}' = '__all__' OR COALESCE(wi.canonical, c.contributor) = '${contributor:raw}')\n    AND ('${team:raw}' = '__all__' OR COALESCE(t.name,'(unassigned)') = '${team:raw}')),\nad AS (SELECT team, 100*SUM(status='assisted')/COUNT(*) adoption, COUNT(DISTINCT person) people FROM c GROUP BY team),\nac AS (\n  SELECT COALESCE(t.name,'(unassigned)') team,\n         100*SUM(e.outcome='accepted')/NULLIF(SUM(e.outcome IN ('accepted','rejected','failed')),0) acc\n  FROM whodunit_events e LEFT JOIN whodunit_identities wi ON wi.alias = e.contributor\n    LEFT JOIN team_users tu ON tu.user_id = COALESCE(wi.canonical, e.contributor)\n    LEFT JOIN teams t ON t.id = tu.team_id\n  WHERE e.observed_at BETWEEN $__unixEpochFrom()*1000000000 AND $__unixEpochTo()*1000000000\n    AND e.contributor IS NOT NULL AND ('${contributor:raw}' = '__all__' OR COALESCE(wi.canonical, e.contributor) = '${contributor:raw}')\n    AND ('${team:raw}' = '__all__' OR COALESCE(t.name,'(unassigned)') = '${team:raw}')\n  GROUP BY team)\nSELECT ROUND(ad.adoption,0) AS `adoption %`, ROUND(ac.acc,1) AS `acceptance %`, ad.team AS team\nFROM ad JOIN ac ON ac.team = ad.team"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "pointSize": {
+              "fixed": 14
+            },
+            "fillOpacity": 70,
+            "show": "points"
+          },
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#5b8def"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "adoption %"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percent"
+              },
+              {
+                "id": "min",
+                "value": 0
+              },
+              {
+                "id": "max",
+                "value": 100
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "acceptance %"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percent"
+              },
+              {
+                "id": "min",
+                "value": 0
+              },
+              {
+                "id": "max",
+                "value": 100
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "mapping": "auto",
+        "series": [],
+        "legend": {
+          "showLegend": false
+        },
+        "tooltip": {
+          "mode": "single"
+        }
+      },
+      "pluginVersion": "11.6.2"
+    },
+    {
+      "type": "row",
+      "title": "What each team uses it for",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 43
+      },
+      "id": 14,
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "type": "table",
+      "title": "Assisted share by team and work type",
+      "description": "Assisted share of each team's commits, split by purpose. Green is high, red is low, blank is under 5 commits in that cell. Shows what each team reaches for the agent to do \u2014 tests and docs first is a common early pattern; features first is a different culture.",
+      "datasource": {
+        "type": "mysql",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 44
+      },
+      "id": 15,
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "datasource": {
+            "type": "mysql",
+            "uid": "${datasource}"
+          },
+          "rawSql": "\nWITH c AS (\n  SELECT c.status, c.purpose, COALESCE(wi.canonical, c.contributor) AS person,\n         COALESCE(t.name,'(unassigned)') AS team, c.committed_at,\n         DATE(FROM_UNIXTIME(c.committed_at/1e9)) AS d, DATE_SUB(DATE(FROM_UNIXTIME(c.committed_at/1e9)), INTERVAL WEEKDAY(FROM_UNIXTIME(c.committed_at/1e9)) DAY) AS w\n  FROM whodunit_commits c LEFT JOIN whodunit_identities wi ON wi.alias = c.contributor\n    LEFT JOIN team_users tu ON tu.user_id = COALESCE(wi.canonical, c.contributor)\n    LEFT JOIN teams t ON t.id = tu.team_id\n  WHERE c.committed_at BETWEEN $__unixEpochFrom()*1000000000 AND $__unixEpochTo()*1000000000 AND c.contributor IS NOT NULL AND c.status IN ('assisted','unassisted','undetermined','uninstrumented','unmatched','degraded') AND ('${evidence:raw}' = '__all__' OR c.method = '${evidence:raw}') AND ('${contributor:raw}' = '__all__' OR COALESCE(wi.canonical, c.contributor) = '${contributor:raw}')\n    AND ('${team:raw}' = '__all__' OR COALESCE(t.name,'(unassigned)') = '${team:raw}')),\ncell AS (SELECT team, purpose, 100*SUM(status='assisted')/COUNT(*) share, COUNT(*) n\n         FROM c WHERE purpose IN ('feature','fix','refactor','test','docs') GROUP BY team, purpose)\nSELECT team AS `Team`,\n  MAX(CASE WHEN purpose='feature'  AND n>=5 THEN ROUND(share) END) AS `feature`,\n  MAX(CASE WHEN purpose='fix'      AND n>=5 THEN ROUND(share) END) AS `fix`,\n  MAX(CASE WHEN purpose='refactor' AND n>=5 THEN ROUND(share) END) AS `refactor`,\n  MAX(CASE WHEN purpose='test'     AND n>=5 THEN ROUND(share) END) AS `test`,\n  MAX(CASE WHEN purpose='docs'     AND n>=5 THEN ROUND(share) END) AS `docs`\nFROM cell GROUP BY team ORDER BY team"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 0,
+          "noValue": "\u2014",
+          "custom": {
+            "align": "center",
+            "cellOptions": {
+              "type": "color-background",
+              "mode": "gradient"
+            }
+          },
+          "color": {
+            "mode": "continuous-RdYlGr"
+          },
+          "min": 0,
+          "max": 100
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Team"
+            },
+            "properties": [
+              {
+                "id": "custom.align",
+                "value": "left"
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "auto"
+                }
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "text"
+                }
+              },
+              {
+                "id": "custom.width",
+                "value": 90
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "^(feature|fix|refactor|test|docs)$"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 82
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "cellHeight": "lg"
+      }
+    },
+    {
+      "title": "Agent mix by team",
+      "description": "Which assistants each team actually runs, counted from agent edits. Teams standardising on different tools is worth knowing before a licence decision, and it explains evidence-strength differences above \u2014 not every agent leaves a transcript to match against.",
+      "type": "barchart",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 44
+      },
+      "datasource": {
+        "type": "mysql",
+        "uid": "${datasource}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "datasource": {
+            "type": "mysql",
+            "uid": "${datasource}"
+          },
+          "rawSql": "SELECT COALESCE(t.name, '(unassigned)') AS `team`,\n       SUM(e.agent = 'claude-code') AS `claude-code`,\n       SUM(e.agent = 'codex')       AS `codex`,\n       SUM(e.agent = 'agy')         AS `agy`\nFROM whodunit_events e\nLEFT JOIN whodunit_identities wi ON wi.alias = e.contributor\nLEFT JOIN team_users tu ON tu.user_id = COALESCE(wi.canonical, e.contributor)\nLEFT JOIN teams t ON t.id = tu.team_id\nWHERE e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  AND ('${team:raw}' = '__all__' OR COALESCE(t.name, '(unassigned)') = '${team:raw}')\n  AND ('${contributor:raw}' = '__all__'\n       OR COALESCE(wi.canonical, e.contributor) = '${contributor:raw}')\nGROUP BY COALESCE(t.name, '(unassigned)')\nORDER BY `claude-code` DESC"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {
+        "xField": "team",
+        "stacking": "normal"
+      },
+      "id": 16
+    },
+    {
+      "title": "How each team works with the agent",
+      "description": "Sessions grouped by how many tool calls they made: a conversation, a working session, or a task handed over. Says how the tooling is used, not how well \u2014 a team weighted to chat may be doing design work that suits it.",
+      "type": "barchart",
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 0,
+        "y": 52
+      },
+      "datasource": {
+        "type": "mysql",
+        "uid": "${datasource}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "datasource": {
+            "type": "mysql",
+            "uid": "${datasource}"
+          },
+          "rawSql": "SELECT COALESCE(t.name, '(unassigned)') AS `team`,\n       SUM(s.tool_calls < 10) AS `chat \u00b7 under 10 calls`,\n       SUM(s.tool_calls >= 10 AND s.tool_calls < 50) AS `working \u00b7 10-49`,\n       SUM(s.tool_calls >= 50) AS `agentic \u00b7 50+`\nFROM whodunit_sessions s\nLEFT JOIN whodunit_identities wi ON wi.alias = s.contributor\nLEFT JOIN team_users tu ON tu.user_id = COALESCE(wi.canonical, s.contributor)\nLEFT JOIN teams t ON t.id = tu.team_id\nWHERE s.first_seen BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  AND ('${team:raw}' = '__all__' OR COALESCE(t.name, '(unassigned)') = '${team:raw}')\n  AND ('${contributor:raw}' = '__all__'\n       OR COALESCE(wi.canonical, s.contributor) = '${contributor:raw}')\nGROUP BY COALESCE(t.name, '(unassigned)')\nORDER BY `team`"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "xField": "team",
+        "stacking": "normal",
+        "showValue": "always",
+        "text": {
+          "valueSize": 11
+        }
+      },
+      "id": 17
+    },
+    {
+      "title": "Which model each team runs",
+      "description": "Sessions per model. Only agents that report one appear \u2014 agy reports no model at all, so its sessions are absent here rather than bucketed as unknown. A team on a cheaper model at similar output is a finding worth checking.",
+      "type": "barchart",
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 6,
+        "y": 52
+      },
+      "datasource": {
+        "type": "mysql",
+        "uid": "${datasource}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "datasource": {
+            "type": "mysql",
+            "uid": "${datasource}"
+          },
+          "rawSql": "SELECT COALESCE(t.name, '(unassigned)') AS `team`,\n       SUM(s.model = 'claude-opus-4')   AS `claude-opus-4`,\n       SUM(s.model = 'claude-sonnet-4') AS `claude-sonnet-4`,\n       SUM(s.model = 'gpt-5-codex')     AS `gpt-5-codex`\nFROM whodunit_sessions s\nLEFT JOIN whodunit_identities wi ON wi.alias = s.contributor\nLEFT JOIN team_users tu ON tu.user_id = COALESCE(wi.canonical, s.contributor)\nLEFT JOIN teams t ON t.id = tu.team_id\nWHERE s.model IS NOT NULL AND s.first_seen BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  AND ('${team:raw}' = '__all__' OR COALESCE(t.name, '(unassigned)') = '${team:raw}')\n  AND ('${contributor:raw}' = '__all__'\n       OR COALESCE(wi.canonical, s.contributor) = '${contributor:raw}')\nGROUP BY COALESCE(t.name, '(unassigned)')\nORDER BY `team`"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "xField": "team",
+        "stacking": "normal",
+        "showValue": "always",
+        "text": {
+          "valueSize": 11
+        }
+      },
+      "id": 18
+    },
+    {
+      "title": "How much autonomy each team grants",
+      "description": "The permission mode sessions ran under. `plan` reviews before acting, `acceptEdits` applies edits without asking, `bypassPermissions` asks nothing. A team's position here is a trust decision they have made, and it explains throughput differences elsewhere.",
+      "type": "barchart",
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 12,
+        "y": 52
+      },
+      "datasource": {
+        "type": "mysql",
+        "uid": "${datasource}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "datasource": {
+            "type": "mysql",
+            "uid": "${datasource}"
+          },
+          "rawSql": "SELECT COALESCE(t.name, '(unassigned)') AS `team`,\n       SUM(s.permission_mode = 'plan')              AS `plan`,\n       SUM(s.permission_mode = 'default')           AS `default`,\n       SUM(s.permission_mode = 'acceptEdits')       AS `acceptEdits`,\n       SUM(s.permission_mode = 'bypassPermissions') AS `bypassPermissions`\nFROM whodunit_sessions s\nLEFT JOIN whodunit_identities wi ON wi.alias = s.contributor\nLEFT JOIN team_users tu ON tu.user_id = COALESCE(wi.canonical, s.contributor)\nLEFT JOIN teams t ON t.id = tu.team_id\nWHERE s.permission_mode IS NOT NULL AND s.first_seen BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  AND ('${team:raw}' = '__all__' OR COALESCE(t.name, '(unassigned)') = '${team:raw}')\n  AND ('${contributor:raw}' = '__all__'\n       OR COALESCE(wi.canonical, s.contributor) = '${contributor:raw}')\nGROUP BY COALESCE(t.name, '(unassigned)')\nORDER BY `team`"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "xField": "team",
+        "stacking": "normal",
+        "showValue": "always",
+        "text": {
+          "valueSize": 11
+        }
+      },
+      "id": 19
+    },
+    {
+      "title": "Reasoning effort, where the agent reports it",
+      "description": "Effort per team, from the agents that report it \u2014 Codex alone does, so this panel covers a subset by design and is not a gap. Higher effort spends more tokens on the same task, which is the lever behind cost differences between teams running the same work.",
+      "type": "barchart",
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 18,
+        "y": 52
+      },
+      "datasource": {
+        "type": "mysql",
+        "uid": "${datasource}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "datasource": {
+            "type": "mysql",
+            "uid": "${datasource}"
+          },
+          "rawSql": "SELECT COALESCE(t.name, '(unassigned)') AS `team`,\n       SUM(s.effort = 'low')    AS `low`,\n       SUM(s.effort = 'medium') AS `medium`,\n       SUM(s.effort = 'high')   AS `high`\nFROM whodunit_sessions s\nLEFT JOIN whodunit_identities wi ON wi.alias = s.contributor\nLEFT JOIN team_users tu ON tu.user_id = COALESCE(wi.canonical, s.contributor)\nLEFT JOIN teams t ON t.id = tu.team_id\nWHERE s.effort IS NOT NULL AND s.first_seen BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  AND ('${team:raw}' = '__all__' OR COALESCE(t.name, '(unassigned)') = '${team:raw}')\n  AND ('${contributor:raw}' = '__all__'\n       OR COALESCE(wi.canonical, s.contributor) = '${contributor:raw}')\nGROUP BY COALESCE(t.name, '(unassigned)')\nORDER BY `team`"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "xField": "team",
+        "stacking": "normal",
+        "showValue": "always",
+        "text": {
+          "valueSize": 11
+        }
+      },
+      "id": 20
+    },
+    {
+      "type": "text",
+      "title": "",
+      "gridPos": {
+        "h": 3,
+        "w": 24,
+        "x": 0,
+        "y": 60
+      },
+      "id": 21,
+      "options": {
+        "mode": "html",
+        "content": "<p style='margin:0'><b>Read with care.</b> A person with no assisted commits may be working in a repository the tool is not installed in, on a machine it cannot see, or on work they chose to do by hand \u2014 the list says who, not why. Weekly cells need 3 commits and per-person figures need 5; smaller are withheld, not zero. Acceptance and rework are quality signals, not judgements of people.</p>"
+      }
+    }
+  ],
+  "editable": true,
+  "graphTooltip": 1
+}

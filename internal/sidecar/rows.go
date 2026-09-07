@@ -3,6 +3,7 @@ package sidecar
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"sort"
 	"strconv"
 	"time"
 
@@ -20,10 +21,19 @@ type RepoRow struct {
 	SyncedAt    time.Time
 }
 
+// IdentityRow is one row of whodunit_identities: an alias and the address
+// it resolves to.
+type IdentityRow struct {
+	Alias     string
+	Canonical string
+	SyncedAt  time.Time
+}
+
 // CommitRow is one row of whodunit_commits — the dashboard grain.
 type CommitRow struct {
 	CommitSHA     string
 	RepoID        string
+	Contributor   string
 	CommittedAt   time.Time
 	Status        string
 	ChangedBy     string
@@ -49,6 +59,7 @@ type EventRow struct {
 	EventID string
 
 	RepoID       string
+	Contributor  string
 	ObservedAt   time.Time
 	Agent        string
 	AgentVersion string
@@ -79,6 +90,7 @@ type EventRow struct {
 // SessionRow is one row of whodunit_sessions (NAV-55).
 type SessionRow struct {
 	RepoID        string
+	Contributor   string
 	Session       string
 	Agent         string
 	AgentVersion  string
@@ -189,6 +201,12 @@ type Payload struct {
 	Lines    []LineRow
 	Sessions []SessionRow
 
+	// Identities maps every alias onto the person who owns it, so a
+	// dashboard filtered to one person includes every address they commit
+	// from. Empty when nobody has configured any, which is the common
+	// case — and the feature is inert until then.
+	Identities []IdentityRow
+
 	// Baseline is the repository's pre-adoption snapshot, when one was
 	// captured. Absent for a repository instrumented without one.
 	Baseline *BaselineRow
@@ -200,12 +218,13 @@ type Payload struct {
 // status=undetermined. Dropping it would make coverage uncomputable —
 // the denominator is every commit, not every commit we happened to
 // understand (NAV-21).
-func CommitRowsFrom(commits []report.Commit, repoID string, syncedAt time.Time) []CommitRow {
+func CommitRowsFrom(commits []report.Commit, repoID, contributor string, syncedAt time.Time) []CommitRow {
 	rows := make([]CommitRow, 0, len(commits))
 	for _, c := range commits {
 		row := CommitRow{
 			CommitSHA:   c.SHA,
 			RepoID:      repoID,
+			Contributor: contributor,
 			CommittedAt: c.Timestamp,
 			// No trailer at all, which means the hooks were not
 			// running when this was committed - the commit predates
@@ -239,12 +258,13 @@ func CommitRowsFrom(commits []report.Commit, repoID string, syncedAt time.Time) 
 }
 
 // EventRowsFrom maps journal entries onto the event grain.
-func EventRowsFrom(entries []journal.Entry, repoID string, syncedAt time.Time) []EventRow {
+func EventRowsFrom(entries []journal.Entry, repoID, contributor string, syncedAt time.Time) []EventRow {
 	rows := make([]EventRow, 0, len(entries))
 	for _, e := range entries {
 		rows = append(rows, EventRow{
 			EventID:      eventID(repoID, e),
 			RepoID:       repoID,
+			Contributor:  contributor,
 			ObservedAt:   e.Timestamp,
 			Agent:        e.Agent,
 			AgentVersion: e.AgentVersion,
@@ -293,11 +313,12 @@ func eventID(repoID string, e journal.Entry) string {
 }
 
 // SessionRowsFrom maps session activity onto its row type.
-func SessionRowsFrom(sessions []journal.Session, repoID string, syncedAt time.Time) []SessionRow {
+func SessionRowsFrom(sessions []journal.Session, repoID, contributor string, syncedAt time.Time) []SessionRow {
 	rows := make([]SessionRow, 0, len(sessions))
 	for _, s := range sessions {
 		rows = append(rows, SessionRow{
-			RepoID: repoID, Session: s.Session, Agent: s.Agent,
+			RepoID: repoID, Contributor: contributor,
+			Session: s.Session, Agent: s.Agent,
 			AgentVersion: s.AgentVersion, FirstSeen: s.FirstSeen, LastSeen: s.LastSeen,
 			UserMessages: s.UserMessages, AgentMessages: s.AgentMessages,
 			ToolCalls: s.ToolCalls, DistinctTools: s.DistinctTools,
@@ -341,4 +362,37 @@ func timep(t time.Time) *time.Time {
 		return nil
 	}
 	return &t
+}
+
+// IdentityRowsFrom flattens an alias map onto rows.
+//
+// resolve is config.ResolveIdentity, passed in rather than reimplemented:
+// it already handles chains and cycles, and a second implementation here
+// would be a second answer to "who is this" that could drift from the one
+// `dun identities` prints.
+//
+// Chains are flattened at this point on purpose. Writing a -> b and b -> c
+// verbatim would make SQL responsible for following the chain, which MySQL
+// and SQLite express differently and neither expresses simply. Resolving
+// first means every row's canonical is the final answer, and a dashboard
+// joins once.
+//
+// An address that resolves to itself is skipped. It carries no
+// information, and the join treats a missing row as "its own identity"
+// anyway — writing it would only make the table larger and the absence
+// harder to read (NAV-21).
+func IdentityRowsFrom(aliases map[string]string, resolve func(string) string, syncedAt time.Time) []IdentityRow {
+	if len(aliases) == 0 {
+		return nil
+	}
+	rows := make([]IdentityRow, 0, len(aliases))
+	for alias := range aliases {
+		canonical := resolve(alias)
+		if canonical == "" || canonical == alias {
+			continue
+		}
+		rows = append(rows, IdentityRow{Alias: alias, Canonical: canonical, SyncedAt: syncedAt})
+	}
+	sort.Slice(rows, func(i, j int) bool { return rows[i].Alias < rows[j].Alias })
+	return rows
 }

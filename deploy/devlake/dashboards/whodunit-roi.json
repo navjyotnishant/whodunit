@@ -1,0 +1,1617 @@
+{
+  "uid": "whodunit-roi",
+  "title": "Investment Case",
+  "tags": [
+    "whodunit"
+  ],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 0,
+  "refresh": "",
+  "time": {
+    "from": "now-90d",
+    "to": "now"
+  },
+  "templating": {
+    "list": [
+      {
+        "type": "textbox",
+        "name": "seats",
+        "label": "Paid seats",
+        "description": "How many seats you pay for. Typed, not measured.",
+        "query": "12",
+        "current": {
+          "selected": false,
+          "text": "12",
+          "value": "12"
+        },
+        "options": [
+          {
+            "selected": true,
+            "text": "12",
+            "value": "12"
+          }
+        ],
+        "hide": 0
+      },
+      {
+        "type": "textbox",
+        "name": "seat_cost",
+        "label": "$ per seat, monthly",
+        "description": "Licence cost per seat per month, in dollars. Typed, not measured.",
+        "query": "100",
+        "current": {
+          "selected": false,
+          "text": "100",
+          "value": "100"
+        },
+        "options": [
+          {
+            "selected": true,
+            "text": "100",
+            "value": "100"
+          }
+        ],
+        "hide": 0
+      },
+      {
+        "type": "textbox",
+        "name": "hourly_rate",
+        "label": "$ per developer hour",
+        "description": "Fully loaded cost of one developer hour \u2014 salary plus employer taxes, benefits, equipment and overhead, typically 1.3\u20131.8\u00d7 base. Base = salary \u00f7 ~2,000 h; loaded \u2248 base \u00d7 1.4 if nobody has the real figure. For a consultancy, use the billable rate. Loaded, not base: a saved hour returns the whole cost of that hour, and a base rate makes break-even look harder than it is.",
+        "query": "75",
+        "current": {
+          "selected": false,
+          "text": "75",
+          "value": "75"
+        },
+        "options": [
+          {
+            "selected": true,
+            "text": "75",
+            "value": "75"
+          }
+        ],
+        "hide": 0
+      },
+      {
+        "type": "textbox",
+        "name": "hours_per_month",
+        "label": "Working hours per month",
+        "query": "160",
+        "description": "Hours a developer works in a month, typed. Only the conditional ROI uses it: it turns a percentage output difference into hours. 160 is a 40-hour week; use your own.",
+        "current": {
+          "selected": false,
+          "text": "160",
+          "value": "160"
+        },
+        "options": [
+          {
+            "selected": true,
+            "text": "160",
+            "value": "160"
+          }
+        ],
+        "hide": 0
+      },
+      {
+        "name": "contributor",
+        "type": "query",
+        "datasource": "${datasource}",
+        "query": "SELECT DISTINCT COALESCE(NULLIF(contributor, ''), '(unattributed)') AS __text, COALESCE(NULLIF(contributor, ''), '') AS __value FROM whodunit_repos ORDER BY 1",
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "__all__"
+        },
+        "includeAll": true,
+        "allValue": "__all__",
+        "refresh": 1,
+        "hide": 0,
+        "label": "Contributor",
+        "multi": false
+      },
+      {
+        "name": "team",
+        "type": "query",
+        "datasource": "${datasource}",
+        "query": "SELECT DISTINCT COALESCE(NULLIF(t.name, ''), '(unassigned)') AS __text, COALESCE(NULLIF(t.name, ''), '(unassigned)') AS __value FROM whodunit_repos r LEFT JOIN team_users tu ON tu.user_id = r.contributor LEFT JOIN teams t ON t.id = tu.team_id ORDER BY 1",
+        "includeAll": true,
+        "multi": false,
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "__all__"
+        },
+        "label": "Team",
+        "refresh": 1,
+        "allValue": "__all__"
+      }
+    ]
+  },
+  "panels": [
+    {
+      "type": "text",
+      "title": "",
+      "gridPos": {
+        "h": 5,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 1,
+      "options": {
+        "mode": "html",
+        "content": "<h3 style='margin:0 0 6px'>Every dollar on this page is a number you typed, multiplied by a number we measured</h3><p style='margin:0'>The tool does not know what you pay, what an hour costs, or how many seats you bought. Those are the boxes at the top of the page \u2014 change them and everything below recomputes. Token prices are not typed: they are fetched per model from the providers' pricing pages and shown, dated, at the bottom. What the tool measures is who used it, how much was delivered, and what it consumed. This page joins the two, and never claims a saving: it tells you what the investment costs per unit of output, and what it would have to save to pay for itself.</p>"
+      }
+    },
+    {
+      "type": "row",
+      "title": "Seats \u2014 what you pay for against who uses it",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 5
+      },
+      "id": 2,
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "type": "bargauge",
+      "title": "Paid seats vs active users",
+      "description": "Seats is what you typed. Active users is measured: people with at least one verified AI-assisted commit in range. The gap between the bars is licence spend with no measured use behind it.",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "h": 7,
+        "w": 8,
+        "x": 0,
+        "y": 6
+      },
+      "id": 3,
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "datasource": "${datasource}",
+          "rawSql": "SELECT CAST('$seats' AS DECIMAL(12,2)) AS `Paid seats`, (SELECT COUNT(DISTINCT c.contributor) FROM whodunit_commits c WHERE c.committed_at BETWEEN $__unixEpochFrom()*1000000000 AND $__unixEpochTo()*1000000000 AND c.status='assisted' AND c.contributor IS NOT NULL) AS `Active users`"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "decimals": 0,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#4caf78"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Paid seats"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#8a8f9a"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "horizontal",
+        "displayMode": "gradient",
+        "showUnfilled": true,
+        "valueMode": "color",
+        "namePlacement": "top"
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Seat utilisation",
+      "description": "Active users as a share of paid seats. Under 100% is seats nobody has used in range; over 100% means more people committed with assistance than you think you pay for \u2014 worth checking which.",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "h": 7,
+        "w": 4,
+        "x": 8,
+        "y": 6
+      },
+      "id": 4,
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "datasource": "${datasource}",
+          "rawSql": "SELECT ROUND(100*(SELECT COUNT(DISTINCT c.contributor) FROM whodunit_commits c WHERE c.committed_at BETWEEN $__unixEpochFrom()*1000000000 AND $__unixEpochTo()*1000000000 AND c.status='assisted' AND c.contributor IS NOT NULL)/NULLIF(CAST('$seats' AS DECIMAL(12,2)),0),0) AS value"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": null,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#4caf78"
+          },
+          "noValue": "needs an input"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/^value$/"
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "text": {
+          "valueSize": 40
+        }
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Spend per month",
+      "description": "Paid seats times cost per seat per month, both typed. The number every ratio below divides.",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "h": 7,
+        "w": 4,
+        "x": 12,
+        "y": 6
+      },
+      "id": 5,
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "datasource": "${datasource}",
+          "rawSql": "SELECT ROUND((CAST('$seats' AS DECIMAL(12,2))*CAST('$seat_cost' AS DECIMAL(12,2))),0) AS value"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "decimals": null,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#8a8f9a"
+          },
+          "noValue": "needs an input"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/^value$/"
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "text": {
+          "valueSize": 40
+        }
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Per active user",
+      "description": "Monthly licence spend divided by active users. The real per-head price once unused seats are counted \u2014 the figure to compare against a seat's list price.",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "h": 7,
+        "w": 4,
+        "x": 16,
+        "y": 6
+      },
+      "id": 6,
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "datasource": "${datasource}",
+          "rawSql": "SELECT ROUND((CAST('$seats' AS DECIMAL(12,2))*CAST('$seat_cost' AS DECIMAL(12,2)))/NULLIF((SELECT COUNT(DISTINCT c.contributor) FROM whodunit_commits c WHERE c.committed_at BETWEEN $__unixEpochFrom()*1000000000 AND $__unixEpochTo()*1000000000 AND c.status='assisted' AND c.contributor IS NOT NULL),0),0) AS value"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "decimals": null,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#e0a63a"
+          },
+          "noValue": "needs an input"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/^value$/"
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "text": {
+          "valueSize": 40
+        }
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Unused seats / month",
+      "description": "Seats with no measured use in range, times cost per seat. Zero or negative means every seat was used. The one number on this page that is a saving you can actually make.",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "h": 7,
+        "w": 4,
+        "x": 20,
+        "y": 6
+      },
+      "id": 7,
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "datasource": "${datasource}",
+          "rawSql": "SELECT ROUND((CAST('$seats' AS DECIMAL(12,2))-(SELECT COUNT(DISTINCT c.contributor) FROM whodunit_commits c WHERE c.committed_at BETWEEN $__unixEpochFrom()*1000000000 AND $__unixEpochTo()*1000000000 AND c.status='assisted' AND c.contributor IS NOT NULL))*CAST('$seat_cost' AS DECIMAL(12,2)),0) AS value"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "decimals": null,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#d64545"
+          },
+          "noValue": "needs an input"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/^value$/"
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "text": {
+          "valueSize": 40
+        }
+      }
+    },
+    {
+      "type": "row",
+      "title": "Cost per unit of output \u2014 licence spend over the range, divided by what was delivered with assistance",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 13
+      },
+      "id": 8,
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "type": "stat",
+      "title": "Spend over the range",
+      "description": "Paid seats times cost per seat, times the months in the selected range. The numerator of every per-unit figure on this row \u2014 and, by construction, what any of them multiplied back by its count returns.",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "h": 7,
+        "w": 4,
+        "x": 0,
+        "y": 14
+      },
+      "id": 9,
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "datasource": "${datasource}",
+          "rawSql": "SELECT ROUND(((CAST('$seats' AS DECIMAL(12,2))*CAST('$seat_cost' AS DECIMAL(12,2)))*(($__unixEpochTo() - $__unixEpochFrom()) / (30.4375*86400))),0) AS value"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/^value$/"
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "text": {
+          "valueSize": 36
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "decimals": 0,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#8a8f9a"
+          },
+          "noValue": "needs an input"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "type": "stat",
+      "title": "What was delivered with assistance",
+      "description": "Commits with verified AI assistance in range, and closed issues with at least one such commit linked. The denominators of the per-unit figures beside them. Issues need tracker links; a range with none shows zero issues, which means unlinked, not undelivered.",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "h": 7,
+        "w": 5,
+        "x": 4,
+        "y": 14
+      },
+      "id": 10,
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "datasource": "${datasource}",
+          "rawSql": "\nSELECT (SELECT COUNT(*) FROM whodunit_commits c WHERE c.committed_at BETWEEN $__unixEpochFrom()*1000000000 AND $__unixEpochTo()*1000000000 AND c.status='assisted') AS `Assisted commits`,\n       (SELECT COUNT(DISTINCT i.id) FROM issues i JOIN issue_commits ic ON ic.issue_id = i.id\n        JOIN whodunit_commits c ON c.commit_sha = ic.commit_sha\n        WHERE i.status='DONE' AND i.issue_key REGEXP '^[A-Z][A-Z0-9]+-[0-9]+$'\n          AND $__timeFilter(i.resolution_date) AND c.status='assisted') AS `Assisted issues closed`"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "none",
+        "graphMode": "none",
+        "textMode": "value_and_name",
+        "justifyMode": "center",
+        "orientation": "vertical",
+        "text": {
+          "valueSize": 30,
+          "titleSize": 12
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 0,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#4caf78"
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Per assisted commit",
+      "description": "Licence spend over the selected range divided by commits with verified AI assistance in it. Falls as adoption rises for the same spend.",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "h": 7,
+        "w": 4,
+        "x": 9,
+        "y": 14
+      },
+      "id": 11,
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "datasource": "${datasource}",
+          "rawSql": "SELECT ROUND(((CAST('$seats' AS DECIMAL(12,2))*CAST('$seat_cost' AS DECIMAL(12,2)))*(($__unixEpochTo() - $__unixEpochFrom()) / (30.4375*86400)))/NULLIF((SELECT COUNT(*) FROM whodunit_commits c WHERE c.committed_at BETWEEN $__unixEpochFrom()*1000000000 AND $__unixEpochTo()*1000000000 AND c.status='assisted'),0),2) AS value"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "decimals": null,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#5b8def"
+          },
+          "noValue": "needs an input"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/^value$/"
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "text": {
+          "valueSize": 40
+        }
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Per 1,000 assisted lines",
+      "description": "Licence spend over the range divided by lines changed in assisted commits, per thousand. Lines are output, not value \u2014 read beside the rework rate.",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "h": 7,
+        "w": 3,
+        "x": 13,
+        "y": 14
+      },
+      "id": 12,
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "datasource": "${datasource}",
+          "rawSql": "SELECT ROUND(((CAST('$seats' AS DECIMAL(12,2))*CAST('$seat_cost' AS DECIMAL(12,2)))*(($__unixEpochTo() - $__unixEpochFrom()) / (30.4375*86400)))/NULLIF((SELECT SUM(c.lines_added+c.lines_removed) FROM whodunit_commits c WHERE c.committed_at BETWEEN $__unixEpochFrom()*1000000000 AND $__unixEpochTo()*1000000000 AND c.status='assisted')/1000,0),2) AS value"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "decimals": null,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#5b8def"
+          },
+          "noValue": "needs an input"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/^value$/"
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "text": {
+          "valueSize": 40
+        }
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Per assisted issue closed",
+      "description": "Licence spend over the range divided by issues resolved that had at least one assisted commit linked. Needs issue-commit links from the tracker; blank when there are none.",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "h": 7,
+        "w": 4,
+        "x": 16,
+        "y": 14
+      },
+      "id": 13,
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "datasource": "${datasource}",
+          "rawSql": "\nSELECT ROUND(((CAST('$seats' AS DECIMAL(12,2))*CAST('$seat_cost' AS DECIMAL(12,2)))*(($__unixEpochTo() - $__unixEpochFrom()) / (30.4375*86400)))/NULLIF(n,0),2) AS value FROM (\n  SELECT COUNT(DISTINCT i.id) n\n  FROM issues i JOIN issue_commits ic ON ic.issue_id = i.id\n  JOIN whodunit_commits c ON c.commit_sha = ic.commit_sha\n  WHERE i.status='DONE' AND i.issue_key REGEXP '^[A-Z][A-Z0-9]+-[0-9]+$' AND $__timeFilter(i.resolution_date) AND c.status='assisted') t"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "decimals": null,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#5b8def"
+          },
+          "noValue": "needs an input"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/^value$/"
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "text": {
+          "valueSize": 40
+        }
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Per assisted commit, by month",
+      "description": "Monthly licence spend divided by that month's assisted commits, with the commit count behind it. The line should fall as adoption climbs; a month is skipped below 5 assisted commits.",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "h": 7,
+        "w": 4,
+        "x": 20,
+        "y": 14
+      },
+      "id": 14,
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "datasource": "${datasource}",
+          "rawSql": "\nSELECT CAST(DATE_FORMAT(FROM_UNIXTIME(c.committed_at/1e9),'%Y-%m-01') AS DATETIME) AS time,\n       ROUND((CAST('$seats' AS DECIMAL(12,2))*CAST('$seat_cost' AS DECIMAL(12,2)))/NULLIF(SUM(c.status='assisted'),0),2) AS `Licence cost per assisted commit`,\n       SUM(c.status='assisted') AS `Assisted commits`\nFROM whodunit_commits c\nWHERE c.committed_at BETWEEN $__unixEpochFrom()*1000000000 AND $__unixEpochTo()*1000000000 AND c.status IN ('assisted','unassisted','undetermined','uninstrumented','unmatched','degraded')\nGROUP BY time HAVING SUM(c.status='assisted') >= 5 ORDER BY time"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "lineWidth": 2,
+            "showPoints": "always",
+            "pointSize": 5
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Licence cost per assisted commit"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "currencyUSD"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#5b8def"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Assisted commits"
+            },
+            "properties": [
+              {
+                "id": "custom.drawStyle",
+                "value": "bars"
+              },
+              {
+                "id": "custom.fillOpacity",
+                "value": 20
+              },
+              {
+                "id": "custom.lineWidth",
+                "value": 0
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#4caf78"
+                }
+              },
+              {
+                "id": "custom.axisPlacement",
+                "value": "right"
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "type": "row",
+      "title": "Break-even \u2014 what the tool would have to save to pay for itself",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 21
+      },
+      "id": 15,
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "type": "stat",
+      "title": "Hours per seat / month",
+      "description": "Cost per seat divided by the hourly rate, both typed. If a developer saves this many hours a month, the seat has paid for itself. Judge whether that is plausible \u2014 the page does not.",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 0,
+        "y": 22
+      },
+      "id": 16,
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "datasource": "${datasource}",
+          "rawSql": "SELECT ROUND(CAST('$seat_cost' AS DECIMAL(12,2))/NULLIF(CAST('$hourly_rate' AS DECIMAL(12,2)),0),1) AS value"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "h",
+          "decimals": null,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#4caf78"
+          },
+          "noValue": "needs an input"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/^value$/"
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "text": {
+          "valueSize": 48
+        }
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Hours per active user / month",
+      "description": "Total monthly spend divided by active users, then by the hourly rate. Higher than the per-seat figure whenever seats sit unused \u2014 the idle seats have to be earned back by the people who do use it.",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 6,
+        "y": 22
+      },
+      "id": 17,
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "datasource": "${datasource}",
+          "rawSql": "SELECT ROUND((CAST('$seats' AS DECIMAL(12,2))*CAST('$seat_cost' AS DECIMAL(12,2)))/NULLIF((SELECT COUNT(DISTINCT c.contributor) FROM whodunit_commits c WHERE c.committed_at BETWEEN $__unixEpochFrom()*1000000000 AND $__unixEpochTo()*1000000000 AND c.status='assisted' AND c.contributor IS NOT NULL),0)/NULLIF(CAST('$hourly_rate' AS DECIMAL(12,2)),0),1) AS value"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "h",
+          "decimals": null,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#4caf78"
+          },
+          "noValue": "needs an input"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/^value$/"
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "text": {
+          "valueSize": 48
+        }
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Minutes per assisted commit",
+      "description": "Spend over the range, divided by assisted commits, converted to minutes at the hourly rate. Each assisted commit needs to have saved this long for the tool to break even.",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 12,
+        "y": 22
+      },
+      "id": 18,
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "datasource": "${datasource}",
+          "rawSql": "SELECT ROUND(60*((CAST('$seats' AS DECIMAL(12,2))*CAST('$seat_cost' AS DECIMAL(12,2)))*(($__unixEpochTo() - $__unixEpochFrom()) / (30.4375*86400)))/NULLIF((SELECT COUNT(*) FROM whodunit_commits c WHERE c.committed_at BETWEEN $__unixEpochFrom()*1000000000 AND $__unixEpochTo()*1000000000 AND c.status='assisted'),0)/NULLIF(CAST('$hourly_rate' AS DECIMAL(12,2)),0),0) AS value"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "m",
+          "decimals": null,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#e0a63a"
+          },
+          "noValue": "needs an input"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/^value$/"
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "text": {
+          "valueSize": 48
+        }
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Minutes per user / working day",
+      "description": "Monthly spend per active user at the hourly rate, spread over 21.7 working days. The daily saving each user needs to make. Small numbers here are the whole argument for the tool; large ones are the argument against.",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 18,
+        "y": 22
+      },
+      "id": 19,
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "datasource": "${datasource}",
+          "rawSql": "\nSELECT ROUND(60*(CAST('$seats' AS DECIMAL(12,2))*CAST('$seat_cost' AS DECIMAL(12,2)))/NULLIF((SELECT COUNT(DISTINCT c.contributor) FROM whodunit_commits c WHERE c.committed_at BETWEEN $__unixEpochFrom()*1000000000 AND $__unixEpochTo()*1000000000 AND c.status='assisted' AND c.contributor IS NOT NULL),0)/NULLIF(CAST('$hourly_rate' AS DECIMAL(12,2)),0)/21.7,0) AS value"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "m",
+          "decimals": null,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#e0a63a"
+          },
+          "noValue": "needs an input"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/^value$/"
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "text": {
+          "valueSize": 48
+        }
+      }
+    },
+    {
+      "type": "row",
+      "title": "ROI \u2014 conditional on what you believe about time returned",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 30
+      },
+      "id": 20,
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "type": "table",
+      "title": "ROI by hours saved \u2014 pick the row you believe",
+      "description": "Return on licence spend if each active user saved the hours in the first column, every month, valued at the typed hourly rate. Nothing in this table is measured except the count of active users; the hours are the assumption, laid out so you can see which one you are making. The row where ROI crosses zero is the break-even figure above.",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "h": 9,
+        "w": 14,
+        "x": 0,
+        "y": 31
+      },
+      "id": 21,
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "datasource": "${datasource}",
+          "rawSql": "\nSELECT h.hours AS `Hours saved per developer, per month`,\n       ROUND(h.hours*CAST('$hourly_rate' AS DECIMAL(12,2))*(SELECT COUNT(DISTINCT c.contributor) FROM whodunit_commits c WHERE c.committed_at BETWEEN $__unixEpochFrom()*1000000000 AND $__unixEpochTo()*1000000000 AND c.status='assisted' AND c.contributor IS NOT NULL),0) AS `Value returned, per month`,\n       ROUND((CAST('$seats' AS DECIMAL(12,2))*CAST('$seat_cost' AS DECIMAL(12,2))),0) AS `Licence spend, per month`,\n       ROUND(100*(h.hours*CAST('$hourly_rate' AS DECIMAL(12,2))*(SELECT COUNT(DISTINCT c.contributor) FROM whodunit_commits c WHERE c.committed_at BETWEEN $__unixEpochFrom()*1000000000 AND $__unixEpochTo()*1000000000 AND c.status='assisted' AND c.contributor IS NOT NULL) - (CAST('$seats' AS DECIMAL(12,2))*CAST('$seat_cost' AS DECIMAL(12,2))))/NULLIF((CAST('$seats' AS DECIMAL(12,2))*CAST('$seat_cost' AS DECIMAL(12,2))),0),0) AS `ROI %`\nFROM (SELECT 0.5 hours UNION ALL SELECT 1 UNION ALL SELECT 2 UNION ALL SELECT 4 UNION ALL SELECT 8) h\nORDER BY h.hours"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "right"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Hours saved per developer, per month"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "suffix: h"
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              },
+              {
+                "id": "custom.align",
+                "value": "left"
+              },
+              {
+                "id": "custom.width",
+                "value": 170
+              },
+              {
+                "id": "displayName",
+                "value": "Hours saved / dev / month"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "Value returned.*|Licence spend.*"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "prefix: $"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "ROI %"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percent"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background",
+                  "mode": "gradient"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "#d64545",
+                      "value": null
+                    },
+                    {
+                      "color": "#e0a63a",
+                      "value": -25
+                    },
+                    {
+                      "color": "#4caf78",
+                      "value": 0
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "thresholds"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "cellHeight": "md"
+      }
+    },
+    {
+      "type": "stat",
+      "title": "ROI if the difference were time",
+      "description": "A hypothesis, not a measurement. Takes the conditioned output difference from the Productivity page, treats that share of each active user's typed working hours as time returned, values it at the hourly rate, and sets it against licence spend. The 'if' carries the weight: the difference is between self-selected cohorts and is not known to be time. Shown because it is the number people ask for, with its condition in the title.",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "h": 9,
+        "w": 6,
+        "x": 14,
+        "y": 31
+      },
+      "id": 22,
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "datasource": "${datasource}",
+          "rawSql": "\nWITH pc AS (WITH c AS (\n  SELECT c.purpose,\n         CASE WHEN c.files_changed < 3 THEN '1-2 files'\n              WHEN c.files_changed <= 20 THEN '3-20 files'\n              ELSE '20+ files' END band,\n         c.status, c.lines_added + c.lines_removed AS churn,\n         c.contributor, c.committed_at\n  FROM whodunit_commits c LEFT JOIN whodunit_identities wi ON wi.alias = c.contributor\n    LEFT JOIN team_users tu ON tu.user_id = COALESCE(wi.canonical, c.contributor)\n    LEFT JOIN teams t ON t.id = tu.team_id\n  WHERE c.committed_at BETWEEN $__unixEpochFrom()*1000000000 AND $__unixEpochTo()*1000000000\n    AND c.contributor IS NOT NULL AND c.status IN ('assisted','unassisted','undetermined','uninstrumented','unmatched','degraded')\n    -- All six named so the set stays complete as dun's list grows; only two\n    -- are compared, because the other four mean no evidence was collected\n    -- and counting them as unassisted reports absence as a measured\n    -- negative (NAV-21).\n    AND CASE c.status WHEN 'assisted' THEN 1 WHEN 'unassisted' THEN 1 END = 1 AND ('${contributor:raw}' = '__all__' OR c.contributor = '${contributor:raw}')\n    AND ('${team:raw}' = '__all__' OR COALESCE(t.name,'(unassigned)') = '${team:raw}')\n),\ncell AS (\n  SELECT purpose, band, status, COUNT(*) commits, SUM(churn) delivered,\n         COUNT(DISTINCT CONCAT(contributor,'|',DATE(FROM_UNIXTIME(committed_at/1000000000)))) person_days\n  FROM c GROUP BY purpose, band, status\n),\npivot AS (\n  SELECT purpose, band,\n    MAX(CASE WHEN status='assisted'   THEN delivered/NULLIF(person_days,0) END) a,\n    MAX(CASE WHEN status='unassisted' THEN delivered/NULLIF(person_days,0) END) u,\n    MAX(CASE WHEN status='assisted'   THEN commits END) na,\n    MAX(CASE WHEN status='unassisted' THEN commits END) nu\n  FROM cell GROUP BY purpose, band\n),\ntot AS (\n  SELECT status, COUNT(*) commits, SUM(churn) delivered,\n         COUNT(DISTINCT CONCAT(contributor,'|',DATE(FROM_UNIXTIME(committed_at/1000000000)))) person_days\n  FROM c GROUP BY status\n)\nSELECT 'Pooled \u2014 all work' AS metric,\n       ROUND(100*(MAX(CASE WHEN status='assisted' THEN delivered/NULLIF(person_days,0) END)\n                - MAX(CASE WHEN status='unassisted' THEN delivered/NULLIF(person_days,0) END))\n             / MAX(CASE WHEN status='unassisted' THEN delivered/NULLIF(person_days,0) END),0) AS value\nFROM tot\nUNION ALL\n-- Weighted by the unassisted cohort's mix, so the strata are compared on a\n-- common composition rather than each cohort's own.\nSELECT 'Conditioned \u2014 like with like',\n       ROUND(100*(SUM(a*nu)/SUM(nu) - SUM(u*nu)/SUM(nu)) / (SUM(u*nu)/SUM(nu)),0)\nFROM pivot WHERE na >= 5 AND nu >= 5 AND u > 0)\nSELECT ROUND(100*((pc.value/100)*CAST('$hours_per_month' AS DECIMAL(12,2))*CAST('$hourly_rate' AS DECIMAL(12,2))*(SELECT COUNT(DISTINCT c.contributor) FROM whodunit_commits c WHERE c.committed_at BETWEEN $__unixEpochFrom()*1000000000 AND $__unixEpochTo()*1000000000 AND c.status='assisted' AND c.contributor IS NOT NULL) - (CAST('$seats' AS DECIMAL(12,2))*CAST('$seat_cost' AS DECIMAL(12,2))))/NULLIF((CAST('$seats' AS DECIMAL(12,2))*CAST('$seat_cost' AS DECIMAL(12,2))),0),0) AS value\nFROM pc WHERE pc.metric LIKE 'Conditioned%'"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 0,
+          "noValue": "no conditioned figure",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#e0a63a"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/^value$/"
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "text": {
+          "valueSize": 44
+        }
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Implied hours / month",
+      "description": "The conditioned difference applied to the typed working hours per month \u2014 the hours-saved figure the hypothesis beside it rests on. Find this value in the sensitivity table to see what it assumes.",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "h": 9,
+        "w": 4,
+        "x": 20,
+        "y": 31
+      },
+      "id": 23,
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "datasource": "${datasource}",
+          "rawSql": "\nWITH pc AS (WITH c AS (\n  SELECT c.purpose,\n         CASE WHEN c.files_changed < 3 THEN '1-2 files'\n              WHEN c.files_changed <= 20 THEN '3-20 files'\n              ELSE '20+ files' END band,\n         c.status, c.lines_added + c.lines_removed AS churn,\n         c.contributor, c.committed_at\n  FROM whodunit_commits c LEFT JOIN whodunit_identities wi ON wi.alias = c.contributor\n    LEFT JOIN team_users tu ON tu.user_id = COALESCE(wi.canonical, c.contributor)\n    LEFT JOIN teams t ON t.id = tu.team_id\n  WHERE c.committed_at BETWEEN $__unixEpochFrom()*1000000000 AND $__unixEpochTo()*1000000000\n    AND c.contributor IS NOT NULL AND c.status IN ('assisted','unassisted','undetermined','uninstrumented','unmatched','degraded')\n    -- All six named so the set stays complete as dun's list grows; only two\n    -- are compared, because the other four mean no evidence was collected\n    -- and counting them as unassisted reports absence as a measured\n    -- negative (NAV-21).\n    AND CASE c.status WHEN 'assisted' THEN 1 WHEN 'unassisted' THEN 1 END = 1 AND ('${contributor:raw}' = '__all__' OR c.contributor = '${contributor:raw}')\n    AND ('${team:raw}' = '__all__' OR COALESCE(t.name,'(unassigned)') = '${team:raw}')\n),\ncell AS (\n  SELECT purpose, band, status, COUNT(*) commits, SUM(churn) delivered,\n         COUNT(DISTINCT CONCAT(contributor,'|',DATE(FROM_UNIXTIME(committed_at/1000000000)))) person_days\n  FROM c GROUP BY purpose, band, status\n),\npivot AS (\n  SELECT purpose, band,\n    MAX(CASE WHEN status='assisted'   THEN delivered/NULLIF(person_days,0) END) a,\n    MAX(CASE WHEN status='unassisted' THEN delivered/NULLIF(person_days,0) END) u,\n    MAX(CASE WHEN status='assisted'   THEN commits END) na,\n    MAX(CASE WHEN status='unassisted' THEN commits END) nu\n  FROM cell GROUP BY purpose, band\n),\ntot AS (\n  SELECT status, COUNT(*) commits, SUM(churn) delivered,\n         COUNT(DISTINCT CONCAT(contributor,'|',DATE(FROM_UNIXTIME(committed_at/1000000000)))) person_days\n  FROM c GROUP BY status\n)\nSELECT 'Pooled \u2014 all work' AS metric,\n       ROUND(100*(MAX(CASE WHEN status='assisted' THEN delivered/NULLIF(person_days,0) END)\n                - MAX(CASE WHEN status='unassisted' THEN delivered/NULLIF(person_days,0) END))\n             / MAX(CASE WHEN status='unassisted' THEN delivered/NULLIF(person_days,0) END),0) AS value\nFROM tot\nUNION ALL\n-- Weighted by the unassisted cohort's mix, so the strata are compared on a\n-- common composition rather than each cohort's own.\nSELECT 'Conditioned \u2014 like with like',\n       ROUND(100*(SUM(a*nu)/SUM(nu) - SUM(u*nu)/SUM(nu)) / (SUM(u*nu)/SUM(nu)),0)\nFROM pivot WHERE na >= 5 AND nu >= 5 AND u > 0)\nSELECT ROUND((pc.value/100)*CAST('$hours_per_month' AS DECIMAL(12,2)),1) AS value FROM pc WHERE pc.metric LIKE 'Conditioned%'"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "suffix: h",
+          "decimals": 1,
+          "noValue": "\u2014",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#e0a63a"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/^value$/"
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "text": {
+          "valueSize": 40
+        }
+      }
+    },
+    {
+      "type": "row",
+      "title": "Measured beside it, not converted \u2014 see the Productivity dashboard for the full argument",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 40
+      },
+      "id": 24,
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "type": "gauge",
+      "title": "Pooled vs conditioned",
+      "description": "The same difference computed two ways. Pooled compares all assisted work against all unassisted work. Conditioned compares only like with like \u2014 same work type, same complexity band \u2014 and reweights onto a common mix. The gap between them is how much of the pooled figure was the mix of work each cohort picked up, rather than how productive it was. Neither is a verdict; both are differences between self-selected cohorts. Output here is lines delivered, not commits: inside a single work-type and complexity cell most contributor-days hold one commit, so a commit count pins both sides near 1 and measures the grid rather than the work.",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 41
+      },
+      "id": 25,
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "datasource": "${datasource}",
+          "rawSql": "\nWITH c AS (\n  SELECT c.purpose,\n         CASE WHEN c.files_changed < 3 THEN '1-2 files'\n              WHEN c.files_changed <= 20 THEN '3-20 files'\n              ELSE '20+ files' END band,\n         c.status, c.lines_added + c.lines_removed AS churn,\n         c.contributor, c.committed_at\n  FROM whodunit_commits c LEFT JOIN whodunit_identities wi ON wi.alias = c.contributor\n    LEFT JOIN team_users tu ON tu.user_id = COALESCE(wi.canonical, c.contributor)\n    LEFT JOIN teams t ON t.id = tu.team_id\n  WHERE c.committed_at BETWEEN $__unixEpochFrom()*1000000000 AND $__unixEpochTo()*1000000000\n    AND c.contributor IS NOT NULL AND c.status IN ('assisted','unassisted','undetermined','uninstrumented','unmatched','degraded')\n    -- All six named so the set stays complete as dun's list grows; only two\n    -- are compared, because the other four mean no evidence was collected\n    -- and counting them as unassisted reports absence as a measured\n    -- negative (NAV-21).\n    AND CASE c.status WHEN 'assisted' THEN 1 WHEN 'unassisted' THEN 1 END = 1 AND ('${contributor:raw}' = '__all__' OR c.contributor = '${contributor:raw}')\n    AND ('${team:raw}' = '__all__' OR COALESCE(t.name,'(unassigned)') = '${team:raw}')\n),\ncell AS (\n  SELECT purpose, band, status, COUNT(*) commits, SUM(churn) delivered,\n         COUNT(DISTINCT CONCAT(contributor,'|',DATE(FROM_UNIXTIME(committed_at/1000000000)))) person_days\n  FROM c GROUP BY purpose, band, status\n),\npivot AS (\n  SELECT purpose, band,\n    MAX(CASE WHEN status='assisted'   THEN delivered/NULLIF(person_days,0) END) a,\n    MAX(CASE WHEN status='unassisted' THEN delivered/NULLIF(person_days,0) END) u,\n    MAX(CASE WHEN status='assisted'   THEN commits END) na,\n    MAX(CASE WHEN status='unassisted' THEN commits END) nu\n  FROM cell GROUP BY purpose, band\n),\ntot AS (\n  SELECT status, COUNT(*) commits, SUM(churn) delivered,\n         COUNT(DISTINCT CONCAT(contributor,'|',DATE(FROM_UNIXTIME(committed_at/1000000000)))) person_days\n  FROM c GROUP BY status\n)\nSELECT 'Pooled \u2014 all work' AS metric,\n       ROUND(100*(MAX(CASE WHEN status='assisted' THEN delivered/NULLIF(person_days,0) END)\n                - MAX(CASE WHEN status='unassisted' THEN delivered/NULLIF(person_days,0) END))\n             / MAX(CASE WHEN status='unassisted' THEN delivered/NULLIF(person_days,0) END),0) AS value\nFROM tot\nUNION ALL\n-- Weighted by the unassisted cohort's mix, so the strata are compared on a\n-- common composition rather than each cohort's own.\nSELECT 'Conditioned \u2014 like with like',\n       ROUND(100*(SUM(a*nu)/SUM(nu) - SUM(u*nu)/SUM(nu)) / (SUM(u*nu)/SUM(nu)),0)\nFROM pivot WHERE na >= 5 AND nu >= 5 AND u > 0\n"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 0,
+          "min": -100,
+          "max": 100,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#d64545",
+                "value": null
+              },
+              {
+                "color": "#4caf78",
+                "value": 0
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/^value$/",
+          "values": true
+        },
+        "showThresholdMarkers": false,
+        "showThresholdLabels": false,
+        "orientation": "horizontal",
+        "text": {
+          "valueSize": 26,
+          "titleSize": 12
+        },
+        "minVizHeight": 120,
+        "minVizWidth": 120,
+        "sizing": "auto"
+      }
+    },
+    {
+      "type": "gauge",
+      "title": "Rework rate, each side",
+      "description": "Share of commits whose purpose is a fix. A difference in output means nothing if it arrives with more rework, so read this before any row of the table. This is a fix RATE, not a defect rate \u2014 it counts commits labelled fix, not bugs found. Compares two measured cohorts only: commits with no evidence collected (undetermined, uninstrumented, unmatched, degraded) are excluded, not counted as unassisted \u2014 that would report absence as a measured negative.",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 41
+      },
+      "id": 26,
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "datasource": "${datasource}",
+          "rawSql": "\nSELECT CASE WHEN c.status='assisted' THEN 'AI-assisted' ELSE 'Unassisted' END AS metric,\n       ROUND(100*SUM(c.purpose='fix')/COUNT(*),1) AS value\nFROM whodunit_commits c LEFT JOIN whodunit_identities wi ON wi.alias = c.contributor\n    LEFT JOIN team_users tu ON tu.user_id = COALESCE(wi.canonical, c.contributor)\n    LEFT JOIN teams t ON t.id = tu.team_id\nWHERE c.committed_at BETWEEN $__unixEpochFrom()*1000000000 AND $__unixEpochTo()*1000000000\n  AND c.contributor IS NOT NULL AND c.status IN ('assisted','unassisted','undetermined','uninstrumented','unmatched','degraded')\n    -- All six statuses are named so this set stays complete as dun's list\n    -- grows. Only two are compared: the other four mean no evidence was\n    -- collected, and counting them as unassisted would report absence as a\n    -- measured negative (NAV-21). CASE maps them to NULL, which drops them.\n    AND CASE c.status WHEN 'assisted' THEN 1 WHEN 'unassisted' THEN 1 END = 1 AND ('${contributor:raw}' = '__all__' OR c.contributor = '${contributor:raw}')\n    AND ('${team:raw}' = '__all__' OR COALESCE(t.name,'(unassigned)') = '${team:raw}')\nGROUP BY c.status\nHAVING COUNT(*) >= 5\n"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 60,
+          "decimals": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#4caf78",
+                "value": null
+              },
+              {
+                "color": "#e0a63a",
+                "value": 25
+              },
+              {
+                "color": "#d64545",
+                "value": 40
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/^value$/",
+          "values": true
+        },
+        "showThresholdMarkers": false,
+        "orientation": "horizontal",
+        "text": {
+          "valueSize": 22,
+          "titleSize": 13
+        }
+      }
+    },
+    {
+      "type": "barchart",
+      "title": "Sessions not priced, and why",
+      "description": "Sessions excluded from the token figures, by reason: the agent reports no token counts, or the model it used has no row in the price table. Both are absence, not zero \u2014 an unpriced session is unmeasured, not free. A 'no price for' row means the price list needs a fetch or a new model has appeared.",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 41
+      },
+      "id": 27,
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "datasource": "${datasource}",
+          "rawSql": "\nSELECT CONCAT(s.agent, ' \u00b7 ', CASE WHEN s.input_tokens IS NULL THEN 'reports no tokens'\n                                   ELSE CONCAT('no price for ', COALESCE(NULLIF(s.model,''),'(no model)')) END) AS metric,\n       COUNT(*) AS value\nFROM whodunit_sessions s LEFT JOIN whodunit_model_prices p ON p.model = s.model\nWHERE s.last_seen BETWEEN $__unixEpochFrom()*1000000000 AND $__unixEpochTo()*1000000000 AND (s.input_tokens IS NULL OR p.model IS NULL)\nGROUP BY metric ORDER BY value DESC"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#8a8f9a"
+          },
+          "custom": {
+            "axisLabel": ""
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "xField": "metric",
+        "orientation": "horizontal",
+        "showValue": "always",
+        "legend": {
+          "showLegend": false
+        },
+        "text": {
+          "valueSize": 12
+        }
+      }
+    },
+    {
+      "type": "row",
+      "title": "Token spend at list price, per model \u2014 only meaningful if you are billed per token",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 49
+      },
+      "id": 28,
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "type": "stat",
+      "title": "Token spend in range",
+      "description": "Each session's tokens priced at its own model's list price \u2014 input, output, cache read and cache write each at that model's rate \u2014 summed over sessions with a price row. Prices come from the providers' pricing pages via fetch-model-prices.py, dated in the table beside. List price, not an invoice; under a subscription this is not a cost.",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 0,
+        "y": 50
+      },
+      "id": 29,
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "datasource": "${datasource}",
+          "rawSql": "\nSELECT ROUND(SUM((COALESCE(s.input_tokens,0)/1e6*p.input_usd + COALESCE(s.output_tokens,0)/1e6*p.output_usd + COALESCE(s.cache_read_tokens,0)/1e6*p.cache_read_usd + COALESCE(s.cache_write_tokens,0)/1e6*p.cache_write_usd)),2) AS value FROM whodunit_sessions s LEFT JOIN whodunit_model_prices p ON p.model = s.model\nWHERE s.last_seen BETWEEN $__unixEpochFrom()*1000000000 AND $__unixEpochTo()*1000000000 AND s.input_tokens IS NOT NULL AND p.model IS NOT NULL"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "decimals": null,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#9b7bd6"
+          },
+          "noValue": "needs an input"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/^value$/"
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "text": {
+          "valueSize": 40
+        }
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Token spend vs licence spend",
+      "description": "What the same usage would have cost at API list price, as a percentage of what the licences cost over the range. Over 100% says the subscription is cheaper than pay-per-token; under says the reverse.",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 6,
+        "y": 50
+      },
+      "id": 30,
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "datasource": "${datasource}",
+          "rawSql": "\nSELECT ROUND(100*SUM((COALESCE(s.input_tokens,0)/1e6*p.input_usd + COALESCE(s.output_tokens,0)/1e6*p.output_usd + COALESCE(s.cache_read_tokens,0)/1e6*p.cache_read_usd + COALESCE(s.cache_write_tokens,0)/1e6*p.cache_write_usd))/NULLIF(((CAST('$seats' AS DECIMAL(12,2))*CAST('$seat_cost' AS DECIMAL(12,2)))*(($__unixEpochTo() - $__unixEpochFrom()) / (30.4375*86400))),0),0) AS value FROM whodunit_sessions s LEFT JOIN whodunit_model_prices p ON p.model = s.model\nWHERE s.last_seen BETWEEN $__unixEpochFrom()*1000000000 AND $__unixEpochTo()*1000000000 AND s.input_tokens IS NOT NULL AND p.model IS NOT NULL"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": null,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#9b7bd6"
+          },
+          "noValue": "needs an input"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/^value$/"
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "text": {
+          "valueSize": 40
+        }
+      }
+    },
+    {
+      "type": "barchart",
+      "title": "Token spend by model, list price",
+      "description": "The same per-model pricing, split by model. Each bar is priced at that model's own rate, so the bars are comparable as money, not just as token counts. Models with no price row are absent here and listed in the unpriced panel.",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 50
+      },
+      "id": 31,
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "datasource": "${datasource}",
+          "rawSql": "\nSELECT s.model AS metric, ROUND(SUM((COALESCE(s.input_tokens,0)/1e6*p.input_usd + COALESCE(s.output_tokens,0)/1e6*p.output_usd + COALESCE(s.cache_read_tokens,0)/1e6*p.cache_read_usd + COALESCE(s.cache_write_tokens,0)/1e6*p.cache_write_usd)),2) AS value FROM whodunit_sessions s LEFT JOIN whodunit_model_prices p ON p.model = s.model\nWHERE s.last_seen BETWEEN $__unixEpochFrom()*1000000000 AND $__unixEpochTo()*1000000000 AND s.input_tokens IS NOT NULL AND p.model IS NOT NULL\nGROUP BY s.model ORDER BY value DESC"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#9b7bd6"
+          },
+          "custom": {
+            "axisLabel": ""
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "xField": "metric",
+        "orientation": "horizontal",
+        "showValue": "always",
+        "legend": {
+          "showLegend": false
+        },
+        "text": {
+          "valueSize": 12
+        }
+      }
+    },
+    {
+      "type": "table",
+      "title": "Price list applied, per million tokens",
+      "description": "The list prices in use, for models seen in the selected range. Source 'fetched' means read from the provider's pricing page on the date shown; 'baked <date>' means the page could not be parsed and a dated snapshot was written instead. Rerun fetch-model-prices.py to refresh. A model missing here is unpriced, not free.",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "h": 9,
+        "w": 24,
+        "x": 0,
+        "y": 58
+      },
+      "id": 32,
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "datasource": "${datasource}",
+          "rawSql": "\nSELECT p.model AS `Model`, p.provider AS `Provider`,\n       p.input_usd AS `Input`, p.cache_read_usd AS `Cache read`, p.cache_write_usd AS `Cache write`, p.output_usd AS `Output`,\n       CASE WHEN p.source LIKE 'http%' THEN 'fetched' ELSE p.source END AS `Source`,\n       DATE_FORMAT(p.fetched_at,'%Y-%m-%d') AS `As of`\nFROM whodunit_model_prices p\nWHERE p.model IN (SELECT DISTINCT s.model FROM whodunit_sessions s WHERE s.last_seen BETWEEN $__unixEpochFrom()*1000000000 AND $__unixEpochTo()*1000000000 AND s.model IS NOT NULL)\nORDER BY p.provider, p.model"
+        }
+      ],
+      "options": {
+        "cellHeight": "sm"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "right"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "Model|Provider|Source|As of"
+            },
+            "properties": [
+              {
+                "id": "custom.align",
+                "value": "left"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "Input|Cache read|Cache write|Output"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "currencyUSD"
+              },
+              {
+                "id": "decimals",
+                "value": 2
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "type": "text",
+      "title": "",
+      "gridPos": {
+        "h": 4,
+        "w": 24,
+        "x": 0,
+        "y": 67
+      },
+      "id": 33,
+      "options": {
+        "mode": "html",
+        "content": "<p style='margin:0'><b>What this page does not claim.</b> No time saved, no hours returned, no return-on-investment figure \u2014 none of those are measured, and a number built from an assumed hours-saved is an assumption wearing a chart. Token spend is shown at list price and only means anything if you are billed per token; under a subscription the marginal token costs nothing. Agents that report no tokens appear as unmeasured, not as free. The measured differences beside the break-even figures are between self-selected cohorts and are not effects.</p>"
+      }
+    }
+  ],
+  "editable": true,
+  "graphTooltip": 0
+}

@@ -14,14 +14,6 @@
   "templating": {
     "list": [
       {
-        "name": "datasource",
-        "type": "datasource",
-        "query": "mysql",
-        "current": {},
-        "hide": 0,
-        "label": "Database"
-      },
-      {
         "name": "evidence",
         "type": "custom",
         "label": "Evidence",
@@ -56,7 +48,7 @@
     {
       "type": "stat",
       "title": "Coverage",
-      "description": "Share of commits carrying a valid AI-Attribution trailer. Everything else on this dashboard is computed over these commits only, so a low number here weakens every other panel.",
+      "description": "Share of commits in instrumented repositories that carry an AI-Attribution trailer of any kind, including the states meaning no evidence was available. **Coverage is not adoption** — a repository at 100% may have had no agent involvement at all. It says the instrumentation is working, nothing more.",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
         "h": 5,
@@ -104,14 +96,14 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT 100.0 * SUM(status NOT IN ('undetermined','unassisted','unmatched','degraded')) / NULLIF(COUNT(*), 0) AS coverage FROM whodunit_commits WHERE committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000"
+          "rawSql": "SELECT ROUND(100.0 * COUNT(DISTINCT w.commit_sha)\n                    / NULLIF(COUNT(DISTINCT c.sha), 0), 1) AS coverage\nFROM commits c\nJOIN repo_commits rc  ON rc.commit_sha  = c.sha\nJOIN repo_commits rc2 ON rc2.repo_id    = rc.repo_id\nJOIN whodunit_commits seen ON seen.commit_sha = rc2.commit_sha\nLEFT JOIN whodunit_commits w ON w.commit_sha = c.sha\nWHERE c.authored_date BETWEEN FROM_UNIXTIME($__unixEpochFrom())\n                          AND FROM_UNIXTIME($__unixEpochTo())"
         }
       ]
     },
     {
       "type": "stat",
       "title": "Penetration",
-      "description": "Share of DETERMINED commits that are AI-assisted. Undetermined commits are excluded from the denominator on purpose — including them would understate it, and reporting this without coverage overstates confidence.",
+      "description": "Share of commits with a real verdict that are AI-assisted. The denominator is `assisted` + `unassisted` + `unmatched` — all three mean the tool looked and reached an answer. `uninstrumented` and `undetermined` are excluded: it never looked, so counting them would understate this. Read it beside Coverage.",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
         "h": 5,
@@ -151,7 +143,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT 100.0 * SUM(status = 'assisted') / NULLIF(SUM(status NOT IN ('undetermined','unassisted','unmatched','degraded')), 0) AS penetration FROM whodunit_commits WHERE committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000"
+          "rawSql": "-- status-set-excludes: undetermined, uninstrumented, degraded\n--   the tool never reached a verdict on these, so counting them\n--   would understate the rate rather than complete it\nSELECT 100.0 * SUM(status = 'assisted')\n     / NULLIF(SUM(status IN ('assisted','unassisted','unmatched')), 0) AS penetration\nFROM whodunit_commits\nWHERE committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000"
         }
       ]
     },
@@ -260,8 +252,8 @@
     },
     {
       "type": "piechart",
-      "title": "Method mix",
-      "description": "How the attribution for each commit was determined, weakest to strongest: undetermined, declared, inferred, observed, intersected. This must accompany any penetration figure — a number resting on 'declared' is a different claim from one resting on 'intersected'.",
+      "title": "Evidence mix",
+      "description": "How much evidence stands behind each commit, strongest first: intersected, observed, declared, inferred — then the states meaning there is none. Read it beside any penetration figure: a number resting on `declared` is a different claim from one resting on `intersected`.",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
         "h": 9,
@@ -337,6 +329,66 @@
           {
             "matcher": {
               "id": "byName",
+              "options": "unassisted"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "blue"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "unmatched"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "semi-dark-blue"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "uninstrumented"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#6b7280"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "degraded"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
               "options": "undetermined"
             },
             "properties": [
@@ -371,7 +423,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT method, COUNT(*) AS commits FROM whodunit_commits WHERE committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000 GROUP BY method ORDER BY commits DESC"
+          "rawSql": "-- status-set-excludes: undetermined\n--   the COALESCE fallback already labels it; naming it here\n--   would shadow that with the raw status\nSELECT CASE\n         WHEN c.method <> 'undetermined' THEN c.method\n         ELSE COALESCE(c.reason,\n              CASE WHEN c.status IN ('uninstrumented','unmatched','unassisted','degraded')\n                   THEN c.status END,\n              'undetermined')\n       END AS state,\n       COUNT(*) AS commits\nFROM whodunit_commits c\nWHERE c.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nGROUP BY CASE\n         WHEN c.method <> 'undetermined' THEN c.method\n         ELSE COALESCE(c.reason,\n              CASE WHEN c.status IN ('uninstrumented','unmatched','unassisted','degraded')\n                   THEN c.status END,\n              'undetermined')\n       END\nORDER BY commits DESC"
         }
       ]
     },
@@ -408,8 +460,8 @@
     },
     {
       "type": "timeseries",
-      "title": "Method mix over time",
-      "description": "Commits per week by determination method. A drop in the stronger methods without a drop in commit volume usually means an adapter stopped recognising its agent's format, not that people stopped using agents.",
+      "title": "Evidence mix over time",
+      "description": "Commits per day by evidence state. A drop in the stronger states without a drop in commit volume usually means an adapter stopped recognising its agent's format, not that people stopped using agents.",
       "datasource": "${DS_WHODUNIT}",
       "gridPos": {
         "h": 9,
@@ -428,7 +480,144 @@
             "fillOpacity": 80,
             "lineWidth": 0
           }
-        }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "intersected"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "green"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "observed"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "semi-dark-green"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "inferred"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "yellow"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "declared"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "orange"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "unassisted"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "blue"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "unmatched"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "semi-dark-blue"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "uninstrumented"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#6b7280"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "degraded"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "undetermined"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "text"
+                }
+              }
+            ]
+          }
+        ]
       },
       "options": {
         "legend": {
@@ -440,7 +629,7 @@
         {
           "refId": "A",
           "format": "time_series",
-          "rawSql": "SELECT FROM_UNIXTIME(FLOOR(committed_at / 1000000000 / 86400) * 86400) AS time, method AS metric, COUNT(*) AS value FROM whodunit_commits WHERE committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000 GROUP BY time, metric ORDER BY time"
+          "rawSql": "-- status-set-excludes: undetermined\n--   the COALESCE fallback already labels it; naming it here\n--   would shadow that with the raw status\nSELECT FROM_UNIXTIME(FLOOR(c.committed_at / 1000000000 / 86400) * 86400) AS time,\n       CASE\n         WHEN c.method <> 'undetermined' THEN c.method\n         ELSE COALESCE(c.reason,\n              CASE WHEN c.status IN ('uninstrumented','unmatched','unassisted','degraded')\n                   THEN c.status END,\n              'undetermined')\n       END AS metric,\n       COUNT(*) AS value\nFROM whodunit_commits c\nWHERE c.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nGROUP BY time, CASE\n         WHEN c.method <> 'undetermined' THEN c.method\n         ELSE COALESCE(c.reason,\n              CASE WHEN c.status IN ('uninstrumented','unmatched','unassisted','degraded')\n                   THEN c.status END,\n              'undetermined')\n       END\nORDER BY time"
         }
       ]
     },

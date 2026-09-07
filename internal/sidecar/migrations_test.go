@@ -28,10 +28,13 @@ import (
 func TestMigrationsExecuteOnATableMissingTheColumn(t *testing.T) {
 	db := openDB(t)
 
-	migrated := map[string]bool{}
+	migrated := map[string]tableSet{}
 	for _, stmt := range Migrations {
-		if _, column, ok := parseAddColumn(stmt); ok {
-			migrated[column] = true
+		if table, column, ok := parseAddColumn(stmt); ok {
+			if migrated[column] == nil {
+				migrated[column] = tableSet{}
+			}
+			migrated[column][table] = true
 		}
 	}
 	if _, err := db.Exec(stripColumns(Schema, migrated)); err != nil {
@@ -48,17 +51,33 @@ func TestMigrationsExecuteOnATableMissingTheColumn(t *testing.T) {
 
 // stripColumns removes the named column declarations from a CREATE TABLE
 // body, producing the older schema a migration is meant to upgrade.
-func stripColumns(schema string, drop map[string]bool) string {
+// stripColumns removes migrated columns from the tables they are migrated
+// onto, leaving every other table alone.
+//
+// Table-scoped rather than by column name, because a name is not unique
+// across the schema. contributor is migrated onto whodunit_commits and
+// whodunit_events, and it is also a NOT NULL part of whodunit_repos's
+// primary key — stripping it everywhere left that key referencing a column
+// that no longer existed, and the whole schema stopped executing (WHO-192).
+func stripColumns(schema string, drop map[string]tableSet) string {
 	var out []string
+	table := ""
 	for _, line := range strings.Split(schema, "\n") {
+		if i := strings.Index(line, "CREATE TABLE IF NOT EXISTS "); i >= 0 {
+			table = strings.TrimSuffix(
+				strings.Fields(line[i+len("CREATE TABLE IF NOT EXISTS "):])[0], "(")
+		}
 		fields := strings.Fields(line)
-		if len(fields) > 0 && drop[fields[0]] {
+		if len(fields) > 0 && drop[fields[0]][table] {
 			continue
 		}
 		out = append(out, line)
 	}
 	return strings.Join(out, "\n")
 }
+
+// tableSet is the set of tables one migrated column belongs to.
+type tableSet map[string]bool
 
 // Every migrated column must ALSO be declared in Schema.
 //

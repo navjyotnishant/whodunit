@@ -92,22 +92,23 @@ class Dun < Formula
     bin.install "dun"
   end
 
-  # Named here because Homebrew has no post-install hook - a formula has
-  # install and test blocks and nothing that runs arbitrary code on
-  # upgrade, so an upgrade cannot fix a repository's hooks on its own
-  # (NAV-76, criterion 16).
+  # Hooks carry the version that wrote them, so a change to the hook
+  # script's own shape does not reach a repository just because the binary
+  # was upgraded (NAV-76). dun repairs a repository on the next command run
+  # there, but a repository nobody visits stays stale indefinitely - and
+  # stale hooks attribute less while looking like they are working.
   #
-  # dun repairs a stale repository automatically on the next command run
-  # there, so this is the belt-and-braces path for someone who would
-  # rather fix all of them at once than wait to visit each.
-  def caveats
-    <<~CAVEATS
-      Hooks installed in a repository before this upgrade may be out of date.
-      They are repaired automatically the next time you run dun there, or
-      bring every instrumented repository up to date at once:
-
-          dun repos update
-    CAVEATS
+  # An earlier version of this formula claimed Homebrew has no post-install
+  # hook. It does: post_install runs on install and on upgrade.
+  #
+  # The failure is swallowed deliberately. A repository that has moved, or
+  # whose hooks directory is not writable, must not fail the upgrade -
+  # ending up with stale hooks is a far better outcome than ending up with
+  # no new binary. \`dun repos update\` prints what it did either way.
+  def post_install
+    system bin/"dun", "repos", "update"
+  rescue StandardError
+    opoo "could not refresh git hooks; run \`dun repos update\` when convenient"
   end
 
   test do

@@ -1,0 +1,1226 @@
+{
+  "uid": "whodunit-leadership",
+  "title": "AI in Engineering \u2014 Leadership View",
+  "tags": [
+    "whodunit"
+  ],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 0,
+  "refresh": "",
+  "time": {
+    "from": "now-90d",
+    "to": "now"
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "board",
+        "type": "query",
+        "datasource": "${datasource}",
+        "query": "SELECT name AS __text, id AS __value FROM boards\nWHERE id LIKE 'linear:%' OR id LIKE 'jira:%'\nORDER BY name",
+        "current": {},
+        "refresh": 1,
+        "hide": 0,
+        "label": "Issue board",
+        "includeAll": false,
+        "multi": false
+      },
+      {
+        "name": "grain",
+        "type": "custom",
+        "query": "Daily : %Y-%m-%d,Weekly : %x-W%v,Monthly : %Y-%m",
+        "options": [
+          {
+            "text": "Daily",
+            "value": "%Y-%m-%d",
+            "selected": false
+          },
+          {
+            "text": "Weekly",
+            "value": "%x-W%v",
+            "selected": true
+          },
+          {
+            "text": "Monthly",
+            "value": "%Y-%m",
+            "selected": false
+          }
+        ],
+        "current": {
+          "selected": true,
+          "text": "Weekly",
+          "value": "%x-W%v"
+        },
+        "refresh": 0,
+        "hide": 0,
+        "label": "Granularity",
+        "includeAll": false,
+        "multi": false
+      },
+      {
+        "name": "contributor",
+        "type": "query",
+        "datasource": "${datasource}",
+        "query": "SELECT DISTINCT COALESCE(NULLIF(contributor, ''), '(unattributed)') AS __text, COALESCE(NULLIF(contributor, ''), '') AS __value FROM whodunit_repos ORDER BY 1",
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "__all__"
+        },
+        "refresh": 1,
+        "hide": 0,
+        "label": "Contributor",
+        "includeAll": true,
+        "allValue": "__all__",
+        "multi": false
+      },
+      {
+        "name": "team",
+        "type": "query",
+        "datasource": "${datasource}",
+        "query": "SELECT DISTINCT COALESCE(NULLIF(t.name, ''), '(unassigned)') AS __text, COALESCE(NULLIF(t.name, ''), '(unassigned)') AS __value FROM whodunit_repos r LEFT JOIN team_users tu ON tu.user_id = r.contributor LEFT JOIN teams t ON t.id = tu.team_id ORDER BY 1",
+        "includeAll": true,
+        "multi": false,
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "__all__"
+        },
+        "label": "Team",
+        "refresh": 1,
+        "allValue": "__all__"
+      },
+      {
+        "name": "evidence",
+        "type": "custom",
+        "label": "Evidence",
+        "query": "intersected \u2014 agent lines survived : intersected,observed \u2014 agent edited the files : observed,inferred \u2014 from surrounding evidence : inferred,declared \u2014 stated only : declared,undetermined \u2014 no evidence either way : undetermined",
+        "options": [],
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "__all__"
+        },
+        "includeAll": true,
+        "allValue": "__all__",
+        "multi": false,
+        "hide": 0
+      },
+      {
+        "name": "repo",
+        "type": "query",
+        "datasource": "${datasource}",
+        "query": "SELECT COALESCE(MAX(r.name), LEFT(w.repo_id, 8)) AS __text, w.repo_id AS __value FROM whodunit_commits w LEFT JOIN repo_commits rc ON rc.commit_sha = w.commit_sha LEFT JOIN repos r ON r.id = rc.repo_id GROUP BY w.repo_id ORDER BY __text",
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "__all__"
+        },
+        "refresh": 1,
+        "hide": 0,
+        "label": "Repository (commit panels)",
+        "includeAll": true,
+        "allValue": "__all__",
+        "multi": false
+      }
+    ]
+  },
+  "panels": [
+    {
+      "type": "text",
+      "title": "",
+      "gridPos": {
+        "h": 5,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 1,
+      "options": {
+        "mode": "html",
+        "content": "<h3 style='margin:0 0 6px'>AI in engineering, on one screen</h3><p style='margin:0'>How much of the work is AI-assisted, whether the agent's edits are being kept, whether assisted work ships faster, and whether quality held. Every figure has a filter above it and a tooltip behind it; the numbers here are the same ones on the executive dashboard, drawn so the trend is visible before the figure.</p><p style='margin:6px 0 0'><b>Assisted and unassisted work are self-selected</b> \u2014 people reach for an agent on some tasks and not others \u2014 so every comparison is a difference, not an effect. Commits with no evidence collected are shown as their own band, never folded into either side.</p>"
+      }
+    },
+    {
+      "type": "row",
+      "title": "Headline",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 5
+      },
+      "id": 2,
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "id": 3,
+      "type": "gauge",
+      "title": "Adoption",
+      "description": "Share of commits in the selected range carrying `status=assisted`.\n\n**Adoption is not coverage.** Coverage beside it counts any valid trailer including `undetermined` \u2014 a repository at full coverage may have had no agent involvement at all. Coverage says the instrumentation works; this says the agents are being used.\n\nThe delivery dashboard carries the same figure; both follow the time range.",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "h": 7,
+        "w": 6,
+        "x": 0,
+        "y": 6
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "decimals": 1,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#25c2a0"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#25c2a0",
+                "value": null
+              }
+            ]
+          },
+          "noValue": "No commits in the selected range"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showThresholdLabels": false,
+        "showThresholdMarkers": false,
+        "minVizWidth": 75,
+        "minVizHeight": 75,
+        "sizing": "auto"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "datasource": "${datasource}",
+          "rawSql": "SELECT ROUND(SUM(c.status='assisted')*100.0/NULLIF(COUNT(*),0),1) AS v\nFROM whodunit_commits c\nLEFT JOIN whodunit_identities wi ON wi.alias = c.contributor\nWHERE ('${evidence:raw}' = '__all__' OR c.method = '${evidence:raw}')\n  AND  ('${contributor:raw}' = '__all__' OR COALESCE(wi.canonical, c.contributor) = '${contributor:raw}')\n  AND ('${repo:raw}' = '__all__' OR c.repo_id = '${repo:raw}')\n  AND c.committed_at BETWEEN $__unixEpochFrom() * 1000000000\n                         AND $__unixEpochTo()   * 1000000000"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "gauge",
+      "title": "Acceptance",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "h": 7,
+        "w": 6,
+        "x": 6,
+        "y": 6
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT ROUND(100.0*SUM(e.outcome='accepted')/NULLIF(SUM(e.outcome IN ('accepted','rejected','failed')),0),1) v FROM whodunit_events e\nLEFT JOIN whodunit_identities wi ON wi.alias = e.contributor WHERE ('${contributor:raw}' = '__all__' OR COALESCE(wi.canonical, e.contributor) = '${contributor:raw}')\n  AND ('${repo:raw}' = '__all__' OR e.repo_id = '${repo:raw}') AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "purple",
+                "value": null
+              }
+            ]
+          },
+          "min": 0,
+          "max": 100,
+          "decimals": 0
+        }
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showThresholdLabels": false,
+        "showThresholdMarkers": false,
+        "minVizWidth": 75,
+        "minVizHeight": 75,
+        "sizing": "auto",
+        "text": {
+          "valueSize": 28
+        }
+      },
+      "description": "Share of decided tool calls that were accepted.\n\n**The denominator is decided calls only** \u2014 accepted, rejected or failed \u2014 not all calls. A call whose outcome was never recorded is excluded rather than counted as accepted, which would flatter the rate. See Decided tool calls beside this for the size of that denominator.\n\nA rejection is a human declining; a failure is the tool erroring. Both count as decided, and only acceptance is in the numerator."
+    },
+    {
+      "type": "bargauge",
+      "title": "Median cycle time, hours",
+      "description": "Median hours from issue open to done, for issues whose commits were AI-assisted against those that were not, on the selected board. Withheld below 5 issues a side. A difference between self-selected cohorts, not an effect \u2014 the assisted side may simply be the easier work.",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "h": 7,
+        "w": 6,
+        "x": 12,
+        "y": 6
+      },
+      "id": 5,
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "datasource": "${datasource}",
+          "rawSql": "SELECT 'AI-assisted' AS metric, (SELECT CASE\n         WHEN (SELECT COUNT(*) FROM (SELECT i.issue_key, i.lead_time_minutes AS ltm,\n       COALESCE(MAX(w.status = 'assisted'), 0) AS ai\nFROM issues i\nJOIN board_issues bi ON bi.issue_id = i.id\nLEFT JOIN issue_commits c ON c.issue_id = i.id\nLEFT JOIN whodunit_commits w ON w.commit_sha = c.commit_sha\nWHERE ('${evidence:raw}' = '__all__' OR w.method = '${evidence:raw}')\n  AND  bi.board_id = '$board'\n  AND i.lead_time_minutes IS NOT NULL\n  AND i.lead_time_minutes > 0\n  AND $__timeFilter(i.resolution_date)\n  AND i.issue_key REGEXP '^[A-Z][A-Z0-9]+-[0-9]+$'\n    AND i.issue_key REGEXP CONCAT('^',\n        (SELECT SUBSTRING_INDEX(i2.issue_key,'-',1)\n           FROM issues i2 JOIN board_issues bi2 ON bi2.issue_id = i2.id\n          WHERE bi2.board_id = '$board'\n            AND i2.issue_key REGEXP '^[A-Z][A-Z0-9]+-[0-9]+$' LIMIT 1),\n        '-[0-9]+$')\nGROUP BY i.issue_key, i.lead_time_minutes\nHAVING ai = 1) ca) < 5\n           OR (SELECT COUNT(*) FROM (SELECT i.issue_key, i.lead_time_minutes AS ltm,\n       COALESCE(MAX(w.status = 'assisted'), 0) AS ai\nFROM issues i\nJOIN board_issues bi ON bi.issue_id = i.id\nLEFT JOIN issue_commits c ON c.issue_id = i.id\nLEFT JOIN whodunit_commits w ON w.commit_sha = c.commit_sha\nWHERE bi.board_id = '$board'\n  AND i.lead_time_minutes IS NOT NULL\n  AND i.lead_time_minutes > 0\n  AND $__timeFilter(i.resolution_date)\n  AND i.issue_key REGEXP '^[A-Z][A-Z0-9]+-[0-9]+$'\n    AND i.issue_key REGEXP CONCAT('^',\n        (SELECT SUBSTRING_INDEX(i2.issue_key,'-',1)\n           FROM issues i2 JOIN board_issues bi2 ON bi2.issue_id = i2.id\n          WHERE bi2.board_id = '$board'\n            AND i2.issue_key REGEXP '^[A-Z][A-Z0-9]+-[0-9]+$' LIMIT 1),\n        '-[0-9]+$')\nGROUP BY i.issue_key, i.lead_time_minutes\nHAVING ai = 0) cb) < 5\n         THEN NULL\n         ELSE (SELECT ROUND(AVG(ltm)/60, 1) FROM (\n                 SELECT ltm, ROW_NUMBER() OVER (ORDER BY ltm) rn, COUNT(*) OVER () cnt\n                 FROM (SELECT i.issue_key, i.lead_time_minutes AS ltm,\n       COALESCE(MAX(w.status = 'assisted'), 0) AS ai\nFROM issues i\nJOIN board_issues bi ON bi.issue_id = i.id\nLEFT JOIN issue_commits c ON c.issue_id = i.id\nLEFT JOIN whodunit_commits w ON w.commit_sha = c.commit_sha\nWHERE bi.board_id = '$board'\n  AND i.lead_time_minutes IS NOT NULL\n  AND i.lead_time_minutes > 0\n  AND $__timeFilter(i.resolution_date)\n  AND i.issue_key REGEXP '^[A-Z][A-Z0-9]+-[0-9]+$'\n    AND i.issue_key REGEXP CONCAT('^',\n        (SELECT SUBSTRING_INDEX(i2.issue_key,'-',1)\n           FROM issues i2 JOIN board_issues bi2 ON bi2.issue_id = i2.id\n          WHERE bi2.board_id = '$board'\n            AND i2.issue_key REGEXP '^[A-Z][A-Z0-9]+-[0-9]+$' LIMIT 1),\n        '-[0-9]+$')\nGROUP BY i.issue_key, i.lead_time_minutes\nHAVING ai = 1) c) r\n               WHERE rn IN (FLOOR((cnt+1)/2), CEIL((cnt+1)/2)))\n       END) AS value\nUNION ALL\nSELECT 'Not AI-assisted', (SELECT CASE\n         WHEN (SELECT COUNT(*) FROM (SELECT i.issue_key, i.lead_time_minutes AS ltm,\n       COALESCE(MAX(w.status = 'assisted'), 0) AS ai\nFROM issues i\nJOIN board_issues bi ON bi.issue_id = i.id\nLEFT JOIN issue_commits c ON c.issue_id = i.id\nLEFT JOIN whodunit_commits w ON w.commit_sha = c.commit_sha\nWHERE ('${evidence:raw}' = '__all__' OR w.method = '${evidence:raw}')\n  AND  bi.board_id = '$board'\n  AND i.lead_time_minutes IS NOT NULL\n  AND i.lead_time_minutes > 0\n  AND $__timeFilter(i.resolution_date)\n  AND i.issue_key REGEXP '^[A-Z][A-Z0-9]+-[0-9]+$'\n    AND i.issue_key REGEXP CONCAT('^',\n        (SELECT SUBSTRING_INDEX(i2.issue_key,'-',1)\n           FROM issues i2 JOIN board_issues bi2 ON bi2.issue_id = i2.id\n          WHERE bi2.board_id = '$board'\n            AND i2.issue_key REGEXP '^[A-Z][A-Z0-9]+-[0-9]+$' LIMIT 1),\n        '-[0-9]+$')\nGROUP BY i.issue_key, i.lead_time_minutes\nHAVING ai = 1) ca) < 5\n           OR (SELECT COUNT(*) FROM (SELECT i.issue_key, i.lead_time_minutes AS ltm,\n       COALESCE(MAX(w.status = 'assisted'), 0) AS ai\nFROM issues i\nJOIN board_issues bi ON bi.issue_id = i.id\nLEFT JOIN issue_commits c ON c.issue_id = i.id\nLEFT JOIN whodunit_commits w ON w.commit_sha = c.commit_sha\nWHERE bi.board_id = '$board'\n  AND i.lead_time_minutes IS NOT NULL\n  AND i.lead_time_minutes > 0\n  AND $__timeFilter(i.resolution_date)\n  AND i.issue_key REGEXP '^[A-Z][A-Z0-9]+-[0-9]+$'\n    AND i.issue_key REGEXP CONCAT('^',\n        (SELECT SUBSTRING_INDEX(i2.issue_key,'-',1)\n           FROM issues i2 JOIN board_issues bi2 ON bi2.issue_id = i2.id\n          WHERE bi2.board_id = '$board'\n            AND i2.issue_key REGEXP '^[A-Z][A-Z0-9]+-[0-9]+$' LIMIT 1),\n        '-[0-9]+$')\nGROUP BY i.issue_key, i.lead_time_minutes\nHAVING ai = 0) cb) < 5\n         THEN NULL\n         ELSE (SELECT ROUND(AVG(ltm)/60, 1) FROM (\n                 SELECT ltm, ROW_NUMBER() OVER (ORDER BY ltm) rn, COUNT(*) OVER () cnt\n                 FROM (SELECT i.issue_key, i.lead_time_minutes AS ltm,\n       COALESCE(MAX(w.status = 'assisted'), 0) AS ai\nFROM issues i\nJOIN board_issues bi ON bi.issue_id = i.id\nLEFT JOIN issue_commits c ON c.issue_id = i.id\nLEFT JOIN whodunit_commits w ON w.commit_sha = c.commit_sha\nWHERE bi.board_id = '$board'\n  AND i.lead_time_minutes IS NOT NULL\n  AND i.lead_time_minutes > 0\n  AND $__timeFilter(i.resolution_date)\n  AND i.issue_key REGEXP '^[A-Z][A-Z0-9]+-[0-9]+$'\n    AND i.issue_key REGEXP CONCAT('^',\n        (SELECT SUBSTRING_INDEX(i2.issue_key,'-',1)\n           FROM issues i2 JOIN board_issues bi2 ON bi2.issue_id = i2.id\n          WHERE bi2.board_id = '$board'\n            AND i2.issue_key REGEXP '^[A-Z][A-Z0-9]+-[0-9]+$' LIMIT 1),\n        '-[0-9]+$')\nGROUP BY i.issue_key, i.lead_time_minutes\nHAVING ai = 0) c) r\n               WHERE rn IN (FLOOR((cnt+1)/2), CEIL((cnt+1)/2)))\n       END)"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "h",
+          "decimals": 1,
+          "min": 0,
+          "noValue": "under 5 issues a side",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#4caf78"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Not AI-assisted"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#8a8f9a"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/^value$/",
+          "values": true
+        },
+        "orientation": "horizontal",
+        "displayMode": "gradient",
+        "showUnfilled": true,
+        "namePlacement": "top",
+        "valueMode": "color",
+        "minVizHeight": 16
+      }
+    },
+    {
+      "type": "bargauge",
+      "title": "People using it",
+      "description": "Contributors with at least one AI-assisted commit in range, against everyone who committed. People, not licences.",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "h": 7,
+        "w": 6,
+        "x": 18,
+        "y": 6
+      },
+      "id": 6,
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "datasource": "${datasource}",
+          "rawSql": "\nSELECT COUNT(DISTINCT CASE WHEN c.status='assisted' THEN COALESCE(wi.canonical,c.contributor) END) AS `Using AI`,\n       COUNT(DISTINCT COALESCE(wi.canonical,c.contributor)) AS `Active`\nFROM whodunit_commits c LEFT JOIN whodunit_identities wi ON wi.alias = c.contributor\nLEFT JOIN team_users tu ON tu.user_id = COALESCE(wi.canonical, c.contributor)\nLEFT JOIN teams t ON t.id = tu.team_id\nWHERE c.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000 AND c.contributor IS NOT NULL AND c.status IN ('assisted','unassisted','undetermined','uninstrumented','unmatched','degraded') AND ('${evidence:raw}' = '__all__' OR c.method = '${evidence:raw}')\n  AND ('${contributor:raw}' = '__all__' OR COALESCE(wi.canonical, c.contributor) = '${contributor:raw}')\n  AND ('${repo:raw}' = '__all__' OR c.repo_id = '${repo:raw}')\n  AND ('${team:raw}' = '__all__' OR COALESCE(t.name,'(unassigned)') = '${team:raw}')"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "decimals": 0,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#4caf78"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Active"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#8a8f9a"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "horizontal",
+        "displayMode": "gradient",
+        "showUnfilled": true,
+        "valueMode": "color",
+        "namePlacement": "top"
+      }
+    },
+    {
+      "type": "row",
+      "title": "Health, week by week",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 13
+      },
+      "id": 7,
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "type": "state-timeline",
+      "title": "Three signals as bands",
+      "description": "Each row is one signal per week, coloured by threshold: adoption (green from 50%), acceptance of the agent's edits (green from 90%), and the fix share of assisted commits (green under 25%, red from 40%). Read across a row for the trend, down a column for a bad week. Grey means no data, or no assisted commits yet, that week.",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 14
+      },
+      "id": 8,
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "datasource": "${datasource}",
+          "rawSql": "\nWITH wc AS (\n  SELECT DATE(FROM_UNIXTIME(c.committed_at/1000000000) - INTERVAL WEEKDAY(FROM_UNIXTIME(c.committed_at/1000000000)) DAY) w,\n         100*SUM(c.status='assisted')/COUNT(*) adoption,\n         100*SUM(c.purpose='fix' AND c.status='assisted')/NULLIF(SUM(c.status='assisted'),0) rework\n  FROM whodunit_commits c LEFT JOIN whodunit_identities wi ON wi.alias = c.contributor\nLEFT JOIN team_users tu ON tu.user_id = COALESCE(wi.canonical, c.contributor)\nLEFT JOIN teams t ON t.id = tu.team_id\n  WHERE c.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000 AND c.status IN ('assisted','unassisted','undetermined','uninstrumented','unmatched','degraded') AND ('${evidence:raw}' = '__all__' OR c.method = '${evidence:raw}')\n  AND ('${contributor:raw}' = '__all__' OR COALESCE(wi.canonical, c.contributor) = '${contributor:raw}')\n  AND ('${repo:raw}' = '__all__' OR c.repo_id = '${repo:raw}')\n  AND ('${team:raw}' = '__all__' OR COALESCE(t.name,'(unassigned)') = '${team:raw}') GROUP BY w),\nwe AS (\n  SELECT DATE(FROM_UNIXTIME(e.observed_at/1000000000) - INTERVAL WEEKDAY(FROM_UNIXTIME(e.observed_at/1000000000)) DAY) w,\n         100*SUM(e.outcome='accepted')/NULLIF(SUM(e.outcome IN ('accepted','rejected','failed')),0) acceptance\n  FROM whodunit_events e LEFT JOIN whodunit_identities wi ON wi.alias = e.contributor\n  WHERE e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n    AND ('${contributor:raw}' = '__all__' OR COALESCE(wi.canonical, e.contributor) = '${contributor:raw}')\n    AND ('${repo:raw}' = '__all__' OR e.repo_id = '${repo:raw}')\n  GROUP BY w)\nSELECT CAST(wc.w AS DATETIME) AS time,\n       ROUND(wc.adoption,0) AS `Adoption`,\n       ROUND(we.acceptance,0) AS `Acceptance`,\n       ROUND(wc.rework,0) AS `Rework, assisted`\nFROM wc LEFT JOIN we ON we.w = wc.w ORDER BY time"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 0,
+          "custom": {
+            "fillOpacity": 80,
+            "lineWidth": 0
+          },
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#3a3d44",
+                "value": null
+              },
+              {
+                "color": "#d64545",
+                "value": 1
+              },
+              {
+                "color": "#e0a63a",
+                "value": 25
+              },
+              {
+                "color": "#4caf78",
+                "value": 50
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Acceptance"
+            },
+            "properties": [
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "#d64545",
+                      "value": null
+                    },
+                    {
+                      "color": "#e0a63a",
+                      "value": 75
+                    },
+                    {
+                      "color": "#4caf78",
+                      "value": 90
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Rework, assisted"
+            },
+            "properties": [
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "#4caf78",
+                      "value": null
+                    },
+                    {
+                      "color": "#e0a63a",
+                      "value": 25
+                    },
+                    {
+                      "color": "#d64545",
+                      "value": 40
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "mergeValues": false,
+        "showValue": "always",
+        "alignValue": "center",
+        "rowHeight": 0.85,
+        "legend": {
+          "showLegend": false
+        },
+        "tooltip": {
+          "mode": "single"
+        }
+      }
+    },
+    {
+      "type": "row",
+      "title": "Throughput",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 22
+      },
+      "id": 9,
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "type": "timeseries",
+      "title": "Commits per week, by evidence",
+      "description": "Every commit, stacked: AI-assisted, unassisted, and no evidence collected. The grey band is the honest third state \u2014 the tool was absent or could not say, which is not the same as no AI. Adoption is the green share of each bar.",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "h": 9,
+        "w": 9,
+        "x": 0,
+        "y": 23
+      },
+      "id": 10,
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "datasource": "${datasource}",
+          "rawSql": "\nSELECT CAST(DATE(FROM_UNIXTIME(c.committed_at/1000000000) - INTERVAL WEEKDAY(FROM_UNIXTIME(c.committed_at/1000000000)) DAY) AS DATETIME) AS time,\n       SUM(c.status='assisted') AS `AI-assisted`,\n       SUM(c.status='unassisted') AS `Unassisted`,\n       SUM(CASE c.status WHEN 'undetermined' THEN 1 WHEN 'uninstrumented' THEN 1\n                     WHEN 'unmatched' THEN 1 WHEN 'degraded' THEN 1 ELSE 0 END) AS `No evidence`\nFROM whodunit_commits c LEFT JOIN whodunit_identities wi ON wi.alias = c.contributor\nLEFT JOIN team_users tu ON tu.user_id = COALESCE(wi.canonical, c.contributor)\nLEFT JOIN teams t ON t.id = tu.team_id\nWHERE c.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000 AND c.status IN ('assisted','unassisted','undetermined','uninstrumented','unmatched','degraded') AND ('${evidence:raw}' = '__all__' OR c.method = '${evidence:raw}')\n  AND ('${contributor:raw}' = '__all__' OR COALESCE(wi.canonical, c.contributor) = '${contributor:raw}')\n  AND ('${repo:raw}' = '__all__' OR c.repo_id = '${repo:raw}')\n  AND ('${team:raw}' = '__all__' OR COALESCE(t.name,'(unassigned)') = '${team:raw}')\nGROUP BY time ORDER BY time"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "bars",
+            "stacking": {
+              "mode": "normal"
+            },
+            "fillOpacity": 85,
+            "lineWidth": 0
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "AI-assisted"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#4caf78"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Unassisted"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#5b8def"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "No evidence"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#8a8f9a"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Issues opened vs closed",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "h": 9,
+        "w": 7,
+        "x": 9,
+        "y": 23
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawSql": "SELECT IF('$grain'='%Y-%m-%d',  days.d,\n    IF('$grain'='%x-W%v', DATE(days.d - INTERVAL WEEKDAY(days.d) DAY),\n                        DATE(days.d - INTERVAL DAYOFMONTH(days.d)-1 DAY))) AS `time`,\n       NULLIF(SUM(COALESCE(o.opened, 0)), 0) AS `opened`,\n       NULLIF(SUM(COALESCE(c.closed,  0)), 0) AS `closed`\nFROM (\n  SELECT DATE(i.created_date) d FROM issues i\n  JOIN board_issues bi ON bi.issue_id = i.id\n  WHERE bi.board_id = '$board' AND i.created_date IS NOT NULL\n    AND $__timeFilter(i.created_date)\n  UNION\n  SELECT DATE(i.resolution_date) FROM issues i\n  JOIN board_issues bi ON bi.issue_id = i.id\n  WHERE bi.board_id = '$board' AND i.resolution_date IS NOT NULL\n    AND i.status = 'DONE' AND $__timeFilter(i.resolution_date)\n) days\nLEFT JOIN (\n  SELECT DATE(i.created_date) d, COUNT(*) opened FROM issues i\n  JOIN board_issues bi ON bi.issue_id = i.id\n  WHERE bi.board_id = '$board' AND i.created_date IS NOT NULL\n    AND $__timeFilter(i.created_date) GROUP BY d\n) o ON o.d = days.d\nLEFT JOIN (\n  SELECT DATE(i.resolution_date) d, COUNT(*) closed FROM issues i\n  JOIN board_issues bi ON bi.issue_id = i.id\n  WHERE bi.board_id = '$board' AND i.resolution_date IS NOT NULL\n    AND i.status = 'DONE' AND $__timeFilter(i.resolution_date) GROUP BY d\n) c ON c.d = days.d\nGROUP BY `time`\nORDER BY `time`"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 80,
+            "lineWidth": 0,
+            "barAlignment": 0,
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            },
+            "axisPlacement": "left",
+            "pointSize": 1,
+            "showPoints": "never",
+            "spanNulls": false
+          },
+          "noValue": "No issues opened or closed on this board in the selected range"
+        },
+        "overrides": []
+      },
+      "description": "Issues opened and closed per period, on the selected board.\n\n**Closed means closed in that period, whatever period it was opened in.** Measured here, 141 of 240 issues over three months \u2014 so the bars are not a matched pair and the gap between them is not this period's arithmetic.\n\nScoped by issue board rather than repository: an issue is reachable from a repository only through its commits, and most issues have none \u2014 109 of 379 here. A repository filter would silently drop the rest.",
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "id": 11
+    },
+    {
+      "type": "timeseries",
+      "title": "Issues closed, cumulative",
+      "description": "Running total of issues closed on the selected board, one line per cohort. Cumulative lines make the pace visible as a slope: steeper is faster. The assisted line starts when adoption did.",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "h": 9,
+        "w": 8,
+        "x": 16,
+        "y": 23
+      },
+      "id": 12,
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "datasource": "${datasource}",
+          "rawSql": "\nSELECT time,\n       SUM(COALESCE(`AI-assisted`,0)) OVER (ORDER BY time) AS `AI-assisted`,\n       SUM(`not AI-assisted`) OVER (ORDER BY time) AS `Not AI-assisted`\nFROM (SELECT IF('$grain'='%Y-%m-%d', DATE(i.resolution_date),\n          IF('$grain'='%x-W%v', DATE(i.resolution_date - INTERVAL WEEKDAY(i.resolution_date) DAY),\n                                DATE(i.resolution_date - INTERVAL DAYOFMONTH(i.resolution_date)-1 DAY))) AS `time`,\n       NULLIF(SUM(t.ai = 1), 0) AS `AI-assisted`,\n       SUM(t.ai = 0) AS `not AI-assisted`\nFROM issues i\nJOIN board_issues bi ON bi.issue_id = i.id\nLEFT JOIN (\nSELECT i.issue_key,\n       i.lead_time_minutes AS ltm,\n       i.resolution_date,\n       COALESCE(MAX(w.status = 'assisted'), 0) AS ai\nFROM issues i\nJOIN board_issues bi ON bi.issue_id = i.id\nLEFT JOIN issue_commits c ON c.issue_id = i.id\nLEFT JOIN whodunit_commits w ON w.commit_sha = c.commit_sha\nWHERE w.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  AND  ('${evidence:raw}' = '__all__' OR w.method = '${evidence:raw}')\n  AND  bi.board_id = '$board'\n  AND i.lead_time_minutes IS NOT NULL\n  AND i.issue_key REGEXP '^[A-Z][A-Z0-9]+-[0-9]+$'\n    AND i.issue_key REGEXP CONCAT('^',\n        (SELECT SUBSTRING_INDEX(i2.issue_key,'-',1)\n           FROM issues i2 JOIN board_issues bi2 ON bi2.issue_id = i2.id\n          WHERE bi2.board_id = '$board'\n            AND i2.issue_key REGEXP '^[A-Z][A-Z0-9]+-[0-9]+$' LIMIT 1),\n        '-[0-9]+$')\nGROUP BY i.issue_key, i.lead_time_minutes, i.resolution_date\n) t ON t.issue_key = i.issue_key\nWHERE bi.board_id = '$board' AND i.resolution_date IS NOT NULL\nGROUP BY `time` ORDER BY `time`) r"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 15,
+            "gradientMode": "opacity",
+            "lineInterpolation": "smooth",
+            "showPoints": "never"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "AI-assisted"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#4caf78"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Not AI-assisted"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#8a8f9a"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "type": "row",
+      "title": "Where AI is used, and how deeply",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 32
+      },
+      "id": 13,
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "type": "barchart",
+      "title": "Share of each kind of work that is AI-assisted",
+      "description": "Each bar is one kind of work at 100%, split by evidence. Reads as: of the features, how much was assisted. Features and fixes are where the argument is; docs and tests being assisted is cheaper to believe and worth less.",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "h": 9,
+        "w": 14,
+        "x": 0,
+        "y": 33
+      },
+      "id": 14,
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "datasource": "${datasource}",
+          "rawSql": "\nSELECT c.purpose AS metric,\n       SUM(c.status='assisted') AS `AI-assisted`,\n       SUM(c.status='unassisted') AS `Unassisted`,\n       SUM(CASE c.status WHEN 'undetermined' THEN 1 WHEN 'uninstrumented' THEN 1\n                     WHEN 'unmatched' THEN 1 WHEN 'degraded' THEN 1 ELSE 0 END) AS `No evidence`\nFROM whodunit_commits c LEFT JOIN whodunit_identities wi ON wi.alias = c.contributor\nLEFT JOIN team_users tu ON tu.user_id = COALESCE(wi.canonical, c.contributor)\nLEFT JOIN teams t ON t.id = tu.team_id\nWHERE c.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000 AND c.status IN ('assisted','unassisted','undetermined','uninstrumented','unmatched','degraded') AND ('${evidence:raw}' = '__all__' OR c.method = '${evidence:raw}')\n  AND ('${contributor:raw}' = '__all__' OR COALESCE(wi.canonical, c.contributor) = '${contributor:raw}')\n  AND ('${repo:raw}' = '__all__' OR c.repo_id = '${repo:raw}')\n  AND ('${team:raw}' = '__all__' OR COALESCE(t.name,'(unassigned)') = '${team:raw}') AND c.purpose IN ('feature','fix','refactor','test','docs','chore')\nGROUP BY c.purpose ORDER BY FIELD(c.purpose,'feature','fix','refactor','test','docs','chore')"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "axisLabel": "",
+            "fillOpacity": 85
+          },
+          "unit": "percentunit",
+          "max": 1,
+          "min": 0,
+          "decimals": 0
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "AI-assisted"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#4caf78"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Unassisted"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#5b8def"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "No evidence"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#8a8f9a"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "xField": "metric",
+        "orientation": "horizontal",
+        "showValue": "never",
+        "stacking": "percent",
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "barWidth": 0.75
+      }
+    },
+    {
+      "id": 15,
+      "title": "How deeply the agent is used",
+      "type": "bargauge",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "h": 9,
+        "w": 10,
+        "x": 14,
+        "y": 33
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT CASE\n         WHEN s.mcp_calls > 0 OR s.distinct_tools >= 5 OR s.tool_calls >= 50\n              THEN 'agentic'\n         WHEN s.tool_calls > 0 THEN 'edits'\n         ELSE 'chat only'\n       END AS `depth`,\n       COUNT(*) AS `sessions`\nFROM whodunit_sessions s\nLEFT JOIN whodunit_identities wi ON wi.alias = s.contributor\nWHERE s.last_seen BETWEEN $__unixEpochFrom() * 1000000000\n                      AND $__unixEpochTo()   * 1000000000\n  AND ('${contributor:raw}' = '__all__' OR COALESCE(wi.canonical, s.contributor) = '${contributor:raw}')\n  AND ('${repo:raw}' = '__all__' OR s.repo_id = '${repo:raw}')\nGROUP BY `depth`\nORDER BY FIELD(`depth`, 'chat only', 'edits', 'agentic')"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "min": 0,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#25c2a0"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "chat only"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#7fe3cd"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "edits"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#25c2a0"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "agentic"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#1a8870"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "description": "Sessions by how far they went: **chat only** made no tool calls, **edits** made some, **agentic** used MCP or ran 5+ distinct tools or 50+ calls.\n\nDepth is not value. A long agentic session and a one-question chat can both be exactly what the work needed.",
+      "options": {
+        "displayMode": "gradient",
+        "orientation": "horizontal",
+        "showUnfilled": true,
+        "valueMode": "text",
+        "text": {
+          "valueSize": 14,
+          "titleSize": 11
+        },
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": true
+        },
+        "maxVizHeight": 20,
+        "minVizHeight": 14,
+        "sizing": "manual"
+      }
+    },
+    {
+      "type": "row",
+      "title": "Speed and quality",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 42
+      },
+      "id": 16,
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "type": "barchart",
+      "title": "Cycle time per week, each cohort",
+      "description": "Mean hours from issue open to done each week, one bar per cohort. Weeks with issues on one side only show one bar. The gap between bars is the headline; a gap that narrows as adoption grows says the early assisted issues were the easy ones.",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "h": 9,
+        "w": 9,
+        "x": 0,
+        "y": 43
+      },
+      "id": 17,
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "datasource": "${datasource}",
+          "rawSql": "\nSELECT DATE_FORMAT(DATE(t.resolution_date - INTERVAL WEEKDAY(t.resolution_date) DAY),'%b %d') AS week,\n       DATE(t.resolution_date - INTERVAL WEEKDAY(t.resolution_date) DAY) AS ord,\n       ROUND(AVG(CASE WHEN t.ai=1 THEN t.ltm END)/60,1) AS `AI-assisted`,\n       ROUND(AVG(CASE WHEN t.ai=0 THEN t.ltm END)/60,1) AS `Not AI-assisted`\nFROM (\nSELECT i.issue_key,\n       i.lead_time_minutes AS ltm,\n       i.resolution_date,\n       COALESCE(MAX(w.status = 'assisted'), 0) AS ai\nFROM issues i\nJOIN board_issues bi ON bi.issue_id = i.id\nLEFT JOIN issue_commits c ON c.issue_id = i.id\nLEFT JOIN whodunit_commits w ON w.commit_sha = c.commit_sha\nWHERE w.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  AND  ('${evidence:raw}' = '__all__' OR w.method = '${evidence:raw}')\n  AND  bi.board_id = '$board'\n  AND i.lead_time_minutes IS NOT NULL\n  AND i.issue_key REGEXP '^[A-Z][A-Z0-9]+-[0-9]+$'\n    AND i.issue_key REGEXP CONCAT('^',\n        (SELECT SUBSTRING_INDEX(i2.issue_key,'-',1)\n           FROM issues i2 JOIN board_issues bi2 ON bi2.issue_id = i2.id\n          WHERE bi2.board_id = '$board'\n            AND i2.issue_key REGEXP '^[A-Z][A-Z0-9]+-[0-9]+$' LIMIT 1),\n        '-[0-9]+$')\nGROUP BY i.issue_key, i.lead_time_minutes, i.resolution_date\n) t\nWHERE t.resolution_date IS NOT NULL AND t.ltm > 0 AND $__timeFilter(t.resolution_date)\nGROUP BY week, ord ORDER BY ord"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "h",
+          "decimals": 0,
+          "custom": {
+            "axisLabel": ""
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "AI-assisted"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#4caf78"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Not AI-assisted"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#8a8f9a"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "ord"
+            },
+            "properties": [
+              {
+                "id": "custom.hideFrom",
+                "value": {
+                  "viz": true,
+                  "legend": true,
+                  "tooltip": true
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "xField": "week",
+        "orientation": "vertical",
+        "showValue": "always",
+        "text": {
+          "valueSize": 11
+        },
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "barWidth": 0.8,
+        "groupWidth": 0.7
+      }
+    },
+    {
+      "type": "histogram",
+      "title": "How cycle time is distributed",
+      "description": "Every closed issue, binned by hours to done, one distribution per cohort. A median hides the tail; this shows it. Issues over 400 hours are cut from the plot for readability.",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "h": 9,
+        "w": 8,
+        "x": 9,
+        "y": 43
+      },
+      "id": 18,
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "datasource": "${datasource}",
+          "rawSql": "\nSELECT CASE WHEN t.ai=1 THEN t.ltm/60 END AS `AI-assisted`,\n       CASE WHEN t.ai=0 THEN t.ltm/60 END AS `Not AI-assisted`\nFROM (\nSELECT i.issue_key,\n       i.lead_time_minutes AS ltm,\n       i.resolution_date,\n       COALESCE(MAX(w.status = 'assisted'), 0) AS ai\nFROM issues i\nJOIN board_issues bi ON bi.issue_id = i.id\nLEFT JOIN issue_commits c ON c.issue_id = i.id\nLEFT JOIN whodunit_commits w ON w.commit_sha = c.commit_sha\nWHERE w.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  AND  ('${evidence:raw}' = '__all__' OR w.method = '${evidence:raw}')\n  AND  bi.board_id = '$board'\n  AND i.lead_time_minutes IS NOT NULL\n  AND i.issue_key REGEXP '^[A-Z][A-Z0-9]+-[0-9]+$'\n    AND i.issue_key REGEXP CONCAT('^',\n        (SELECT SUBSTRING_INDEX(i2.issue_key,'-',1)\n           FROM issues i2 JOIN board_issues bi2 ON bi2.issue_id = i2.id\n          WHERE bi2.board_id = '$board'\n            AND i2.issue_key REGEXP '^[A-Z][A-Z0-9]+-[0-9]+$' LIMIT 1),\n        '-[0-9]+$')\nGROUP BY i.issue_key, i.lead_time_minutes, i.resolution_date\n) t\nWHERE t.resolution_date IS NOT NULL AND t.ltm > 0 AND t.ltm/60 <= 400 AND $__timeFilter(t.resolution_date)"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "fillOpacity": 55,
+            "lineWidth": 1
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "AI-assisted"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#4caf78"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Not AI-assisted"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#8a8f9a"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "bucketCount": 25,
+        "combine": false,
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      }
+    },
+    {
+      "type": "gauge",
+      "title": "Rework rate, each side",
+      "description": "Share of commits that are fixes, assisted against unassisted. Speed that comes back as rework is not speed. A fix rate, not a defect rate.",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "h": 9,
+        "w": 7,
+        "x": 17,
+        "y": 43
+      },
+      "id": 19,
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "datasource": "${datasource}",
+          "rawSql": "\nSELECT CASE WHEN c.status='assisted' THEN 'AI-assisted' ELSE 'Unassisted' END AS metric,\n       ROUND(100*SUM(c.purpose='fix')/COUNT(*),1) AS value\nFROM whodunit_commits c LEFT JOIN whodunit_identities wi ON wi.alias = c.contributor\nLEFT JOIN team_users tu ON tu.user_id = COALESCE(wi.canonical, c.contributor)\nLEFT JOIN teams t ON t.id = tu.team_id\nWHERE c.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000 AND c.status IN ('assisted','unassisted','undetermined','uninstrumented','unmatched','degraded') AND ('${evidence:raw}' = '__all__' OR c.method = '${evidence:raw}')\n  AND ('${contributor:raw}' = '__all__' OR COALESCE(wi.canonical, c.contributor) = '${contributor:raw}')\n  AND ('${repo:raw}' = '__all__' OR c.repo_id = '${repo:raw}')\n  AND ('${team:raw}' = '__all__' OR COALESCE(t.name,'(unassigned)') = '${team:raw}')\n  AND CASE c.status WHEN 'assisted' THEN 1 WHEN 'unassisted' THEN 1 END = 1\nGROUP BY c.status HAVING COUNT(*) >= 5"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 60,
+          "decimals": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#4caf78",
+                "value": null
+              },
+              {
+                "color": "#e0a63a",
+                "value": 25
+              },
+              {
+                "color": "#d64545",
+                "value": 40
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/^value$/",
+          "values": true
+        },
+        "showThresholdMarkers": false,
+        "orientation": "horizontal",
+        "text": {
+          "valueSize": 20,
+          "titleSize": 12
+        }
+      }
+    },
+    {
+      "type": "text",
+      "title": "",
+      "gridPos": {
+        "h": 4,
+        "w": 24,
+        "x": 0,
+        "y": 52
+      },
+      "id": 20,
+      "options": {
+        "mode": "html",
+        "content": "<p style='margin:0'><b>Reading this honestly.</b> Adoption is a share of commits, not of people or hours. Acceptance counts the agent's edits that were kept, not whether they were good. Cycle time compares issues whose commits were assisted against those that were not, on the same board, and withholds a figure below five issues a side. Rework is a fix rate \u2014 commits labelled fix \u2014 not a defect rate. Nothing here measures time saved.</p>"
+      }
+    }
+  ],
+  "editable": true,
+  "graphTooltip": 1
+}

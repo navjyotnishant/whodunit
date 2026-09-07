@@ -183,7 +183,10 @@ def rows():
 # second fixture for somebody else's schema.
 DEVLAKE_TABLES = [
     "board_issues", "cicd_deployment_commits", "commits", "incidents",
-    "issues", "project_mapping", "project_pr_metrics", "repo_commits",
+    "issue_commits", "issues", "project_mapping", "project_pr_metrics",
+    "repo_commits", "team_users", "teams",
+    # Filled by fetch-model-prices.py; cloned empty here so the join runs.
+    "whodunit_model_prices",
 ]
 
 

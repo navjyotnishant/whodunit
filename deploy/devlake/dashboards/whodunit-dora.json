@@ -16,18 +16,6 @@
   "templating": {
     "list": [
       {
-        "name": "datasource",
-        "type": "datasource",
-        "query": "mysql",
-        "current": {
-          "selected": true,
-          "text": "mysql",
-          "value": "mysql"
-        },
-        "hide": 0,
-        "label": "Data source"
-      },
-      {
         "name": "grain",
         "type": "custom",
         "label": "Granularity",
@@ -73,10 +61,26 @@
         "multi": false
       },
       {
+        "name": "team",
+        "type": "query",
+        "datasource": "${datasource}",
+        "query": "SELECT DISTINCT COALESCE(NULLIF(t.name, ''), '(unassigned)') AS __text, COALESCE(NULLIF(t.name, ''), '(unassigned)') AS __value FROM whodunit_repos r LEFT JOIN team_users tu ON tu.user_id = r.contributor LEFT JOIN teams t ON t.id = tu.team_id ORDER BY 1",
+        "includeAll": true,
+        "multi": false,
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "__all__"
+        },
+        "label": "Team",
+        "refresh": 1,
+        "allValue": "__all__"
+      },
+      {
         "name": "evidence",
         "type": "custom",
         "label": "Evidence",
-        "query": "intersected — agent lines survived : intersected,observed — agent edited the files : observed,inferred — from surrounding evidence : inferred,declared — stated only : declared,undetermined — no evidence either way : undetermined",
+        "query": "intersected \u2014 agent lines survived : intersected,observed \u2014 agent edited the files : observed,inferred \u2014 from surrounding evidence : inferred,declared \u2014 stated only : declared,undetermined \u2014 no evidence either way : undetermined",
         "options": [],
         "current": {
           "selected": true,
@@ -119,7 +123,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT DATE_FORMAT(FROM_UNIXTIME(c.committed_at/1000000000), '$grain') AS `period`,\n       ROUND(COUNT(DISTINCT CASE WHEN c.status='assisted' AND e.agent='claude-code'\n                                 THEN c.commit_sha END)*100.0\n             /NULLIF(COUNT(DISTINCT CASE WHEN c.committed_at >= b.first_attributed\n                                         AND e.agent='claude-code'\n                                         THEN c.commit_sha END),0),1) AS `claude-code`,\n       ROUND(COUNT(DISTINCT CASE WHEN c.status='assisted' AND e.agent='codex'\n                                 THEN c.commit_sha END)*100.0\n             /NULLIF(COUNT(DISTINCT CASE WHEN c.committed_at >= b.first_attributed\n                                         AND e.agent='codex'\n                                         THEN c.commit_sha END),0),1) AS `codex`\nFROM whodunit_commits c\nJOIN whodunit_repos r ON r.repo_id=c.repo_id\nJOIN (SELECT repo_id,\n             MIN(CASE WHEN method <> 'undetermined' THEN committed_at END)\n               AS first_attributed\n      FROM whodunit_commits GROUP BY repo_id) b ON b.repo_id=c.repo_id\nJOIN whodunit_events e ON e.repo_id=c.repo_id\n AND e.observed_at BETWEEN c.committed_at - 86400000000000 AND c.committed_at\nWHERE ('${evidence:raw}' = '__all__' OR c.method = '${evidence:raw}')\n  AND ('${contributor:raw}'='__all__' OR r.contributor='${contributor:raw}')\n  AND c.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nGROUP BY `period` ORDER BY `period`"
+          "rawSql": "SELECT DATE_FORMAT(FROM_UNIXTIME(c.committed_at/1000000000), '$grain') AS `period`,\n       ROUND(COUNT(DISTINCT CASE WHEN c.status='assisted' AND e.agent='claude-code'\n                                 THEN c.commit_sha END)*100.0\n             /NULLIF(COUNT(DISTINCT CASE WHEN c.committed_at >= b.first_attributed\n                                         AND e.agent='claude-code'\n                                         THEN c.commit_sha END),0),1) AS `claude-code`,\n       ROUND(COUNT(DISTINCT CASE WHEN c.status='assisted' AND e.agent='codex'\n                                 THEN c.commit_sha END)*100.0\n             /NULLIF(COUNT(DISTINCT CASE WHEN c.committed_at >= b.first_attributed\n                                         AND e.agent='codex'\n                                         THEN c.commit_sha END),0),1) AS `codex`\nFROM whodunit_commits c\nJOIN (SELECT repo_id,\n             MIN(CASE WHEN method <> 'undetermined' THEN committed_at END)\n               AS first_attributed\n      FROM whodunit_commits GROUP BY repo_id) b ON b.repo_id=c.repo_id\nJOIN whodunit_events e ON e.repo_id=c.repo_id\n AND e.observed_at BETWEEN c.committed_at - 86400000000000 AND c.committed_at\nWHERE ('${evidence:raw}' = '__all__' OR c.method = '${evidence:raw}')\n  AND ('${contributor:raw}'='__all__' OR c.contributor='${contributor:raw}')\n  AND c.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nGROUP BY `period` ORDER BY `period`"
         }
       ],
       "fieldConfig": {
@@ -157,7 +161,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT ROUND(SUM(c.status='assisted')*100.0/NULLIF(COUNT(*),0),1) v\nFROM whodunit_commits c JOIN whodunit_repos r ON r.repo_id=c.repo_id\nWHERE ('${evidence:raw}' = '__all__' OR c.method = '${evidence:raw}')\n  AND  ('${contributor:raw}'='__all__' OR r.contributor='${contributor:raw}')\n  AND c.committed_at BETWEEN $__unixEpochFrom() * 1000000000\n                       AND $__unixEpochTo()   * 1000000000"
+          "rawSql": "SELECT ROUND(SUM(c.status='assisted')*100.0/NULLIF(COUNT(*),0),1) v\nFROM whodunit_commits c\nWHERE ('${evidence:raw}' = '__all__' OR c.method = '${evidence:raw}')\n  AND  ('${contributor:raw}'='__all__' OR c.contributor='${contributor:raw}')\n  AND c.committed_at BETWEEN $__unixEpochFrom() * 1000000000\n                       AND $__unixEpochTo()   * 1000000000"
         }
       ],
       "fieldConfig": {
@@ -207,7 +211,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT CASE c.method\n         WHEN 'intersected' THEN 'intersected'\n         WHEN 'observed'    THEN 'observed'\n         WHEN 'declared'    THEN 'declared'\n         WHEN 'inferred'    THEN 'inferred'\n         ELSE COALESCE(c.reason, 'undetermined')\n       END AS `method`,\n       COUNT(*) AS `commits`\nFROM whodunit_commits c JOIN whodunit_repos r ON r.repo_id=c.repo_id\nWHERE ('${evidence:raw}' = '__all__' OR c.method = '${evidence:raw}')\n  AND  ('${contributor:raw}'='__all__' OR r.contributor='${contributor:raw}') AND c.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nGROUP BY CASE c.method\n         WHEN 'intersected' THEN 'intersected'\n         WHEN 'observed'    THEN 'observed'\n         WHEN 'declared'    THEN 'declared'\n         WHEN 'inferred'    THEN 'inferred'\n         ELSE COALESCE(c.reason, 'undetermined')\n       END ORDER BY commits DESC"
+          "rawSql": "-- status-set-excludes: undetermined\n--   the ELSE branch already labels it; naming it here would\n--   shadow that with the raw status\nSELECT CASE c.method\n         WHEN 'intersected' THEN 'intersected'\n         WHEN 'observed'    THEN 'observed'\n         WHEN 'declared'    THEN 'declared'\n         WHEN 'inferred'    THEN 'inferred'\n         ELSE COALESCE(c.reason,\n              CASE WHEN c.status IN ('uninstrumented','unmatched','unassisted','degraded')\n                   THEN c.status END,\n              'undetermined')\n       END AS `method`,\n       COUNT(*) AS `commits`\nFROM whodunit_commits c\nWHERE ('${evidence:raw}' = '__all__' OR c.method = '${evidence:raw}')\n  AND  ('${contributor:raw}'='__all__' OR c.contributor='${contributor:raw}') AND c.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nGROUP BY CASE c.method\n         WHEN 'intersected' THEN 'intersected'\n         WHEN 'observed'    THEN 'observed'\n         WHEN 'declared'    THEN 'declared'\n         WHEN 'inferred'    THEN 'inferred'\n         ELSE COALESCE(c.reason,\n              CASE WHEN c.status IN ('uninstrumented','unmatched','unassisted','degraded')\n                   THEN c.status END,\n              'undetermined')\n       END ORDER BY commits DESC"
         }
       ],
       "options": {
@@ -226,7 +230,7 @@
           "values": true
         }
       },
-      "description": "How each commit's attribution was established, strongest first: **intersected** (the agent's lines are in the diff), **observed** (touched the file, text changed after), **declared** (stated, not measured).\n\nThe rest say why there is none: **unassisted** a human wrote it, **uninstrumented** predates the hooks, **degraded** is a fault.\n\nCounts every commit — the cohort panels below count only matched purposes.",
+      "description": "How each commit's attribution was established, strongest first: **intersected** (the agent's lines are in the diff), **observed** (touched the file, text changed after), **declared** (stated, not measured).\n\nThe rest say why there is none: **unassisted** a human wrote it, **uninstrumented** predates the hooks, **degraded** is a fault.\n\nCounts every commit \u2014 the cohort panels below count only matched purposes.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -388,7 +392,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT c.agent AS `agent`, COUNT(*) AS `commits`\nFROM whodunit_commits c JOIN whodunit_repos r ON r.repo_id=c.repo_id\nWHERE ('${evidence:raw}' = '__all__' OR c.method = '${evidence:raw}')\n  AND  c.status='assisted' AND c.agent<>''\n  AND ('${contributor:raw}'='__all__' OR r.contributor='${contributor:raw}') AND c.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nGROUP BY c.agent ORDER BY commits DESC"
+          "rawSql": "SELECT c.agent AS `agent`, COUNT(*) AS `commits`\nFROM whodunit_commits c\nWHERE ('${evidence:raw}' = '__all__' OR c.method = '${evidence:raw}')\n  AND  c.status='assisted' AND c.agent<>''\n  AND ('${contributor:raw}'='__all__' OR c.contributor='${contributor:raw}') AND c.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nGROUP BY c.agent ORDER BY commits DESC"
         }
       ],
       "options": {
@@ -420,12 +424,12 @@
         "w": 8,
         "h": 6
       },
-      "description": "Mean lines changed per assisted commit divided by the same for unassisted ones, within purposes where both sides have 20+ commits — so `feature` is not measured against `docs`. **1.3x means assisted commits are about a third larger**; the two averages it came from are beside it.\n\n**Size, not productivity.** Larger may mean more work delivered, or more code for the same result. Not colour-coded: green for bigger would assert an answer nobody has earned.",
+      "description": "Mean lines changed per assisted commit divided by the same for unassisted ones, within purposes where both sides have 20+ commits \u2014 so `feature` is not measured against `docs`. **1.3x means assisted commits are about a third larger**; the two averages it came from are beside it.\n\n**Size, not productivity.** Larger may mean more work delivered, or more code for the same result. Not colour-coded: green for bigger would assert an answer nobody has earned.",
       "targets": [
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT ROUND(AVG(CASE WHEN c.status IN ('undetermined','unassisted','unmatched','degraded')\n                      THEN c.lines_added + c.lines_removed END), 0) AS `unassisted lines`,\n       ROUND(AVG(CASE WHEN c.status='assisted'\n                      THEN c.lines_added + c.lines_removed END), 0) AS `assisted lines`,\n       ROUND(\n         AVG(CASE WHEN c.status='assisted' THEN c.lines_added + c.lines_removed END)\n         / NULLIF(AVG(CASE WHEN c.status IN ('undetermined','unassisted','unmatched','degraded')\n                           THEN c.lines_added + c.lines_removed END), 0)\n       , 2) AS `ratio`\nFROM whodunit_commits c JOIN whodunit_repos r ON r.repo_id = c.repo_id\nWHERE c.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  AND ('${evidence:raw}' = '__all__' OR c.method = '${evidence:raw}')\n  AND  ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}') AND c.purpose IN (\n  SELECT purpose FROM (\n    SELECT c2.purpose\n    FROM whodunit_commits c2 JOIN whodunit_repos r2 ON r2.repo_id = c2.repo_id\n    WHERE c2.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n      AND ('${contributor:raw}' = '__all__' OR r2.contributor = '${contributor:raw}')\n    GROUP BY c2.purpose\n    HAVING SUM(c2.status='assisted') >= 20\n       AND SUM(c2.status IN ('undetermined','unassisted','unmatched','degraded')) >= 20\n  ) eligible\n)"
+          "rawSql": "SELECT ROUND(AVG(CASE WHEN c.status IN ('undetermined','unassisted','unmatched','degraded','uninstrumented')\n                      THEN c.lines_added + c.lines_removed END), 0) AS `not AI-assisted lines`,\n       ROUND(AVG(CASE WHEN c.status='assisted'\n                      THEN c.lines_added + c.lines_removed END), 0) AS `AI-assisted lines`,\n       ROUND(\n         AVG(CASE WHEN c.status='assisted' THEN c.lines_added + c.lines_removed END)\n         / NULLIF(AVG(CASE WHEN c.status IN ('undetermined','unassisted','unmatched','degraded','uninstrumented')\n                           THEN c.lines_added + c.lines_removed END), 0)\n       , 2) AS `ratio`\nFROM whodunit_commits c\nLEFT JOIN whodunit_identities wi ON wi.alias = c.contributor\nWHERE c.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  AND ('${evidence:raw}' = '__all__' OR c.method = '${evidence:raw}')\n  AND  ('${contributor:raw}' = '__all__' OR COALESCE(wi.canonical, c.contributor) = '${contributor:raw}') AND c.purpose IN (\n  SELECT purpose FROM (\n    SELECT c2.purpose\n    FROM whodunit_commits c2 JOIN whodunit_repos r2 ON r2.repo_id = c2.repo_id\n    WHERE c2.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n      AND ('${contributor:raw}' = '__all__' OR r2.contributor = '${contributor:raw}')\n    GROUP BY c2.purpose\n    HAVING SUM(c2.status='assisted') >= 20\n       AND SUM(c2.status IN ('undetermined','unassisted','unmatched','degraded','uninstrumented')) >= 20\n  ) eligible\n)"
         }
       ],
       "fieldConfig": {
@@ -450,7 +454,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "assisted lines"
+              "options": "AI-assisted lines"
             },
             "properties": [
               {
@@ -466,7 +470,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "unassisted lines"
+              "options": "not AI-assisted lines"
             },
             "properties": [
               {
@@ -524,12 +528,12 @@
         "w": 8,
         "h": 6
       },
-      "description": "The denominator behind the figure beside this: assisted against unassisted commits, counted only where **both** sides reach 20 — today `feature`, `fix` and `docs`.\n\n**A subset.** `chore`, `other`, `refactor`, `test` and `config` are excluded, so this is smaller than Evidence strength, which counts every commit. The share is of these cohorts, not of all work.",
+      "description": "The denominator behind the figure beside this: AI-assisted against not-AI-assisted commits, counted only where **both** sides reach 20 \u2014 today `feature`, `fix` and `docs`.\n\n**A subset, two ways.** Some types are excluded, and so are the four states meaning no evidence was available. Smaller than Evidence strength, which counts every commit.",
       "targets": [
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT SUM(c.status IN ('undetermined','unassisted','unmatched','degraded')) AS `unassisted commits`,\n       SUM(c.status='assisted') AS `assisted commits`\nFROM whodunit_commits c JOIN whodunit_repos r ON r.repo_id = c.repo_id\nWHERE c.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  AND ('${evidence:raw}' = '__all__' OR c.method = '${evidence:raw}')\n  AND ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}')\n  AND c.purpose IN (\n  SELECT purpose FROM (\n    SELECT c2.purpose FROM whodunit_commits c2 JOIN whodunit_repos r2 ON r2.repo_id = c2.repo_id\n    WHERE c2.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n      AND ('${contributor:raw}' = '__all__' OR r2.contributor = '${contributor:raw}')\n    GROUP BY c2.purpose\n    HAVING SUM(c2.status='assisted') >= 20 AND SUM(c2.status IN ('undetermined','unassisted','unmatched','degraded')) >= 20\n  ) eligible)"
+          "rawSql": "SELECT SUM(c.status IN ('undetermined','unassisted','unmatched','degraded','uninstrumented')) AS `not AI-assisted commits`,\n       SUM(c.status='assisted') AS `AI-assisted commits`\nFROM whodunit_commits c\nLEFT JOIN whodunit_identities wi ON wi.alias = c.contributor\nWHERE c.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  AND ('${evidence:raw}' = '__all__' OR c.method = '${evidence:raw}')\n  AND ('${contributor:raw}' = '__all__' OR COALESCE(wi.canonical, c.contributor) = '${contributor:raw}')\n  AND c.purpose IN (\n  SELECT purpose FROM (\n    SELECT c2.purpose FROM whodunit_commits c2 JOIN whodunit_repos r2 ON r2.repo_id = c2.repo_id\n    WHERE c2.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n      AND ('${contributor:raw}' = '__all__' OR r2.contributor = '${contributor:raw}')\n    GROUP BY c2.purpose\n    HAVING SUM(c2.status='assisted') >= 20 AND SUM(c2.status IN ('undetermined','unassisted','unmatched','degraded','uninstrumented')) >= 20\n  ) eligible)"
         }
       ],
       "fieldConfig": {
@@ -573,7 +577,8 @@
         "w": 24,
         "h": 1
       },
-      "panels": []
+      "panels": [],
+      "id": 213
     },
     {
       "id": 7,
@@ -590,7 +595,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT DATE_FORMAT(FROM_UNIXTIME(c.committed_at/1000000000), '$grain') AS `period`,\n       ROUND(AVG(CASE WHEN c.status='assisted' THEN c.lines_added+c.lines_removed END),0) AS `assisted lines`,\n       ROUND(AVG(CASE WHEN c.status IN ('undetermined','unassisted','unmatched','degraded') THEN c.lines_added+c.lines_removed END),0) AS `unassisted lines`\nFROM whodunit_commits c JOIN whodunit_repos r ON r.repo_id=c.repo_id\nWHERE ('${evidence:raw}' = '__all__' OR c.method = '${evidence:raw}')\n  AND  ('${contributor:raw}'='__all__' OR r.contributor='${contributor:raw}') AND c.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nGROUP BY `period` ORDER BY `period`"
+          "rawSql": "SELECT DATE_FORMAT(FROM_UNIXTIME(c.committed_at/1000000000), '$grain') AS `period`,\n       ROUND(AVG(CASE WHEN c.status='assisted' THEN c.lines_added+c.lines_removed END),0) AS `AI-assisted lines`,\n       ROUND(AVG(CASE WHEN c.status IN ('undetermined','unassisted','unmatched','degraded','uninstrumented') THEN c.lines_added+c.lines_removed END),0) AS `not AI-assisted lines`\nFROM whodunit_commits c\nWHERE ('${evidence:raw}' = '__all__' OR c.method = '${evidence:raw}')\n  AND  ('${contributor:raw}'='__all__' OR c.contributor='${contributor:raw}') AND c.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nGROUP BY `period` ORDER BY `period`"
         }
       ],
       "fieldConfig": {
@@ -622,7 +627,7 @@
         "w": 8,
         "h": 5
       },
-      "description": "Output tokens spent per line of assisted work that **reached a commit**.\n\nThe denominator is what distinguishes this from the token-per-attributed-line panel above: that one divides by agent activity, this one by work that shipped. Tokens spent on edits that were abandoned or rewritten count in the numerator and not the denominator, which is the point — that gap is the cost of work that did not land.\n\nTokens, never currency: under a subscription the marginal cost of a token is zero, so a price table would report money nobody spent.\n\nSessions and commits are counted over the same window but are not joined row-to-row — a session can span commits and a commit can span sessions. Read it as a rate for the period, not as an attribution per commit.",
+      "description": "Output tokens spent per line of assisted work that **reached a commit**.\n\nThe denominator is what distinguishes this from the token-per-attributed-line panel above: that one divides by agent activity, this one by work that shipped. Tokens spent on edits that were abandoned or rewritten count in the numerator and not the denominator, which is the point \u2014 that gap is the cost of work that did not land.\n\nTokens, never currency: under a subscription the marginal cost of a token is zero, so a price table would report money nobody spent.\n\nSessions and commits are counted over the same window but are not joined row-to-row \u2014 a session can span commits and a commit can span sessions. Read it as a rate for the period, not as an attribution per commit.",
       "targets": [
         {
           "refId": "A",
@@ -673,7 +678,7 @@
         "w": 8,
         "h": 4
       },
-      "description": "What the agent spent, in tokens, per thousand lines it wrote.\n\n**This replaced a dollar figure** derived from a hand-typed monthly spend divided evenly over every line — an allocation dressed as a measurement, which reported the same unit cost whether the agent ran once or a thousand times, and defaulted to a $200 placeholder that was nobody's actual bill.\n\nTokens rather than currency, deliberately: under a subscription the marginal cost of a token is zero, so multiplying by an API rate would report money nobody spent — and nothing in a transcript says which billing model a user is on. Multiply by your own contract if you need a figure.\n\nEmpty where no session reported tokens: Antigravity reports none at all, and that is a property of the agent rather than a gap.",
+      "description": "What the agent spent, in tokens, per thousand lines it wrote.\n\n**This replaced a dollar figure** derived from a hand-typed monthly spend divided evenly over every line \u2014 an allocation dressed as a measurement, which reported the same unit cost whether the agent ran once or a thousand times, and defaulted to a $200 placeholder that was nobody's actual bill.\n\nTokens rather than currency, deliberately: under a subscription the marginal cost of a token is zero, so multiplying by an API rate would report money nobody spent \u2014 and nothing in a transcript says which billing model a user is on. Multiply by your own contract if you need a figure.\n\nEmpty where no session reported tokens: Antigravity reports none at all, and that is a property of the agent rather than a gap.",
       "targets": [
         {
           "refId": "A",
@@ -721,12 +726,12 @@
         "w": 14,
         "h": 8
       },
-      "description": "Share of each cohort's commits labelled `fix`, by change size.\n\n**Read the crossover, not the totals.** Unbanded, assisted work looks better — 28.4% against 33.3% — but that is a size-mix artefact: assisted commits skew larger, and large commits are rarely labelled fixes. Banded, assisted is lower at small and large sizes and higher in the middle.\n\n**A rework proxy, not a defect rate.** `purpose` comes from commit prefixes, so this measures what commits were *labelled*.",
+      "description": "Share of each cohort's commits labelled `fix`, by change size.\n\n**Read the crossover, not the totals.** Unbanded, assisted work looks better \u2014 28.4% against 33.3% \u2014 but that is a size-mix artefact: assisted commits skew larger, and large commits are rarely labelled fixes. Banded, assisted is lower at small and large sizes and higher in the middle.\n\n**A rework proxy, not a defect rate.** `purpose` comes from commit prefixes, so this measures what commits were *labelled*.",
       "targets": [
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT CASE WHEN c.lines_added+c.lines_removed < 50 THEN 'small (<50)'\n            WHEN c.lines_added+c.lines_removed < 300 THEN 'medium (50-300)'\n            ELSE 'large (300+)' END AS `size`,\n       ROUND(100.0*SUM(c.status='assisted' AND c.purpose='fix')\n         / NULLIF(SUM(c.status='assisted'),0),1) AS `assisted fix %`,\n       ROUND(100.0*SUM(c.status IN ('undetermined','unassisted','unmatched','degraded') AND c.purpose='fix')\n         / NULLIF(SUM(c.status IN ('undetermined','unassisted','unmatched','degraded')),0),1) AS `unassisted fix %`,\n       SUM(c.status='assisted') AS `assisted commits`,\n       SUM(c.status IN ('undetermined','unassisted','unmatched','degraded')) AS `unassisted commits`\nFROM whodunit_commits c JOIN whodunit_repos r ON r.repo_id = c.repo_id\nWHERE c.committed_at BETWEEN $__unixEpochFrom() * 1000000000\n                         AND $__unixEpochTo() * 1000000000\n  AND ('${evidence:raw}' = '__all__' OR c.method = '${evidence:raw}')\n  AND ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}')\nGROUP BY 1\nORDER BY FIELD(`size`, 'small (<50)', 'medium (50-300)', 'large (300+)')"
+          "rawSql": "SELECT CASE WHEN c.lines_added+c.lines_removed < 50 THEN 'small (<50)'\n            WHEN c.lines_added+c.lines_removed < 300 THEN 'medium (50-300)'\n            ELSE 'large (300+)' END AS `size`,\n       ROUND(100.0*SUM(c.status='assisted' AND c.purpose='fix')\n         / NULLIF(SUM(c.status='assisted'),0),1) AS `AI-assisted fix %`,\n       ROUND(100.0*SUM(c.status IN ('undetermined','unassisted','unmatched','degraded','uninstrumented') AND c.purpose='fix')\n         / NULLIF(SUM(c.status IN ('undetermined','unassisted','unmatched','degraded','uninstrumented')),0),1) AS `not AI-assisted fix %`,\n       SUM(c.status='assisted') AS `AI-assisted commits`,\n       SUM(c.status IN ('undetermined','unassisted','unmatched','degraded','uninstrumented')) AS `not AI-assisted commits`\nFROM whodunit_commits c\nLEFT JOIN whodunit_identities wi ON wi.alias = c.contributor\nWHERE c.committed_at BETWEEN $__unixEpochFrom() * 1000000000\n                         AND $__unixEpochTo() * 1000000000\n  AND ('${evidence:raw}' = '__all__' OR c.method = '${evidence:raw}')\n  AND ('${contributor:raw}' = '__all__' OR COALESCE(wi.canonical, c.contributor) = '${contributor:raw}')\nGROUP BY 1\nORDER BY FIELD(`size`, 'small (<50)', 'medium (50-300)', 'large (300+)')"
         }
       ],
       "fieldConfig": {
@@ -743,7 +748,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "assisted commits"
+              "options": "AI-assisted commits"
             },
             "properties": [
               {
@@ -767,7 +772,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "unassisted commits"
+              "options": "not AI-assisted commits"
             },
             "properties": [
               {
@@ -822,12 +827,12 @@
         "w": 10,
         "h": 8
       },
-      "description": "Tool calls by the permission mode the session ran under.\n\n**Tool calls are not shipped work.** A mode that permits more actions produces more by construction; whether that becomes delivered code is the question this raises and cannot answer.\n\nA mode with no tool calls is **absent, not a zero slice** — `never` sessions exist and simply made none.",
+      "description": "Tool calls by the permission mode the session ran under.\n\n**Tool calls are not shipped work.** A mode that permits more actions produces more by construction; whether that becomes delivered code is the question this raises and cannot answer.\n\nA mode with no tool calls is **absent, not a zero slice** \u2014 `never` sessions exist and simply made none.",
       "targets": [
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT s.permission_mode AS `metric`,\n       SUM(s.tool_calls) AS `value`\nFROM whodunit_sessions s JOIN whodunit_repos r ON r.repo_id = s.repo_id\nWHERE s.first_seen BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  AND s.permission_mode IS NOT NULL\n  AND ('${contributor:raw}' = '__all__' OR r.contributor = '${contributor:raw}')\nGROUP BY s.permission_mode\nHAVING SUM(s.tool_calls) > 0\nORDER BY SUM(s.tool_calls) DESC"
+          "rawSql": "SELECT s.permission_mode AS `metric`,\n       SUM(s.tool_calls) AS `value`\nFROM whodunit_sessions s\nLEFT JOIN whodunit_identities wi ON wi.alias = s.contributor\nWHERE s.first_seen BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\n  AND s.permission_mode IS NOT NULL\n  AND ('${contributor:raw}' = '__all__' OR COALESCE(wi.canonical, s.contributor) = '${contributor:raw}')\nGROUP BY s.permission_mode\nHAVING SUM(s.tool_calls) > 0\nORDER BY SUM(s.tool_calls) DESC"
         }
       ],
       "fieldConfig": {
@@ -974,7 +979,7 @@
           "values": false
         }
       },
-      "description": "Share of deployments that required a fix afterwards, from DevLake's own incident linkage.\n\n**Needs a deployment pattern configured**, or every CI run is unclassified and this reads empty rather than zero. Also needs incidents, which most trackers do not provide for free.\n\nThis is a delivery metric, not an AI metric — it is here so adoption can be read against it, not because whodunit measures it."
+      "description": "Share of deployments that required a fix afterwards, from DevLake's own incident linkage.\n\n**Needs a deployment pattern configured**, or every CI run is unclassified and this reads empty rather than zero. Also needs incidents, which most trackers do not provide for free.\n\nThis is a delivery metric, not an AI metric \u2014 it is here so adoption can be read against it, not because whodunit measures it."
     },
     {
       "id": 12,
@@ -1067,7 +1072,7 @@
           "values": false
         }
       },
-      "description": "Open to merge, across every merged PR — median rather than mean, since a few long PRs drag an average that a median ignores (measured here: 14.4h mean against a 1.3h median).\n\n**Not comparable to anything yet.** Every collected PR is assisted and all of them fall in one month, so neither an assisted-vs-unassisted split nor a before-and-after window has a second side to compare with. Check the PR count beside it: a median over a handful is one PR moving."
+      "description": "Open to merge, across every merged PR \u2014 median rather than mean, since a few long PRs drag an average that a median ignores (measured here: 14.4h mean against a 1.3h median).\n\n**Not comparable to anything yet.** Every collected PR is assisted and all of them fall in one month, so neither an assisted-vs-unassisted split nor a before-and-after window has a second side to compare with. Check the PR count beside it: a median over a handful is one PR moving."
     },
     {
       "id": 14,
@@ -1551,7 +1556,7 @@
               "type": "auto"
             }
           },
-          "noValue": "withheld — under 10 weeks"
+          "noValue": "withheld \u2014 under 10 weeks"
         },
         "overrides": [
           {
@@ -1596,7 +1601,7 @@
           "fields": ""
         }
       },
-      "description": "Pearson correlation between weekly adoption and each delivery metric, with the weeks each rests on.\n\n**Withheld below 10 weeks** — three points can produce r = 0.99 by coincidence. Correlation is not causation even at high n.\n\nAdoption covers every instrumented repository; the outcomes only the project with deployments."
+      "description": "Pearson correlation between weekly adoption and each delivery metric, with the weeks each rests on.\n\n**Withheld below 10 weeks** \u2014 three points can produce r = 0.99 by coincidence. Correlation is not causation even at high n.\n\nAdoption covers every instrumented repository; the outcomes only the project with deployments."
     }
   ]
 }

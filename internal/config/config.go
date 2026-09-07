@@ -109,6 +109,31 @@ type Config struct {
 	// `dun identities` for the suggestion path.
 	Identities map[string]string `json:"identities,omitempty"`
 
+	// Teams maps a team name onto the contributors in it, so a dashboard
+	// can report group-level adoption rather than a list of named
+	// individuals.
+	//
+	// Keyed by team rather than by person, because that is the shape
+	// someone maintains by hand: a team gains a member far more often
+	// than a person changes team, and the inverted form makes the common
+	// edit one line in one place.
+	//
+	// This is org metadata, not new personal data. The addresses are
+	// already in the journal, the sidecar and every commit object; which
+	// team someone is on is a fact about the organisation chart and adds
+	// no observation of a person (NAV-25).
+	//
+	// Config wins over DevLake's teams tables when both name a team for
+	// the same contributor. DevLake's are populated by a connector nobody
+	// here controls, and a value someone typed on purpose should not be
+	// overruled by one that arrived on a sync.
+	//
+	// A contributor in no team is not dropped. They resolve to
+	// "(unassigned)" and stay reachable in every dropdown — a person
+	// vanishing from a filter is the failure this whole area exists to
+	// prevent (NAV-21).
+	Teams map[string][]string `json:"teams,omitempty"`
+
 	// VersionCheck is whether dun may ask GitHub, at most once a day,
 	// whether a newer release exists (NAV-76, criteria 10-12).
 	//

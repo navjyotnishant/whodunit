@@ -2,9 +2,10 @@
 # Author: Navjyot Nishant
 # Created: 2026-08-11
 # Description: Build and (optionally) publish a whodunit release without goreleaser.
+# Last updated: 2026-09-07 — Linux .deb/.rpm via nfpm, beside the archives.
 #
 # Usage:
-#   scripts/release.sh <version>            build cross-platform binaries + checksums into dist/
+#   scripts/release.sh <version>            build cross-platform archives, Linux .deb/.rpm, checksums into dist/
 #   scripts/release.sh <version> --publish  also create a git tag and a GitHub release (needs gh)
 #
 # --publish requires being on the PRD branch — releases are only cut from PRD.
@@ -86,9 +87,42 @@ for target in $TARGETS; do
   else
     # COPYFILE_DISABLE stops bsdtar on macOS writing an AppleDouble "._dun"
     # beside the binary. Harmless on Linux, where the variable is ignored.
-    ( cd "$DIST" && COPYFILE_DISABLE=1 tar czf "${archive_base}.tar.gz" "$binary" && rm "$binary" )
+    ( cd "$DIST" && COPYFILE_DISABLE=1 tar czf "${archive_base}.tar.gz" "$binary" )
+    # Linux binaries are kept aside for the .deb/.rpm step below; the
+    # others are done once archived.
+    if [ "$os" = "linux" ]; then
+      mkdir -p "$DIST/.pkg/$arch" && mv "$DIST/$binary" "$DIST/.pkg/$arch/dun"
+    else
+      rm "$DIST/$binary"
+    fi
   fi
 done
+
+# Linux packages: a .deb and an .rpm per architecture, from nfpm.yaml at
+# the repository root. The archive route stays for anyone whose policy
+# forbids package managers; this is the route a Linux user expects, and it
+# is what a team of Ubuntu users asked for first.
+#
+# Degrades rather than fails when nfpm is absent: a laptop build without it
+# still produces every archive, and says what it skipped. The release
+# workflow installs nfpm, so a published release always carries both.
+if command -v nfpm >/dev/null 2>&1; then
+  for arch in amd64 arm64; do
+    for fmt in deb rpm; do
+      echo "  linux/$arch $fmt"
+      # The three placeholders are substituted here rather than left to
+      # nfpm's environment expansion, so the config that built a package
+      # is a plain file that can be read back without knowing the env.
+      sed -e "s|\${VERSION}|${VERSION#v}|g" -e "s|\${ARCH}|$arch|g" \
+          -e "s|\${BINARY}|$DIST/.pkg/$arch/dun|g" "$ROOT/nfpm.yaml" > "$DIST/.pkg/nfpm-$arch.yaml"
+      nfpm package --config "$DIST/.pkg/nfpm-$arch.yaml" --packager "$fmt" \
+        --target "$DIST/dun_${VERSION}_linux_${arch}.${fmt}" >/dev/null
+    done
+  done
+else
+  echo "nfpm not on PATH: skipping .deb/.rpm (archives are complete). Install: go install github.com/goreleaser/nfpm/v2/cmd/nfpm@latest" >&2
+fi
+rm -rf "$DIST/.pkg"
 
 # Globbing whatever is in dist/ would checksum any stray file that happened
 # to be there. dist/ is wiped on entry so it should hold only what was just

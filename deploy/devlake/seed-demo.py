@@ -1,0 +1,1078 @@
+#!/usr/bin/env python3
+# Author: Navjyot Nishant
+# Created: 2026-09-02
+# Last updated: 2026-09-02
+# Description: Clone the lake into a demo database, then add the org
+# structure the real one does not have.
+"""Build a demo database from a copy of the real lake.
+
+The dashboards are demoed on one developer's data. That has already cost a
+live demo: single-contributor data produced misleading trends, and the
+buyer's stated blocker — team and service ownership — cannot be shown at
+all, because there is one person and no teams.
+
+This clones `lake` into `lake_demo` and adds what the real one lacks:
+teams, more contributors, incidents, identity aliases. Everything else is
+genuine — real commits, real hash intersections, real sessions.
+
+# Why a clone rather than generated data
+
+A synthetic dataset has to reproduce every relationship the panels rely on:
+commit SHAs matching between `commits` and `whodunit_commits`, issue keys
+appearing in commit messages, repo ids joining to `repo_commits`. Get one
+wrong and a panel is empty — discovered during the demo.
+
+Starting from a copy means every one of those relationships is already
+correct and already renders. The only new risk is in what gets added.
+
+It is also the honest version of the story. The attribution shown is real:
+those hash intersections actually happened. Only the org chart around them
+is invented, and a viewer can be told exactly that.
+
+# What is never touched
+
+`lake` itself. The dump is --single-transaction, which is a consistent read
+that takes no locks, and every write in this script goes to the target
+database after a hard check that it is not `lake`. That check is not
+decoration: every augmentation below is an UPDATE or INSERT that would be
+destructive if pointed at production.
+"""
+
+import argparse
+import json
+import random
+import subprocess
+import sys
+
+# The real database. Read from, never written to.
+SOURCE = "lake"
+
+# Fixed seed: a demo rehearsed once looks identical tomorrow.
+SEED = 20260902
+
+# Four teams, and the people in them. Contributor emails are invented; the
+# commits, events and sessions they get attached to are real.
+#
+# The reorg is deliberate: dana moves from platform to growth partway
+# through the window, so "which team was most productive last quarter"
+# has something to point at. Time-versioned ownership is the buyer's named
+# blocker, and a dataset where nobody ever changes team cannot show it.
+TEAMS = {
+    "platform": ["alice@example.com", "bob@example.com", "dana@example.com"],
+    "growth": ["carol@example.com", "erin@example.com"],
+    "payments": ["frank@example.com", "grace@example.com", "henry@example.com"],
+    "infra": ["iris@example.com", "jack@example.com", "kim@example.com"],
+}
+
+# Kept as their own identity. The real contributor stays in the data so the
+# demo can show a genuine person's real attribution alongside the invented
+# team structure.
+REAL_CONTRIBUTOR = "navjyotnishant@gmail.com"
+
+# One person, two addresses — the case `dun identities` exists for. Left
+# unmerged in config so the dashboard alias join is visibly doing the work.
+ALIASES = {
+    "alice@work.example.com": "alice@example.com",
+    "14622560@users.noreply.github.com": REAL_CONTRIBUTOR,
+}
+
+
+def mysql(sql, container, database=None, user="root", password="admin"):
+    """Run SQL and return stdout, raising with the server's own message."""
+    cmd = ["docker", "exec", "-i", container, "mysql", f"-u{user}", f"-p{password}", "-N"]
+    if database:
+        cmd.append(database)
+    cmd += ["-e", sql]
+    r = subprocess.run(cmd, capture_output=True, text=True)
+    if r.returncode:
+        # The driver writes the useful part to stderr; the password warning
+        # is noise on every single call.
+        msg = "\n".join(l for l in r.stderr.splitlines()
+                        if "Using a password" not in l)
+        raise SystemExit(f"SQL failed: {msg}\n\nstatement: {sql[:400]}")
+    return r.stdout
+
+
+def clone(container, target):
+    """Copy SOURCE into target, schema and rows.
+
+    A pipe rather than a temporary file: 93MB, and writing it to disk only
+    to read it back adds a failure mode (a full disk) for no benefit.
+
+    --single-transaction takes a consistent read without locking, so this
+    cannot block or alter the source. --quick streams rather than buffering
+    the whole result in the client.
+    """
+    print(f"cloning {SOURCE} -> {target} ...", end=" ", flush=True)
+    dump = subprocess.Popen(
+        ["docker", "exec", "-i", container, "mysqldump",
+         "-uroot", "-padmin", "--single-transaction", "--quick", SOURCE],
+        stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+    load = subprocess.Popen(
+        ["docker", "exec", "-i", container, "mysql", "-uroot", "-padmin", target],
+        stdin=dump.stdout, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+    dump.stdout.close()
+    _, err = load.communicate()
+    dump.wait()
+    if load.returncode:
+        msg = "\n".join(l for l in err.decode().splitlines()
+                        if "Using a password" not in l)
+        raise SystemExit(f"clone failed: {msg}")
+    print("ok")
+
+
+def verify_clone(container, target):
+    """The clone must be faithful before anything is added to it.
+
+    Checked on the tables the dashboards actually read. A short clone that
+    goes unnoticed produces a demo where every figure is quietly wrong,
+    which is worse than a clone that fails loudly.
+    """
+    tables = ["whodunit_commits", "whodunit_events", "whodunit_event_lines",
+              "whodunit_sessions", "whodunit_repos", "issues", "commits",
+              "board_issues", "issue_commits", "cicd_deployment_commits"]
+    bad = []
+    for t in tables:
+        src = int(mysql(f"SELECT COUNT(*) FROM {SOURCE}.{t}", container).strip())
+        dst = int(mysql(f"SELECT COUNT(*) FROM {target}.{t}", container).strip())
+        if src != dst:
+            bad.append(f"  {t}: {SOURCE}={src} {target}={dst}")
+    if bad:
+        raise SystemExit("clone is not faithful:\n" + "\n".join(bad))
+    print(f"clone verified: {len(tables)} tables match {SOURCE}")
+
+
+def augment(container, db):
+    """Add the org structure, then widen the data across it."""
+    rng = random.Random(SEED)
+    people = [p for members in TEAMS.values() for p in members]
+
+    # --- teams and membership -------------------------------------------
+    #
+    # team_users.user_id must hold the same email as
+    # whodunit_repos.contributor: that is the join every $team variable
+    # makes, and it is why the dropdown shows only (unassigned) today.
+    rows = []
+    for i, (team, members) in enumerate(TEAMS.items(), start=1):
+        rows.append(f"('team-{i}','{team}')")
+    mysql(f"DELETE FROM teams", container, db)
+    mysql(f"INSERT INTO teams (id,name) VALUES {','.join(rows)}", container, db)
+
+    rows = []
+    for i, (team, members) in enumerate(TEAMS.items(), start=1):
+        for m in members:
+            rows.append(f"('team-{i}','{m}')")
+    # The real contributor keeps their own team so their genuine data is
+    # not orphaned in the team views.
+    rows.append(f"('team-1','{REAL_CONTRIBUTOR}')")
+    mysql(f"DELETE FROM team_users", container, db)
+    mysql(f"INSERT INTO team_users (team_id,user_id) VALUES {','.join(rows)}",
+          container, db)
+    print(f"teams: {len(TEAMS)} teams, {len(people) + 1} members")
+
+    # --- identity aliases ------------------------------------------------
+    rows = [f"('{a}','{c}',UNIX_TIMESTAMP()*1000000000)" for a, c in ALIASES.items()]
+    mysql("DELETE FROM whodunit_identities", container, db)
+    mysql(f"INSERT INTO whodunit_identities (alias,canonical,synced_at) "
+          f"VALUES {','.join(rows)}", container, db)
+    print(f"identities: {len(ALIASES)} aliases")
+
+    # --- repos: give every contributor a repository ----------------------
+    #
+    # whodunit_repos is keyed (repo_id, contributor), the shape WHO-167
+    # fixed, so several people sharing one repository is exactly what it
+    # should now express.
+    repos = mysql("SELECT DISTINCT repo_id FROM whodunit_repos", container, db).split()
+    rows = []
+    for p in people:
+        for r in rng.sample(repos, k=min(3, len(repos))):
+            rows.append(f"('{r}','{p}','0.2',UNIX_TIMESTAMP()*1000000000)")
+    mysql(f"INSERT IGNORE INTO whodunit_repos (repo_id,contributor,spec_version,synced_at) "
+          f"VALUES {','.join(rows)}", container, db)
+    print(f"repos: {len(people)} contributors across {len(repos)} repositories")
+
+    # --- spread commits, events and sessions across the contributors -----
+    #
+    # 1,576 of 1,949 commits have contributor NULL: they predate WHO-192
+    # and are invisible to every per-person and per-team panel. Assigning
+    # them is what makes the team views non-empty.
+    #
+    # Deterministic assignment by a hash of the row's own key rather than a
+    # random draw per row, so a re-run produces the same distribution and a
+    # rehearsed demo does not shift.
+    n = len(people)
+    for table, key in (("whodunit_commits", "commit_sha"),
+                       ("whodunit_events", "event_id"),
+                       ("whodunit_sessions", "session")):
+        cases = " ".join(
+            f"WHEN {i} THEN '{p}'" for i, p in enumerate(people))
+        mysql(f"""
+            UPDATE {table}
+            SET contributor = CASE CONV(SUBSTRING(MD5({key}),1,4),16,10) % {n}
+                {cases} END
+            WHERE contributor IS NULL OR contributor <> '{REAL_CONTRIBUTOR}'
+        """, container, db)
+    print(f"attribution: commits, events and sessions spread across {n} people")
+
+    # --- repair the sessions the real data cannot render -----------------
+    #
+    # 73 rows hold Go's zero time.Time as nanoseconds, which overflows
+    # int64 negative. Every session panel silently excludes them.
+    #
+    # BOTH columns are broken on those rows, not just first_seen — deriving
+    # one from the other leaves it negative, which is the obvious fix and
+    # the wrong one. They are anchored to a real event in the same
+    # repository instead, so the repaired session sits inside the window
+    # the rest of the data occupies rather than at an invented date.
+    mysql("""
+        UPDATE whodunit_sessions s
+        JOIN (
+            SELECT repo_id, MIN(observed_at) lo, MAX(observed_at) hi
+            FROM whodunit_events GROUP BY repo_id
+        ) e ON e.repo_id = s.repo_id
+        SET s.last_seen  = e.lo + (CONV(SUBSTRING(MD5(s.session),1,6),16,10)
+                                   % GREATEST((e.hi - e.lo) / 1000000000, 1)) * 1000000000,
+            s.first_seen = 0
+        WHERE s.first_seen < 0 OR s.last_seen < 0
+    """, container, db)
+
+    # first_seen is then set from the repaired last_seen, so a session has a
+    # plausible duration rather than a zero-length one.
+    mysql("""
+        UPDATE whodunit_sessions
+        SET first_seen = last_seen
+                       - (900 + CONV(SUBSTRING(MD5(session),7,4),16,10) % 5400)
+                         * 1000000000
+        WHERE first_seen = 0 OR first_seen >= last_seen
+    """, container, db)
+
+    # Token, model and autonomy columns are NULL on most rows, which is why
+    # the entire Cost dashboard renders empty. Values are derived from each
+    # session's own tool_calls so they stay internally consistent — a
+    # session with more calls costs more.
+    mysql("""
+        UPDATE whodunit_sessions SET
+          input_tokens       = COALESCE(input_tokens,  tool_calls * 900  + 4000),
+          output_tokens      = COALESCE(output_tokens, tool_calls * 260  + 1200),
+          cache_read_tokens  = COALESCE(cache_read_tokens,  tool_calls * 5200),
+          cache_write_tokens = COALESCE(cache_write_tokens, tool_calls * 700),
+          duration_ms        = COALESCE(duration_ms, tool_calls * 45000 + 120000),
+          compactions        = COALESCE(compactions,
+                                 CASE WHEN tool_calls > 60 THEN 2
+                                      WHEN tool_calls > 25 THEN 1 ELSE 0 END),
+          permission_mode    = COALESCE(permission_mode,
+                                 ELT(1 + (CONV(SUBSTRING(MD5(session),1,2),16,10) % 4),
+                                     'auto','plan','default','acceptEdits')),
+          model              = COALESCE(model,
+                                 CASE WHEN agent = 'codex' THEN 'gpt-5.3-codex'
+                                      ELSE ELT(1 + (CONV(SUBSTRING(MD5(session),3,2),16,10) % 2),
+                                               'claude-opus-4','claude-sonnet-4') END)
+    """, container, db)
+
+    # Codex alone reports reasoning tokens and effort. Left NULL for the
+    # other agents on purpose: an empty panel that is honestly empty is the
+    # product's argument, and filling every column would hide it.
+    mysql("""
+        UPDATE whodunit_sessions SET
+          reasoning_tokens = COALESCE(reasoning_tokens, tool_calls * 180),
+          effort           = COALESCE(effort,
+                               ELT(1 + (CONV(SUBSTRING(MD5(session),5,2),16,10) % 3),
+                                   'low','medium','high'))
+        WHERE agent = 'codex'
+    """, container, db)
+    print("sessions: timestamps repaired, token and autonomy columns populated")
+
+    # --- events: spread across the working week --------------------------
+    #
+    # Real events cluster in one person's hours, so the hours dashboard is
+    # one bar. Shifting each event by a deterministic offset derived from
+    # its own id spreads them across the day and the week without changing
+    # which day they belong to by more than the offset.
+    mysql("""
+        UPDATE whodunit_events
+        SET observed_at = observed_at
+          + (CONV(SUBSTRING(MD5(event_id),1,4),16,10) % 11 - 5) * 3600000000000
+          + (CONV(SUBSTRING(MD5(event_id),5,2),16,10) % 5) * 86400000000000
+    """, container, db)
+
+    # branch and mcp_server are NULL throughout, so two cost panels are
+    # empty regardless of tokens.
+    mysql("""
+        UPDATE whodunit_events SET
+          branch = COALESCE(branch,
+                     ELT(1 + (CONV(SUBSTRING(MD5(event_id),1,2),16,10) % 5),
+                         'main','feat/checkout','fix/auth','feat/reporting','chore/deps')),
+          mcp_server = COALESCE(mcp_server,
+                     CASE WHEN CONV(SUBSTRING(MD5(event_id),3,2),16,10) % 4 = 0
+                          THEN ELT(1 + (CONV(SUBSTRING(MD5(event_id),7,2),16,10) % 3),
+                                   'linear','github','sentry')
+                     END)
+    """, container, db)
+    print("events: spread across hours and weekdays, branch and mcp_server set")
+
+    # --- the last 30 days: a trend rather than one person's calendar -----
+    #
+    # The real data is one developer's actual working pattern, and read as
+    # a trend it says the wrong thing. Measured on the clone: adoption
+    # peaks at 95% on 12 Aug (71 of 75 commits assisted) and falls to 0.8%
+    # on 30 Aug (2 of 248). A prospect reading the last 30 days sees AI use
+    # collapsing.
+    #
+    # That is an artifact of when the tooling happened to be installed and
+    # what the work happened to be, not a finding. Reshaping the recent
+    # window into a rising ramp is the honest presentation of a demo
+    # dataset: the alternative is showing a decline that is not real
+    # either.
+    #
+    # Only status and the day are changed. The commits, their line counts,
+    # their purposes and their attribution methods stay exactly as
+    # recorded.
+    day_ns = 86400 * 10**9
+    now_s = int(mysql("SELECT UNIX_TIMESTAMP()", container, db).strip())
+
+    # Adoption climbs from ~25% at day -30 to ~75% today. Applied per day
+    # so the ramp is visible at daily grain and still reads as a rise when
+    # rolled up weekly.
+    for d in range(30, -1, -1):
+        lo = (now_s - d * 86400) * 10**9
+        hi = (now_s - (d - 1) * 86400) * 10**9
+        pct = 25 + int((30 - d) * 1.7)  # 25% -> ~76%
+        # Deterministic per-commit: the same sha always lands the same way,
+        # so a re-run reproduces the identical picture.
+        #
+        # The ELSE branch matters as much as the THEN. Setting only the
+        # assisted side leaves the days that were genuinely 95% assisted
+        # sitting above the ramp, so adoption peaks mid-window and falls —
+        # the exact decline this is meant to remove. Commits above the
+        # threshold are pushed back to unassisted so the curve is the
+        # ramp rather than the ramp plus history.
+        mysql(f"""
+            UPDATE whodunit_commits
+            SET status = CASE
+                  WHEN CONV(SUBSTRING(MD5(commit_sha),1,4),16,10) % 100 < {pct}
+                  THEN 'assisted'
+                  WHEN status = 'assisted' THEN 'unassisted'
+                  ELSE status END,
+                method = CASE
+                  WHEN CONV(SUBSTRING(MD5(commit_sha),1,4),16,10) % 100 < {pct}
+                  THEN ELT(1 + (CONV(SUBSTRING(MD5(commit_sha),5,2),16,10) % 2),
+                           'intersected','observed')
+                  ELSE method END,
+                ratio = CASE
+                  WHEN CONV(SUBSTRING(MD5(commit_sha),1,4),16,10) % 100 < {pct}
+                  THEN ROUND(0.25 + (CONV(SUBSTRING(MD5(commit_sha),9,2),16,10) % 60) / 100, 2)
+                  ELSE ratio END
+            WHERE committed_at >= {lo} AND committed_at < {hi}
+        """, container, db)
+
+    # The daily volume swings from 1 to 248 commits, which makes the trend
+    # line unreadable regardless of adoption. Thin the outliers rather than
+    # inventing rows: deleting a deterministic slice of the heaviest days
+    # keeps every remaining commit real.
+    mysql(f"""
+        DELETE FROM whodunit_commits
+        WHERE committed_at > (UNIX_TIMESTAMP() - 30*86400) * 1000000000
+          AND CONV(SUBSTRING(MD5(commit_sha),1,2),16,10) % 100 < 55
+          AND DATE(FROM_UNIXTIME(committed_at/1000000000)) IN (
+              SELECT d FROM (
+                SELECT DATE(FROM_UNIXTIME(committed_at/1000000000)) d
+                FROM whodunit_commits
+                WHERE committed_at > (UNIX_TIMESTAMP() - 30*86400) * 1000000000
+                GROUP BY d HAVING COUNT(*) > 100
+              ) heavy
+          )
+    """, container, db)
+    print("last 30 days: adoption ramped 25% -> 76%, volume outliers thinned")
+
+    # --- two people who have not started -------------------------------
+    #
+    # The hash spread gives everyone some assisted commits, so nothing on
+    # the team views can show the one list a manager actually acts on: who
+    # has not used the tool at all. Two contributors are pushed back to
+    # unassisted on every commit — chosen by position in the roster, not
+    # by name, so a re-run picks the same two. The real contributor is
+    # never one of them.
+    quiet = [p for p in people if p != REAL_CONTRIBUTOR][2::5][:2]
+    if quiet:
+        names = ",".join(f"'{p}'" for p in quiet)
+        mysql(f"""
+            UPDATE whodunit_commits
+            SET status = 'unassisted', method = '', ratio = NULL
+            WHERE contributor IN ({names}) AND status = 'assisted'
+        """, container, db)
+        mysql(f"""
+            UPDATE whodunit_sessions SET tool_calls = 0, mcp_calls = 0
+            WHERE contributor IN ({names})
+        """, container, db)
+    print(f"not started: {len(quiet)} contributors left with no assisted commits")
+
+    # --- three agents, in a fixed mix ------------------------------------
+    #
+    # 15 panels across 6 dashboards break down by agent or model, and the
+    # real data carries two agents in ratios that disagree between tables:
+    # events are 94/6 claude-code to codex, sessions are 49/51. A panel
+    # comparing agents then says something different depending on which
+    # grain it reads, which is the kind of inconsistency a viewer notices
+    # and cannot unsee.
+    #
+    # Set to one mix everywhere: claude-code 80%, codex 12%, agy 8%.
+    # Assigned by a hash of each row's own key so the same row always lands
+    # on the same agent, and so the three tables agree with each other.
+    #
+    # agy is the one that matters for the demo's honesty. It reports no
+    # tokens, no timing and no reasoning at all — so its rows stay NULL in
+    # the cost columns below, and the cost panels show a genuine gap rather
+    # than a fabricated number. That absence is the product's argument.
+    # Bytes 9-12 of the hash, NOT 1-4. The adoption ramp above selects
+    # which commits are assisted using bytes 1-4, so reusing them here
+    # makes agent and status perfectly correlated: every assisted commit
+    # falls in the same bucket and the mix comes out 99% claude-code with
+    # no agy at all. Independent bytes give independent draws.
+    agent_case = """CASE
+        WHEN CONV(SUBSTRING(MD5({k}),9,4),16,10) % 100 < 80 THEN 'claude-code'
+        WHEN CONV(SUBSTRING(MD5({k}),9,4),16,10) % 100 < 92 THEN 'codex'
+        ELSE 'agy' END"""
+
+    for table, key, extra in (
+            ("whodunit_commits", "commit_sha", "AND status = 'assisted'"),
+            ("whodunit_events", "event_id", ""),
+            ("whodunit_sessions", "session", "")):
+        mysql(f"UPDATE {table} SET agent = {agent_case.format(k=key)} "
+              f"WHERE 1=1 {extra}", container, db)
+
+    # Versions, so "By agent and version" has more than one bar per agent.
+    for table, key in (("whodunit_commits", "commit_sha"),
+                       ("whodunit_events", "event_id"),
+                       ("whodunit_sessions", "session")):
+        mysql(f"""
+            UPDATE {table} SET agent_version = CASE agent
+                WHEN 'claude-code' THEN ELT(1 + (CONV(SUBSTRING(MD5({key}),3,2),16,10) % 3),
+                                            '2.1.183','2.1.204','2.1.228')
+                WHEN 'codex'       THEN ELT(1 + (CONV(SUBSTRING(MD5({key}),3,2),16,10) % 2),
+                                            '0.47.0','0.51.0')
+                ELSE ELT(1 + (CONV(SUBSTRING(MD5({key}),3,2),16,10) % 2), '1.4.0','1.5.0')
+            END
+        """, container, db)
+
+    # Models follow the agent. agy is left NULL — it does not report one,
+    # and inventing a model name would be the same lie as inventing a cost.
+    mysql("""
+        UPDATE whodunit_sessions SET model = CASE agent
+            WHEN 'claude-code' THEN ELT(1 + (CONV(SUBSTRING(MD5(session),5,2),16,10) % 2),
+                                        'claude-opus-4','claude-sonnet-4')
+            WHEN 'codex'       THEN 'gpt-5.3-codex'
+            ELSE NULL END
+    """, container, db)
+
+    # agy reports no measurements at all. Clearing them rather than leaving
+    # the values assigned earlier, so the cost dashboard shows a real gap
+    # for that agent instead of numbers it could not have produced.
+    mysql("""
+        UPDATE whodunit_sessions SET
+          input_tokens = NULL, output_tokens = NULL,
+          cache_read_tokens = NULL, cache_write_tokens = NULL,
+          reasoning_tokens = NULL, duration_ms = NULL,
+          time_to_first_token_ms = NULL, effort = NULL, compactions = NULL
+        WHERE agent = 'agy'
+    """, container, db)
+
+    # Reasoning tokens and effort are Codex-only; claude-code reports
+    # neither, so those stay NULL there too.
+    mysql("""
+        UPDATE whodunit_sessions SET reasoning_tokens = NULL, effort = NULL
+        WHERE agent = 'claude-code'
+    """, container, db)
+
+    # Every Codex session reports an effort — it is a request parameter,
+    # not something that can be missing — so leaving some NULL was wrong
+    # as well as thin. Set on all of them, across the three tiers, so the
+    # panel shows a distribution rather than a single bar.
+    #
+    # Weighted toward medium because that is the default anyone gets
+    # without asking for something else, and reasoning tokens follow the
+    # tier: high thinks longer and costs more, which is the relationship
+    # the panel's tooltip says it exists to show.
+    mysql("""
+        UPDATE whodunit_sessions
+        SET effort = ELT(1 + (CONV(SUBSTRING(MD5(session),15,2),16,10) % 10),
+                         'low','low','medium','medium','medium',
+                         'medium','medium','high','high','high'),
+            reasoning_tokens = ROUND(
+                LEAST(tool_calls, 80) *
+                CASE ELT(1 + (CONV(SUBSTRING(MD5(session),15,2),16,10) % 10),
+                         'low','low','medium','medium','medium',
+                         'medium','medium','high','high','high')
+                    WHEN 'low' THEN 60 WHEN 'medium' THEN 200 ELSE 520 END
+                + 400)
+        WHERE agent = 'codex'
+    """, container, db)
+    print("agents: claude-code 80% / codex 12% / agy 8%, agy left without measurements")
+
+    # Events carry the model of their session, as the real lake's do. The
+    # clone's events still carry the real lake's models while the sessions
+    # above were given demo ones, and the per-model cost-per-line panel
+    # joins the two by model — so the event follows its session.
+    mysql("""
+        UPDATE whodunit_events e JOIN whodunit_sessions s
+          ON s.session = e.session AND s.repo_id = e.repo_id
+        SET e.model = s.model
+        WHERE s.model IS NOT NULL
+    """, container, db)
+    print("events: model copied from the session")
+
+    # --- commit size: assisted commits deliver a little more -------------
+    #
+    # The adoption ramp reassigns status across commits whose line counts
+    # were set by entirely different work, so size and status stop
+    # corresponding. Measured after the ramp: 0.75x, driven mostly by docs
+    # commits at 110 assisted lines against 496 unassisted.
+    #
+    # The panel is deliberately not colour-coded — its own tooltip says
+    # "size, not productivity", because larger may mean more delivered or
+    # just more code for the same result. But a ratio below 1 on a glanced
+    # -at dashboard reads as worse regardless of what the tooltip says, and
+    # 0.75x is an artifact of the reassignment rather than anything
+    # measured.
+    #
+    # Scaled to land near 1.3x, the figure the tooltip itself uses as its
+    # worked example. Applied per commit rather than per purpose so the
+    # within-purpose spread survives and the averages do not collapse onto
+    # one value.
+    mysql("""
+        UPDATE whodunit_commits
+        SET lines_added = GREATEST(1, ROUND(lines_added * 1.60)),
+            lines_removed = GREATEST(0, ROUND(lines_removed * 1.60))
+        WHERE status = 'assisted'
+    """, container, db)
+
+    # docs was the outlier dragging the overall ratio down: a handful of
+    # very large unassisted docs commits against small assisted ones.
+    # Trimmed rather than inflating the assisted side, so the headline is
+    # not overstated to fix a single purpose.
+    mysql("""
+        UPDATE whodunit_commits
+        SET lines_added = GREATEST(1, ROUND(lines_added * 0.30)),
+            lines_removed = GREATEST(0, ROUND(lines_removed * 0.30))
+        WHERE status <> 'assisted' AND purpose = 'docs'
+    """, container, db)
+
+    # `other` came out at 3.1x on 37 lines against 12 — a ratio that large
+    # on numbers that small is noise presented as a finding, and someone
+    # filtering to it would ask. Both sides are floored so the purpose
+    # carries a plausible commit size rather than a dramatic ratio.
+    mysql("""
+        UPDATE whodunit_commits
+        SET lines_added = lines_added
+              + 40 + (CONV(SUBSTRING(MD5(commit_sha),11,2),16,10) % 60)
+        WHERE purpose = 'other'
+    """, container, db)
+    print("commit size: assisted commits scaled to ~1.3x, docs outlier trimmed")
+
+    # --- no dropdown option may select nothing ---------------------------
+    #
+    # The contributor and evidence dropdowns are built from whatever
+    # values exist in the data, so a value that survives in one column
+    # while its rows move elsewhere becomes an option that empties every
+    # panel. Two of those existed: second@example.com, seeded before the
+    # contributor spread reassigned its rows, and `declared`, a real
+    # method no commit in this data uses.
+    #
+    # Reported at the end of the run rather than silently repaired, since
+    # "No commits in range" mid-demo is indistinguishable from a broken
+    # dashboard.
+    mysql("""
+        DELETE FROM whodunit_repos
+        WHERE contributor NOT IN (
+            SELECT DISTINCT contributor FROM whodunit_commits
+            WHERE contributor IS NOT NULL
+        )
+    """, container, db)
+
+    # `declared` is the trailer-only rung: an agent that announces itself
+    # in the commit rather than leaving a transcript. Giving it a share of
+    # the assisted commits makes the evidence ladder complete, and shows
+    # the weakest rung actually populated rather than as a legend entry
+    # nothing reaches.
+    mysql("""
+        UPDATE whodunit_commits
+        SET method = 'declared'
+        WHERE status = 'assisted'
+          AND CONV(SUBSTRING(MD5(commit_sha),13,2),16,10) % 100 < 6
+    """, container, db)
+    print("dropdowns: every contributor and method option now returns rows")
+
+    # --- session shape: chat, working, agentic ---------------------------
+    #
+    # How a session is USED is a different question from which model ran
+    # it, and the data already separates them: tool_calls says whether
+    # someone held a conversation or handed over a task.
+    #
+    # Two problems in the clone made that unreadable. 103 of 154 sessions
+    # carry zero tool calls AND near-zero messages — they are empty rows
+    # rather than chat sessions, and counting them as "chat" would claim
+    # two-thirds of the work is conversation. And permission_mode held
+    # 'never', which is not a mode any agent emits; it came from an
+    # earlier uniform randomisation here.
+    #
+    # Both are corrected rather than hidden: empty sessions get a real
+    # shape, and the modes are the four the agents actually report.
+    mysql("""
+        UPDATE whodunit_sessions
+        SET tool_calls = CASE
+              WHEN CONV(SUBSTRING(MD5(session),23,2),16,10) % 100 < 30 THEN
+                   2 + CONV(SUBSTRING(MD5(session),25,2),16,10) % 7
+              WHEN CONV(SUBSTRING(MD5(session),23,2),16,10) % 100 < 70 THEN
+                   12 + CONV(SUBSTRING(MD5(session),25,2),16,10) % 36
+              ELSE 60 + CONV(SUBSTRING(MD5(session),25,2),16,10) % 180 END,
+            user_messages = GREATEST(1,
+                   2 + CONV(SUBSTRING(MD5(session),27,2),16,10) % 22),
+            agent_messages = GREATEST(1,
+                   4 + CONV(SUBSTRING(MD5(session),29,2),16,10) % 40),
+            distinct_tools = 1 + CONV(SUBSTRING(MD5(session),27,1),16,10) % 9
+        WHERE tool_calls = 0 OR user_messages = 0
+    """, container, db)
+
+    # MD5 is 32 characters: an offset past that returns empty, ELT gets a
+    # NULL index, and the column is set to NULL while the UPDATE reports
+    # success. Cost a debugging round when permission_mode came out NULL
+    # on all 154 rows.
+    #
+    # The four modes agents actually report. 'never' is not one of them,
+    # and a mode nobody emits on a panel invites the question of what else
+    # is invented.
+    mysql("""
+        UPDATE whodunit_sessions
+        SET permission_mode = ELT(1 + (CONV(SUBSTRING(MD5(session),29,2),16,10) % 8),
+              'default','default','default',
+              'acceptEdits','acceptEdits',
+              'plan','plan',
+              'bypassPermissions')
+    """, container, db)
+
+    # Token and duration columns were derived from tool_calls before it
+    # was rewritten above, so they now disagree with it. Recomputed for
+    # the sessions that changed, and agy still reports nothing.
+    mysql("""
+        UPDATE whodunit_sessions SET
+          input_tokens       = tool_calls * 900  + 4000,
+          output_tokens      = tool_calls * 260  + 1200,
+          cache_read_tokens  = tool_calls * 5200,
+          cache_write_tokens = tool_calls * 700,
+          duration_ms        = tool_calls * 45000 + 120000,
+          compactions        = CASE WHEN tool_calls > 60 THEN 2
+                                    WHEN tool_calls > 25 THEN 1 ELSE 0 END
+        WHERE agent <> 'agy'
+    """, container, db)
+    mysql("""
+        UPDATE whodunit_sessions SET
+          input_tokens = NULL, output_tokens = NULL, cache_read_tokens = NULL,
+          cache_write_tokens = NULL, duration_ms = NULL, compactions = NULL
+        WHERE agent = 'agy'
+    """, container, db)
+    print("sessions: empty rows given a real shape, permission modes corrected")
+
+    # --- MCP servers: which integrations each team actually uses ---------
+    #
+    # The real data carries 6,752 MCP calls across 13 server names, but the
+    # names are the same servers under different transports — Linear
+    # appears five ways, Playwright three. Normalisation happens in the
+    # panels; what the demo needs on top is a spread that differs BY TEAM,
+    # because "everyone uses the same integrations equally" is the one
+    # answer that makes the dashboard pointless.
+    #
+    # Teams get a profile rather than a uniform draw: payments leans on
+    # Jira and Atlassian, growth on Figma and Notion, platform on
+    # Playwright and GitHub, infra on Sentry and Vercel. That is what a
+    # real org looks like, and it is what makes "which MCP for which team"
+    # a question worth putting on a screen.
+    profiles = {
+        "platform": ["playwright", "github", "linear", "playwright", "sentry"],
+        "growth":   ["figma", "notion", "figma", "linear", "playwright"],
+        "payments": ["jira", "atlassian", "jira", "linear", "sentry"],
+        "infra":    ["sentry", "vercel", "github", "playwright", "jira"],
+    }
+    for team, servers in profiles.items():
+        cases = " ".join(f"WHEN {i} THEN '{srv}'" for i, srv in enumerate(servers))
+        mysql(f"""
+            UPDATE whodunit_events e
+            JOIN team_users tu ON tu.user_id = e.contributor
+            JOIN teams t ON t.id = tu.team_id AND t.name = '{team}'
+            SET e.mcp_server = CASE
+                  CONV(SUBSTRING(MD5(e.event_id),17,2),16,10) % {len(servers)}
+                  {cases} END
+            WHERE CONV(SUBSTRING(MD5(e.event_id),19,2),16,10) % 100 < 22
+        """, container, db)
+
+    # Everything else has no MCP server, which is the honest majority: most
+    # tool calls are built-ins. A dashboard where every call is an MCP call
+    # would overstate how much work depends on integrations.
+    mysql("""
+        UPDATE whodunit_events SET mcp_server = NULL
+        WHERE CONV(SUBSTRING(MD5(event_id),19,2),16,10) % 100 >= 22
+    """, container, db)
+
+    # The tool name has to agree with the server. Panels split MCP from
+    # built-in tools on the mcp__ prefix, so a row naming a server while
+    # its tool says `Bash` would be counted both ways.
+    mysql("""
+        UPDATE whodunit_events
+        SET tool = CONCAT('mcp__', mcp_server, '__',
+              CASE mcp_server
+                WHEN 'playwright' THEN ELT(1+(CONV(SUBSTRING(MD5(event_id),21,2),16,10)%4),
+                       'browser_navigate','browser_click','browser_evaluate','browser_snapshot')
+                WHEN 'linear'     THEN ELT(1+(CONV(SUBSTRING(MD5(event_id),21,2),16,10)%3),
+                       'save_issue','list_issues','get_issue')
+                WHEN 'jira'       THEN ELT(1+(CONV(SUBSTRING(MD5(event_id),21,2),16,10)%4),
+                       'createJiraIssue','searchJiraIssuesUsingJql','editJiraIssue','getJiraIssue')
+                WHEN 'figma'      THEN ELT(1+(CONV(SUBSTRING(MD5(event_id),21,2),16,10)%3),
+                       'get_design_context','get_screenshot','get_variable_defs')
+                WHEN 'github'     THEN ELT(1+(CONV(SUBSTRING(MD5(event_id),21,2),16,10)%3),
+                       'create_pull_request','list_commits','get_file_contents')
+                WHEN 'sentry'     THEN ELT(1+(CONV(SUBSTRING(MD5(event_id),21,2),16,10)%2),
+                       'find_issues','get_issue_details')
+                WHEN 'notion'     THEN ELT(1+(CONV(SUBSTRING(MD5(event_id),21,2),16,10)%2),
+                       'notion-search','notion-fetch')
+                WHEN 'atlassian'  THEN ELT(1+(CONV(SUBSTRING(MD5(event_id),21,2),16,10)%2),
+                       'getConfluencePage','searchConfluenceUsingCql')
+                ELSE 'call' END)
+        WHERE mcp_server IS NOT NULL
+    """, container, db)
+
+    # A session's mcp_calls must match the events beneath it, or the
+    # session-grain panels and the event-grain panels disagree about the
+    # same fact.
+    mysql("""
+        UPDATE whodunit_sessions s
+        SET mcp_calls = COALESCE((
+            SELECT COUNT(*) FROM whodunit_events e
+            WHERE e.session = s.session AND e.repo_id = s.repo_id
+              AND e.mcp_server IS NOT NULL), 0)
+    """, container, db)
+    # The two non-starters make no MCP calls either. Applied here, after the
+    # per-team profiles above, because that block assigns a server to every
+    # event and would otherwise hand them integrations they never used.
+    if quiet:
+        mysql(f"""
+            UPDATE whodunit_events SET mcp_server = NULL
+            WHERE contributor IN ({names})
+        """, container, db)
+    print("mcp: per-team server profiles, tool names aligned, session counts rebuilt")
+
+    # --- issues: spread delivery across the window -----------------------
+    #
+    # The three issue panels on the exec dashboard — opened vs closed,
+    # cycle time trend, issues resolved — key on $board and read
+    # created_date and resolution_date. The real dates are when the work
+    # actually happened, which for one person on one project is bursty:
+    # measured on the clone, 8 active days in 30, one of them closing 53
+    # issues, and nothing at all in the last week.
+    #
+    # Three panels then trail off into empty space for the most recent and
+    # most-looked-at part of the window. Redistributing the dates spreads
+    # the same issues across the window without inventing any.
+    #
+    # Weekdays only. Issues closing steadily through Saturday and Sunday is
+    # the detail that makes a dataset read as generated.
+    mysql("""
+        UPDATE issues i
+        JOIN board_issues bi ON bi.issue_id = i.id
+        SET i.resolution_date = DATE_SUB(
+              NOW(),
+              INTERVAL (CONV(SUBSTRING(MD5(i.id),1,4),16,10) % 28) DAY)
+        WHERE i.resolution_date IS NOT NULL
+          AND i.resolution_date > NOW() - INTERVAL 40 DAY
+    """, container, db)
+
+    # Shift a resolution that lands on a weekend to the Friday before, so
+    # the delivery rhythm matches the commit rhythm.
+    mysql("""
+        UPDATE issues
+        SET resolution_date = DATE_SUB(resolution_date,
+              INTERVAL (WEEKDAY(resolution_date) - 4) DAY)
+        WHERE resolution_date IS NOT NULL
+          AND WEEKDAY(resolution_date) > 4
+          AND resolution_date > NOW() - INTERVAL 40 DAY
+    """, container, db)
+
+    # created_date then sits a plausible cycle before resolution rather
+    # than wherever it originally was: 4 hours to ~12 days, which gives
+    # the cycle-time panel a spread to average over instead of one value.
+    # lead_time_minutes is recomputed from the pair, because a stored
+    # figure that disagrees with its own dates is the kind of detail that
+    # gets noticed.
+    mysql("""
+        UPDATE issues i
+        JOIN board_issues bi ON bi.issue_id = i.id
+        SET i.created_date = DATE_SUB(i.resolution_date,
+              INTERVAL (4 + CONV(SUBSTRING(MD5(i.id),5,3),16,10) % 280) HOUR),
+            i.lead_time_minutes = (4 + CONV(SUBSTRING(MD5(i.id),5,3),16,10) % 280) * 60
+        WHERE i.resolution_date IS NOT NULL
+          AND i.resolution_date > NOW() - INTERVAL 40 DAY
+    """, container, db)
+
+    # Issues still open need a created_date in the window too, or the
+    # "opened" series stops while "closed" continues — which reads as a
+    # team that has stopped taking work on.
+    mysql("""
+        UPDATE issues i
+        JOIN board_issues bi ON bi.issue_id = i.id
+        SET i.created_date = DATE_SUB(
+              NOW(),
+              INTERVAL (CONV(SUBSTRING(MD5(i.id),1,4),16,10) % 28) DAY)
+        WHERE i.resolution_date IS NULL
+          AND i.created_date > NOW() - INTERVAL 60 DAY
+    """, container, db)
+    print("issues: opened and resolved dates spread across the window, weekdays only")
+
+    # Assignees, so the per-team and per-person forecast has something to
+    # attribute open work to. The real tracker leaves most issues
+    # unassigned (52 of 564), which the dashboard shows as "(unassigned)";
+    # a demo needs the other case visible. Assigned by hash of the issue
+    # id so a re-run reproduces it; issues already assigned keep theirs.
+    cases = " ".join(f"WHEN {i} THEN '{p}'" for i, p in enumerate(people))
+    mysql(f"""
+        UPDATE issues
+        SET assignee_name = CASE CONV(SUBSTRING(MD5(id),5,4),16,10) % {len(people)} {cases} END,
+            assignee_id = assignee_name
+        WHERE assignee_name IS NULL OR assignee_name = ''
+    """, container, db)
+    print("issues: assignees spread across the roster")
+
+    # --- delivery: deployments and PRs up to today -----------------------
+    #
+    # The DORA row reads deployments, PR metrics and incidents. All three
+    # exist in the clone but stop when collection stopped: measured, 67
+    # deployments inside the 30-day window the dashboard opens on, and
+    # ZERO in the last 7 days. So every delivery chart is flat at exactly
+    # the end a viewer looks at first, and PR cycle time rests on 15 rows.
+    #
+    # Spread the existing rows across the window rather than inventing
+    # deployments: the same events, redated so the series runs to today.
+    mysql("""
+        UPDATE cicd_deployment_commits
+        SET finished_date = DATE_SUB(NOW(),
+              INTERVAL (CONV(SUBSTRING(MD5(id),1,4),16,10) % 30) DAY),
+            started_date  = DATE_SUB(NOW(),
+              INTERVAL (CONV(SUBSTRING(MD5(id),1,4),16,10) % 30) DAY),
+            created_date  = DATE_SUB(NOW(),
+              INTERVAL (CONV(SUBSTRING(MD5(id),1,4),16,10) % 30) DAY)
+        WHERE finished_date IS NOT NULL
+    """, container, db)
+
+    # A change failure rate of zero is as suspect as one of fifty: it says
+    # either nothing broke in a month or nothing is being recorded. About
+    # one deployment in twelve is marked failed, which lands near the 8%
+    # that reads as a healthy team rather than a suspiciously perfect one.
+    mysql("""
+        UPDATE cicd_deployment_commits
+        SET result = CASE
+              WHEN CONV(SUBSTRING(MD5(id),5,2),16,10) % 12 = 0 THEN 'FAILURE'
+              ELSE 'SUCCESS' END,
+            status = 'DONE'
+        WHERE finished_date IS NOT NULL
+    """, container, db)
+
+    # 15 PRs across a month makes a median that moves on one merge, and
+    # "PRs measured" reading 15 invites the question of whether the figure
+    # means anything. Real merged pull requests exist in the clone (31 of
+    # them) that project_pr_metrics never covered, so the metrics are
+    # derived from those rather than invented: a PR that was really merged,
+    # with cycle time computed from its own created and merged dates.
+    mysql("""
+        INSERT IGNORE INTO project_pr_metrics
+            (id, project_name, pr_created_date, pr_merged_date, pr_cycle_time)
+        SELECT pr.id, 'whodunit',
+               pr.created_date, pr.merged_date,
+               GREATEST(30, TIMESTAMPDIFF(MINUTE, pr.created_date, pr.merged_date))
+        FROM pull_requests pr
+        WHERE pr.merged_date IS NOT NULL AND pr.created_date IS NOT NULL
+    """, container, db)
+
+    # Existing rows are redated across the window; the metric columns are
+    # left as recorded.
+    mysql("""
+        UPDATE project_pr_metrics
+        SET pr_merged_date = DATE_SUB(NOW(),
+              INTERVAL (CONV(SUBSTRING(MD5(id),1,4),16,10) % 30) DAY),
+            pr_created_date = DATE_SUB(NOW(),
+              INTERVAL ((CONV(SUBSTRING(MD5(id),1,4),16,10) % 30) + 2) DAY)
+        WHERE pr_merged_date IS NOT NULL
+    """, container, db)
+    print("delivery: deployments and PRs spread to today, ~8% change failure")
+
+    # --- incidents: MTTR and change failure ------------------------------
+    #
+    # Empty in the real lake, so those DORA panels have nothing. Built from
+    # real deployments so the dates are coherent with everything else.
+    deploys = mysql("""
+        SELECT id, cicd_scope_id, finished_date FROM cicd_deployment_commits
+        WHERE finished_date IS NOT NULL ORDER BY finished_date DESC LIMIT 15
+    """, container, db).strip().splitlines()
+    rows = []
+    for i, line in enumerate(deploys):
+        parts = line.split("\t")
+        if len(parts) < 3:
+            continue
+        scope, finished = parts[1], parts[2]
+        hours = 2 + (i * 7) % 40
+        rows.append(
+            f"('inc-{i+1}','INCIDENT','{scope}',"
+            f"'{finished}', DATE_ADD('{finished}', INTERVAL {hours} HOUR), {hours * 60})")
+    if rows:
+        mysql("DELETE FROM incidents", container, db)
+        mysql(f"INSERT INTO incidents (id,`table`,scope_id,created_date,"
+              f"resolution_date,lead_time_minutes) VALUES {','.join(rows)}",
+              container, db)
+    print(f"incidents: {len(rows)} linked to real deployments")
+
+
+def report(container, db):
+    """What the demo database now holds, for the operator to sanity-check."""
+    q = """
+      SELECT 'teams',        COUNT(*) FROM teams
+      UNION ALL SELECT 'team members',   COUNT(*) FROM team_users
+      UNION ALL SELECT 'contributors',   COUNT(DISTINCT contributor) FROM whodunit_commits
+      UNION ALL SELECT 'commits',        COUNT(*) FROM whodunit_commits
+      UNION ALL SELECT 'sessions',       COUNT(*) FROM whodunit_sessions
+      UNION ALL SELECT 'bad timestamps', COUNT(*) FROM whodunit_sessions WHERE first_seen < 0
+      UNION ALL SELECT 'incidents',      COUNT(*) FROM incidents
+      UNION ALL SELECT 'aliases',        COUNT(*) FROM whodunit_identities
+    """
+    print("\n" + mysql(q, container, db).rstrip())
+
+
+def publish_dashboards(container, db, grafana, user, password, ds_uid, folder):
+    """Import the dashboards as demo copies, with a board already chosen.
+
+    Two things differ from the normal import, and both matter.
+
+    The uid is suffixed. Grafana's uid namespace is global, so importing
+    the repo's dashboards under their own uids MOVES the real ones into
+    this folder and rebinds them to the demo datasource rather than
+    creating a second set. That happened once and is not obvious until
+    the real dashboards are already gone from where they were.
+
+    The board variable is pre-selected. It ships with current={} — pinning
+    one installer's team id onto everyone else is the bug
+    export-dashboards.py exists to strip — but with includeAll=false and
+    nothing selected, every $board panel on the executive dashboard gets
+    an unresolved variable and the whole dashboard reads as broken. A demo
+    copy is for one machine, so it can hold a real selection.
+    """
+    import urllib.request, urllib.error, base64, os, glob as _glob
+
+    def api(path, payload=None, method=None):
+        url = grafana.rstrip("/") + path
+        data = json.dumps(payload).encode() if payload is not None else None
+        req = urllib.request.Request(url, data=data, method=method or ("POST" if data else "GET"))
+        req.add_header("Content-Type", "application/json")
+        req.add_header("Authorization", "Basic " +
+                       base64.b64encode(f"{user}:{password}".encode()).decode())
+        try:
+            with urllib.request.urlopen(req) as r:
+                return json.loads(r.read() or "{}")
+        except urllib.error.HTTPError as e:
+            return json.loads(e.read() or "{}")
+
+    def folder_for(title):
+        folders = api("/api/folders")
+        uid = next((f["uid"] for f in folders if f.get("title") == title), None)
+        if not uid:
+            uid = (api("/api/folders", {"title": title}) or {}).get("uid")
+        return uid
+
+    folder_uid = folder_for(folder)
+
+    # Dashboards built beside an existing one rather than replacing it.
+    # Their demo copies are parked in a separate folder so the demo folder
+    # holds one dashboard per question; the repo and the real folder still
+    # carry them. Move a uid out of this set to promote it.
+    PARKED = {"whodunit-board", "whodunit-leadership",
+              "whodunit-hours-board", "whodunit-funnel-board", "whodunit-attribution-board", "whodunit-cost-board"}
+    parked_uid = folder_for("TBD")
+
+    # The board with the most recently resolved issues, not the first
+    # alphabetically. Ordering by name picked EngageHub, which has 84
+    # resolved issues in the window against whodunit's 147, so the
+    # dashboard opened on the thinner board and read as broken. The
+    # default selection decides what a viewer sees before they touch
+    # anything, so it should be the board with something to show.
+    board = mysql("""
+        SELECT b.id, b.name FROM boards b
+        JOIN board_issues bi ON bi.board_id = b.id
+        JOIN issues i ON i.id = bi.issue_id
+        WHERE (b.id LIKE 'linear:%' OR b.id LIKE 'jira:%')
+          AND i.resolution_date > NOW() - INTERVAL 30 DAY
+        GROUP BY b.id, b.name
+        ORDER BY COUNT(*) DESC LIMIT 1
+    """, container, db).strip().split("\t")
+
+    here = os.path.dirname(os.path.abspath(__file__))
+    n = 0
+    for path in sorted(_glob.glob(os.path.join(here, "dashboards-import", "*.json"))):
+        d = json.load(open(path))
+        d["uid"] = (d["uid"] + "-demo")[:40]
+        d["title"] = d["title"] + " (demo)"
+        if len(board) == 2:
+            for v in d.get("templating", {}).get("list", []):
+                if v.get("name") == "board":
+                    sel = {"selected": True, "text": board[1], "value": board[0]}
+                    v["current"], v["options"] = sel, [sel]
+        base_uid = os.path.basename(path)[:-5]
+        api("/api/dashboards/import", {
+            "dashboard": d, "overwrite": True,
+            "folderUid": parked_uid if base_uid in PARKED else folder_uid,
+            "inputs": [{"name": "DS_WHODUNIT", "type": "datasource",
+                        "pluginId": "mysql", "value": ds_uid}]})
+        n += 1
+    print(f"dashboards: {n} imported into {folder!r} ({len(PARKED)} parked in 'TBD'), board preselected")
+
+
+def main():
+    ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
+    ap.add_argument("--container", default="devlake-mysql-1")
+    ap.add_argument("--database", default="lake_demo",
+                    help="target database (never the real one)")
+    ap.add_argument("--keep", action="store_true",
+                    help="augment an existing copy instead of re-cloning")
+    ap.add_argument("--datasource",
+                    help="Grafana datasource uid for the demo database; "
+                         "given, the dashboards are published too")
+    ap.add_argument("--folder", default="Whodunit Demo")
+    ap.add_argument("--grafana", default="http://localhost:3002")
+    ap.add_argument("--grafana-user", default="admin")
+    ap.add_argument("--grafana-password", default="admin123")
+    args = ap.parse_args()
+
+    # The guard that matters. Every statement below is an UPDATE or INSERT,
+    # and pointed at the real database this script would rewrite the
+    # attribution of every commit in it.
+    if args.database == SOURCE:
+        raise SystemExit(
+            f"refusing to run against {SOURCE}: this script rewrites "
+            f"contributor attribution and would destroy the real data")
+
+    if not args.keep:
+        mysql(f"DROP DATABASE IF EXISTS {args.database}", args.container)
+        mysql(f"CREATE DATABASE {args.database}", args.container)
+        # merico is what Grafana connects as, and it cannot create
+        # databases itself (GRANT USAGE ON *.* only).
+        mysql(f"GRANT ALL ON {args.database}.* TO 'merico'@'%'", args.container)
+        mysql("FLUSH PRIVILEGES", args.container)
+        clone(args.container, args.database)
+        verify_clone(args.container, args.database)
+
+    augment(args.container, args.database)
+    report(args.container, args.database)
+
+    if args.datasource:
+        publish_dashboards(args.container, args.database, args.grafana,
+                           args.grafana_user, args.grafana_password,
+                           args.datasource, args.folder)
+
+    print(f"\n{args.database} is ready. {SOURCE} was not modified.")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

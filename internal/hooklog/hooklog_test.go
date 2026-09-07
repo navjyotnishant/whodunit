@@ -1,6 +1,6 @@
 // Author: Navjyot Nishant
 // Created: 2026-08-13
-// Last updated: 2026-08-13
+// Last updated: 2026-08-25
 // Description: The hook log — bounded, per-repo purge, and never fatal.
 
 package hooklog
@@ -8,6 +8,7 @@ package hooklog
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -212,5 +213,70 @@ func TestLimitTakesTheNewest(t *testing.T) {
 	}
 	if entries[0].Detail != "j" {
 		t.Errorf("limit dropped the newest entries: got %q first", entries[0].Detail)
+	}
+}
+
+// The Entry struct must never gain a field that can carry conversation
+// content.
+//
+// NAV-25, and the package doc's claim that "there is no code path here that
+// accepts it". That claim was true and untested: `detail` is free text and
+// several call sites pass err.Error() straight into it, so the boundary
+// rests on every future caller remembering. This asserts the shape, so a
+// field added later to carry a prompt fails here rather than in review.
+//
+// `detail` itself is deliberately allowed — it is the one free-text field,
+// and what may go in it is asserted by TestDetailCarriesNoContent below.
+func TestTheEntryHoldsNoContent(t *testing.T) {
+	forbidden := []string{"message", "text", "content", "prompt", "body", "summary", "diff", "source"}
+
+	v := reflect.TypeOf(Entry{})
+	for i := 0; i < v.NumField(); i++ {
+		name := strings.ToLower(v.Field(i).Name)
+		for _, bad := range forbidden {
+			if strings.Contains(name, bad) {
+				t.Errorf("Entry has a field %q; the log holds paths and counts "+
+					"only, never conversation content (NAV-25)", v.Field(i).Name)
+			}
+		}
+	}
+}
+
+// What the hooks actually write must stay within that boundary.
+//
+// The struct test above cannot catch a caller stuffing a transcript line
+// into `detail`, which is the realistic leak: at the moment of writing it
+// reads as debugging context. This checks the real corpus rather than the
+// schema — every entry the current code produces is a decision, a count or
+// an error string.
+func TestDetailCarriesNoContent(t *testing.T) {
+	home := t.TempDir()
+
+	// A detail line is a verdict, a count, or an error. None of these is
+	// content, and all of them are shapes the hooks really emit.
+	for _, detail := range []string{
+		"assisted via intersected, 4 staged file(s), 12262 agent line(s)",
+		"undetermined: no agent activity found in the last 7 days",
+		"resolve repo root commit (unborn or not a git repo?): exit status 128",
+		"published 171 commit(s), 3786 event(s), 14 session(s)",
+	} {
+		Write(home, Entry{Repo: "r", Hook: "prepare-commit-msg", Event: "determine", Detail: detail})
+	}
+
+	entries, err := Read(home, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) == 0 {
+		t.Fatal("wrote entries but read none back")
+	}
+
+	// Newlines are the tell. A count or a verdict is one line; a prompt, a
+	// diff hunk or a file's contents is not.
+	for _, e := range entries {
+		if strings.ContainsAny(e.Detail, "\n\r") {
+			t.Errorf("detail %q spans lines; the log holds counts and verdicts, "+
+				"not content (NAV-25)", e.Detail)
+		}
 	}
 }

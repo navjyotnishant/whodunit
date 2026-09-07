@@ -1,0 +1,207 @@
+WHO-8	WHO-11	DECISION: select pilot repository and secure CI authority
+WHO-9	WHO-109	Rebuild the executive dashboard around a monthly adoption trend
+WHO-10	WHO-106	Audit authentication methods for credential leakage, focusing on the Salesforce CLI path
+WHO-11	WHO-95	Onboarding guide: DevLake setup, credentials, and connecting trackers
+WHO-12	WHO-94	Documentation site with screenshots, published to GitHub Pages
+WHO-13	WHO-66	Sync password encrypted at rest, no shell profile required
+WHO-14	WHO-61	dun log: surface the errors the hooks are silently swallowing
+WHO-15	WHO-54	Investigate Antigravity as an attribution source (encrypted protobuf + SQLite index)
+WHO-16	WHO-32	Security and privacy posture document
+WHO-17	WHO-31	Release engineering: signed binaries, no curl-pipe-sh
+WHO-18	WHO-9	Name and domain availability check
+WHO-19	WHO-5	Publish SPEC.md v0.2
+WHO-20	WHO-107	Dashboard text panels clip their last line
+WHO-21	WHO-56	Keep the agent support matrix current (docs/adapters/agent-support.md)
+WHO-22	WHO-40	Model-assisted classification via local agent CLI
+WHO-23	WHO-25	Cursor and Windsurf: declaration-only, do not reverse-engineer
+WHO-24	WHO-20	Community contribution path and adapter guide
+WHO-25	WHO-8	Risk register with owners and triggers
+WHO-26	WHO-7	Apache-2.0 LICENSE and CONTRIBUTING
+WHO-27	WHO-6	Conformance test vectors
+WHO-28	WHO-65	Consistent color across every dun command
+WHO-29	WHO-55	Gemini CLI adapter � deferred until a Standard/Enterprise tier is available
+WHO-30	WHO-44	Rework/correction signal from prompt text (classify locally, never persist raw text)
+WHO-31	WHO-105	Add OAuth 2.0 Refresh Token connection type to Salesforce MCP server
+WHO-32	WHO-74	Migrate journal and sidecar schemas for the new columns
+WHO-33	WHO-73	Read Codex event_msg and turn_context records in ParseSince
+WHO-34	WHO-63	dun verify: one command that answers "is this actually working"
+WHO-35	WHO-62	Keep hooks current across upgrades: dun repos update, version check, self-repair
+WHO-36	WHO-58	Hook writes the journal at commit, and syncs at push
+WHO-37	WHO-49	DECISION: sync architecture � developer machines push full journal (option A)
+WHO-38	WHO-23	Claude Code session adapter
+WHO-39	WHO-15	CI check action for trailer enforcement
+WHO-40	WHO-10	Capture pre-adoption baseline before hooks ship
+WHO-41	WHO-1	Rename trailer to AI-Attribution
+WHO-42	WHO-2	DECISION: rename method=absent to method=undetermined
+WHO-43	WHO-104	The trailer has no version of its own, so ratio becomes ambiguous the day it changes
+WHO-44	WHO-103	Add model= to the AI-Attribution trailer
+WHO-45	WHO-100	Rework the Productivity Funnel: modern styling, and fill the value stages
+WHO-46	WHO-108	Guard the issue-key regex so GitHub boards stop fabricating AI-assisted issues
+WHO-47	WHO-98	Every panel tooltip explains what it is, how it is computed, and how to read it
+WHO-48	WHO-96	Contributor filter empties the Cost & Efficiency dashboard
+WHO-49	WHO-93	Sync the baseline snapshot so before-and-after has a *before*
+WHO-50	WHO-92	Collect compact boundaries so the context-pressure panel can exist
+WHO-51	WHO-90	Efficiency signals: context size, session shape, subagent share
+WHO-52	WHO-88	dun init verifies the binary is reachable as `dun` and says what to fix
+WHO-53	WHO-87	Name the binary dun.exe inside the release archive
+WHO-54	WHO-86	Windows install: the archive ships a versioned .exe with no install path
+WHO-55	WHO-84	DECISION: where do token prices come from, and who refreshes them
+WHO-56	WHO-82	Report token use in dun report, and stop deriving cost from monthly_spend
+WHO-57	WHO-80	Read Codex token_count, task_complete timing, effort and approval_policy
+WHO-58	WHO-79	Sum Claude Code message.usage into per-session token counts
+WHO-59	WHO-77	Extract model and mcp_server from agy executor_metadata and steps.permissions
+WHO-60	WHO-76	Extract model, branch and mcp_server in the Codex adapter
+WHO-61	WHO-75	Extract model, branch, mcp_server and user_modified in the Claude Code adapter
+WHO-62	WHO-72	Per-session attribution carries measured token cost, timing and autonomy
+WHO-63	WHO-71	Per-edit attribution carries model, branch, MCP server and human-modified
+WHO-64	WHO-70	agy outcome is ignored, not absent � steps.status is populated and indexed
+WHO-65	WHO-69	Codex MCP calls undercounted by 44% � namespace-tagged calls never counted
+WHO-66	WHO-68	Attribution carries real cost, model and branch
+WHO-67	WHO-67	Fix Windows support: paths, diff parsing, and file permissions
+WHO-68	WHO-64	dun report fails outside a git repository
+WHO-69	WHO-60	dun status: work outside a repository, and take --repo
+WHO-70	WHO-59	dun report: charts, journal data, and template presets
+WHO-71	WHO-57	Configurable transcript locations per agent, with detection reported in dun status
+WHO-72	WHO-53	Performance tests and budgets for ingest, hooks, and report
+WHO-73	WHO-52	Ship dashboards as importable artifacts, not only as a mounted directory
+WHO-74	WHO-50	Collect tool accept/reject signal from session transcripts
+WHO-75	WHO-48	Hunk-hash matching rarely fires: journal hashes whole files, diffs are fragments
+WHO-76	WHO-43	dun report: local self-contained HTML dashboard
+WHO-77	WHO-42	Velocity and revert-rate delta computation (pre/post AI-adoption)
+WHO-78	WHO-41	Evaluate AgentCompass harness abstraction for adapter interface
+WHO-79	WHO-37	Grafana panel: method mix
+WHO-80	WHO-36	Grafana panel: penetration
+WHO-81	WHO-35	Grafana panel: coverage rate
+WHO-82	WHO-34	dun ingest --since: CI-run history walk
+WHO-83	WHO-33	Sidecar table schema in DevLake
+WHO-84	WHO-29	dun journal show, pause, purge
+WHO-85	WHO-26	Adapter drift detection and golden fixtures
+WHO-86	WHO-22	Content-hash matching for rewrite safety
+WHO-87	WHO-21	Journal writer and schema v1
+WHO-88	WHO-19	README: lead with the spec, not the daemon
+WHO-89	WHO-17	Absence must never mean none
+WHO-90	WHO-14	commit-msg: trailer validator
+WHO-91	WHO-13	prepare-commit-msg: trailer producer
+WHO-92	WHO-12	dun init: install hooks into a repository
+WHO-93	WHO-3	DECISION: session field semantics
+WHO-94	WHO-4	DECISION: ratio denominator
+WHO-95	WHO-102	Evidence strength labels are too long for the legend
+WHO-96	WHO-101	Reorder the delivery dashboard so the important cards are on top
+WHO-97	WHO-99	Add rework rate, cost per delivered line, and autonomy-vs-throughput to the delivery dashboard
+WHO-98	WHO-97	Import the dashboards into a Whodunit folder, not General
+WHO-99	WHO-89	Scoop manifest so Windows has an install command
+WHO-100	WHO-85	Add dashboard panels for cost, model and branch with honest empty-states
+WHO-101	WHO-83	Carry the new per-session columns through the sidecar sync
+WHO-102	WHO-81	Leave agy token, timing and reasoning columns NULL and prove it
+WHO-103	WHO-78	Carry the new per-entry columns through the sidecar sync
+WHO-104	WHO-51	Collect chat-side activity counts (no prompt text)
+WHO-105	WHO-47	dun journal: query another repository without cd'ing
+WHO-106	WHO-46	Color-coded console output and welcome screen
+WHO-107	WHO-39	Deterministic purpose classification
+WHO-108	WHO-38	Grafana panel: purpose distribution
+WHO-109	WHO-28	fsnotify with polling fallback
+WHO-110	WHO-24	Codex and opencode adapters
+WHO-111	WHO-18	Dogfood: run Whodunit on the Whodunit repo
+WHO-112	WHO-16	dun status: local coverage and health
+WHO-120	WHO-30	DECISION: cross-platform daemon test strategy
+WHO-121	WHO-27	Service install across macOS, Linux, Windows
+WHO-122	WHO-91	Token burn ratio between models, on comparable work
+WHO-123	WHO-45	Optional pre-push sync trigger (only if/when aggregation lands)
+WHO-124	WHO-110	Issue-to-commit links are broken by the team rename; every issue panel reads zero
+WHO-125	WHO-111	Panel tooltips tell a story; they should say what the number is and stop
+WHO-126	WHO-112	dun baseline capture needs an explicit date range and a way to replace a wrong snapshot
+WHO-127	WHO-113	Codex sessions carry Go's zero-time in first_seen, so they fall outside every dashboard time filter
+WHO-128	WHO-114	Median-cycle panels time out the moment both issue cohorts have data
+WHO-129	WHO-115	The datasource dropdown does nothing � 120 of 121 panel targets ignore it
+WHO-130	WHO-116	Categorized blog: .md authoring, category folders, tree index, preview review
+WHO-131	WHO-117	Declared attribution: support agents that announce themselves in the commit
+WHO-132	WHO-118	Recognise self-declaring agents from a commit's own message
+WHO-133	WHO-119	Add internal/declared with a Parse function over a raw commit message
+WHO-134	WHO-120	Encode the three recognised signals as one table
+WHO-135	WHO-121	Table-driven test over real captured commit messages
+WHO-136	WHO-122	Grade a self-declaration as `declared` � the weakest rung, never higher
+WHO-137	WHO-123	Make precedence one ordered comparison instead of implicit branching
+WHO-138	WHO-124	Feed the declaration into Determine as a fallback candidate
+WHO-139	WHO-125	Assert ratio/session/model are omitted on a declared result
+WHO-140	WHO-126	Record the WHO-91 reversal as a code comment at the decision point
+WHO-141	WHO-127	Show declared confidence plainly wherever attribution is displayed
+WHO-142	WHO-128	Document what a declared-only agent structurally cannot report
+WHO-143	WHO-129	Render the declared method in status and report output
+WHO-144	WHO-130	Show an unavailable ratio as unavailable, not as zero
+WHO-145	WHO-131	Add Copilot and Cursor rows and reconcile the unsupported table
+WHO-146	WHO-132	State the grading contrast and the privacy boundary
+WHO-147	WHO-133	Team rollout without distributing database credentials
+WHO-148	WHO-134	Get trailer-level coverage for everyone via a CI job, before any new service exists
+WHO-149	WHO-135	Sync to a collector endpoint with a per-user token instead of a database DSN
+WHO-150	WHO-136	Run the collector as a `dun serve` subcommand holding the only database credential
+WHO-151	WHO-137	Keep syncing without a terminal open, and disclose sync at init time
+WHO-152	WHO-138	Document the CI backstop job end to end
+WHO-153	WHO-139	State the trailer-only ceiling in the same page
+WHO-154	WHO-140	Verify the re-run window does not duplicate
+WHO-155	WHO-141	Add an HTTP sync target alongside the DSN target
+WHO-156	WHO-142	Store the token via the existing password mechanism, not a new file
+WHO-157	WHO-143	Make --dry-run show the HTTP payload verbatim
+WHO-158	WHO-144	Fail closed on auth rejection without pruning
+WHO-159	WHO-145	Add `dun serve` with an ingest endpoint and token auth
+WHO-160	WHO-146	Validate every payload server-side before write
+WHO-161	WHO-147	Per-user token issuance and revocation
+WHO-162	WHO-148	Operator runbook for deploying the collector
+WHO-163	WHO-149	Ship launchd and systemd unit files with install docs
+WHO-164	WHO-150	Add the sync disclosure prompt to `dun init`
+WHO-165	WHO-151	Add --sync/--no-sync and a non-TTY path
+WHO-166	WHO-152	Document making the WHO-39 trailer check a required status check
+WHO-167	WHO-153	Several people, one database: contributor collides on shared repos, and the fix needs a team axis
+WHO-168	WHO-154	Decide the contributor key: a written decision before any DDL
+WHO-169	WHO-155	Contributor identity survives several people syncing one repository
+WHO-170	WHO-156	Session rows carry their own contributor
+WHO-171	WHO-157	A $team variable, config-sourced with a DevLake fallback
+WHO-172	WHO-158	Contributor filters and team defaults across all 7 dashboards
+WHO-173	WHO-159	Measure the collision with a failing test before changing anything
+WHO-174	WHO-160	Compute the composite key width against the MySQL 3072-byte cap
+WHO-175	WHO-161	Write the decision record with rejected alternatives
+WHO-176	WHO-162	Apply the chosen key to whodunit_repos in schema.go
+WHO-177	WHO-163	Back up the sidecar database, then rebuild the table
+WHO-178	WHO-164	Update the sidecar upsert to key on contributor
+WHO-179	WHO-165	Document the upgrade path in the release notes and upgrading page
+WHO-180	WHO-166	Add contributor to whodunit_sessions in Schema and Migrations
+WHO-181	WHO-167	Populate contributor on the session write path
+WHO-182	WHO-168	Repoint session-grain dashboard panels at the new column
+WHO-183	WHO-169	Add the contributor-to-team config map with the precedence rule
+WHO-184	WHO-170	Add the DevLake teams fallback join
+WHO-185	WHO-171	Add the $team template variable to every dashboard
+WHO-186	WHO-172	Extend check-contributor-filter.py to cover $team
+WHO-187	WHO-173	Inventory all 77 references and classify each by required change
+WHO-188	WHO-174	Repoint the contributor joins across all 7 dashboards
+WHO-189	WHO-175	Set the team-vs-individual default per dashboard
+WHO-190	WHO-176	Regenerate dashboards-import/ and run the full guard set
+WHO-191	WHO-177	One person, two identities: 15.5% of this database is attributed to a second contributor
+WHO-192	WHO-178	Carry contributor onto whodunit_commits and whodunit_events
+WHO-193	WHO-179	Charts assert zero AI before attribution existed, manufacturing a fake adoption ramp
+WHO-194	WHO-180	A measurement methodology: effort per comparable outcome, not volume
+WHO-195	WHO-181	Publish the measurement methodology � the formula, its terms, and what it refuses to claim
+WHO-196	WHO-182	Reposition change-size as "Output volume", not a productivity figure
+WHO-197	WHO-183	Matched-pairs comparison: comparable work items, assisted vs unassisted
+WHO-198	WHO-184	Speed, output and quality on one scorecard � never collapsed into one number
+WHO-199	WHO-185	Cross-org benchmarking � what it would take, and why not yet
+WHO-200	WHO-186	OIDC as a second collector auth backend, alongside static tokens
+WHO-201	WHO-187	An $evidence filter, so a number can be restricted to verified attribution
+WHO-202	WHO-188	Declare $evidence as a custom variable on every dashboard
+WHO-203	WHO-189	Apply the evidence filter to rate panels, numerator and denominator alike
+WHO-204	WHO-190	Extend the filter guard to $evidence
+WHO-205	WHO-191	Ask one question: was that session useful?
+WHO-206	WHO-192	Measure your actual token saving from an output-mode change
+WHO-207	WHO-193	Dashboard SQL has no test � guard scripts check shape, never results
+WHO-208	WHO-194	Resolve identity aliases in the dashboards, alongside the team map
+WHO-209	WHO-195	Undetermined must carry its reason � four states, not one grey bucket
+WHO-210	WHO-196	Backfill the four reasons into whodunit_commits, display-only
+WHO-211	WHO-197	Emit four distinct statuses at determination time, with a spec version bump
+WHO-212	WHO-198	An append-only replay log: every failed attribution recorded so it can be reapplied
+WHO-213	WHO-199	observed should say why the agent's text did not survive
+WHO-214	WHO-200	Document the six states and what each one licenses you to say
+WHO-215	WHO-201	Correlation panels should be XY scatters once there are 20+ weeks
+WHO-216	WHO-202	Issue panels join on REGEXP, which no index can help � 11s per query
+WHO-217	WHO-203	Claude Desktop sessions are invisible � count them in engagement, not attribution
+WHO-218	WHO-204	Coverage measures evidence strength, but its tooltip and docs both define it as trailer presence
+WHO-219	WHO-205	Method mix still shows one grey bucket of 805, on the method axis
+WHO-220	WHO-206	Run the rebuild on an existing install, gated on the stored schema version
+WHO-221	WHO-207	Finish alias resolution: the dropdown, $team, and five subquery panels

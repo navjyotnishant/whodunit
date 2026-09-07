@@ -226,10 +226,19 @@ func buildPayload(limit int) (sidecar.Payload, error) {
 	}
 
 	p.Repo = repo
-	p.Commits = sidecar.CommitRowsFrom(stats.Commits, repoID, now)
-	p.Events = sidecar.EventRowsFrom(entries, repoID, now)
+	p.Commits = sidecar.CommitRowsFrom(stats.Commits, repoID, repo.Contributor, now)
+	p.Events = sidecar.EventRowsFrom(entries, repoID, repo.Contributor, now)
 	p.Lines = sidecar.LineRowsFrom(lines, repoID, now)
-	p.Sessions = sidecar.SessionRowsFrom(sessions, repoID, now)
+	p.Sessions = sidecar.SessionRowsFrom(sessions, repoID, repo.Contributor, now)
+
+	// The alias map, so a dashboard filtered to one person includes every
+	// address they commit from. Best-effort: a config that will not load
+	// is already reported by the caller, and a sync that published every
+	// grain but refused over an optional lookup table would be the wrong
+	// trade.
+	if cfg, err := config.Load(); err == nil {
+		p.Identities = sidecar.IdentityRowsFrom(cfg.Identities, cfg.ResolveIdentity, now)
+	}
 
 	// The pre-adoption baseline, when one was captured (NAV-107).
 	//
