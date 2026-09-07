@@ -117,6 +117,27 @@ CREATE TABLE IF NOT EXISTS whodunit_identities (
 	PRIMARY KEY (alias)
 );
 
+-- List prices per model, per million tokens, so the cost panels can price
+-- each session at its own model's rate rather than one typed number.
+--
+-- Created empty here and filled by deploy/devlake/fetch-model-prices.py,
+-- which reads the providers' pricing pages. Created by the schema rather
+-- than only by that script so a dashboard that joins it runs on a fresh
+-- datalake before anyone has fetched prices: the join finds no row and the
+-- panel reports the session as unpriced, which is the truthful state, not
+-- a SQL error for a missing table. Absent price never becomes zero.
+CREATE TABLE IF NOT EXISTS whodunit_model_prices (
+	model           VARCHAR(64)   NOT NULL,
+	provider        VARCHAR(16)   NOT NULL,
+	input_usd       DECIMAL(10,4) NOT NULL,
+	cache_read_usd  DECIMAL(10,4) NOT NULL,
+	cache_write_usd DECIMAL(10,4) NOT NULL,
+	output_usd      DECIMAL(10,4) NOT NULL,
+	source          VARCHAR(255)  NOT NULL,
+	fetched_at      DATETIME      NOT NULL,
+	PRIMARY KEY (model)
+);
+
 -- One row per repository. Holds facts that do not vary per commit.
 CREATE TABLE IF NOT EXISTS whodunit_repos (
 	repo_id      VARCHAR(64)  NOT NULL,

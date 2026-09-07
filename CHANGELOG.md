@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- The Investment Case and the rebuilt Cost dashboard errored on a fresh datalake with "table whodunit_model_prices doesn't exist" until someone ran `fetch-model-prices.py`. The sidecar schema now creates the table empty, so those panels run before any prices are fetched and report every session as unpriced, which is the truthful state; the fetcher fills it. Nine tables, every one prefixed.
+
 ## [0.5.0] - 2026-09-07
 
 ### Added

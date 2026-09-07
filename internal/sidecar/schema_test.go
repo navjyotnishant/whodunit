@@ -120,8 +120,14 @@ func TestEveryTableIsNamespaced(t *testing.T) {
 	// addresses that already appear in every commit object, so a
 	// dashboard filtered to one person includes every address they commit
 	// from (WHO-208).
-	if count != 8 {
-		t.Errorf("found %d tables, want 8", count)
+	//
+	// whodunit_model_prices is the ninth. It holds no observation of
+	// anyone — list prices per model, fetched from public pricing pages —
+	// but it is whodunit's table, read by whodunit's panels and filled by
+	// whodunit's script, and it carries the prefix so it cannot collide
+	// with anything DevLake creates.
+	if count != 9 {
+		t.Errorf("found %d tables, want 9", count)
 	}
 }
 
