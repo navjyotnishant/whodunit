@@ -214,6 +214,21 @@ def augment(container, db):
         """, container, db)
     print(f"attribution: commits, events and sessions spread across {n} people")
 
+    # The config route: whodunit_teams is what every team join reads
+    # first, with DevLake's teams/team_users as the fallback. The demo
+    # fills both from the same roster, so either route on its own shows
+    # the same teams. Created here because the clone predates the table;
+    # on a real install dun sync creates it.
+    mysql("""
+        CREATE TABLE IF NOT EXISTS whodunit_teams (
+          contributor VARCHAR(320) NOT NULL, team_name VARCHAR(190) NOT NULL,
+          synced_at BIGINT NOT NULL, PRIMARY KEY (contributor))
+    """, container, db)
+    rows = ",".join(f"('{p}','{t}',UNIX_TIMESTAMP()*1000000000)"
+                    for t, members in TEAMS.items() for p in members)
+    mysql(f"DELETE FROM whodunit_teams; INSERT INTO whodunit_teams (contributor, team_name, synced_at) VALUES {rows}", container, db)
+    print("teams: whodunit_teams written from the same roster as DevLake's tables")
+
     # --- repair the sessions the real data cannot render -----------------
     #
     # 73 rows hold Go's zero time.Time as nanoseconds, which overflows

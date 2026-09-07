@@ -79,7 +79,7 @@
         "name": "team",
         "type": "query",
         "datasource": "${datasource}",
-        "query": "SELECT DISTINCT COALESCE(NULLIF(t.name, ''), '(unassigned)') AS __text, COALESCE(NULLIF(t.name, ''), '(unassigned)') AS __value FROM whodunit_repos r LEFT JOIN team_users tu ON tu.user_id = r.contributor LEFT JOIN teams t ON t.id = tu.team_id ORDER BY 1",
+        "query": "SELECT __text, __value FROM (\nSELECT DISTINCT COALESCE(wt.team_name, NULLIF(t.name, ''), '(unassigned)') AS __text, COALESCE(wt.team_name, NULLIF(t.name, ''), '(unassigned)') AS __value FROM whodunit_repos r LEFT JOIN team_users tu ON tu.user_id = r.contributor LEFT JOIN teams t ON t.id = tu.team_id\n    LEFT JOIN whodunit_teams wt ON wt.contributor = r.contributor\nUNION SELECT '(unassigned)', '(unassigned)'\n) options ORDER BY 1",
         "includeAll": true,
         "multi": false,
         "current": {
@@ -95,7 +95,7 @@
         "name": "evidence",
         "type": "custom",
         "label": "Evidence",
-        "query": "intersected — agent lines survived : intersected,observed — agent edited the files : observed,inferred — from surrounding evidence : inferred,declared — stated only : declared,undetermined — no evidence either way : undetermined",
+        "query": "intersected \u2014 agent lines survived : intersected,observed \u2014 agent edited the files : observed,inferred \u2014 from surrounding evidence : inferred,declared \u2014 stated only : declared,undetermined \u2014 no evidence either way : undetermined",
         "options": [],
         "current": {
           "selected": true,
@@ -143,8 +143,8 @@
     {
       "id": 903,
       "type": "gauge",
-      "title": "Adoption · $repo",
-      "description": "Share of commits in the selected range carrying `status=assisted`.\n\n**Adoption is not coverage.** Coverage beside it counts any valid trailer including `undetermined` — a repository at full coverage may have had no agent involvement at all. Coverage says the instrumentation works; this says the agents are being used.\n\nThe delivery dashboard carries the same figure; both follow the time range.",
+      "title": "Adoption \u00b7 $repo",
+      "description": "Share of commits in the selected range carrying `status=assisted`.\n\n**Adoption is not coverage.** Coverage beside it counts any valid trailer including `undetermined` \u2014 a repository at full coverage may have had no agent involvement at all. Coverage says the instrumentation works; this says the agents are being used.\n\nThe delivery dashboard carries the same figure; both follow the time range.",
       "datasource": "${datasource}",
       "gridPos": {
         "h": 6,
@@ -200,7 +200,7 @@
     },
     {
       "id": 904,
-      "title": "Session depth · $repo",
+      "title": "Session depth \u00b7 $repo",
       "type": "bargauge",
       "datasource": "${datasource}",
       "gridPos": {
@@ -307,7 +307,7 @@
     {
       "id": 4,
       "type": "gauge",
-      "title": "Acceptance · $repo",
+      "title": "Acceptance \u00b7 $repo",
       "datasource": "${datasource}",
       "gridPos": {
         "h": 6,
@@ -356,11 +356,11 @@
           "valueSize": 28
         }
       },
-      "description": "Share of decided tool calls that were accepted.\n\n**The denominator is decided calls only** — accepted, rejected or failed — not all calls. A call whose outcome was never recorded is excluded rather than counted as accepted, which would flatter the rate. See Decided tool calls beside this for the size of that denominator.\n\nA rejection is a human declining; a failure is the tool erroring. Both count as decided, and only acceptance is in the numerator."
+      "description": "Share of decided tool calls that were accepted.\n\n**The denominator is decided calls only** \u2014 accepted, rejected or failed \u2014 not all calls. A call whose outcome was never recorded is excluded rather than counted as accepted, which would flatter the rate. See Decided tool calls beside this for the size of that denominator.\n\nA rejection is a human declining; a failure is the tool erroring. Both count as decided, and only acceptance is in the numerator."
     },
     {
       "type": "timeseries",
-      "title": "Commits over time · $repo",
+      "title": "Commits over time \u00b7 $repo",
       "datasource": "${datasource}",
       "gridPos": {
         "h": 9,
@@ -488,7 +488,7 @@
     },
     {
       "type": "timeseries",
-      "title": "Issues opened vs closed · $board",
+      "title": "Issues opened vs closed \u00b7 $board",
       "datasource": "${datasource}",
       "gridPos": {
         "h": 9,
@@ -524,7 +524,7 @@
         },
         "overrides": []
       },
-      "description": "Issues opened and closed per period, on the selected board.\n\n**Closed means closed in that period, whatever period it was opened in.** Measured here, 141 of 240 issues over three months — so the bars are not a matched pair and the gap between them is not this period's arithmetic.\n\nScoped by issue board rather than repository: an issue is reachable from a repository only through its commits, and most issues have none — 109 of 379 here. A repository filter would silently drop the rest.",
+      "description": "Issues opened and closed per period, on the selected board.\n\n**Closed means closed in that period, whatever period it was opened in.** Measured here, 141 of 240 issues over three months \u2014 so the bars are not a matched pair and the gap between them is not this period's arithmetic.\n\nScoped by issue board rather than repository: an issue is reachable from a repository only through its commits, and most issues have none \u2014 109 of 379 here. A repository filter would silently drop the rest.",
       "options": {
         "legend": {
           "displayMode": "list",
@@ -553,7 +553,7 @@
     {
       "id": 13,
       "type": "timeseries",
-      "title": "Cycle time trend · $board",
+      "title": "Cycle time trend \u00b7 $board",
       "datasource": "${datasource}",
       "gridPos": {
         "h": 9,
@@ -586,7 +586,7 @@
             "mode": "fixed",
             "fixedColor": "#25c2a0"
           },
-          "noValue": "no commits cite this board’s issue keys"
+          "noValue": "no commits cite this board\u2019s issue keys"
         },
         "overrides": [
           {
@@ -644,7 +644,7 @@
     {
       "id": 20,
       "type": "piechart",
-      "title": "Work by purpose · $repo",
+      "title": "Work by purpose \u00b7 $repo",
       "datasource": "${datasource}",
       "gridPos": {
         "h": 9,
@@ -677,7 +677,7 @@
           "values": true
         }
       },
-      "description": "What kind of work the agent was used for, from Conventional Commit prefixes and path heuristics.\n\n**Purpose is a label, not an observation.** `feature` is reachable only through a literal `feat:` prefix, so a repository not using Conventional Commits will show almost none — which says nothing about the work itself."
+      "description": "What kind of work the agent was used for, from Conventional Commit prefixes and path heuristics.\n\n**Purpose is a label, not an observation.** `feature` is reachable only through a literal `feat:` prefix, so a repository not using Conventional Commits will show almost none \u2014 which says nothing about the work itself."
     },
     {
       "type": "row",
@@ -695,7 +695,7 @@
     {
       "id": 17,
       "type": "timeseries",
-      "title": "Acceptance trend · $repo",
+      "title": "Acceptance trend \u00b7 $repo",
       "datasource": "${datasource}",
       "gridPos": {
         "h": 9,
@@ -733,7 +733,7 @@
     {
       "id": 18,
       "type": "timeseries",
-      "title": "Issues resolved · $board",
+      "title": "Issues resolved \u00b7 $board",
       "datasource": "${datasource}",
       "gridPos": {
         "h": 9,
@@ -758,7 +758,7 @@
             },
             "axisLabel": ""
           },
-          "noValue": "no commits cite this board’s issue keys"
+          "noValue": "no commits cite this board\u2019s issue keys"
         }
       },
       "description": "Issues resolved per period, split by whether a linked commit carried agent attribution. The AI-assisted series is absent, not zero, for periods with none: before whodunit was installed no issue can link to an assisted commit, and a zero there would read as evidence AI was not used.",
@@ -770,7 +770,7 @@
     {
       "id": 16,
       "type": "timeseries",
-      "title": "Agent activity · edits vs lines",
+      "title": "Agent activity \u00b7 edits vs lines",
       "datasource": "${datasource}",
       "gridPos": {
         "h": 9,
@@ -842,7 +842,7 @@
           }
         ]
       },
-      "description": "Recorded agent edits per day, and the lines those edits added.\n\nEdits count tool calls that touched a file; lines count what those calls wrote. The two diverge when the agent makes many small changes or a few large ones, which is the shape worth noticing.\n\nLines from rejected or failed calls are excluded — text that never reached a file is not authored code.",
+      "description": "Recorded agent edits per day, and the lines those edits added.\n\nEdits count tool calls that touched a file; lines count what those calls wrote. The two diverge when the agent makes many small changes or a few large ones, which is the shape worth noticing.\n\nLines from rejected or failed calls are excluded \u2014 text that never reached a file is not authored code.",
       "options": {
         "xTickLabelRotation": -45,
         "xTickLabelSpacing": 200
@@ -851,7 +851,7 @@
     {
       "id": 8,
       "type": "stat",
-      "title": "Median cycle · AI-assisted issues",
+      "title": "Median cycle \u00b7 AI-assisted issues",
       "datasource": "${datasource}",
       "gridPos": {
         "x": 13,
@@ -878,7 +878,7 @@
               }
             ]
           },
-          "noValue": "under 5 issues — withheld",
+          "noValue": "under 5 issues \u2014 withheld",
           "decimals": 1
         }
       },
@@ -897,12 +897,12 @@
           "titleSize": 11
         }
       },
-      "description": "Median days from creation to resolution, for issues whose commits carry AI attribution.\n\n**Six issues.** The floor is 5 rather than the 10 used elsewhere, so this renders at all — a median over six is close to one issue moving, and it will steady as more attributed commits close issues."
+      "description": "Median days from creation to resolution, for issues whose commits carry AI attribution.\n\n**Six issues.** The floor is 5 rather than the 10 used elsewhere, so this renders at all \u2014 a median over six is close to one issue moving, and it will steady as more attributed commits close issues."
     },
     {
       "id": 9,
       "type": "stat",
-      "title": "Median cycle · not AI-assisted issues",
+      "title": "Median cycle \u00b7 not AI-assisted issues",
       "datasource": "${datasource}",
       "gridPos": {
         "x": 17,
@@ -929,7 +929,7 @@
               }
             ]
           },
-          "noValue": "under 5 issues — withheld",
+          "noValue": "under 5 issues \u2014 withheld",
           "decimals": 1
         }
       },
@@ -948,7 +948,7 @@
           "titleSize": 11
         }
       },
-      "description": "The same measure for issues with no AI-attributed commits, over 109 issues.\n\n**Not a controlled comparison.** The cohorts are self-selected and lopsided — 6 against 109 — so a difference may be measuring which issues were chosen rather than what the agent did."
+      "description": "The same measure for issues with no AI-attributed commits, over 109 issues.\n\n**Not a controlled comparison.** The cohorts are self-selected and lopsided \u2014 6 against 109 \u2014 so a difference may be measuring which issues were chosen rather than what the agent did."
     },
     {
       "id": 12,
@@ -988,7 +988,7 @@
               }
             ]
           },
-          "noValue": "under 5 issues — withheld",
+          "noValue": "under 5 issues \u2014 withheld",
           "decimals": 1
         }
       },

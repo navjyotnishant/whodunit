@@ -39,7 +39,7 @@
           "type": "mysql",
           "uid": "${DS_WHODUNIT}"
         },
-        "query": "SELECT DISTINCT COALESCE(NULLIF(t.name, ''), '(unassigned)') AS __text, COALESCE(NULLIF(t.name, ''), '(unassigned)') AS __value FROM whodunit_repos r LEFT JOIN team_users tu ON tu.user_id = r.contributor LEFT JOIN teams t ON t.id = tu.team_id ORDER BY 1",
+        "query": "SELECT __text, __value FROM (\nSELECT DISTINCT COALESCE(wt.team_name, NULLIF(t.name, ''), '(unassigned)') AS __text, COALESCE(wt.team_name, NULLIF(t.name, ''), '(unassigned)') AS __value FROM whodunit_repos r LEFT JOIN team_users tu ON tu.user_id = r.contributor LEFT JOIN teams t ON t.id = tu.team_id\n    LEFT JOIN whodunit_teams wt ON wt.contributor = r.contributor\nUNION SELECT '(unassigned)', '(unassigned)'\n) options ORDER BY 1",
         "includeAll": true,
         "multi": false,
         "current": {
@@ -55,7 +55,7 @@
         "name": "evidence",
         "type": "custom",
         "label": "Evidence",
-        "query": "intersected — agent lines survived : intersected,observed — agent edited the files : observed,inferred — from surrounding evidence : inferred,declared — stated only : declared,undetermined — no evidence either way : undetermined",
+        "query": "intersected \u2014 agent lines survived : intersected,observed \u2014 agent edited the files : observed,inferred \u2014 from surrounding evidence : inferred,declared \u2014 stated only : declared,undetermined \u2014 no evidence either way : undetermined",
         "options": [],
         "current": {
           "selected": true,
@@ -147,7 +147,7 @@
           "valueSize": 28
         }
       },
-      "description": "Share of the repository's commits that carry an AI-Attribution trailer at all — instrumented or not.\n\n**This measures instrumentation, not AI use.** A commit with `status=undetermined` counts here: it has a trailer, it just records that no agent activity was found. Adoption beside it counts only `status=assisted`.\n\nMeasured per repository: whodunit 98.9%, nj-agents 99.0%, EngageHub 79.0% — EngageHub was instrumented later, so a fifth of its history predates the hooks. Commits made before `dun init` can never be covered.\n\nThe denominator is every commit the warehouse knows about for the repository, not every commit whodunit recorded. Dividing by the latter is what made this identical to adoption."
+      "description": "Share of the repository's commits that carry an AI-Attribution trailer at all \u2014 instrumented or not.\n\n**This measures instrumentation, not AI use.** A commit with `status=undetermined` counts here: it has a trailer, it just records that no agent activity was found. Adoption beside it counts only `status=assisted`.\n\nMeasured per repository: whodunit 98.9%, nj-agents 99.0%, EngageHub 79.0% \u2014 EngageHub was instrumented later, so a fifth of its history predates the hooks. Commits made before `dun init` can never be covered.\n\nThe denominator is every commit the warehouse knows about for the repository, not every commit whodunit recorded. Dividing by the latter is what made this identical to adoption."
     },
     {
       "type": "stat",
@@ -244,7 +244,7 @@
     {
       "type": "stat",
       "title": "Sessions",
-      "description": "Agent sessions recorded in the selected range.\n\nA session is one conversation, counted regardless of whether it produced an edit — so this measures how often an agent was opened, not how much it did. The engagement panels below separate those.",
+      "description": "Agent sessions recorded in the selected range.\n\nA session is one conversation, counted regardless of whether it produced an edit \u2014 so this measures how often an agent was opened, not how much it did. The engagement panels below separate those.",
       "datasource": {
         "type": "mysql",
         "uid": "${datasource}"
@@ -290,7 +290,7 @@
     {
       "type": "stat",
       "title": "Active days",
-      "description": "Days on which any agent activity was observed. Not the same as a vendor's 'daily active users' — this counts days with recorded work, not seats logged in.",
+      "description": "Days on which any agent activity was observed. Not the same as a vendor's 'daily active users' \u2014 this counts days with recorded work, not seats logged in.",
       "datasource": {
         "type": "mysql",
         "uid": "${datasource}"
@@ -336,7 +336,7 @@
     {
       "id": 907,
       "type": "stat",
-      "title": "Commits · AI-assisted / total",
+      "title": "Commits \u00b7 AI-assisted / total",
       "datasource": "${datasource}",
       "gridPos": {
         "h": 5,
@@ -387,12 +387,12 @@
           "valueSize": 34
         }
       },
-      "description": "Commits carrying `status=assisted`, against every commit whodunit recorded in the range.\n\nShown as a pair because the count alone is not a measurement — 166 means nothing without knowing whether the total was 200 or 2,000. The Adoption gauge above is this same ratio as a percentage.\n\n**This counts commits.** The issue panels beside it count issues, and the two are not related — an issue may have many commits or none."
+      "description": "Commits carrying `status=assisted`, against every commit whodunit recorded in the range.\n\nShown as a pair because the count alone is not a measurement \u2014 166 means nothing without knowing whether the total was 200 or 2,000. The Adoption gauge above is this same ratio as a percentage.\n\n**This counts commits.** The issue panels beside it count issues, and the two are not related \u2014 an issue may have many commits or none."
     },
     {
       "type": "timeseries",
       "title": "Agent activity over time",
-      "description": "Observed agent edits per day. Compare shape with the committed-work panels — a rise here without a matching rise there means iteration, not delivery.",
+      "description": "Observed agent edits per day. Compare shape with the committed-work panels \u2014 a rise here without a matching rise there means iteration, not delivery.",
       "datasource": {
         "type": "mysql",
         "uid": "${datasource}"
@@ -481,7 +481,7 @@
     {
       "type": "stat",
       "title": "Acceptance rate",
-      "description": "Accepted / decided. Meaningless without the denominator to its left — check that first.",
+      "description": "Accepted / decided. Meaningless without the denominator to its left \u2014 check that first.",
       "datasource": {
         "type": "mysql",
         "uid": "${datasource}"
@@ -527,7 +527,7 @@
     {
       "type": "stat",
       "title": "Accepted edits",
-      "description": "Edit/Write calls the developer kept. This is the numerator — read it with the denominator beside it.",
+      "description": "Edit/Write calls the developer kept. This is the numerator \u2014 read it with the denominator beside it.",
       "datasource": {
         "type": "mysql",
         "uid": "${datasource}"
@@ -668,7 +668,7 @@
     {
       "id": 905,
       "type": "stat",
-      "title": "Issues compared · AI-assisted",
+      "title": "Issues compared \u00b7 AI-assisted",
       "datasource": "${datasource}",
       "gridPos": {
         "h": 5,
@@ -713,12 +713,12 @@
           "titleSize": 11
         }
       },
-      "description": "**How many issues are in this cohort** — the denominator for the median beside it.\n\nShown deliberately rather than tucked into a tooltip. A median over a handful of issues moves hours on one or two of them, and a cohort of zero means there is no comparison at all — the Delta would be measuring nothing. Check this number before reading anything into the medians.\n\nThis panel counts issues **carrying an AI-attribution trailer**.\n\n**How an issue is classified.** Its key is matched against commit messages (`WHO-12` in a commit subject links that commit to that issue). If any linked commit carries `status=assisted`, the issue counts as AI-assisted; otherwise it counts as not. An issue whose key appears in no commit message is in neither cohort — it is absent, not counted as unassisted.\n\n**Scope.** Issues closed within the dashboard time range, on the selected issue board. The Repository filter does not apply: an issue's commits can span repositories, so filtering by one would drop genuinely assisted issues and understate the comparison."
+      "description": "**How many issues are in this cohort** \u2014 the denominator for the median beside it.\n\nShown deliberately rather than tucked into a tooltip. A median over a handful of issues moves hours on one or two of them, and a cohort of zero means there is no comparison at all \u2014 the Delta would be measuring nothing. Check this number before reading anything into the medians.\n\nThis panel counts issues **carrying an AI-attribution trailer**.\n\n**How an issue is classified.** Its key is matched against commit messages (`WHO-12` in a commit subject links that commit to that issue). If any linked commit carries `status=assisted`, the issue counts as AI-assisted; otherwise it counts as not. An issue whose key appears in no commit message is in neither cohort \u2014 it is absent, not counted as unassisted.\n\n**Scope.** Issues closed within the dashboard time range, on the selected issue board. The Repository filter does not apply: an issue's commits can span repositories, so filtering by one would drop genuinely assisted issues and understate the comparison."
     },
     {
       "id": 906,
       "type": "stat",
-      "title": "Issues compared · not AI-assisted",
+      "title": "Issues compared \u00b7 not AI-assisted",
       "datasource": "${datasource}",
       "gridPos": {
         "h": 5,
@@ -763,12 +763,12 @@
           "titleSize": 11
         }
       },
-      "description": "**How many issues are in this cohort** — the denominator for the median beside it.\n\nShown deliberately rather than tucked into a tooltip. A median over a handful of issues moves hours on one or two of them, and a cohort of zero means there is no comparison at all — the Delta would be measuring nothing. Check this number before reading anything into the medians.\n\nThis panel counts issues **with no AI attribution**.\n\n**How an issue is classified.** Its key is matched against commit messages (`WHO-12` in a commit subject links that commit to that issue). If any linked commit carries `status=assisted`, the issue counts as AI-assisted; otherwise it counts as not. An issue whose key appears in no commit message is in neither cohort — it is absent, not counted as unassisted.\n\n**Scope.** Issues closed within the dashboard time range, on the selected issue board. The Repository filter does not apply: an issue's commits can span repositories, so filtering by one would drop genuinely assisted issues and understate the comparison."
+      "description": "**How many issues are in this cohort** \u2014 the denominator for the median beside it.\n\nShown deliberately rather than tucked into a tooltip. A median over a handful of issues moves hours on one or two of them, and a cohort of zero means there is no comparison at all \u2014 the Delta would be measuring nothing. Check this number before reading anything into the medians.\n\nThis panel counts issues **with no AI attribution**.\n\n**How an issue is classified.** Its key is matched against commit messages (`WHO-12` in a commit subject links that commit to that issue). If any linked commit carries `status=assisted`, the issue counts as AI-assisted; otherwise it counts as not. An issue whose key appears in no commit message is in neither cohort \u2014 it is absent, not counted as unassisted.\n\n**Scope.** Issues closed within the dashboard time range, on the selected issue board. The Repository filter does not apply: an issue's commits can span repositories, so filtering by one would drop genuinely assisted issues and understate the comparison."
     },
     {
       "type": "stat",
       "title": "Data freshness",
-      "description": "Time since the last recorded agent event. The hooks write on every commit, so this tracks whether anyone has been working — green under 8 hours, amber past a working day, red past three. A long gap is a question, not a fault: a quiet weekend and a broken collector look identical here, which is why `dun verify` exists.",
+      "description": "Time since the last recorded agent event. The hooks write on every commit, so this tracks whether anyone has been working \u2014 green under 8 hours, amber past a working day, red past three. A long gap is a question, not a fault: a quiet weekend and a broken collector look identical here, which is why `dun verify` exists.",
       "datasource": {
         "type": "mysql",
         "uid": "${datasource}"
@@ -867,7 +867,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT CASE c.method\n         WHEN 'intersected' THEN 'intersected — the agent''s lines survived'\n         WHEN 'observed'    THEN 'observed — edited before committing'\n         WHEN 'declared'    THEN 'declared — stated, not measured'\n         WHEN 'inferred'    THEN 'inferred — from surrounding evidence'\n         ELSE 'undetermined — no evidence either way'\n       END AS `method`, COUNT(*) AS `commits`\nFROM whodunit_commits c\nWHERE ('${evidence:raw}' = '__all__' OR c.method = '${evidence:raw}')\n  AND  1=1 AND ('${contributor:raw}'='__all__' OR c.contributor='${contributor:raw}') AND c.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nGROUP BY c.method ORDER BY `commits` DESC"
+          "rawSql": "SELECT CASE c.method\n         WHEN 'intersected' THEN 'intersected \u2014 the agent''s lines survived'\n         WHEN 'observed'    THEN 'observed \u2014 edited before committing'\n         WHEN 'declared'    THEN 'declared \u2014 stated, not measured'\n         WHEN 'inferred'    THEN 'inferred \u2014 from surrounding evidence'\n         ELSE 'undetermined \u2014 no evidence either way'\n       END AS `method`, COUNT(*) AS `commits`\nFROM whodunit_commits c\nWHERE ('${evidence:raw}' = '__all__' OR c.method = '${evidence:raw}')\n  AND  1=1 AND ('${contributor:raw}'='__all__' OR c.contributor='${contributor:raw}') AND c.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nGROUP BY c.method ORDER BY `commits` DESC"
         }
       ],
       "options": {
@@ -886,7 +886,7 @@
           "values": true
         }
       },
-      "description": "'undetermined' means whodunit could not tell — never that no AI was used."
+      "description": "'undetermined' means whodunit could not tell \u2014 never that no AI was used."
     },
     {
       "type": "row",
@@ -904,7 +904,7 @@
     {
       "type": "table",
       "title": "Agent activity by team",
-      "description": "Per-team agent activity. Grouped by team by default so a shared dashboard does not open on a ranked list of named developers; select a Contributor to see one person. Identity comes from the git committer email already in every commit — this queries existing information, it observes nothing new.",
+      "description": "Per-team agent activity. Grouped by team by default so a shared dashboard does not open on a ranked list of named developers; select a Contributor to see one person. Identity comes from the git committer email already in every commit \u2014 this queries existing information, it observes nothing new.",
       "datasource": {
         "type": "mysql",
         "uid": "${datasource}"
@@ -922,7 +922,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "-- Grouped by team, not by person (WHO-189).\n--\n-- The default is what most people ever see, and it decides whether this\n-- reads as team insight or as per-developer monitoring. Opening a\n-- leadership dashboard on a named list of developers ranked by AI\n-- adoption is the shape that ends adoption inside a company: developers\n-- see it once and stop trusting the tool.\n--\n-- Individuals stay one selection away through the Contributor filter.\n-- Team default must not mean individuals are unreachable.\nSELECT COALESCE(t.name, '(unassigned)') AS team,\n       COUNT(DISTINCT e.session) AS sessions,\n       COUNT(*)                  AS agent_edits,\n       SUM(e.lines_added)        AS lines_written\nFROM whodunit_events e\nLEFT JOIN whodunit_identities wi ON wi.alias = e.contributor\nLEFT JOIN team_users tu ON tu.user_id = COALESCE(wi.canonical, e.contributor)\nLEFT JOIN teams t ON t.id = tu.team_id\nWHERE e.contributor IS NOT NULL\n  AND ('${contributor:raw}' = '__all__'\n       OR COALESCE(wi.canonical, e.contributor) = '${contributor:raw}')\n  AND ('${team:raw}' = '__all__' OR COALESCE(t.name, '(unassigned)') = '${team:raw}')\n  AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nGROUP BY COALESCE(t.name, '(unassigned)')\nORDER BY agent_edits DESC"
+          "rawSql": "-- Grouped by team, not by person (WHO-189).\n--\n-- The default is what most people ever see, and it decides whether this\n-- reads as team insight or as per-developer monitoring. Opening a\n-- leadership dashboard on a named list of developers ranked by AI\n-- adoption is the shape that ends adoption inside a company: developers\n-- see it once and stop trusting the tool.\n--\n-- Individuals stay one selection away through the Contributor filter.\n-- Team default must not mean individuals are unreachable.\nSELECT COALESCE(wt.team_name, t.name, '(unassigned)') AS team,\n       COUNT(DISTINCT e.session) AS sessions,\n       COUNT(*)                  AS agent_edits,\n       SUM(e.lines_added)        AS lines_written\nFROM whodunit_events e\nLEFT JOIN whodunit_identities wi ON wi.alias = e.contributor\nLEFT JOIN team_users tu ON tu.user_id = COALESCE(wi.canonical, e.contributor)\nLEFT JOIN teams t ON t.id = tu.team_id\n    LEFT JOIN whodunit_teams wt ON wt.contributor = COALESCE(wi.canonical, e.contributor)\nWHERE e.contributor IS NOT NULL\n  AND ('${contributor:raw}' = '__all__'\n       OR COALESCE(wi.canonical, e.contributor) = '${contributor:raw}')\n  AND ('${team:raw}' = '__all__' OR COALESCE(wt.team_name, t.name, '(unassigned)') = '${team:raw}')\n  AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nGROUP BY COALESCE(wt.team_name, t.name, '(unassigned)')\nORDER BY agent_edits DESC"
         }
       ]
     },
@@ -979,7 +979,7 @@
     {
       "type": "table",
       "title": "Committed work by team",
-      "description": "What reached a commit, per team — the question a vendor's usage API cannot answer. Grouped by team by default; select a Contributor for one person. Coverage sits alongside, because a penetration figure without it says how much of what we could see was assisted, not how much of the work was.",
+      "description": "What reached a commit, per team \u2014 the question a vendor's usage API cannot answer. Grouped by team by default; select a Contributor for one person. Coverage sits alongside, because a penetration figure without it says how much of what we could see was assisted, not how much of the work was.",
       "datasource": {
         "type": "mysql",
         "uid": "${datasource}"
@@ -997,14 +997,14 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "-- Grouped by team, not by person — see 'By contributor' above (WHO-189).\nSELECT COALESCE(t.name, '(unassigned)') AS team,\n       COUNT(*)                      AS commits,\n       SUM(c.status = 'assisted')    AS assisted,\n       ROUND(100.0 * SUM(c.status NOT IN ('undetermined','unassisted','unmatched','degraded','uninstrumented')) / COUNT(*), 0) AS coverage_pct,\n       ROUND(AVG(c.ratio), 2)        AS avg_share,\n       SUM(c.lines_added)            AS lines_added\nFROM whodunit_commits c\nLEFT JOIN whodunit_identities wi ON wi.alias = c.contributor\nLEFT JOIN team_users tu ON tu.user_id = COALESCE(wi.canonical, c.contributor)\nLEFT JOIN teams t ON t.id = tu.team_id\nWHERE ('${evidence:raw}' = '__all__' OR c.method = '${evidence:raw}')\n  AND c.contributor IS NOT NULL\n  AND ('${contributor:raw}' = '__all__'\n       OR COALESCE(wi.canonical, c.contributor) = '${contributor:raw}')\n  AND ('${team:raw}' = '__all__' OR COALESCE(t.name, '(unassigned)') = '${team:raw}')\n  AND c.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nGROUP BY COALESCE(t.name, '(unassigned)')\nORDER BY commits DESC"
+          "rawSql": "-- Grouped by team, not by person \u2014 see 'By contributor' above (WHO-189).\nSELECT COALESCE(wt.team_name, t.name, '(unassigned)') AS team,\n       COUNT(*)                      AS commits,\n       SUM(c.status = 'assisted')    AS assisted,\n       ROUND(100.0 * SUM(c.status NOT IN ('undetermined','unassisted','unmatched','degraded','uninstrumented')) / COUNT(*), 0) AS coverage_pct,\n       ROUND(AVG(c.ratio), 2)        AS avg_share,\n       SUM(c.lines_added)            AS lines_added\nFROM whodunit_commits c\nLEFT JOIN whodunit_identities wi ON wi.alias = c.contributor\nLEFT JOIN team_users tu ON tu.user_id = COALESCE(wi.canonical, c.contributor)\nLEFT JOIN teams t ON t.id = tu.team_id\n    LEFT JOIN whodunit_teams wt ON wt.contributor = COALESCE(wi.canonical, c.contributor)\nWHERE ('${evidence:raw}' = '__all__' OR c.method = '${evidence:raw}')\n  AND c.contributor IS NOT NULL\n  AND ('${contributor:raw}' = '__all__'\n       OR COALESCE(wi.canonical, c.contributor) = '${contributor:raw}')\n  AND ('${team:raw}' = '__all__' OR COALESCE(wt.team_name, t.name, '(unassigned)') = '${team:raw}')\n  AND c.committed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nGROUP BY COALESCE(wt.team_name, t.name, '(unassigned)')\nORDER BY commits DESC"
         }
       ]
     },
     {
       "type": "stat",
       "title": "Lines written by agents",
-      "description": "Lines an agent produced across all observed edits, including work that was later rewritten or never committed. This is effort, not output — compare it with the committed figures on the attribution dashboard.",
+      "description": "Lines an agent produced across all observed edits, including work that was later rewritten or never committed. This is effort, not output \u2014 compare it with the committed figures on the attribution dashboard.",
       "datasource": {
         "type": "mysql",
         "uid": "${datasource}"
@@ -1334,7 +1334,7 @@
     {
       "type": "table",
       "title": "Session engagement",
-      "description": "How a session was actually worked, from counts only — no message text is ever recorded. 'Turns per prompt' is agent messages per human message: a high number means long autonomous runs, a low one means tight back-and-forth (NAV-55).",
+      "description": "How a session was actually worked, from counts only \u2014 no message text is ever recorded. 'Turns per prompt' is agent messages per human message: a high number means long autonomous runs, a low one means tight back-and-forth (NAV-55).",
       "datasource": {
         "type": "mysql",
         "uid": "${datasource}"
@@ -1371,7 +1371,7 @@
       },
       "options": {
         "mode": "markdown",
-        "content": "### What this dashboard cannot show *yet*\n\n**Seats and pending invites.** Vendor billing knows who holds a licence; whodunit only knows machines it is installed on. It cannot report a seat nobody used, so adoption here is measured against people who committed — a different, smaller denominator. This one is structural.\n\n**Which MCP server, and which skill.** The counts below are totals. The agent transcripts do name them — a call arrives as `mcp__<server>__<method>` — but the collector keeps only file-editing tools today, so the names never reach the journal. Collecting them is a change to the adapters, not to this dashboard.\n\n**Acceptance is two different measures.** The rate above is whether an edit applied without erroring. Whether a human *kept* the work is the evidence split to the left: `intersected` means the agent's exact lines survived into the commit; `observed` means the file was edited but the text had changed before committing."
+        "content": "### What this dashboard cannot show *yet*\n\n**Seats and pending invites.** Vendor billing knows who holds a licence; whodunit only knows machines it is installed on. It cannot report a seat nobody used, so adoption here is measured against people who committed \u2014 a different, smaller denominator. This one is structural.\n\n**Which MCP server, and which skill.** The counts below are totals. The agent transcripts do name them \u2014 a call arrives as `mcp__<server>__<method>` \u2014 but the collector keeps only file-editing tools today, so the names never reach the journal. Collecting them is a change to the adapters, not to this dashboard.\n\n**Acceptance is two different measures.** The rate above is whether an edit applied without erroring. Whether a human *kept* the work is the evidence split to the left: `intersected` means the agent's exact lines survived into the commit; `observed` means the file was edited but the text had changed before committing."
       }
     }
   ]

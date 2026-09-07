@@ -21,6 +21,14 @@ type RepoRow struct {
 	SyncedAt    time.Time
 }
 
+// TeamRow is one row of whodunit_teams: a person and the team the config
+// puts them in. Canonical address, never an alias.
+type TeamRow struct {
+	Contributor string
+	Team        string
+	SyncedAt    time.Time
+}
+
 // IdentityRow is one row of whodunit_identities: an alias and the address
 // it resolves to.
 type IdentityRow struct {
@@ -207,6 +215,13 @@ type Payload struct {
 	// case — and the feature is inert until then.
 	Identities []IdentityRow
 
+	// Teams is the config teams map, inverted to one row per person. A
+	// non-empty slice replaces the table on publish: config is the source
+	// of truth for org metadata, so someone removed from the map is
+	// removed from the table rather than lingering under a stale team.
+	// Empty means this machine has no map and the table is left alone.
+	Teams []TeamRow
+
 	// Baseline is the repository's pre-adoption snapshot, when one was
 	// captured. Absent for a repository instrumented without one.
 	Baseline *BaselineRow
@@ -381,6 +396,49 @@ func timep(t time.Time) *time.Time {
 // information, and the join treats a missing row as "its own identity"
 // anyway — writing it would only make the table larger and the absence
 // harder to read (NAV-21).
+// TeamRowsFrom inverts the config teams map into one row per person.
+//
+// Members are canonicalised through the identity map so a person's
+// second address lands in the same team as their first. A person listed
+// under two teams takes the alphabetically first, and the same one on
+// every run — a map iteration order must not decide which team someone
+// is on. Empty addresses are skipped rather than written as a member with
+// no name.
+func TeamRowsFrom(teams map[string][]string, resolve func(string) string, syncedAt time.Time) []TeamRow {
+	if len(teams) == 0 {
+		return nil
+	}
+	names := make([]string, 0, len(teams))
+	for t := range teams {
+		names = append(names, t)
+	}
+	sort.Strings(names)
+	byPerson := map[string]string{}
+	for _, t := range names {
+		if t == "" {
+			continue
+		}
+		for _, m := range teams[t] {
+			c := resolve(m)
+			if c == "" {
+				c = m
+			}
+			if c == "" {
+				continue
+			}
+			if _, taken := byPerson[c]; !taken {
+				byPerson[c] = t
+			}
+		}
+	}
+	rows := make([]TeamRow, 0, len(byPerson))
+	for c, t := range byPerson {
+		rows = append(rows, TeamRow{Contributor: c, Team: t, SyncedAt: syncedAt})
+	}
+	sort.Slice(rows, func(i, j int) bool { return rows[i].Contributor < rows[j].Contributor })
+	return rows
+}
+
 func IdentityRowsFrom(aliases map[string]string, resolve func(string) string, syncedAt time.Time) []IdentityRow {
 	if len(aliases) == 0 {
 		return nil
