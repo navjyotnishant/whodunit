@@ -126,8 +126,13 @@ func TestEveryTableIsNamespaced(t *testing.T) {
 	// but it is whodunit's table, read by whodunit's panels and filled by
 	// whodunit's script, and it carries the prefix so it cannot collide
 	// with anything DevLake creates.
-	if count != 9 {
-		t.Errorf("found %d tables, want 9", count)
+	//
+	// whodunit_teams is the tenth: the config teams map, one row per
+	// person, read first by every team join (WHO-211). Prefixed for the
+	// same reason as identities — it sits beside DevLake's own teams
+	// table and must not be mistaken for it.
+	if count != 10 {
+		t.Errorf("found %d tables, want 10", count)
 	}
 }
 
@@ -486,5 +491,39 @@ func TestIdentityChainsAreFlattened(t *testing.T) {
 func TestNoAliasesMeansNoRows(t *testing.T) {
 	if rows := IdentityRowsFrom(nil, func(s string) string { return s }, time.Now()); rows != nil {
 		t.Errorf("got %d row(s) from an empty map", len(rows))
+	}
+}
+
+// The config map is keyed by team; a panel needs one team per person.
+//
+// Members are canonicalised so a second address lands in the same team as
+// the first, and a person listed under two teams takes the alphabetically
+// first — chosen by name rather than by map order, so the answer is the
+// same on every sync (WHO-211).
+func TestTeamRowsAreOnePerPersonCanonicalAndDeterministic(t *testing.T) {
+	resolve := func(s string) string {
+		if s == "12345+alice@users.noreply.github.com" {
+			return "alice@x.com"
+		}
+		return s
+	}
+	teams := map[string][]string{
+		"platform": {"12345+alice@users.noreply.github.com", ""},
+		"growth":   {"alice@x.com", "bob@x.com"},
+	}
+	for i := 0; i < 20; i++ {
+		rows := TeamRowsFrom(teams, resolve, time.Now())
+		if len(rows) != 2 {
+			t.Fatalf("got %d rows, want 2 (alice once, bob once, the empty member skipped): %v", len(rows), rows)
+		}
+		if rows[0].Contributor != "alice@x.com" || rows[0].Team != "growth" {
+			t.Fatalf("alice: got %v, want growth — listed under both, the alphabetically first wins, and under her canonical address", rows[0])
+		}
+		if rows[1].Contributor != "bob@x.com" || rows[1].Team != "growth" {
+			t.Fatalf("bob: got %v", rows[1])
+		}
+	}
+	if TeamRowsFrom(nil, resolve, time.Now()) != nil {
+		t.Error("an absent map must yield nil, so the sync leaves the table alone")
 	}
 }

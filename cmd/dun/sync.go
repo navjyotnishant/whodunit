@@ -238,6 +238,7 @@ func buildPayload(limit int) (sidecar.Payload, error) {
 	// trade.
 	if cfg, err := config.Load(); err == nil {
 		p.Identities = sidecar.IdentityRowsFrom(cfg.Identities, cfg.ResolveIdentity, now)
+		p.Teams = sidecar.TeamRowsFrom(cfg.Teams, cfg.ResolveIdentity, now)
 	}
 
 	// The pre-adoption baseline, when one was captured (NAV-107).

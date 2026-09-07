@@ -173,6 +173,26 @@ func WriteProgress(db *Store, p Payload, onRow func(done, total int)) (Counts, e
 		}
 	}
 
+	// The teams map replaces the table rather than upserting into it:
+	// config is the source of truth for who is on which team, and an
+	// upsert would leave someone removed from the map sitting under a
+	// stale team forever. A payload with no map leaves the table alone,
+	// so a machine that has never configured teams cannot erase what
+	// another one published. Same transaction as everything else, so a
+	// failed sync leaves the previous membership in place, not an empty
+	// table (NAV-21: an empty team table reads as nobody on any team).
+	if len(p.Teams) > 0 {
+		if _, err := tx.Exec(`DELETE FROM whodunit_teams`); err != nil {
+			return counts, fmt.Errorf("clear teams: %w", err)
+		}
+		for _, t := range p.Teams {
+			if _, err := tx.Exec(`INSERT INTO whodunit_teams (contributor, team_name, synced_at) VALUES (?, ?, ?)`,
+				t.Contributor, t.Team, t.SyncedAt.UnixNano()); err != nil {
+				return counts, fmt.Errorf("write team %s: %w", t.Contributor, err)
+			}
+		}
+	}
+
 	for _, c := range p.Commits {
 		if _, err := tx.Exec(upsertCommit(mysql),
 			// nullString, not the empty string: a row whose contributor

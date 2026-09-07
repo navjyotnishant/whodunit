@@ -174,8 +174,8 @@ func TestSplitStatementsDropsCommentOnlyFragments(t *testing.T) {
 	// The MySQL driver refuses multiple statements per Exec, and a
 	// trailing comment block would otherwise be sent as a statement.
 	stmts := splitStatements(Schema)
-	if len(stmts) != 9 {
-		t.Fatalf("want 9 statements for 9 tables, got %d", len(stmts))
+	if len(stmts) != 10 {
+		t.Fatalf("want 10 statements for 10 tables, got %d", len(stmts))
 	}
 	for _, s := range stmts {
 		if s == "" {
@@ -507,5 +507,63 @@ func TestAnUnknownContributorIsNullNotEmpty(t *testing.T) {
 	if !isNull {
 		t.Error("an unknown contributor was stored as the empty string; that " +
 			"asserts a person with no name rather than an absent value (NAV-21)")
+	}
+}
+
+// A non-empty teams map replaces the table; an absent one leaves it alone.
+//
+// Replace, because config is the source of truth for who is on which
+// team: an upsert would keep someone removed from the map sitting under a
+// stale team. Leave alone, because a machine that never configured teams
+// must not erase what another one published (WHO-211).
+func TestTeamsReplaceOnPublishAndSurviveAMachineWithNoMap(t *testing.T) {
+	db := openStore(t)
+	if err := EnsureSchema(db); err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now()
+	teams := func(rows ...TeamRow) []TeamRow { return rows }
+	read := func() map[string]string {
+		got := map[string]string{}
+		rows, err := db.Query(`SELECT contributor, team_name FROM whodunit_teams`)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer rows.Close()
+		for rows.Next() {
+			var c, tm string
+			if err := rows.Scan(&c, &tm); err != nil {
+				t.Fatal(err)
+			}
+			got[c] = tm
+		}
+		return got
+	}
+
+	p := samplePayload(now)
+	p.Teams = teams(TeamRow{"alice@x.com", "platform", now}, TeamRow{"carol@x.com", "growth", now})
+	if _, err := Write(db, p); err != nil {
+		t.Fatal(err)
+	}
+	if got := read(); len(got) != 2 || got["carol@x.com"] != "growth" {
+		t.Fatalf("first publish: %v", got)
+	}
+
+	// carol leaves the map; alice moves team.
+	p.Teams = teams(TeamRow{"alice@x.com", "growth", now})
+	if _, err := Write(db, p); err != nil {
+		t.Fatal(err)
+	}
+	if got := read(); len(got) != 1 || got["alice@x.com"] != "growth" {
+		t.Fatalf("after removal and move: %v — carol should be gone, alice in growth", got)
+	}
+
+	// A machine with no teams map syncs. Nothing changes.
+	p.Teams = nil
+	if _, err := Write(db, p); err != nil {
+		t.Fatal(err)
+	}
+	if got := read(); len(got) != 1 || got["alice@x.com"] != "growth" {
+		t.Fatalf("a payload with no map must leave the table alone, got %v", got)
 	}
 }

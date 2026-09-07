@@ -117,6 +117,38 @@ CREATE TABLE IF NOT EXISTS whodunit_identities (
 	PRIMARY KEY (alias)
 );
 
+-- Team membership, published from the teams map in ~/.whodunit/config.json
+-- so a dashboard can report group-level adoption rather than a list of
+-- named individuals (WHO-211, completing WHO-157).
+--
+-- One row per person, keyed on the canonical address: config is keyed by
+-- team because that is the shape someone maintains by hand, but a person
+-- can only count under one team in a panel, so the map is inverted here
+-- and a contributor listed twice takes the alphabetically first team.
+-- Aliases are resolved before the row is written, so a second machine
+-- lands in the same team as the first.
+--
+-- Read first by every team join. DevLake's own teams/team_users are the
+-- fallback for anyone this table does not name. A value someone typed on
+-- purpose beats one that arrived on a connector sync. A person in neither
+-- source is "(unassigned)", never dropped (NAV-21).
+--
+-- Org metadata, not new personal data: the address already appears in
+-- every commit object, and which team someone is on is a fact about the
+-- organisation chart (NAV-25).
+--
+-- The column is team_name rather than team on purpose: nearly every panel
+-- aliases its resolved team AS team and then writes GROUP BY team, and
+-- MySQL binds an unqualified GROUP BY name to a real column before a
+-- select alias. A column called team made every one of those queries
+-- fail only_full_group_by the moment the table was joined.
+CREATE TABLE IF NOT EXISTS whodunit_teams (
+	contributor  VARCHAR(320) NOT NULL,
+	team_name    VARCHAR(190) NOT NULL,
+	synced_at    BIGINT       NOT NULL,
+	PRIMARY KEY (contributor)
+);
+
 -- List prices per model, per million tokens, so the cost panels can price
 -- each session at its own model's rate rather than one typed number.
 --
