@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-09-07
+
 ### Added
 
 - **The `teams` map in `config.json` now reaches the dashboards.** `dun sync` publishes it to `whodunit_teams`, one row per person keyed on the canonical address, and every team join reads that table first with DevLake's own `teams`/`team_users` as the fallback: a team someone typed on purpose beats one that arrived on a connector sync, and a person in neither source is `(unassigned)`, never dropped. The 0.5.0 notes described this precedence as if it existed; the map was defined and validated and nothing published or read it, so every team panel on a real install showed `(unassigned)`. Publishing replaces the table rather than upserting into it — config is the source of truth for who is on which team, and an upsert would leave someone removed from the map under a stale team forever — while a machine with no teams map leaves the table alone, so it cannot erase what another one published. A person listed under two teams takes the alphabetically first, the same one on every sync. Both routes are documented: the config map, and DevLake's org-plugin CSVs for teams that live there (WHO-211, completing WHO-157).
