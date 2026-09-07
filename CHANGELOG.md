@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Homebrew and Scoop were not updated by the automatic release. `release.yml` runs as a workflow called from `tag-on-prd.yml`, and a called workflow sees none of the caller's secrets unless the caller passes them, so `publish-packages` found `PACKAGING_TOKEN` unset, warned, and reported success. v0.5.0 and v0.6.0 both shipped with the tap and the bucket still at 0.4.0. The caller now passes `secrets: inherit`; 0.6.0 was published to both by hand with the repo's own scripts.
+
 ## [0.6.0] - 2026-09-07
 
 ### Added
