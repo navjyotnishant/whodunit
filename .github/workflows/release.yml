@@ -53,6 +53,12 @@ jobs:
           # go.mod required 1.26.5, which CI could not build at all.
           go-version-file: go.mod
 
+      # nfpm turns the Linux binaries into a .deb and an .rpm per
+      # architecture (see nfpm.yaml). Pinned: a floating @latest here would
+      # let a packager change alter a release without a commit saying so.
+      - name: Install nfpm
+        run: go install github.com/goreleaser/nfpm/v2/cmd/nfpm@v2.47.0
+
       - name: Build release artifacts
         run: ./scripts/release.sh "${{ steps.t.outputs.tag }}"
 

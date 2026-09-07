@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Linux packages. Every release now carries a `.deb` and an `.rpm` for
+  amd64 and arm64 beside the existing archives, so an Ubuntu or Fedora user
+  installs with `sudo dpkg -i` or `sudo rpm -i` and nothing else. The
+  package depends on `git` and installs only `/usr/bin/dun`; hooks and
+  config stay per-repository and per-user as before.
+
 ## [0.5.0] - 2026-08-26
 
 ### Added

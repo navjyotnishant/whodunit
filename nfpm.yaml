@@ -1,0 +1,43 @@
+# Author: Navjyot Nishant
+# Created: 2026-09-07
+# Last updated: 2026-09-07
+# Description: Linux package definition (.deb and .rpm) for dun, consumed by
+# scripts/release.sh via nfpm. One file, both formats.
+#
+# The archive route still exists for anyone whose policy forbids package
+# managers; this adds the route a Linux user expects — `sudo dpkg -i` or
+# `sudo rpm -i` — with nothing else to install. Version and architecture are
+# substituted by release.sh from the environment, so the package always
+# matches the binary it wraps.
+
+name: dun
+arch: ${ARCH}
+platform: linux
+version: ${VERSION}
+section: devel
+priority: optional
+maintainer: Navjyot Nishant <navjyotnishant@gmail.com>
+description: |
+  Records which lines of a commit an AI coding agent wrote, as a git trailer.
+  Runs on the developer's machine from git hooks; nothing leaves it unless
+  `dun sync` is configured.
+vendor: whodunit
+homepage: https://docs.whodunit.njlabs.dev/
+license: Apache-2.0
+
+# The binary is the whole package. Hooks are installed per repository by
+# `dun init`, config lives under ~/.whodunit, and there is no daemon to
+# register — so no postinstall script and nothing under /etc.
+contents:
+  - src: ${BINARY}
+    dst: /usr/bin/dun
+    file_info:
+      mode: 0755
+
+# git is what the hooks run under, and what `dun` shells out to. Nothing
+# else is required at runtime: the binary is static (CGO_ENABLED=0).
+deb:
+  fields:
+    Bugs: https://github.com/navjyotnishant/whodunit/issues
+depends:
+  - git
