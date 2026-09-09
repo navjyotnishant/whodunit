@@ -162,22 +162,40 @@ func candidatePaths() ([]string, error) {
 	return paths, nil
 }
 
-// decodeSlug reverses Claude Code's directory encoding, which replaces each
-// path separator with a dash.
+// decodeSlug reverses Claude Code's directory encoding, which replaces every
+// non-alphanumeric character with a dash.
 //
-// The encoding is lossy: a directory whose own name contains a dash is
-// indistinguishable from a path separator. Rather than guess, this walks
-// the candidates and returns the first that actually exists on disk.
+// The encoding is heavily lossy and deliberately so — see
+// claudecode.SlugForCwd. A dash in a slug was a '/', a '.', a '_', a space,
+// or a literal '-', and nothing in the name says which. Rather than guess,
+// this walks candidates and returns the first that exists on disk.
+//
+// Two independent ambiguities, resolved in this order:
+//
+//  1. how many trailing dashes belong to the final segment rather than
+//     separating directories, and
+//  2. for each remaining dash, whether it was a separator or a character
+//     inside a name.
+//
+// (2) is why this is not simply a strings.Split: after SlugForCwd started
+// replacing the full character class, a path like ~/.orion or /tmp/my_repo
+// encodes its dot and underscore as dashes too, so splitting on every dash
+// produces segments that never existed. That regressed discovery to zero
+// results on any path containing punctuation.
+//
+// Bounded on purpose. A slug with many dashes has exponentially many
+// readings and this is a convenience command, not the attribution path — so
+// the character-level search runs only over a limited number of dashes and
+// otherwise falls back to the separator-only reading. Missing a candidate
+// costs a row in `dun repos candidates`; it never affects what a commit is
+// stamped with.
 func decodeSlug(slug string) string {
 	// The prefix says where the path started, and the two platforms differ.
 	//
 	// A Unix slug begins with the dash that encoded the leading '/', so the
 	// root has to be put back. A Windows slug begins with the drive letter,
-	// whose colon SlugForCwd dropped because Windows will not accept it in a
-	// filename — so "C-Users-me-repo" has to become "C:\Users\me\repo".
-	//
-	// Requiring the leading dash rejected every Windows slug outright, and
-	// decodeSlug returned "" for all of them.
+	// whose colon is now also encoded as a dash — "C--Users-me-repo" has to
+	// become "C:\Users\me\repo".
 	var root string
 	var rest string
 	switch {
@@ -186,7 +204,8 @@ func decodeSlug(slug string) string {
 		rest = strings.TrimPrefix(slug, "-")
 	case len(slug) > 1 && slug[1] == '-' && isDriveLetter(slug[0]):
 		root = string(slug[0]) + `:\`
-		rest = slug[2:]
+		// Two dashes where the colon and the separator both encoded.
+		rest = strings.TrimPrefix(slug[2:], "-")
 	default:
 		return ""
 	}
@@ -205,7 +224,115 @@ func decodeSlug(slug string) string {
 			return candidate
 		}
 	}
+
+	// Nothing read as a pure separator split. Some dash was a character
+	// inside a name — a dot, an underscore, a space. Search those readings.
+	if p := decodeSlugWithLiterals(root, parts); p != "" {
+		return p
+	}
 	return ""
+}
+
+// maxDashSearch bounds the character-level search. Each undecided dash
+// multiplies the candidate count, so this is a deliberate ceiling rather
+// than a tuned number: enough for a dotted parent plus a couple of
+// underscores, which is what real paths look like.
+const maxDashSearch = 12
+
+// decodeSlugWithLiterals tries readings where some dashes were characters
+// inside a directory name rather than separators.
+//
+// Walks left to right, extending the current segment or closing it, and
+// stops at the first reading that exists on disk. Depth-bounded by
+// maxDashSearch; a slug with more dashes than that falls back to the
+// separator-only reading its caller already tried.
+func decodeSlugWithLiterals(root string, parts []string) string {
+	if len(parts) < 2 || len(parts) > maxDashSearch {
+		return ""
+	}
+
+	// extend returns a NEW slice every time. Doing this with
+	// append(append([]string{}, segs...), x) looks equivalent and is not:
+	// the inner append can return a slice with spare capacity, so two
+	// sibling branches append into the same backing array and the second
+	// silently overwrites the first's last segment. That produced a search
+	// which explored a mutated tree and found nothing.
+	extend := func(segs []string, s string) []string {
+		out := make([]string, len(segs)+1)
+		copy(out, segs)
+		out[len(segs)] = s
+		return out
+	}
+
+	// replaceLast returns a NEW slice with the final segment rewritten,
+	// for the reading where this dash was a character inside a name.
+	replaceLast := func(segs []string, s string) []string {
+		out := make([]string, len(segs))
+		copy(out, segs)
+		out[len(segs)-1] = s
+		return out
+	}
+
+	// Every replaced character reads back identically, so a literal tried
+	// here stands for whichever one it was. Ordered by what actually shows
+	// up in paths: dots (dotted parents), underscores, then the rest.
+	literals := []string{".", "_", "-", " "}
+
+	var walk func(segments []string, i int) string
+	walk = func(segments []string, i int) string {
+		if i == len(parts) {
+			candidate := root + filepath.Join(segments...)
+			if info, err := os.Stat(candidate); err == nil && info.IsDir() {
+				return candidate
+			}
+			return ""
+		}
+
+		// Prune on the parent only. The last segment is still being built —
+		// a dash later in the slug may extend it — so requiring it to exist
+		// now would reject every path whose name contains a replaced
+		// character, which is the entire case this function exists for.
+		if len(segments) > 1 {
+			prefix := root + filepath.Join(segments[:len(segments)-1]...)
+			if info, err := os.Stat(prefix); err != nil || !info.IsDir() {
+				return ""
+			}
+		}
+
+		// An empty part means two dashes ran together: a separator
+		// immediately followed by a replaced character, as in "qp--3xbs"
+		// for "qp/_3xbs". It is never a segment of its own — it says the
+		// NEXT segment opens with a literal.
+		if parts[i] == "" {
+			if i+1 >= len(parts) {
+				return ""
+			}
+			for _, lit := range literals {
+				if p := walk(extend(segments, lit+parts[i+1]), i+2); p != "" {
+					return p
+				}
+			}
+			return ""
+		}
+
+		// This dash was a separator: start a new segment.
+		if p := walk(extend(segments, parts[i]), i+1); p != "" {
+			return p
+		}
+
+		// This dash was a character inside the previous segment.
+		if len(segments) > 0 {
+			last := segments[len(segments)-1]
+			for _, lit := range literals {
+				if p := walk(replaceLast(segments, last+lit+parts[i]), i+1); p != "" {
+					return p
+				}
+			}
+		}
+		return ""
+	}
+
+	return walk(nil, 0)
 }
 
 func isDriveLetter(c byte) bool {

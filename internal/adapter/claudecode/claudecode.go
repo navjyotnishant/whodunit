@@ -13,6 +13,8 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -49,36 +51,85 @@ func builtinProjectsDir() string {
 	return filepath.Join(home, ".claude", "projects")
 }
 
-// SlugForCwd reproduces Claude Code's directory-name encoding: every path
-// separator in the absolute path becomes '-'.
+// SlugForCwd reproduces Claude Code's directory-name encoding: every
+// character that is not a letter or a digit becomes '-'.
 //
-// Both separators are replaced regardless of platform. A path can carry
-// forward slashes on Windows — Go's own APIs accept them, and MSYS or WSL
-// hand them over routinely — so keying off filepath.Separator alone would
-// encode the same directory two different ways depending on who produced the
-// string.
+// This mirrors the client's own rule, which is a single character class
+// rather than a list of separators:
 //
-// The colon is dropped because Windows will not accept it in a filename. A
-// slug of "C:-Users-me-repo" cannot be created at all: every mkdir fails
-// with "The directory name is invalid", so no transcript is ever found and
-// every commit lands undetermined — the silent failure NAV-21 exists to
-// prevent, wearing the mask of "no AI was used".
+//	path.replace(/[^a-zA-Z0-9]/g, "-")
 //
-// Dropped rather than mapped to '-' so C:\repo and C-\repo cannot collide.
+// Matching the whole class matters, and getting it narrower is a silent
+// failure rather than a partial one. This function previously replaced only
+// '/' and '\\' and DROPPED ':', which meant every path containing any other
+// punctuation resolved to a directory that does not exist:
 //
-// CAVEAT: this makes the slug legal on Windows. It does NOT establish that
-// it matches what Claude Code itself writes there — that needs a Windows
-// machine with the client installed, and is still open (NAV-81,
-// docs/adapters/agent-support.md). If the encodings differ, the adapter
-// finds no transcripts on Windows. It fails the same way it does today,
-// so this is strictly an improvement, but it is not yet Windows support.
+//	~/.orion/…  ->  Claude Code writes  -Users-me--orion-…
+//	                whodunit looked for -Users-me-.orion-…
+//
+// A dotted parent directory is the common case — every agent sandbox under
+// ~/.orion, and any ~/.config-style layout. Measured on one machine: 91 git
+// repositories, 14 found under the old encoding, 72 under this one. The 77
+// misses were not reported as misses. The adapter found no transcript,
+// attribution concluded no agent had touched the repository, and commits an
+// agent wrote end to end were stamped unassisted — a positive claim that no
+// AI was involved, which is the exact shape NAV-21 exists to prevent.
+//
+// The colon is now mapped rather than dropped. Dropping it was deliberate,
+// to keep C:\repo and C-\repo apart, but it did not match the client: Claude
+// Code writes C--repo for the former. Correctness against the thing we are
+// trying to find beats a collision that upstream itself does not avoid
+// (NAV-81).
+//
+// A slug longer than maxSlugLen is truncated and given a hash of the FULL
+// path, so two long paths sharing a 200-character prefix stay apart. That
+// mirrors the client:
+//
+//	if (slug.length <= 200) return slug;
+//	return `${slug.slice(0, 200)}-${hash(path).toString(36)}`;
+//
+// Note the hash is over the ORIGINAL path, not over the slug — hashing the
+// slug would collide exactly where the truncation needs to disambiguate,
+// since the encoding is lossy.
+//
+// Verified by experiment rather than by reading the client: a directory was
+// created with a >200-character path, Claude Code was run in it, and the
+// name it wrote was compared against this function. Two shapes, both exact —
+// a 241-character slug of plain segments, and a 202-character one whose
+// segments carry underscores and dots (WHO-237).
 func SlugForCwd(cwd string) string {
-	slug := strings.NewReplacer(
-		"/", "-",
-		`\`, "-",
-	).Replace(cwd)
-	return strings.ReplaceAll(slug, ":", "")
+	slug := nonAlnum.ReplaceAllString(cwd, "-")
+	if len(slug) <= maxSlugLen {
+		return slug
+	}
+	return slug[:maxSlugLen] + "-" + strconv.FormatUint(uint64(pathHash(cwd)), 36)
 }
+
+// maxSlugLen is where Claude Code truncates. A literal, because it is
+// upstream's number rather than a choice available to us.
+const maxSlugLen = 200
+
+// pathHash is the classic h = h*31 + c string hash over the path's bytes,
+// truncated to 32 bits — what the client uses, confirmed by matching the
+// directory names it actually wrote.
+//
+// uint32 rather than int32 on purpose: JavaScript's bitwise ops yield a
+// signed value, but the client renders it with toString(36), which for a
+// negative number would emit a leading '-' and no such directory name has
+// ever been observed. The overflow arithmetic is identical either way; only
+// the rendering differs.
+func pathHash(path string) uint32 {
+	var h uint32
+	for i := 0; i < len(path); i++ {
+		h = h*31 + uint32(path[i])
+	}
+	return h
+}
+
+// nonAlnum is every character Claude Code replaces with '-'. Compiled once:
+// SlugForCwd runs on the commit path, where the hook's whole budget is a
+// fraction of a second.
+var nonAlnum = regexp.MustCompile(`[^a-zA-Z0-9]`)
 
 // SessionDir returns the directory Claude Code stores this repo's session
 // transcripts in.

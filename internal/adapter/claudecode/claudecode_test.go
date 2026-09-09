@@ -133,8 +133,8 @@ func TestSlugForCwdIsALegalDirectoryName(t *testing.T) {
 		want string
 	}{
 		{"unix", "/Users/nav/repo", "-Users-nav-repo"},
-		{"windows backslash", `C:\Users\nav\repo`, "C-Users-nav-repo"},
-		{"windows forward slash", "C:/Users/nav/repo", "C-Users-nav-repo"},
+		{"windows backslash", `C:\Users\nav\repo`, "C--Users-nav-repo"},
+		{"windows forward slash", "C:/Users/nav/repo", "C--Users-nav-repo"},
 		{"unc", `\\server\share\repo`, "--server-share-repo"},
 	}
 
@@ -156,11 +156,115 @@ func TestSlugForCwdIsALegalDirectoryName(t *testing.T) {
 	}
 }
 
-func TestSlugForCwdDoesNotCollideAcrossDrives(t *testing.T) {
-	// Dropping the colon rather than mapping it to '-' keeps C:\repo distinct
-	// from a directory literally named "C-". Mapping it would merge two
-	// repositories' transcripts under one slug.
-	if SlugForCwd(`C:\repo`) == SlugForCwd(`C-\repo`) {
-		t.Error("C:\\repo and C-\\repo produce the same slug")
+func TestSlugForCwdReplacesEveryNonAlphanumeric(t *testing.T) {
+	// The contract is Claude Code's own rule — /[^a-zA-Z0-9]/g -> '-' — not a
+	// list of separators we happened to think of. A narrower rule is a silent
+	// failure: the adapter looks in a directory that does not exist, finds no
+	// transcript, and attribution reports that no agent touched the repository.
+	//
+	// The dotted case is not hypothetical. Every agent sandbox under ~/.orion
+	// hit it, and on one machine 77 of 91 git repositories were invisible to
+	// the adapter because of it.
+	cases := []struct {
+		name string
+		cwd  string
+		want string
+	}{
+		{"dotted parent", "/Users/nav/.orion/projects/x/repo", "-Users-nav--orion-projects-x-repo"},
+		{"underscore", "/Users/nav/my_repo", "-Users-nav-my-repo"},
+		{"dot in name", "/Users/nav/repo.git", "-Users-nav-repo-git"},
+		{"at sign", "/Users/nav/repo@2", "-Users-nav-repo-2"},
+		{"space", "/Users/nav/my repo", "-Users-nav-my-repo"},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if got := SlugForCwd(c.cwd); got != c.want {
+				t.Errorf("SlugForCwd(%q) = %q, want %q", c.cwd, got, c.want)
+			}
+		})
+	}
+}
+
+func TestSlugForCwdTruncatesLongPathsLikeTheClient(t *testing.T) {
+	// A slug over 200 characters is truncated and given a base36 hash of the
+	// FULL path — hashing the slug would collide precisely where the
+	// truncation needs to disambiguate, because the encoding is lossy.
+	//
+	// These two cases are not constructed from this implementation. Each is
+	// a directory name Claude Code itself wrote: a deep path was created,
+	// the client was run in it, and the name it produced was recorded here.
+	// Asserting our own hash against our own hash would prove nothing, which
+	// is why WHO-237 stayed open until the client could be observed.
+	cases := []struct {
+		name string
+		cwd  string
+		want string
+	}{
+		{
+			// 241-character slug, plain segments.
+			name: "plain segments",
+			cwd: "/private/tmp/whotrunc/segment00/segment01/segment02/segment03/" +
+				"segment04/segment05/segment06/segment07/segment08/segment09/" +
+				"segment10/segment11/segment12/segment13/segment14/segment15/" +
+				"segment16/segment17/segment18/segment19/segment20/segment21",
+			want: "-private-tmp-whotrunc-segment00-segment01-segment02-segment03-" +
+				"segment04-segment05-segment06-segment07-segment08-segment09-" +
+				"segment10-segment11-segment12-segment13-segment14-segment15-" +
+				"segment16-segment1-3wu2bq",
+		},
+		{
+			// 202-character slug, segments carrying underscores and dots —
+			// so the hash is over characters the slug no longer contains.
+			name: "punctuated segments",
+			cwd: "/private/tmp/whotrunc2/dir_00.x/dir_01.x/dir_02.x/dir_03.x/" +
+				"dir_04.x/dir_05.x/dir_06.x/dir_07.x/dir_08.x/dir_09.x/" +
+				"dir_10.x/dir_11.x/dir_12.x/dir_13.x/dir_14.x/dir_15.x/" +
+				"dir_16.x/dir_17.x/dir_18.x/dir_19.x",
+			want: "-private-tmp-whotrunc2-dir-00-x-dir-01-x-dir-02-x-dir-03-x-" +
+				"dir-04-x-dir-05-x-dir-06-x-dir-07-x-dir-08-x-dir-09-x-" +
+				"dir-10-x-dir-11-x-dir-12-x-dir-13-x-dir-14-x-dir-15-x-" +
+				"dir-16-x-dir-17-x-dir-18-x-dir-19-9c8b8b",
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			got := SlugForCwd(c.cwd)
+			if got != c.want {
+				t.Errorf("SlugForCwd(%q)\n = %q\nwant %q", c.cwd, got, c.want)
+			}
+			if len(got) != maxSlugLen+1+len(got[maxSlugLen+1:]) {
+				t.Errorf("truncated slug is malformed: %q", got)
+			}
+		})
+	}
+}
+
+func TestSlugForCwdLeavesShortPathsAlone(t *testing.T) {
+	// The truncation must not touch the ordinary case, which is every real
+	// repository path anyone has. A regression here would break attribution
+	// everywhere rather than only on deep paths.
+	cwd := "/Users/nav/repo"
+	if got := SlugForCwd(cwd); got != "-Users-nav-repo" {
+		t.Errorf("SlugForCwd(%q) = %q, want it unchanged", cwd, got)
+	}
+	if got := SlugForCwd(cwd); len(got) > maxSlugLen {
+		t.Errorf("a short path produced a %d-character slug", len(got))
+	}
+}
+
+func TestSlugForCwdIsLossyAndThatIsUpstreamsChoice(t *testing.T) {
+	// Distinct paths CAN collide, and this test exists so that is a recorded
+	// property rather than a surprise. An earlier version dropped ':' instead
+	// of mapping it, specifically to keep C:\repo apart from C-\repo.
+	//
+	// That was reverted: the goal is to find the directory Claude Code
+	// actually wrote, and it maps ':' like everything else. A slug that is
+	// distinct but wrong finds nothing at all, which is worse than one that
+	// is right for every real path and theoretically ambiguous. Upstream has
+	// the same collision (anthropics/claude-code#35162).
+	if SlugForCwd(`C:\repo`) != SlugForCwd(`C-\repo`) {
+		t.Error("expected these to collide, matching Claude Code's own encoding")
 	}
 }
