@@ -78,6 +78,11 @@ jobs:
     needs: tag
     if: needs.tag.outputs.tagged == 'true'
     uses: ./.github/workflows/release.yml
+    # A called workflow sees none of the caller's secrets unless told to.
+    # Without this, publish-packages found PACKAGING_TOKEN unset, warned,
+    # and "succeeded" — v0.5.0 and v0.6.0 both shipped without Homebrew
+    # or Scoop being updated, and nothing failed to say so.
+    secrets: inherit
     with:
       tag: ${{ needs.tag.outputs.tag }}
     permissions:

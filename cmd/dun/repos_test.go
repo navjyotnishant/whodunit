@@ -151,6 +151,37 @@ func TestDecodeSlugFindsRealDirectory(t *testing.T) {
 	}
 }
 
+func TestDecodeSlugFindsPathsWithReplacedCharacters(t *testing.T) {
+	// SlugForCwd replaces EVERY non-alphanumeric character with '-', so a
+	// dash in a slug may have been a '/', a '.', a '_', a space or a literal
+	// '-'. Decoding has to search those readings, not just split on dashes.
+	//
+	// Regression test for two distinct bugs, both of which returned "" for
+	// every path containing punctuation:
+	//
+	//   - splitting on dashes alone, which never reconstructs ".orion"
+	//   - building candidates with append(append([]string{}, s...), x),
+	//     where sibling branches share a backing array and silently
+	//     overwrite each other's segments
+	//
+	// The dotted-parent case is the one that mattered in practice: every
+	// agent sandbox under ~/.orion decoded to nothing.
+	base := t.TempDir()
+
+	for _, name := range []string{".orion", "my_repo", "has space", "dot.dir", "SHORT~1"} {
+		t.Run(name, func(t *testing.T) {
+			want := filepath.Join(base, name, "repo")
+			if err := os.MkdirAll(want, 0o700); err != nil {
+				t.Fatal(err)
+			}
+			slug := claudecode.SlugForCwd(want)
+			if got := decodeSlug(slug); got != want {
+				t.Errorf("decodeSlug(%q) = %q, want %q", slug, got, want)
+			}
+		})
+	}
+}
+
 func TestDecodeSlugRejectsNonsense(t *testing.T) {
 	if got := decodeSlug("not-a-slug-that-exists-anywhere"); got != "" {
 		t.Errorf("decodeSlug on a path that does not exist = %q, want empty", got)

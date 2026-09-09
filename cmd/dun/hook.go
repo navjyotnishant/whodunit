@@ -25,6 +25,14 @@ import (
 )
 
 // The hook names as git invokes them, and as they appear in the log.
+// noTranscriptDirWarn is logged when no agent's transcript directory exists,
+// so `undetermined` carries a reason someone can act on rather than looking
+// like the tool simply had nothing to say (WHO-236). One string, two call
+// sites — the wording is what a user reads, so it must not drift.
+const noTranscriptDirWarn = "no agent transcript directory exists for this " +
+	"repository — cannot tell whether an agent was used; run `dun verify` to " +
+	"check where each agent's transcripts are expected"
+
 const (
 	hookPrepare = "prepare-commit-msg"
 	hookCommit  = "commit-msg"
@@ -191,8 +199,34 @@ func determineTrailer(message string) spec.Trailer {
 		logHook(hookPrepare, hooklog.LevelWarn, "ingest", err.Error())
 	}
 
+	// Whether at least one agent's transcript location actually EXISTS,
+	// which is a different question from whether it held anything
+	// (WHO-236).
+	//
+	// SessionFiles cannot answer it: an absent directory and a
+	// present-but-empty one both yield no files and no error. That
+	// conflation is what let `unassisted` — a positive claim that no AI was
+	// involved — be stamped on a repository the tooling never looked at,
+	// because the path it derived did not exist.
+	//
+	// Note the two shapes of SessionDir, which is why this is not simply
+	// "the directory exists". Claude Code encodes the repository path into
+	// the directory name, so its absence means THIS repository was never
+	// looked at. agy and codex return one global transcript root and filter
+	// by cwd inside it, so their root existing means the agent is installed
+	// and was searched — for every repository, including this one.
+	//
+	// Treating a global root as proof we looked at this repository would be
+	// wrong in the same direction as the bug: any machine with codex
+	// installed would keep claiming `unassisted` while Claude Code's path
+	// was broken. So a per-repository directory has to exist, or a global
+	// root has to have yielded at least one session file.
+	looked := false
+
 	var entries []journal.Entry
 	for _, ad := range adapter.All() {
+		perRepo := ad.SessionDir(cwd)
+
 		sessionPaths, err := ad.SessionFiles(cwd)
 		if err != nil {
 			// An agent we cannot look at is not evidence of absence — but
@@ -202,6 +236,23 @@ func determineTrailer(message string) spec.Trailer {
 				"cannot list "+ad.Name()+" sessions: "+err.Error())
 			continue
 		}
+		// Any session file at all means this agent's store was real and
+		// searchable. Otherwise fall back to whether a per-repository
+		// directory exists — which only Claude Code has, and whose absence
+		// is precisely the "we never looked here" case.
+		if len(sessionPaths) > 0 {
+			looked = true
+		} else if perRepo != "" && perRepo != ad.Root() {
+			// A SessionDir that differs from the agent's Root is
+			// per-repository — the repo path is encoded in it — so its
+			// existence is a statement about THIS repository. A SessionDir
+			// equal to Root is the global store, and its existence says
+			// only that the agent is installed.
+			if info, statErr := os.Stat(perRepo); statErr == nil && info.IsDir() {
+				looked = true
+			}
+		}
+
 		for _, p := range sessionPaths {
 			parsed, err := ad.ParseSince(p, since)
 			if err != nil {
@@ -215,14 +266,28 @@ func determineTrailer(message string) spec.Trailer {
 	if len(entries) == 0 {
 		logHook(hookPrepare, hooklog.LevelInfo, "determine",
 			fmt.Sprintf("no agent activity found in the last %d days", lookbackDays))
-		// No transcript from any agent, and the adapters were readable -
-		// the warns above fire when they are not. So the tooling was
-		// watching and there was nothing to see: a human wrote this
-		// (WHO-211).
+		// No transcript from any agent. Whether that is evidence depends
+		// entirely on whether we looked anywhere real (WHO-211, WHO-236).
+		//
+		// At least one transcript directory existed: the tooling was
+		// watching and there was nothing to see, so a human wrote this.
+		// The adapters were also readable — the warns above fire when they
+		// are not — which is the other half of the claim.
+		//
+		// No directory existed at all: we did not observe an absence of
+		// agent activity, we failed to observe anything. Those are
+		// different findings and only the first is evidence (NAV-21).
+		// Stamping `unassisted` here asserts no AI was involved on a
+		// commit an agent may have written end to end, which is exactly
+		// what a wrong path encoding produced.
 		//
 		// Only when nothing declared itself either. A declaration is
 		// evidence an agent was involved, and it outranks this.
 		if fromDeclaration.Status == spec.StatusUndetermined {
+			if !looked {
+				logHook(hookPrepare, hooklog.LevelWarn, "determine", noTranscriptDirWarn)
+				return spec.WithStatus(spec.StatusUndetermined)
+			}
 			return spec.WithStatus(spec.StatusUnassisted)
 		}
 		return fromDeclaration
@@ -251,18 +316,35 @@ func determineTrailer(message string) spec.Trailer {
 	lines, _ := attribution.StagedLines()
 	added, removed, _ := attribution.StagedLineCounts()
 
+	determined := attribution.Determine(entries, staged, agentLines,
+		attribution.StagedEvidence{
+			Lines:  lines,
+			Commit: attribution.CommitLines{Added: added, Removed: removed},
+		}, now)
+
+	// `unassisted` is a positive claim that no AI was involved, and it is
+	// only honest if we looked somewhere real (WHO-236).
+	//
+	// Determine cannot make this call itself: it is a pure function of the
+	// evidence handed to it, and "no journal entry touched a staged file"
+	// looks identical whether the transcript directory was empty or absent.
+	// The hook is the only place that knows which, so it is the place that
+	// downgrades the claim.
+	//
+	// Downgraded to undetermined, not unmatched: unmatched says an agent
+	// was active but not on these files, which is itself a finding we have
+	// not earned. undetermined says we could not tell, which is the truth.
+	if determined.Status == spec.StatusUnassisted && !looked {
+		logHook(hookPrepare, hooklog.LevelWarn, "determine", noTranscriptDirWarn)
+		determined = spec.WithStatus(spec.StatusUndetermined)
+	}
+
 	// Both candidates, resolved by which rests on stronger evidence
 	// rather than by which was computed first. Transcript evidence wins
 	// because observed and intersected outrank declared on the ladder, not
 	// because it is checked first - so a future producer yielding
 	// something stronger needs no change here.
-	trailer := attribution.Best(
-		attribution.Determine(entries, staged, agentLines,
-			attribution.StagedEvidence{
-				Lines:  lines,
-				Commit: attribution.CommitLines{Added: added, Removed: removed},
-			}, now),
-		fromDeclaration)
+	trailer := attribution.Best(determined, fromDeclaration)
 
 	// A determination that failed is worth keeping, so a later run can
 	// try again (WHO-212). Only the two failure statuses reach the log;

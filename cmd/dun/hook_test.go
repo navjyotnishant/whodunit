@@ -6,6 +6,9 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/navjyotnishant/whodunit/internal/adapter/claudecode"
+	"github.com/navjyotnishant/whodunit/internal/spec"
 )
 
 func initTestRepo(t *testing.T) string {
@@ -226,4 +229,79 @@ func TestPrepareCommitMsgIgnoresAHumanCoAuthor(t *testing.T) {
 	if strings.Contains(string(out), "status=assisted") {
 		t.Errorf("a human co-author is not an agent: %s", out)
 	}
+}
+
+func TestDetermineDoesNotClaimUnassistedWhenItCouldNotLook(t *testing.T) {
+	// `unassisted` is a positive claim that no AI was involved. It is only
+	// honest when the tooling actually looked in the right place and found
+	// nothing — "we looked, there was nothing" and "we looked somewhere
+	// that does not exist" are different findings and only one of them is
+	// evidence (NAV-21).
+	//
+	// The two were conflated: SessionFiles returns an empty slice and a nil
+	// error for a directory that is absent, exactly as it does for one that
+	// is present and empty, so nothing distinguished them and both produced
+	// `unassisted`.
+	//
+	// Measured when the Claude Code slug encoding was wrong: 77 of 91
+	// repositories on one machine resolved to a directory that never
+	// existed, and commits an agent wrote end to end were stamped as
+	// written by a human. `dun verify` said "claude-code — not installed"
+	// while 156 transcript directories sat on disk.
+	repo := chdirToTestRepo(t)
+
+	// Point the agent at a transcript root that does not exist. This is
+	// what a wrong path encoding produces: not an error, just nowhere.
+	t.Setenv("CLAUDE_CONFIG_DIR", filepath.Join(t.TempDir(), "does-not-exist"))
+
+	if err := os.WriteFile(filepath.Join(repo, "f.txt"), []byte("x\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	runGit(t, repo, "add", "f.txt")
+
+	got := determineTrailer("a commit")
+	if got.Status == spec.StatusUnassisted {
+		t.Errorf("status = %q: claimed no AI was involved, but the transcript "+
+			"directory does not exist — the tooling never looked", got.Status)
+	}
+}
+
+func TestDetermineStillSaysUnassistedWhenItReallyLooked(t *testing.T) {
+	// The other side of the same rule, and the reason the fix cannot simply
+	// stop stamping `unassisted`. A transcript directory that EXISTS and is
+	// empty is real evidence: the agent is installed, it was watching, and
+	// it recorded nothing for this repository. That is a human commit and
+	// saying so is the whole point of the status.
+	repo := chdirToTestRepo(t)
+
+	claudeHome := t.TempDir()
+	t.Setenv("CLAUDE_CONFIG_DIR", claudeHome)
+	// Create the per-repository directory the adapter will look for, empty.
+	dir := filepath.Join(claudeHome, "projects", claudecode.SlugForCwd(mustEval(t, repo)))
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := os.WriteFile(filepath.Join(repo, "f.txt"), []byte("x\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	runGit(t, repo, "add", "f.txt")
+
+	if got := determineTrailer("a commit"); got.Status != spec.StatusUnassisted {
+		t.Errorf("status = %q, want %q: the directory exists and is empty, "+
+			"which is a real observation that no agent touched this repo",
+			got.Status, spec.StatusUnassisted)
+	}
+}
+
+// mustEval resolves symlinks the way the hook does, so a slug built here
+// matches the one the hook builds. t.TempDir hands back /var/... on macOS
+// where the real path is /private/var/...
+func mustEval(t *testing.T, p string) string {
+	t.Helper()
+	r, err := filepath.EvalSymlinks(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return r
 }

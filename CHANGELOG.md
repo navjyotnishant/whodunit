@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.1] - 2026-09-09
+
+### Added
+
+- **Files an agent writes through a shell command are now attributed.** An agent editing through `Edit`/`Write` was recorded with a file; the same edit made with `cat > main.go <<'EOF'` was recorded as a bare tool call with no file, so it was invisible to attribution and the commit resolved `unmatched` — or `unassisted`, a positive claim that no AI was involved. On one machine's journal that was 7,263 Bash records against 894 Edit/Write ones. The command is now read for the files it *writes* and only for those: a write operator has to name a target, so `ls -l x.go` and `mkdir -p build` still record nothing, while `cat > f <<'EOF' … && git add -A` records `f`. The heredoc body never reaches the journal — a path is a name, the bytes after `<<'EOF'` are file content — and that is asserted by test through the real parse path. No line counts and no hunk hash are recorded, because the command carries no diff and a fabricated one would let a shell edit claim `intersected` on evidence that does not exist; a command that also writes somewhere it cannot name is marked `partial` so an incomplete file set never reads as a complete one. Measured across 21,229 real Bash calls in five repositories: 96.1% of writing commands name a target this extracts. Two known limits: the rule set is per-ecosystem (`gofmt -w` is 8.5% of writes in a Go repo and 0% in a Python one), and PowerShell's `Out-File`/`Set-Content` are not recognised (WHO-238).
+
+### Fixed
+
+- **Agent transcripts were invisible in any repository whose path contained a dot, an underscore, or a space, and their commits were stamped as written by a human.** Claude Code names its transcript directory by replacing every non-alphanumeric character in the working directory with a dash; whodunit replaced only the path separators and dropped the colon, so `~/.orion/projects/x/repo` was sought at `-Users-me-.orion-…` while the client had written `-Users-me--orion-…`. The two names never met. Measured on one machine: 91 git repositories, 14 found under the old encoding and 72 under the corrected one, with 156 transcript directories sitting unread. The colon is now mapped rather than dropped, matching the client — keeping `C:\repo` distinct from `C-\repo` was deliberate, but a slug that is unique and wrong finds nothing at all. `dun repos candidates` decodes the wider encoding by searching which reading exists on disk. A slug over 200 characters is now truncated and suffixed with a base36 hash of the full path, exactly as the client does, so deep worktree paths are found too — the hash was identified by experiment rather than assumption: a directory was created with a 241-character slug, Claude Code was run in it, and the name it wrote was matched (WHO-237).
+
+- **`unassisted` is no longer stamped when the tooling never looked anywhere real.** `unassisted` asserts that no AI was involved, and that claim was reached whenever no transcript was found — including when the directory searched did not exist, because an absent directory and a present-but-empty one both yield no files and no error. With the encoding bug above, commits an agent wrote end to end were recorded as human work. A commit now falls back to `undetermined` — "could not tell", not "nobody did" — when no agent's per-repository transcript directory exists and none produced a session, and the hook log says so and points at `dun verify`. A directory that exists and is empty is still real evidence and still yields `unassisted` (WHO-236, NAV-21). This also changes behaviour for agents that keep one global transcript store rather than a per-repository one — Antigravity and Codex — where a repository the agent was never run in now reports `undetermined` instead of `unassisted`: the store existing says the agent is installed, not that this repository was examined.
+
+- **Note on commits already stamped.** Upgrading fixes what is written from now on; it does not rewrite trailers already in your history. A commit stamped `unassisted` by an affected version stays that way, and the honest reading of one is "this may not have been measured" rather than "no agent was involved". The journal is unaffected — it recorded the agent activity all along — so `dun sync` republishes the corrected picture to a datalake without touching git history.
+
+- Homebrew and Scoop were not updated by the automatic release. `release.yml` runs as a workflow called from `tag-on-prd.yml`, and a called workflow sees none of the caller's secrets unless the caller passes them, so `publish-packages` found `PACKAGING_TOKEN` unset, warned, and reported success. v0.5.0 and v0.6.0 both shipped with the tap and the bucket still at 0.4.0. The caller now passes `secrets: inherit`; 0.6.0 was published to both by hand with the repo's own scripts.
+
 ## [0.6.0] - 2026-09-07
 
 ### Added
@@ -215,7 +231,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Initial release.
 
-[Unreleased]: https://github.com/navjyotnishant/whodunit/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/navjyotnishant/whodunit/compare/v0.6.1...HEAD
+[0.6.1]: https://github.com/navjyotnishant/whodunit/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/navjyotnishant/whodunit/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/navjyotnishant/whodunit/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/navjyotnishant/whodunit/compare/v0.3.1...v0.4.0

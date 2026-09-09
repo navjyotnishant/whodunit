@@ -27,6 +27,17 @@ const (
 	// declining, and merging them would make an acceptance rate meaningless.
 	OutcomeFailed Outcome = "failed"
 
+	// OutcomePartial means the call wrote a file this recorded AND wrote
+	// something else it could not name — a path built at runtime, a variable
+	// assigned in an earlier command. The file set is incomplete, and the
+	// distinction has to survive into the journal: a partial list that reads
+	// as a complete one lets a commit claim evidence it does not have
+	// (WHO-238, NAV-21).
+	//
+	// Measured at 149 of 3,829 writing commands (3.9%) across five
+	// repositories.
+	OutcomePartial Outcome = "partial"
+
 	// OutcomeUnknown means no result was found for the call. Recorded
 	// honestly rather than assumed accepted — the transcript may be
 	// truncated, or the session may still be in flight.
