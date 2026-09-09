@@ -206,6 +206,11 @@ type record struct {
 		PostTokens int64  `json:"postTokens"`
 	} `json:"compactMetadata"`
 
+	// The working directory the command ran in. Needed to resolve a
+	// relative write target — "cat > x.go" names a file only when you know
+	// where it ran (WHO-238).
+	Cwd string `json:"cwd"`
+
 	// The branch the work landed on. 112 distinct values across the
 	// corpus on this machine, of which "HEAD" is 8% — a detached head,
 	// which is a real state rather than a missing value, so it is stored
@@ -294,6 +299,12 @@ type toolUseBlock struct {
 		Content   string `json:"content"`    // Write
 		OldString string `json:"old_string"` // Edit
 		NewString string `json:"new_string"` // Edit
+
+		// Command is read for Bash and never recorded. WriteTargets takes
+		// the file names out of it and the string is discarded with the
+		// block — a heredoc body is file content and does not belong in the
+		// journal (NAV-25, WHO-238). Asserted by entryfields_test.go.
+		Command string `json:"command"` // Bash
 	} `json:"input"`
 
 	// Content of a tool_result, which Claude Code writes either as a plain
@@ -403,6 +414,51 @@ func ParseSince(path string, since time.Time) ([]journal.Entry, error) {
 					Branch:       r.GitBranch,
 					MCPServer:    r.MCPServer,
 				})
+
+				// A Bash command that WRITES a file is agent authorship and
+				// has to be attributable, or an agent that edits through a
+				// shell is invisible while one that uses Edit is not. On this
+				// machine that gap was 7,263 Bash calls against 894 Edit and
+				// Write ones (WHO-238).
+				//
+				// Emitted ALONGSIDE the tool_call above, not instead of it:
+				// the call is still a call, and everything already correlating
+				// on tool_call keeps working unchanged.
+				//
+				// Only the file NAMES leave this block. block.Input.Command is
+				// read here and goes out of scope with the loop iteration —
+				// the heredoc body in `cat > f <<'EOF' … EOF` is file content
+				// and never reaches an entry (NAV-25).
+				if block.Name == "Bash" {
+					targets, incomplete := WriteTargets(block.Input.Command, r.Cwd)
+					for _, target := range targets {
+						// No LinesAdded and no HunkHash, deliberately. The
+						// command carries no diff, and a fabricated one would
+						// let a Bash edit claim `intersected` on evidence that
+						// does not exist. Absent beats invented (NAV-21).
+						e := journal.Entry{
+							Timestamp:    r.Timestamp,
+							Agent:        AgentName,
+							AgentVersion: r.Version,
+							Session:      r.SessionID,
+							Event:        "tool_use",
+							Tool:         block.Name,
+							File:         target,
+							Model:        modelOf(r),
+							Branch:       r.GitBranch,
+							MCPServer:    r.MCPServer,
+						}
+						// A command that also writes somewhere this could not
+						// name yields an INCOMPLETE file set. Recording it as
+						// ordinary evidence would let a partial list read as a
+						// full one, which is the wrong answer wearing the shape
+						// of a finding.
+						if incomplete {
+							e.Outcome = string(OutcomePartial)
+						}
+						entries = append(entries, e)
+					}
+				}
 				continue
 			}
 
