@@ -212,22 +212,28 @@ func TestWriteTargetsResolvesRelativeToCwd(t *testing.T) {
 // and a "/" prefix test says it is not, producing a path that exists
 // nowhere and attributing a commit to a file that was never written.
 func TestWriteTargetsHandlesAbsolutePaths(t *testing.T) {
-	paths, _ := WriteTargets("echo x > /tmp/abs.txt", "/repo")
+	// What counts as absolute is the host's rule, not a "/" prefix.
+	// "/tmp/abs.txt" is absolute on Unix and RELATIVE on Windows, where an
+	// absolute path needs a drive letter — so the case has to be written
+	// per platform or it asserts Unix semantics on a Windows runner, which
+	// is how this test first failed in CI while the code was correct.
+	cmd, cwd, absolute := "echo x > /tmp/abs.txt", "/repo", "/tmp/abs.txt"
+	if runtime.GOOS == "windows" {
+		cmd, cwd, absolute = `echo x > C:\tmp\abs.txt`, `C:\repo`, `C:\tmp\abs.txt`
+	}
+
+	paths, _ := WriteTargets(cmd, cwd)
 	if len(paths) != 1 {
 		t.Fatalf("got %d paths, want 1", len(paths))
 	}
+	if paths[0] != resolveTarget(absolute, cwd) {
+		t.Errorf("got %q, want the target left absolute", paths[0])
+	}
+	// The specific regression: cwd prepended to a path that already had a
+	// root, producing something that exists nowhere and attributing a
+	// commit to a file the agent never wrote.
 	if strings.Contains(paths[0], "repo") {
 		t.Errorf("an absolute path was joined to cwd: %q", paths[0])
-	}
-
-	if runtime.GOOS == "windows" {
-		p, _ := WriteTargets(`echo x > C:\tmp\abs.txt`, `C:\repo`)
-		if len(p) != 1 {
-			t.Fatalf("got %d paths, want 1", len(p))
-		}
-		if strings.Count(p[0], ":") != 1 {
-			t.Errorf("a drive-letter path was joined to cwd: %q", p[0])
-		}
 	}
 }
 
