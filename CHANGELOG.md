@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Files an agent writes through a shell command are now attributed.** An agent editing through `Edit`/`Write` was recorded with a file; the same edit made with `cat > main.go <<'EOF'` was recorded as a bare tool call with no file, so it was invisible to attribution and the commit resolved `unmatched` — or `unassisted`, a positive claim that no AI was involved. On one machine's journal that was 7,263 Bash records against 894 Edit/Write ones. The command is now read for the files it *writes* and only for those: a write operator has to name a target, so `ls -l x.go` and `mkdir -p build` still record nothing, while `cat > f <<'EOF' … && git add -A` records `f`. The heredoc body never reaches the journal — a path is a name, the bytes after `<<'EOF'` are file content — and that is asserted by test through the real parse path. No line counts and no hunk hash are recorded, because the command carries no diff and a fabricated one would let a shell edit claim `intersected` on evidence that does not exist; a command that also writes somewhere it cannot name is marked `partial` so an incomplete file set never reads as a complete one. Measured across 21,229 real Bash calls in five repositories: 96.1% of writing commands name a target this extracts. Two known limits: the rule set is per-ecosystem (`gofmt -w` is 8.5% of writes in a Go repo and 0% in a Python one), and PowerShell's `Out-File`/`Set-Content` are not recognised (WHO-238).
+
 ## [0.6.1] - 2026-09-09
 
 ### Fixed
