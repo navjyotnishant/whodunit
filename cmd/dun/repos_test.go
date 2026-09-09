@@ -168,7 +168,7 @@ func TestDecodeSlugFindsPathsWithReplacedCharacters(t *testing.T) {
 	// agent sandbox under ~/.orion decoded to nothing.
 	base := t.TempDir()
 
-	for _, name := range []string{".orion", "my_repo", "has space", "dot.dir"} {
+	for _, name := range []string{".orion", "my_repo", "has space", "dot.dir", "SHORT~1"} {
 		t.Run(name, func(t *testing.T) {
 			want := filepath.Join(base, name, "repo")
 			if err := os.MkdirAll(want, 0o700); err != nil {

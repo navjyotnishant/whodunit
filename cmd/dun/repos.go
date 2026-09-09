@@ -264,7 +264,14 @@ func decodeSlugWithLiterals(root string, parts []string) string {
 	// Every replaced character reads back identically, so a literal tried
 	// here stands for whichever one it was. Ordered by what shows up in real
 	// paths: dots first, then underscores.
-	literals := []string{".", "_", "-", " "}
+	//
+	// The tilde is not optional padding. Windows hands out 8.3 short names —
+	// GitHub's own runners work under C:\Users\RUNNER~1 — and without it
+	// every decode on those machines returns nothing. That is exactly how it
+	// was found: the change passed locally and failed on all three CI
+	// platforms, because a temp path under RUNNER~1 slugs to RUNNER-1 and no
+	// reading could put the tilde back.
+	literals := []string{".", "_", "-", " ", "~"}
 
 	// Memoized: sibling branches re-test the same prefixes, and every miss is
 	// a syscall.
