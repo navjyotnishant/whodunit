@@ -233,106 +233,103 @@ func decodeSlug(slug string) string {
 	return ""
 }
 
-// maxDashSearch bounds the character-level search. Each undecided dash
-// multiplies the candidate count, so this is a deliberate ceiling rather
-// than a tuned number: enough for a dotted parent plus a couple of
-// underscores, which is what real paths look like.
-const maxDashSearch = 12
+// maxLiteralDashes bounds how many dashes the character-level search may
+// treat as literals. Each undecided dash multiplies the candidate count, so
+// this is a ceiling on the EXPONENT rather than on the slug's length — an
+// earlier version bounded len(parts) instead, which let a long slug run
+// thousands of readings and turned `dun repos candidates` from 4.8s into 36s,
+// almost all of it os.Stat syscalls.
+const maxLiteralDashes = 4
 
 // decodeSlugWithLiterals tries readings where some dashes were characters
 // inside a directory name rather than separators.
 //
-// Walks left to right, extending the current segment or closing it, and
-// stops at the first reading that exists on disk. Depth-bounded by
-// maxDashSearch; a slug with more dashes than that falls back to the
-// separator-only reading its caller already tried.
+// Walks left to right. At each dash the current segment is either CLOSED (the
+// dash was a separator) or EXTENDED (the dash was a '.', '_', '-' or ' '
+// inside the name). A closed segment is verified against the filesystem
+// immediately, which is what bounds the search: a wrong prefix is abandoned
+// before any of its subtree is walked. An open segment cannot be verified,
+// since the next dash may still extend it.
+//
+// At most maxLiteralDashes dashes may be read as literals. Real paths carry a
+// couple of dotted or underscored segments, not eleven, and a slug needing
+// more falls back to the separator-only reading the caller already tried.
+// Missing a candidate costs a row in `dun repos candidates`; it never affects
+// what a commit is stamped with.
 func decodeSlugWithLiterals(root string, parts []string) string {
-	if len(parts) < 2 || len(parts) > maxDashSearch {
+	if len(parts) < 2 {
 		return ""
 	}
 
-	// extend returns a NEW slice every time. Doing this with
-	// append(append([]string{}, segs...), x) looks equivalent and is not:
-	// the inner append can return a slice with spare capacity, so two
-	// sibling branches append into the same backing array and the second
-	// silently overwrites the first's last segment. That produced a search
-	// which explored a mutated tree and found nothing.
-	extend := func(segs []string, s string) []string {
-		out := make([]string, len(segs)+1)
-		copy(out, segs)
-		out[len(segs)] = s
-		return out
-	}
-
-	// replaceLast returns a NEW slice with the final segment rewritten,
-	// for the reading where this dash was a character inside a name.
-	replaceLast := func(segs []string, s string) []string {
-		out := make([]string, len(segs))
-		copy(out, segs)
-		out[len(segs)-1] = s
-		return out
-	}
-
 	// Every replaced character reads back identically, so a literal tried
-	// here stands for whichever one it was. Ordered by what actually shows
-	// up in paths: dots (dotted parents), underscores, then the rest.
+	// here stands for whichever one it was. Ordered by what shows up in real
+	// paths: dots first, then underscores.
 	literals := []string{".", "_", "-", " "}
 
-	var walk func(segments []string, i int) string
-	walk = func(segments []string, i int) string {
+	// Memoized: sibling branches re-test the same prefixes, and every miss is
+	// a syscall.
+	seen := map[string]bool{}
+	exists := func(path string) bool {
+		if v, ok := seen[path]; ok {
+			return v
+		}
+		info, err := os.Stat(path)
+		v := err == nil && info.IsDir()
+		seen[path] = v
+		return v
+	}
+
+	// done holds the segments already closed and verified; open is the
+	// segment still being built; i indexes the next part; used counts the
+	// dashes read as literals so far.
+	var walk func(done []string, open string, i, used int) string
+	walk = func(done []string, open string, i, used int) string {
 		if i == len(parts) {
-			candidate := root + filepath.Join(segments...)
-			if info, err := os.Stat(candidate); err == nil && info.IsDir() {
+			candidate := root + filepath.Join(append(append([]string{}, done...), open)...)
+			if exists(candidate) {
 				return candidate
 			}
 			return ""
 		}
 
-		// Prune on the parent only. The last segment is still being built —
-		// a dash later in the slug may extend it — so requiring it to exist
-		// now would reject every path whose name contains a replaced
-		// character, which is the entire case this function exists for.
-		if len(segments) > 1 {
-			prefix := root + filepath.Join(segments[:len(segments)-1]...)
-			if info, err := os.Stat(prefix); err != nil || !info.IsDir() {
-				return ""
+		// The dash before parts[i] closed `open`. Verify it now — this is the
+		// prune that keeps the search cheap.
+		if open != "" {
+			closed := append(append([]string{}, done...), open)
+			if exists(root + filepath.Join(closed...)) {
+				if p := walk(closed, parts[i], i+1, used); p != "" {
+					return p
+				}
 			}
 		}
 
-		// An empty part means two dashes ran together: a separator
-		// immediately followed by a replaced character, as in "qp--3xbs"
-		// for "qp/_3xbs". It is never a segment of its own — it says the
-		// NEXT segment opens with a literal.
+		if used >= maxLiteralDashes {
+			return ""
+		}
+
+		// The dash was a character inside `open` instead. An empty part means
+		// two dashes ran together — "qp--3xbs" for "qp/_3xbs" — so the
+		// literal opens the next part rather than joining this one.
 		if parts[i] == "" {
 			if i+1 >= len(parts) {
 				return ""
 			}
 			for _, lit := range literals {
-				if p := walk(extend(segments, lit+parts[i+1]), i+2); p != "" {
+				if p := walk(done, open+lit+parts[i+1], i+2, used+1); p != "" {
 					return p
 				}
 			}
 			return ""
 		}
-
-		// This dash was a separator: start a new segment.
-		if p := walk(extend(segments, parts[i]), i+1); p != "" {
-			return p
-		}
-
-		// This dash was a character inside the previous segment.
-		if len(segments) > 0 {
-			last := segments[len(segments)-1]
-			for _, lit := range literals {
-				if p := walk(replaceLast(segments, last+lit+parts[i]), i+1); p != "" {
-					return p
-				}
+		for _, lit := range literals {
+			if p := walk(done, open+lit+parts[i], i+1, used+1); p != "" {
+				return p
 			}
 		}
 		return ""
 	}
 
-	return walk(nil, 0)
+	return walk(nil, parts[0], 1, 0)
 }
 
 func isDriveLetter(c byte) bool {

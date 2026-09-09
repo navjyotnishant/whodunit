@@ -25,6 +25,14 @@ import (
 )
 
 // The hook names as git invokes them, and as they appear in the log.
+// noTranscriptDirWarn is logged when no agent's transcript directory exists,
+// so `undetermined` carries a reason someone can act on rather than looking
+// like the tool simply had nothing to say (WHO-236). One string, two call
+// sites — the wording is what a user reads, so it must not drift.
+const noTranscriptDirWarn = "no agent transcript directory exists for this " +
+	"repository — cannot tell whether an agent was used; run `dun verify` to " +
+	"check where each agent's transcripts are expected"
+
 const (
 	hookPrepare = "prepare-commit-msg"
 	hookCommit  = "commit-msg"
@@ -277,10 +285,7 @@ func determineTrailer(message string) spec.Trailer {
 		// evidence an agent was involved, and it outranks this.
 		if fromDeclaration.Status == spec.StatusUndetermined {
 			if !looked {
-				logHook(hookPrepare, hooklog.LevelWarn, "determine",
-					"no agent transcript directory exists for this repository — "+
-						"cannot tell whether an agent was used; run `dun verify` "+
-						"to check where each agent's transcripts are expected")
+				logHook(hookPrepare, hooklog.LevelWarn, "determine", noTranscriptDirWarn)
 				return spec.WithStatus(spec.StatusUndetermined)
 			}
 			return spec.WithStatus(spec.StatusUnassisted)
@@ -330,10 +335,7 @@ func determineTrailer(message string) spec.Trailer {
 	// was active but not on these files, which is itself a finding we have
 	// not earned. undetermined says we could not tell, which is the truth.
 	if determined.Status == spec.StatusUnassisted && !looked {
-		logHook(hookPrepare, hooklog.LevelWarn, "determine",
-			"no agent transcript directory exists for this repository — "+
-				"cannot tell whether an agent was used; run `dun verify` to "+
-				"check where each agent's transcripts are expected")
+		logHook(hookPrepare, hooklog.LevelWarn, "determine", noTranscriptDirWarn)
 		determined = spec.WithStatus(spec.StatusUndetermined)
 	}
 

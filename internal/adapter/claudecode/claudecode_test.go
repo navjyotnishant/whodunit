@@ -3,6 +3,7 @@ package claudecode
 import (
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -234,10 +235,35 @@ func TestSlugForCwdTruncatesLongPathsLikeTheClient(t *testing.T) {
 			if got != c.want {
 				t.Errorf("SlugForCwd(%q)\n = %q\nwant %q", c.cwd, got, c.want)
 			}
-			if len(got) != maxSlugLen+1+len(got[maxSlugLen+1:]) {
-				t.Errorf("truncated slug is malformed: %q", got)
+			if got[maxSlugLen] != '-' {
+				t.Errorf("truncated slug has no hash separator at %d: %q",
+					maxSlugLen, got)
+			}
+			if suffix := got[maxSlugLen+1:]; suffix == "" {
+				t.Errorf("truncated slug carries no hash: %q", got)
 			}
 		})
+	}
+}
+
+func TestSlugForCwdHashesRunesNotBytes(t *testing.T) {
+	// The client hashes with charCodeAt, which yields UTF-16 code units, so
+	// folding raw UTF-8 bytes diverges on any non-ASCII path and the derived
+	// directory name exists nowhere.
+	//
+	// The expected value is what JavaScript produces for this path, computed
+	// independently — not what this implementation happens to return.
+	cwd := "/Users/nav/café/" + strings.Repeat("segment/", 24) + "end"
+	got := SlugForCwd(cwd)
+	if len(got) <= maxSlugLen {
+		t.Fatalf("test path is too short to exercise the hash: %d chars", len(got))
+	}
+	const want = "vhp8hq"
+	// The hash covers the whole path; assert it directly rather than through
+	// the slug, so a prefix change cannot mask a hash regression.
+	if got := strconv.FormatUint(uint64(pathHash("/Users/nav/café/repo")), 36); got != want {
+		t.Errorf("pathHash over a non-ASCII path = %q, want %q "+
+			"(byte-wise folding gives 1d1uy2d)", got, want)
 	}
 }
 

@@ -1,13 +1,14 @@
 package main
 
 import (
-	"github.com/navjyotnishant/whodunit/internal/adapter/claudecode"
-	"github.com/navjyotnishant/whodunit/internal/spec"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/navjyotnishant/whodunit/internal/adapter/claudecode"
+	"github.com/navjyotnishant/whodunit/internal/spec"
 )
 
 func initTestRepo(t *testing.T) string {

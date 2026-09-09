@@ -109,27 +109,45 @@ func SlugForCwd(cwd string) string {
 // upstream's number rather than a choice available to us.
 const maxSlugLen = 200
 
-// pathHash is the classic h = h*31 + c string hash over the path's bytes,
-// truncated to 32 bits — what the client uses, confirmed by matching the
-// directory names it actually wrote.
-//
-// uint32 rather than int32 on purpose: JavaScript's bitwise ops yield a
-// signed value, but the client renders it with toString(36), which for a
-// negative number would emit a leading '-' and no such directory name has
-// ever been observed. The overflow arithmetic is identical either way; only
-// the rendering differs.
-func pathHash(path string) uint32 {
-	var h uint32
-	for i := 0; i < len(path); i++ {
-		h = h*31 + uint32(path[i])
-	}
-	return h
-}
-
 // nonAlnum is every character Claude Code replaces with '-'. Compiled once:
 // SlugForCwd runs on the commit path, where the hook's whole budget is a
 // fraction of a second.
 var nonAlnum = regexp.MustCompile(`[^a-zA-Z0-9]`)
+
+// pathHash is the classic h = h*31 + c string hash over the path, truncated
+// to 32 bits — what the client uses, confirmed by matching the directory
+// names it actually wrote.
+//
+// Iterates RUNES, not bytes. The client hashes with charCodeAt, which yields
+// UTF-16 code units, so a byte-wise loop diverges on any non-ASCII path: for
+// /Users/nav/café/repo the client produces `vhp8hq` and a byte loop produces
+// `1d1uy2d`, and the derived directory name then exists nowhere. Only a slug
+// over maxSlugLen can carry the hash at all — the prefix is ASCII by
+// construction, since the regex has already replaced every non-alphanumeric
+// character — but that is precisely the silent miss this function exists to
+// prevent.
+//
+// Exact for the BMP, which is every realistic path. A character outside it —
+// an emoji in a directory name — is one rune here and a surrogate PAIR in
+// UTF-16, so the client would fold two units where this folds one. Left
+// as-is rather than hand-rolling surrogate encoding for a case no repository
+// has: the failure stays a missed transcript, never a wrong attribution.
+//
+// uint32 rather than int32 is NOT settled. JavaScript's bitwise ops yield a
+// signed value and toString(36) renders a negative one with a leading '-',
+// which would make roughly half of all long slugs differ from this. Both
+// fixtures in the tests hash positive, so the branch has never been
+// exercised, and the one pre-existing >200-character directory on this
+// machine cannot settle it either — its 200-character prefix already ends in
+// '-', so both readings produce the same name. Resolving it needs one more
+// observed directory whose path is known to hash negative (WHO-237).
+func pathHash(path string) uint32 {
+	var h uint32
+	for _, r := range path {
+		h = h*31 + uint32(r)
+	}
+	return h
+}
 
 // SessionDir returns the directory Claude Code stores this repo's session
 // transcripts in.
