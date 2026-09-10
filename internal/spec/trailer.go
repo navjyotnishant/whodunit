@@ -100,9 +100,15 @@ const (
 	StatusAssisted Status = "assisted"
 
 	// StatusUndetermined is what v=1 stamped whenever no determination
-	// could be made, and it meant four different things at once. Kept
-	// because it is written into every commit made before v=2 and those
-	// trailers cannot be rewritten - but nothing emits it now.
+	// could be made, and it meant four different things at once. It is
+	// written into every commit made before v=2, and those trailers
+	// cannot be rewritten.
+	//
+	// v=2 kept emitting it for one case, deliberately: an agent's
+	// transcript directory that does not exist. The hook cannot see
+	// whether an agent ran, and saying so is the honest answer where
+	// unassisted would be a positive claim it never earned (WHO-236,
+	// cmd/dun/hook.go). That is the only remaining producer.
 	StatusUndetermined Status = "undetermined"
 
 	// The four situations undetermined used to conflate (WHO-211). They
