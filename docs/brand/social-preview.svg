@@ -1,28 +1,26 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="640" viewBox="0 0 1280 640" font-family="ui-monospace,'SF Mono',SFMono-Regular,Menlo,Consolas,monospace">
-  <defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-    <stop offset="0" stop-color="#0d1117"/><stop offset="1" stop-color="#161b22"/>
-  </linearGradient></defs>
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="640" viewBox="0 0 1280 640" font-family="ui-monospace,'SF Mono',Menlo,Consolas,monospace">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#0e1317"/><stop offset="1" stop-color="#161b22"/></linearGradient>
+    <mask id="l"><rect width="1280" height="640" fill="#fff"/>
+      <g transform="translate(190,200) scale(2.6) translate(-32,-32)">
+        <rect x="25.5" y="25.9" width="13" height="1.5" rx=".75" fill="#000"/>
+        <rect x="25.5" y="31.25" width="9" height="1.5" rx=".75" fill="#000"/>
+        <rect x="25.5" y="36.6" width="11.5" height="1.5" rx=".75" fill="#000"/>
+      </g></mask>
+  </defs>
   <rect width="1280" height="640" fill="url(#bg)"/>
-
-  <!-- GitHub crops a repo's social preview more aggressively than Slack or
-       X, and the safe area is roughly the middle 80%. Everything here sits
-       inside it, which is why this is a separate file from the docs card
-       rather than the same PNG reused. -->
   <g transform="translate(190,200) scale(2.6) translate(-32,-32)">
-    <circle cx="23" cy="32" r="19" fill="#25c2a0" opacity="0.3"/>
-    <circle cx="41" cy="32" r="19" fill="#25c2a0" opacity="0.3"/>
-    <path d="M32,14.3 A19,19 0 0 1 32,49.7 A19,19 0 0 1 32,14.3 Z" fill="#25c2a0"/>
+    <circle cx="23" cy="32" r="19" fill="#a159ed"/>
+    <circle cx="41" cy="32" r="19" fill="#26c9ea"/>
+    <path d="M32,14.3 A19,19 0 0 1 32,49.7 A19,19 0 0 1 32,14.3 Z" fill="#f5f3ec" mask="url(#l)"/>
   </g>
-
   <text x="330" y="220" font-size="84" font-weight="700" fill="#e6edf3" letter-spacing="-2">whodunit</text>
   <text x="330" y="266" font-size="27" fill="#8b949e">Which agent touched this code.</text>
-
   <g transform="translate(190,372)">
-    <rect x="-24" y="-44" width="880" height="122" rx="10" fill="#010409" stroke="#30363d" stroke-width="1.5"/>
-    <text x="0" y="-2" font-size="23" fill="#25c2a0">AI-Attribution:</text>
+    <rect x="-24" y="-44" width="880" height="122" rx="10" fill="#080b0e" stroke="#30363d" stroke-width="1.5"/>
+    <text x="0" y="-2" font-size="23" fill="#26c9ea">AI-Attribution:</text>
     <text x="0" y="34" font-size="23" fill="#8b949e">  v=2; status=<tspan fill="#e6edf3">assisted</tspan>; method=<tspan fill="#e6edf3">intersected</tspan>;</text>
     <text x="0" y="66" font-size="23" fill="#8b949e">  agent=<tspan fill="#e6edf3">claude-code</tspan>; ratio=<tspan fill="#e6edf3">0.62</tspan></text>
   </g>
-
   <text x="190" y="516" font-size="24" fill="#6e7681">A git trailer standard for AI-attribution provenance</text>
 </svg>

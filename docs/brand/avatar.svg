@@ -1,11 +1,14 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
-  <rect width="512" height="512" fill="#0d1117"/>
-  <!-- GitHub renders an avatar in a CIRCLE in most places and a rounded
-       square in others, so the mark is inset well inside both. At 512 the
-       safe circle is ~r=230; the mark spans 240 wide, centred. -->
+  <rect width="512" height="512" fill="#0e1317"/>
+  <defs><mask id="l"><rect width="512" height="512" fill="#fff"/>
+    <g transform="translate(256,256) scale(3.8) translate(-32,-32)">
+      <rect x="25.5" y="25.9" width="13" height="1.5" rx=".75" fill="#000"/>
+      <rect x="25.5" y="31.25" width="9" height="1.5" rx=".75" fill="#000"/>
+      <rect x="25.5" y="36.6" width="11.5" height="1.5" rx=".75" fill="#000"/>
+    </g></mask></defs>
   <g transform="translate(256,256) scale(3.8) translate(-32,-32)">
-    <circle cx="23" cy="32" r="19" fill="#25c2a0" opacity="0.3"/>
-    <circle cx="41" cy="32" r="19" fill="#25c2a0" opacity="0.3"/>
-    <path d="M32,14.3 A19,19 0 0 1 32,49.7 A19,19 0 0 1 32,14.3 Z" fill="#25c2a0"/>
+    <circle cx="23" cy="32" r="19" fill="#a159ed"/>
+    <circle cx="41" cy="32" r="19" fill="#26c9ea"/>
+    <path d="M32,14.3 A19,19 0 0 1 32,49.7 A19,19 0 0 1 32,14.3 Z" fill="#f5f3ec" mask="url(#l)"/>
   </g>
 </svg>

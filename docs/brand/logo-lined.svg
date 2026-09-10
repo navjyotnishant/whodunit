@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" role="img" aria-label="whodunit">
+  <defs><mask id="l"><rect width="64" height="64" fill="#fff"/>
+    <rect x="25.5" y="25.9" width="13" height="1.5" rx=".75" fill="#000"/>
+    <rect x="25.5" y="31.25" width="9" height="1.5" rx=".75" fill="#000"/>
+    <rect x="25.5" y="36.6" width="11.5" height="1.5" rx=".75" fill="#000"/>
+  </mask></defs>
+  <circle cx="23" cy="32" r="19" fill="#a159ed"/>
+  <circle cx="41" cy="32" r="19" fill="#26c9ea"/>
+  <path d="M32,14.3 A19,19 0 0 1 32,49.7 A19,19 0 0 1 32,14.3 Z" fill="#0e1317" mask="url(#l)"/>
+</svg>
