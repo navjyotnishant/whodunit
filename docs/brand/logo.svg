@@ -1,0 +1,15 @@
+<!-- whodunit — two sets, and the intersection between them.
+     Not an illustration of the idea: a commit reaches method=intersected
+     exactly when the lines an agent produced are the lines that were
+     staged, and the overlap is that evidence.
+
+     Solid lens against soft discs, deliberately. Two stroked circles read
+     at 64px and collapse into a smear at 16, which is the size a favicon
+     is actually seen at; weight contrast survives where stroke contrast
+     does not. Measured by rendering all three at 16/32/64 rather than by
+     eye at full size. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" role="img" aria-label="whodunit">
+  <circle cx="23" cy="32" r="19" fill="#25c2a0" opacity="0.3"/>
+  <circle cx="41" cy="32" r="19" fill="#25c2a0" opacity="0.3"/>
+  <path d="M32,14.3 A19,19 0 0 1 32,49.7 A19,19 0 0 1 32,14.3 Z" fill="#25c2a0"/>
+</svg>
