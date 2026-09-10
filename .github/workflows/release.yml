@@ -70,12 +70,48 @@ jobs:
           tar -czf "dist/whodunit_dashboards_${{ steps.t.outputs.tag }}.tar.gz" \
             -C deploy/devlake/dashboards-import .
 
+      # The release notes are the CHANGELOG's own section for this tag.
+      #
+      # --generate-notes was used before, and it produces a list of merged
+      # pull requests: for 0.6.1 that was one line reading "Release 0.6.1"
+      # with a link to the PR. Everything a reader actually needed — which
+      # bug, measured how, what still does not work — was already written in
+      # CHANGELOG.md and published nowhere.
+      #
+      # Extracted rather than duplicated, so the two cannot disagree. If the
+      # section is missing the release still publishes, with generated notes
+      # and a warning: a notes problem must not fail a release whose
+      # artifacts are already built.
+      - name: Extract the release notes from CHANGELOG.md
+        id: notes
+        run: |
+          version="${{ steps.t.outputs.tag }}"
+          version="${version#v}"
+          if awk -v v="$version" '
+            $0 ~ "^## \\[" v "\\]" { found = 1; next }
+            found && /^## \[/ { exit }
+            found { print }
+          ' CHANGELOG.md > /tmp/notes.md && [ -s /tmp/notes.md ]; then
+            printf '\n---\n\n**Full changelog**: https://github.com/%s/compare/%s...%s\n' \
+              "${{ github.repository }}" "$(git describe --tags --abbrev=0 "${{ steps.t.outputs.tag }}^" 2>/dev/null || echo '')" \
+              "${{ steps.t.outputs.tag }}" >> /tmp/notes.md
+            echo "have_notes=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::No CHANGELOG section for $version; falling back to generated notes."
+            echo "have_notes=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Publish GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "${{ steps.t.outputs.tag }}" dist/dun_* dist/whodunit_dashboards_* dist/checksums.txt \
-            --title "${{ steps.t.outputs.tag }}" --generate-notes
+          if [ "${{ steps.notes.outputs.have_notes }}" = "true" ]; then
+            gh release create "${{ steps.t.outputs.tag }}" dist/dun_* dist/whodunit_dashboards_* dist/checksums.txt \
+              --title "${{ steps.t.outputs.tag }}" --notes-file /tmp/notes.md
+          else
+            gh release create "${{ steps.t.outputs.tag }}" dist/dun_* dist/whodunit_dashboards_* dist/checksums.txt \
+              --title "${{ steps.t.outputs.tag }}" --generate-notes
+          fi
 
   # Publishing to the package managers, which used to be two manual steps.
   #
