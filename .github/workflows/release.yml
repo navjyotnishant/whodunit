@@ -235,3 +235,19 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git commit -am "dun ${tag}"
           git push
+
+  # The documentation site is a separate repository (navjyotnishant/njlabs)
+  # and this workflow has no token for it, so the docs release cannot run
+  # from here. It can say so, which is the difference between a step someone
+  # forgets and a step someone is reminded of.
+  #
+  # 0.6.1 shipped with the docs still serving 0.6.0 at the root: the version
+  # was cut, listed in the dropdown, and was not what anyone landed on.
+  remind-docs:
+    needs: release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Docs release is still manual
+        run: |
+          tag="${{ inputs.tag || github.ref_name }}"
+          echo "::notice title=Docs release::Run ./release-docs.sh ${tag#v} in navjyotnishant/njlabs/whodunit — cutting the snapshot alone leaves the site serving the previous version."
