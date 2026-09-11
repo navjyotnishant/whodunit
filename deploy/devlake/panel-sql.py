@@ -28,6 +28,9 @@ import sys
 # Grafana macros. The time filter is widened rather than honored: a panel
 # scoped to "last 6 hours" would return nothing on a database whose data is a
 # day old, and that is not the failure being looked for.
+# A leftover Grafana variable, as distinct from a `$` that is regex syntax.
+LEFTOVER_VARIABLE = re.compile(r"\$\{?[A-Za-z_]\w*")
+
 MACROS = {
     r"\$__timeFilter\([^)]*\)": "1=1",
     r"\$__timeGroup\(([^,]+),[^)]*\)": r"\1",
@@ -132,8 +135,59 @@ def runnable(sql: str, variables: dict) -> str:
             sql,
         )
 
+    # Strip `--` line comments BEFORE flattening. Collapsing newlines turns a
+    # trailing comment into one that swallows the entire rest of the query,
+    # and MySQL then reports `syntax error near ''` — an unexpected end of
+    # input, pointing nowhere near the actual line. The Burn-up panel carries
+    # two such comments; it works in Grafana, which sends the SQL unflattened,
+    # and only breaks here (WHO-242).
+    sql = strip_line_comments(sql)
+
     # One line per query, since verify.sh reads them line by line.
     return " ".join(sql.split())
+
+
+def strip_line_comments(sql: str) -> str:
+    """Remove `-- ...` comments, respecting single-quoted string literals.
+
+    Quote-aware because `'--'` inside a literal is data, not a comment, and
+    stripping from there would truncate a valid query. MySQL also requires
+    whitespace after `--` for it to open a comment, which is what leaves the
+    `-[0-9]+` in the issue_key guard's regex alone.
+    """
+    out, in_string, i = [], False, 0
+    while i < len(sql):
+        ch = sql[i]
+        if in_string:
+            out.append(ch)
+            if ch == "\\" and i + 1 < len(sql):
+                out.append(sql[i + 1])
+                i += 2
+                continue
+            if ch == "'":
+                # '' inside a literal is an escaped quote, not the end.
+                if i + 1 < len(sql) and sql[i + 1] == "'":
+                    out.append("'")
+                    i += 2
+                    continue
+                in_string = False
+            i += 1
+            continue
+        if ch == "'":
+            in_string = True
+            out.append(ch)
+            i += 1
+            continue
+        if sql[i : i + 3] in ("-- ", "--\t", "--\n") or sql[i:] == "--":
+            j = sql.find("\n", i)
+            if j == -1:
+                break
+            out.append("\n")
+            i = j + 1
+            continue
+        out.append(ch)
+        i += 1
+    return "".join(out)
 
 
 def main() -> int:
@@ -155,8 +209,16 @@ def main() -> int:
             # lie about the dashboard. Skipped — but said out loud on stderr,
             # because silently dropping queries makes a partial check look
             # like a complete one.
-            if "$" in query:
-                unresolved = set(re.findall(r"\$\{?\w+", query))
+            # A variable is `$` followed by a word character; a regex
+            # end-anchor is `$` followed by a quote or end of string. Testing
+            # `"$" in query` cannot tell them apart, so every panel carrying
+            # the issue_key guard `'^[A-Z][A-Z0-9]+-[0-9]+$'` was skipped —
+            # 33 of them, i.e. exactly the queries written most carefully,
+            # and verify.sh reported success having checked none (WHO-242).
+            # The tell was the message itself: findall matched nothing, so it
+            # printed "unresolved" with an empty list.
+            unresolved = set(LEFTOVER_VARIABLE.findall(query))
+            if unresolved:
                 print(
                     f"  (skipped a panel query: unresolved {', '.join(sorted(unresolved))})",
                     file=sys.stderr,
