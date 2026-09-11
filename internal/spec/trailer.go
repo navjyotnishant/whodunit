@@ -94,6 +94,14 @@ func (c ChangedBy) Explain() string {
 }
 
 // Status is the top-level attribution status.
+//
+// A new value here is a downstream event, not just a local one:
+// deploy/devlake/check-status-set.py mirrors this set against every
+// dashboard panel's own status list, and whodunit-mcp vendors those panels'
+// SQL verbatim as its query catalog. Adding a status without updating both
+// reproduces WHO-218 — a status silently joins the wrong side of an
+// existing IN(...)/NOT IN(...) set and every panel or catalog query built
+// on it renders a plausible, wrong number rather than an error.
 type Status string
 
 const (

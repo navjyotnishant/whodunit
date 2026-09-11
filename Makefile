@@ -76,6 +76,8 @@ dashboards:
 	@deploy/devlake/check-panel-descriptions.py
 	@deploy/devlake/check-issue-key-guard.py
 	@deploy/devlake/check-panel-results.py --if-available
+	@deploy/devlake/build-catalog.py --check
+	@deploy/devlake/check-catalog-fidelity.py
 
 clean:
 	@rm -rf dist
