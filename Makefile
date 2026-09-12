@@ -78,6 +78,7 @@ dashboards:
 	@deploy/devlake/check-panel-results.py --if-available
 	@deploy/devlake/build-catalog.py --check
 	@deploy/devlake/check-catalog-fidelity.py
+	@deploy/devlake/test_build_catalog.py
 
 clean:
 	@rm -rf dist

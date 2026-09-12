@@ -80,6 +80,16 @@ TIME_FILTER = re.compile(r"\$__timeFilter\(([^)]+)\)")
 # of the ''+00:00'' bug panel-sql.py exists to work around, and it is silent.
 VARIABLE = re.compile(r"'\$\{(\w+)(?::\w+)?\}'|'\$(\w+)'|\$\{(\w+)(?::\w+)?\}|\$(\w+)")
 
+# WHO-254's min_n: a query's own HAVING COUNT(...) >= N (or a named alias
+# like `n`) is a threshold the query author already decided on and already
+# enforces — extracting it is reading a fact out of the SQL, not guessing
+# one. Deliberately narrow to this exact HAVING shape rather than trying to
+# recognize every way a query could withhold small groups; a query that
+# enforces a minimum some other way (a WHERE on a precomputed count, say)
+# is not detected, and that entry simply carries no min_n rather than a
+# wrong one.
+MIN_N = re.compile(r"HAVING\s+(?:COUNT\((?:DISTINCT\s+)?[^)]*\)|n)\s*>=\s*(\d+)", re.I)
+
 # A leftover Grafana variable, as distinct from a `$` that is regex syntax.
 #
 # This distinction is the whole check. `'^[A-Z][A-Z0-9]+-[0-9]+$'` is the
@@ -99,6 +109,138 @@ COMBINED = re.compile(
     r"\$__unixEpochFrom\(\)|\$__unixEpochTo\(\)|\$__timeFilter\([^)]+\)|"
     r"'\$\{(\w+)(?::\w+)?\}'|'\$(\w+)'|\$\{(\w+)(?::\w+)?\}|\$(\w+)"
 )
+
+# The two epoch-macro names never appear in any dashboard's templating.list —
+# they come from $__unixEpochFrom()/$__unixEpochTo(), not a Grafana variable —
+# so their schema has no source to read and is declared here once. time_from
+# and time_from_dt bound the same window in two literal shapes (WHO-248's
+# "requires_with" case): a NULL/absent time_from_dt lets $__timeFilter compare
+# a DATETIME column to two epoch integers, which MySQL accepts and silently
+# returns nothing, which is exactly the "day"/grain failure this schema exists
+# to prevent one level up.
+TIME_PARAM_SCHEMA = {
+    "time_from": {
+        "type": "string",
+        "required": True,
+        "format": "iso-date",
+        "example": "2026-08-11",
+        "description": "Start of the reporting window (epoch macro).",
+    },
+    "time_to": {
+        "type": "string",
+        "required": True,
+        "format": "iso-date",
+        "example": "2026-09-11",
+        "description": "End of the reporting window (epoch macro).",
+    },
+    "time_from_dt": {
+        "type": "string",
+        "required": True,
+        "format": "iso-date",
+        "example": "2026-08-11",
+        "requires_with": ["time_to_dt"],
+        "description": (
+            "Start of the reporting window, as a DATETIME literal — required "
+            "alongside time_from_dt whenever a query also binds time_from/"
+            "time_to for the same window; see time_from."
+        ),
+    },
+    "time_to_dt": {
+        "type": "string",
+        "required": True,
+        "format": "iso-date",
+        "example": "2026-09-11",
+        "requires_with": ["time_from_dt"],
+        "description": "End of the reporting window, as a DATETIME literal.",
+    },
+}
+
+
+def custom_allowed(query):
+    """Parse a `type: "custom"` variable's `label : value,label : value` query
+    into its allowed values (the value half of each pair).
+
+    Grafana's own custom-variable UI shows the label; the SQL receives the
+    value. A pair with no ` : ` has no separate label — the token itself is
+    the value.
+    """
+    values = []
+    for token in (query or "").split(","):
+        token = token.strip()
+        if not token:
+            continue
+        _, _, value = token.rpartition(" : ")
+        values.append((value or token).strip())
+    return values
+
+
+def variable_param_schema(variable):
+    """Build one WHO-248 parameter-schema entry from a Grafana templating
+    variable definition (see dashboards' `templating.list[]`).
+
+    `type: "custom"` variables enumerate their own domain (grain, tz,
+    evidence) — that becomes `allowed`. `type: "textbox"` variables carry a
+    literal default (seats, hourly_rate) rather than a domain. `type: "query"`
+    variables (contributor, team, repo, board, agent) are populated from a
+    live SQL query and have no static domain here; WHO-250's list_dimensions
+    is the source for those, not this generator — a dashboard's own query
+    result can change between builds, which is exactly the kind of thing this
+    script does not re-run against a live database.
+
+    An `allValue` of `None` (Grafana's un-set default, distinct from the
+    string "null") means the variable has no wildcard — `board` is exactly
+    this case, and passing "__all__" for it is a validation error, not a
+    style choice.
+    """
+    name = variable.get("name")
+    var_type = variable.get("type")
+    schema = {"name": name, "type": "string", "required": True}
+
+    all_value = variable.get("allValue")
+    if all_value:
+        schema["required"] = False
+        schema["default"] = all_value
+        schema["description"] = (
+            f"Filter by {name}; {all_value!r} (the default) matches everything."
+        )
+
+    if var_type == "custom":
+        allowed = custom_allowed(variable.get("query"))
+        if allowed:
+            schema["allowed"] = sorted(set(allowed) | ({all_value} if all_value else set()))
+        if name == "grain":
+            schema["format"] = "mysql-date-format"
+            schema["description"] = (
+                "Bucket size for the time series, as a MySQL DATE_FORMAT "
+                "mask — not a word like \"day\"."
+            )
+            schema["example"] = "%Y-%m-%d"
+    elif var_type == "textbox":
+        schema["type"] = "number"
+        schema["required"] = False
+        default = variable.get("query")
+        if default is not None:
+            schema["default"] = default
+            schema["example"] = default
+    elif var_type == "query":
+        schema["format"] = "opaque-id"
+        if all_value is None:
+            schema.setdefault(
+                "description",
+                f"{name} has no catch-all value — omitting it is not the "
+                "same as matching everything.",
+            )
+
+    return schema
+
+
+def dashboard_param_schemas(dashboard):
+    """Map every templating variable in one dashboard to its param schema."""
+    return {
+        v["name"]: variable_param_schema(v)
+        for v in dashboard.get("templating", {}).get("list", [])
+        if v.get("name")
+    }
 
 
 def panels(dashboard):
@@ -205,6 +347,35 @@ def strip_line_comments(sql):
     return "".join(out)
 
 
+def param_schema_list(names, dashboard_schemas):
+    """Turn a positional (possibly duplicated) param name list into WHO-248's
+    typed, deduplicated schema — order-preserving on first occurrence.
+
+    `params` stays positional for SQL binding (see parameterize()); this is a
+    second, human/agent-facing view derived from it, never the reverse — the
+    generated SQL is still the source of truth for what actually gets bound.
+    """
+    seen = set()
+    out = []
+    for name in names:
+        if name in seen:
+            continue
+        seen.add(name)
+        if name in TIME_PARAM_SCHEMA:
+            out.append({"name": name, **TIME_PARAM_SCHEMA[name]})
+        elif name in dashboard_schemas:
+            out.append(dashboard_schemas[name])
+        else:
+            # A param name that is neither a time macro nor a declared
+            # dashboard variable. Emitting an untyped placeholder rather than
+            # dropping it keeps every SQL placeholder accounted for in
+            # params_schema, at the cost of that one entry being no more
+            # informative than the old flat list — better than silently
+            # losing a bindable name.
+            out.append({"name": name, "type": "string", "required": True})
+    return out
+
+
 def entries():
     """Yield one catalog entry per query panel, and a list of skips."""
     out, skipped, literal_q = [], [], []
@@ -212,6 +383,7 @@ def entries():
     for path in sorted(SOURCE.glob("*.json")):
         dashboard = json.loads(path.read_text())
         title = dashboard.get("title") or path.stem
+        dashboard_schemas = dashboard_param_schemas(dashboard)
 
         for panel in panels(dashboard):
             if panel.get("type") in EXEMPT_TYPES:
@@ -242,17 +414,28 @@ def entries():
                     )
                     continue
 
-                out.append(
-                    {
-                        "id": slug(title, panel.get("title") or ""),
-                        "dashboard": title,
-                        "title": panel.get("title") or "",
-                        "description": (panel.get("description") or "").strip(),
-                        "chart_type": panel.get("type"),
-                        "params": params,
-                        "sql": query,
-                    }
-                )
+                entry = {
+                    "id": slug(title, panel.get("title") or ""),
+                    "dashboard": title,
+                    "title": panel.get("title") or "",
+                    "description": (panel.get("description") or "").strip(),
+                    "chart_type": panel.get("type"),
+                    # Positional, duplicated, order-significant — what
+                    # the driver binds against. Kept as-is (WHO-248):
+                    # existing consumers read this as a flat name list,
+                    # and params_schema is additive, not a replacement.
+                    "params": params,
+                    # Typed, deduplicated, human/agent-facing (WHO-248).
+                    "params_schema": param_schema_list(params, dashboard_schemas),
+                    "sql": query,
+                }
+                min_n_match = MIN_N.search(query)
+                if min_n_match:
+                    # WHO-254: the query's own enforced minimum group size —
+                    # present only when the SQL actually declares one, so
+                    # its absence here means "not detected", never "zero".
+                    entry["min_n"] = int(min_n_match.group(1))
+                out.append(entry)
                 break  # one query per panel; the rest are overlays
 
     return out, skipped, literal_q
@@ -267,6 +450,56 @@ def slug(dashboard, title):
     """
     text = f"{dashboard} {title}".lower()
     return re.sub(r"-+", "-", re.sub(r"[^a-z0-9]+", "-", text)).strip("-")
+
+
+def dimensions():
+    """Collect every `type: "query"` templating variable across all
+    dashboards into one deduplicated map, for WHO-250's list_dimensions.
+
+    A query-type variable (board, contributor, team, repo, agent) has no
+    static domain — its values come from running its own SQL against the
+    lake, which is exactly what run_metric already does for a catalog
+    entry's SQL, and exactly what this generator does NOT do (it never
+    connects to a database; see the module docstring). So this function
+    does not resolve values — it collects the DISCOVERY QUERY itself, which
+    whodunit-mcp's list_dimensions tool runs live at call time.
+
+    A name that appears with more than one distinct query across dashboards
+    (only `board` today: an unfiltered variant and a Linear/Jira-only
+    variant used by the exec dashboards) resolves to the broadest one — a
+    caller discovering values should see every board that exists, not only
+    the subset one dashboard happened to filter to. run_metric's own SQL
+    still applies whatever filter that metric's query declares regardless
+    of what list_dimensions returned.
+    """
+    by_name = {}
+    for path in sorted(SOURCE.glob("*.json")):
+        dashboard = json.loads(path.read_text())
+        for v in dashboard.get("templating", {}).get("list", []):
+            if v.get("type") != "query" or not v.get("name"):
+                continue
+            name, query = v["name"], v.get("query") or ""
+            existing = by_name.get(name)
+            # Shorter wins: a WHERE clause narrows the result set, so the
+            # filtered variant is the LONGER query text, not the broader
+            # one. board's exec-dashboard variant adds a WHERE; its
+            # unfiltered form (no filter at all) is what a caller
+            # discovering values should see.
+            if existing is None or len(query) < len(existing["query"]):
+                by_name[name] = {"query": query, "label": v.get("label") or name}
+
+    out = {}
+    for name, info in sorted(by_name.items()):
+        out[name] = {
+            # __text/__value are Grafana's own required aliases for a
+            # query-variable's label/value columns (see the templating
+            # queries themselves) — list_dimensions runs this SQL as-is and
+            # reads those two column names back.
+            "label_column": "__text",
+            "value_column": "__value",
+            "query": " ".join(info["query"].split()),
+        }
+    return out
 
 
 def render():
@@ -296,6 +529,7 @@ def render():
         "dashboard_count": len(list(SOURCE.glob("*.json"))),
         "metric_count": len(catalog),
         "metrics": catalog,
+        "dimensions": dimensions(),
     }
     return json.dumps(payload, indent=2, ensure_ascii=False) + "\n", skipped, literal_q
 
