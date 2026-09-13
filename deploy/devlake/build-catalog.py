@@ -80,15 +80,38 @@ TIME_FILTER = re.compile(r"\$__timeFilter\(([^)]+)\)")
 # of the ''+00:00'' bug panel-sql.py exists to work around, and it is silent.
 VARIABLE = re.compile(r"'\$\{(\w+)(?::\w+)?\}'|'\$(\w+)'|\$\{(\w+)(?::\w+)?\}|\$(\w+)")
 
-# WHO-254's min_n: a query's own HAVING COUNT(...) >= N (or a named alias
-# like `n`) is a threshold the query author already decided on and already
-# enforces — extracting it is reading a fact out of the SQL, not guessing
-# one. Deliberately narrow to this exact HAVING shape rather than trying to
+# WHO-254's min_n: a query's own enforced minimum group size is a
+# threshold the query author already decided on and already enforces —
+# extracting it is reading a fact out of the SQL, not guessing one.
+# Deliberately narrow to these two exact shapes rather than trying to
 # recognize every way a query could withhold small groups; a query that
-# enforces a minimum some other way (a WHERE on a precomputed count, say)
-# is not detected, and that entry simply carries no min_n rather than a
-# wrong one.
-MIN_N = re.compile(r"HAVING\s+(?:COUNT\((?:DISTINCT\s+)?[^)]*\)|n)\s*>=\s*(\d+)", re.I)
+# enforces a minimum some other way is not detected, and that entry simply
+# carries no min_n rather than a wrong one.
+#
+# Two real shapes exist in the corpus:
+#   1. HAVING COUNT(...) >= N   — filters GROUP BY rows below N out entirely.
+#   2. CASE WHEN COUNT(*) < N THEN NULL ... END — keeps the row but nulls
+#      the computed value (ai-impact-on-delivery-adoption-correlation's
+#      three UNION ALL branches: correlation needs at least 10 paired
+#      weeks or the coefficient is meaningless, but the row itself, and
+#      its own COUNT(*) AS weeks, still comes back). Both are "the query
+#      author already decided a minimum sample size"; the difference is
+#      whether the whole row disappears or just the value does.
+MIN_N_HAVING = re.compile(r"HAVING\s+(?:COUNT\((?:DISTINCT\s+)?[^)]*\)|n)\s*>=\s*(\d+)", re.I)
+MIN_N_CASE_NULL = re.compile(r"COUNT\(\*\)\s*<\s*(\d+)\s*THEN\s+NULL", re.I)
+
+
+def min_n(sql):
+    """Return the query's own enforced minimum group size, or None.
+
+    A query can state its threshold more than once (the correlation
+    metric's three UNION ALL branches each repeat the same CASE WHEN) —
+    take the maximum found, the most conservative real requirement, rather
+    than the first match, so occurrence order in the SQL never matters.
+    """
+    values = [int(n) for n in MIN_N_HAVING.findall(sql)]
+    values += [int(n) for n in MIN_N_CASE_NULL.findall(sql)]
+    return max(values) if values else None
 
 # A leftover Grafana variable, as distinct from a `$` that is regex syntax.
 #
@@ -429,12 +452,12 @@ def entries():
                     "params_schema": param_schema_list(params, dashboard_schemas),
                     "sql": query,
                 }
-                min_n_match = MIN_N.search(query)
-                if min_n_match:
+                n = min_n(query)
+                if n is not None:
                     # WHO-254: the query's own enforced minimum group size —
                     # present only when the SQL actually declares one, so
                     # its absence here means "not detected", never "zero".
-                    entry["min_n"] = int(min_n_match.group(1))
+                    entry["min_n"] = n
                 out.append(entry)
                 break  # one query per panel; the rest are overlays
 

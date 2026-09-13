@@ -94,17 +94,27 @@ def demo():
         dims["board"],
     )
 
-    # WHO-254: min_n is present only where the query's own HAVING clause
+    # WHO-254: min_n is present only where the query's own threshold shape
+    # (HAVING COUNT(...) >= N, or CASE WHEN COUNT(*) < N THEN NULL)
     # declares a minimum group size, grounded in the real SQL rather than
     # guessed.
     with_min_n = {m["id"]: m["min_n"] for m in metrics.values() if "min_n" in m}
     assert with_min_n.get("ai-attribution-evidence-agent-share-by-work-type") == 5, with_min_n
     for mid, n in with_min_n.items():
-        assert f">= {n}" in metrics[mid]["sql"] or f">={n}" in metrics[mid]["sql"], (mid, n, metrics[mid]["sql"])
-    # A metric with no HAVING threshold must carry no min_n at all — its
+        sql = metrics[mid]["sql"]
+        assert (
+            f">= {n}" in sql or f">={n}" in sql or f"< {n} THEN NULL" in sql.upper()
+        ), (mid, n, sql)
+    # The CASE WHEN COUNT(*) < N THEN NULL shape — a row survives but the
+    # computed value is nulled, distinct from HAVING's whole-row filtering.
+    assert with_min_n.get("ai-impact-on-delivery-adoption-correlation") == 10, with_min_n
+    # A metric with no threshold shape at all must carry no min_n — its
     # absence is "not detected", never a claimed zero.
-    no_having = next(m for m in metrics.values() if "HAVING" not in m["sql"].upper())
-    assert "min_n" not in no_having, no_having["id"]
+    no_threshold = next(
+        m for m in metrics.values()
+        if "HAVING" not in m["sql"].upper() and "THEN NULL" not in m["sql"].upper()
+    )
+    assert "min_n" not in no_threshold, no_threshold["id"]
 
     print(f"ok: {len(metrics)} metrics, params_schema present on all, {len(dims)} dimensions, {len(with_min_n)} with min_n, {len(skipped)} skipped panels")
 
