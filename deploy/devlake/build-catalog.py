@@ -399,6 +399,35 @@ def param_schema_list(names, dashboard_schemas):
     return out
 
 
+def sql_hash(normalized_sql):
+    """A short, stable fingerprint of a query's normalised SQL text.
+
+    normalized_sql must already be whitespace-collapsed and comment-
+    stripped (parameterize()'s output) — hashing raw SQL would split two
+    panels that are the same query formatted differently across dashboard
+    JSON files, defeating the point.
+    """
+    return hashlib.sha256(normalized_sql.encode("utf-8")).hexdigest()[:16]
+
+
+def params_schema_hash(schema):
+    """A stable fingerprint of a metric's declared parameter contract.
+
+    WHO-257's dedup key is (sql_hash, params_schema_hash) together, not
+    sql_hash alone: two panels can share identical SQL text but declare
+    different parameters (a stricter or looser filter set on an otherwise
+    identical query), which is a different contract even when the
+    underlying measure looks the same — not a duplicate to merge.
+
+    Keyed on name+type+required only, deliberately excluding description/
+    default/allowed/example — two schema entries that agree on what a
+    caller must supply are the same contract even if their prose or
+    defaults differ cosmetically.
+    """
+    fingerprint = sorted((p["name"], p["type"], p["required"]) for p in schema)
+    return hashlib.sha256(json.dumps(fingerprint).encode("utf-8")).hexdigest()[:16]
+
+
 def entries():
     """Yield one catalog entry per query panel, and a list of skips."""
     out, skipped, literal_q = [], [], []
@@ -437,6 +466,7 @@ def entries():
                     )
                     continue
 
+                schema = param_schema_list(params, dashboard_schemas)
                 entry = {
                     "id": slug(title, panel.get("title") or ""),
                     "dashboard": title,
@@ -449,8 +479,23 @@ def entries():
                     # and params_schema is additive, not a replacement.
                     "params": params,
                     # Typed, deduplicated, human/agent-facing (WHO-248).
-                    "params_schema": param_schema_list(params, dashboard_schemas),
+                    "params_schema": schema,
                     "sql": query,
+                    # WHO-257 Stage 1: the fingerprint two entries need to
+                    # share before they're the same measure. `query` here
+                    # is already normalised — parameterize() already
+                    # collapsed whitespace and stripped comments — so two
+                    # panels differing only in cosmetic SQL formatting hash
+                    # identically without extra work. sql_hash alone is
+                    # insufficient: two panels can share SQL text but
+                    # declare different parameters, which is not the same
+                    # measure. See sql_hash()/params_schema_hash() below
+                    # for why they're computed and reported separately
+                    # rather than pre-combined — Stage 1 is explicitly
+                    # about inspecting the grouping before anything acts
+                    # on it, and a combined hash can't be eyeballed.
+                    "sql_hash": sql_hash(query),
+                    "params_schema_hash": params_schema_hash(schema),
                 }
                 n = min_n(query)
                 if n is not None:

@@ -116,7 +116,34 @@ def demo():
     )
     assert "min_n" not in no_threshold, no_threshold["id"]
 
-    print(f"ok: {len(metrics)} metrics, params_schema present on all, {len(dims)} dimensions, {len(with_min_n)} with min_n, {len(skipped)} skipped panels")
+    # WHO-257 Stage 1: sql_hash/params_schema_hash present on every entry,
+    # and the known duplicate pair (identical SQL, identical params) groups
+    # together while a known false-positive candidate (same-sounding title,
+    # different SQL/params) does not.
+    for m in metrics.values():
+        assert "sql_hash" in m and "params_schema_hash" in m, m["id"]
+
+    def key(mid):
+        m = metrics[mid]
+        return (m["sql_hash"], m["params_schema_hash"])
+
+    assert key("adoption-coverage") == key("adoption-rollout-coverage"), (
+        "these two share byte-identical SQL and params — must group"
+    )
+    # ai-in-engineering-leadership-view's rework-rate variant adds
+    # evidence/repo filters the others don't have — a real, different
+    # contract, not a duplicate, even though the title sounds the same.
+    if "ai-in-engineering-leadership-view-rework-rate-each-side" in metrics:
+        assert key("ai-in-engineering-leadership-view-rework-rate-each-side") != key(
+            "productivity-five-definitions-rework-rate-each-side"
+        ), "different declared parameters must not be grouped as the same measure"
+
+    dup_groups = {}
+    for m in metrics.values():
+        dup_groups.setdefault((m["sql_hash"], m["params_schema_hash"]), []).append(m["id"])
+    duplicated = {k: v for k, v in dup_groups.items() if len(v) > 1}
+
+    print(f"ok: {len(metrics)} metrics, params_schema present on all, {len(dims)} dimensions, {len(with_min_n)} with min_n, {len(dup_groups)} distinct measures ({len(duplicated)} duplicate groups), {len(skipped)} skipped panels")
 
 
 if __name__ == "__main__":
