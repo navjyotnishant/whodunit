@@ -570,6 +570,40 @@ def dimensions():
     return out
 
 
+def annotate_canonical_groups(catalog):
+    """WHO-257 Stage 2: group entries sharing (sql_hash, params_schema_hash)
+    and stamp each with canonical_id/also_known_as, in place.
+
+    canonical_id is the shortest id in the group (ties broken
+    alphabetically) — deterministic across regenerations regardless of
+    dashboard file iteration order, and independent of which dashboard
+    happened to be read first. Every member of a group — including the
+    canonical one — gets both fields, so a caller reading any one of the
+    duplicate ids sees the full picture without having to already know
+    which id is canonical.
+
+    A group of size 1 (the common case: 238 of 279 ids are alone in their
+    group) gets neither field — nothing to disambiguate, and the absence
+    of canonical_id already says "this id is not known to duplicate
+    anything", consistent with the rest of the catalog's convention of
+    omitting a field rather than asserting a value with no basis (see
+    Metric.MinN's own doc comment on the same convention).
+    """
+    groups = {}
+    for e in catalog:
+        groups.setdefault((e["sql_hash"], e["params_schema_hash"]), []).append(e)
+
+    for members in groups.values():
+        if len(members) < 2:
+            continue
+        ids = sorted(m["id"] for m in members)
+        canonical = min(ids, key=lambda i: (len(i), i))
+        for m in members:
+            m["canonical_id"] = canonical
+            m["also_known_as"] = sorted(i for i in ids if i != m["id"])
+            m["dashboards"] = sorted({mm["dashboard"] for mm in members})
+
+
 def render():
     catalog, skipped, literal_q = entries()
 
@@ -584,6 +618,8 @@ def render():
             file=sys.stderr,
         )
         raise SystemExit(1)
+
+    annotate_canonical_groups(catalog)
 
     # The hash covers the SOURCE dashboards, not this catalog: it is what a
     # downstream consumer pins to, so it must change when the dashboards

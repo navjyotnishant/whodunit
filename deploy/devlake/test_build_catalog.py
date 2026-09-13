@@ -143,6 +143,25 @@ def demo():
         dup_groups.setdefault((m["sql_hash"], m["params_schema_hash"]), []).append(m["id"])
     duplicated = {k: v for k, v in dup_groups.items() if len(v) > 1}
 
+    # WHO-257 Stage 2: canonical_id/also_known_as present on every member
+    # of a duplicate group (including the canonical one itself), absent on
+    # a genuine singleton.
+    for ids in duplicated.values():
+        canonical_ids = {metrics[i]["canonical_id"] for i in ids}
+        assert len(canonical_ids) == 1, (ids, canonical_ids)
+        (canonical,) = canonical_ids
+        assert canonical in ids, (canonical, ids)
+        assert canonical == min(ids, key=lambda i: (len(i), i)), (canonical, ids)
+        for i in ids:
+            assert set(metrics[i]["also_known_as"]) == set(ids) - {i}, (i, metrics[i]["also_known_as"])
+
+    singleton = next(
+        m for m in metrics.values()
+        if (m["sql_hash"], m["params_schema_hash"]) not in duplicated
+    )
+    assert "canonical_id" not in singleton, singleton["id"]
+    assert "also_known_as" not in singleton, singleton["id"]
+
     print(f"ok: {len(metrics)} metrics, params_schema present on all, {len(dims)} dimensions, {len(with_min_n)} with min_n, {len(dup_groups)} distinct measures ({len(duplicated)} duplicate groups), {len(skipped)} skipped panels")
 
 

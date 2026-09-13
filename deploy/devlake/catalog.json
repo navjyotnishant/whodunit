@@ -60,7 +60,15 @@
       ],
       "sql": "SELECT ROUND(100.0 * COUNT(DISTINCT w.commit_sha) / NULLIF(COUNT(DISTINCT c.sha), 0), 1) AS v FROM commits c JOIN repo_commits rc ON rc.commit_sha = c.sha JOIN whodunit_commits seen ON seen.commit_sha IN ( SELECT commit_sha FROM repo_commits WHERE (? = '__all__' OR seen.method = ?) AND repo_id = rc.repo_id) LEFT JOIN whodunit_commits w ON w.commit_sha = c.sha LEFT JOIN whodunit_repos r ON r.repo_id = w.repo_id WHERE (? = '__all__' OR r.contributor = ? OR w.commit_sha IS NULL) AND c.authored_date BETWEEN FROM_UNIXTIME(?) AND FROM_UNIXTIME(?)",
       "sql_hash": "72d45e1f9f825342",
-      "params_schema_hash": "6b8c85b5be7cbfda"
+      "params_schema_hash": "6b8c85b5be7cbfda",
+      "canonical_id": "adoption-coverage",
+      "also_known_as": [
+        "adoption-coverage"
+      ],
+      "dashboards": [
+        "Adoption",
+        "Adoption — Rollout"
+      ]
     },
     {
       "id": "adoption-rollout-contributors",
@@ -84,7 +92,15 @@
       ],
       "sql": "SELECT COUNT(DISTINCT contributor) AS contributors FROM whodunit_repos WHERE contributor <> '' AND (? = '__all__' OR contributor = ?)",
       "sql_hash": "0762295cc6f812a3",
-      "params_schema_hash": "4a729c3608370f17"
+      "params_schema_hash": "4a729c3608370f17",
+      "canonical_id": "adoption-contributors",
+      "also_known_as": [
+        "adoption-contributors"
+      ],
+      "dashboards": [
+        "Adoption",
+        "Adoption — Rollout"
+      ]
     },
     {
       "id": "adoption-rollout-active-this-week",
@@ -108,7 +124,15 @@
       ],
       "sql": "SELECT COUNT(DISTINCT e.contributor) v FROM whodunit_events e LEFT JOIN whodunit_identities wi ON wi.alias = e.contributor WHERE e.observed_at >= (UNIX_TIMESTAMP() - 7*86400) * 1000000000 AND (? = '__all__' OR COALESCE(wi.canonical, e.contributor) = ?)",
       "sql_hash": "5d375162e1a19709",
-      "params_schema_hash": "4a729c3608370f17"
+      "params_schema_hash": "4a729c3608370f17",
+      "canonical_id": "adoption-active-this-week",
+      "also_known_as": [
+        "adoption-active-this-week"
+      ],
+      "dashboards": [
+        "Adoption",
+        "Adoption — Rollout"
+      ]
     },
     {
       "id": "adoption-rollout-active-this-month",
@@ -132,7 +156,15 @@
       ],
       "sql": "SELECT COUNT(DISTINCT e.contributor) v FROM whodunit_events e LEFT JOIN whodunit_identities wi ON wi.alias = e.contributor WHERE e.observed_at >= (UNIX_TIMESTAMP() - 30*86400) * 1000000000 AND (? = '__all__' OR COALESCE(wi.canonical, e.contributor) = ?)",
       "sql_hash": "ff752a34ef3a6aba",
-      "params_schema_hash": "4a729c3608370f17"
+      "params_schema_hash": "4a729c3608370f17",
+      "canonical_id": "adoption-active-this-month",
+      "also_known_as": [
+        "adoption-active-this-month"
+      ],
+      "dashboards": [
+        "Adoption",
+        "Adoption — Rollout"
+      ]
     },
     {
       "id": "adoption-rollout-stickiness",
@@ -158,7 +190,15 @@
       ],
       "sql": "SELECT ROUND( (SELECT COUNT(DISTINCT e.contributor) FROM whodunit_events e WHERE e.observed_at >= (UNIX_TIMESTAMP() - 86400) * 1000000000 AND (? = '__all__' OR e.contributor = ?)) * 100.0 / NULLIF((SELECT COUNT(DISTINCT e.contributor) FROM whodunit_events e WHERE e.observed_at >= (UNIX_TIMESTAMP() - 30*86400) * 1000000000 AND (? = '__all__' OR e.contributor = ?)), 0), 1) v",
       "sql_hash": "de3104e6118a4518",
-      "params_schema_hash": "4a729c3608370f17"
+      "params_schema_hash": "4a729c3608370f17",
+      "canonical_id": "adoption-stickiness",
+      "also_known_as": [
+        "adoption-stickiness"
+      ],
+      "dashboards": [
+        "Adoption",
+        "Adoption — Rollout"
+      ]
     },
     {
       "id": "adoption-rollout-adoption-with-the-people-behind-it",
@@ -788,7 +828,15 @@
       ],
       "sql": "SELECT ROUND(100.0*SUM(e.outcome='accepted')/NULLIF(SUM(e.outcome IN ('accepted','rejected','failed')),0),1) v FROM whodunit_events e LEFT JOIN whodunit_identities wi ON wi.alias = e.contributor WHERE (? = '__all__' OR COALESCE(wi.canonical, e.contributor) = ?) AND e.observed_at BETWEEN ? * 1000000000 AND ? * 1000000000",
       "sql_hash": "6329c9065c886745",
-      "params_schema_hash": "c91f205619b26982"
+      "params_schema_hash": "c91f205619b26982",
+      "canonical_id": "adoption-acceptance-rate",
+      "also_known_as": [
+        "adoption-acceptance-rate"
+      ],
+      "dashboards": [
+        "Adoption",
+        "Adoption — Rollout"
+      ]
     },
     {
       "id": "adoption-rollout-decided-calls",
@@ -830,7 +878,15 @@
       ],
       "sql": "SELECT COUNT(*) v FROM whodunit_events e LEFT JOIN whodunit_identities wi ON wi.alias = e.contributor WHERE e.outcome IN ('accepted','rejected','failed') AND (? = '__all__' OR COALESCE(wi.canonical, e.contributor) = ?) AND e.observed_at BETWEEN ? * 1000000000 AND ? * 1000000000",
       "sql_hash": "568bf459b7c72523",
-      "params_schema_hash": "c91f205619b26982"
+      "params_schema_hash": "c91f205619b26982",
+      "canonical_id": "adoption-decided-calls",
+      "also_known_as": [
+        "adoption-decided-calls"
+      ],
+      "dashboards": [
+        "Adoption",
+        "Adoption — Rollout"
+      ]
     },
     {
       "id": "adoption-rollout-undecided",
@@ -872,7 +928,15 @@
       ],
       "sql": "SELECT COUNT(*) v FROM whodunit_events e LEFT JOIN whodunit_identities wi ON wi.alias = e.contributor WHERE e.outcome NOT IN ('accepted','rejected','failed') AND (? = '__all__' OR COALESCE(wi.canonical, e.contributor) = ?) AND e.observed_at BETWEEN ? * 1000000000 AND ? * 1000000000",
       "sql_hash": "0142b85efa867663",
-      "params_schema_hash": "c91f205619b26982"
+      "params_schema_hash": "c91f205619b26982",
+      "canonical_id": "adoption-undecided",
+      "also_known_as": [
+        "adoption-undecided"
+      ],
+      "dashboards": [
+        "Adoption",
+        "Adoption — Rollout"
+      ]
     },
     {
       "id": "adoption-rollout-acceptance-by-tool",
@@ -914,7 +978,15 @@
       ],
       "sql": "SELECT e.tool AS `Tool`, SUM(e.outcome='accepted') AS `Accepted`, SUM(e.outcome='rejected') AS `Rejected`, SUM(e.outcome='failed') AS `Failed`, SUM(e.outcome NOT IN ('accepted','rejected','failed')) AS `Unknown`, SUM(e.outcome IN ('accepted','rejected','failed')) AS `Decided`, ROUND(100.0*SUM(e.outcome='accepted')/NULLIF(SUM(e.outcome IN ('accepted','rejected','failed')),0),1) AS `Accept %` FROM whodunit_events e LEFT JOIN whodunit_identities wi ON wi.alias = e.contributor WHERE (? = '__all__' OR COALESCE(wi.canonical, e.contributor) = ?) AND e.observed_at BETWEEN ? * 1000000000 AND ? * 1000000000 GROUP BY e.tool ORDER BY `Decided` DESC",
       "sql_hash": "b4b8e8700d922941",
-      "params_schema_hash": "c91f205619b26982"
+      "params_schema_hash": "c91f205619b26982",
+      "canonical_id": "adoption-acceptance-by-tool",
+      "also_known_as": [
+        "adoption-acceptance-by-tool"
+      ],
+      "dashboards": [
+        "Adoption",
+        "Adoption — Rollout"
+      ]
     },
     {
       "id": "adoption-coverage",
@@ -973,7 +1045,15 @@
       ],
       "sql": "SELECT ROUND(100.0 * COUNT(DISTINCT w.commit_sha) / NULLIF(COUNT(DISTINCT c.sha), 0), 1) AS v FROM commits c JOIN repo_commits rc ON rc.commit_sha = c.sha JOIN whodunit_commits seen ON seen.commit_sha IN ( SELECT commit_sha FROM repo_commits WHERE (? = '__all__' OR seen.method = ?) AND repo_id = rc.repo_id) LEFT JOIN whodunit_commits w ON w.commit_sha = c.sha LEFT JOIN whodunit_repos r ON r.repo_id = w.repo_id WHERE (? = '__all__' OR r.contributor = ? OR w.commit_sha IS NULL) AND c.authored_date BETWEEN FROM_UNIXTIME(?) AND FROM_UNIXTIME(?)",
       "sql_hash": "72d45e1f9f825342",
-      "params_schema_hash": "6b8c85b5be7cbfda"
+      "params_schema_hash": "6b8c85b5be7cbfda",
+      "canonical_id": "adoption-coverage",
+      "also_known_as": [
+        "adoption-rollout-coverage"
+      ],
+      "dashboards": [
+        "Adoption",
+        "Adoption — Rollout"
+      ]
     },
     {
       "id": "adoption-contributors",
@@ -997,7 +1077,15 @@
       ],
       "sql": "SELECT COUNT(DISTINCT contributor) AS contributors FROM whodunit_repos WHERE contributor <> '' AND (? = '__all__' OR contributor = ?)",
       "sql_hash": "0762295cc6f812a3",
-      "params_schema_hash": "4a729c3608370f17"
+      "params_schema_hash": "4a729c3608370f17",
+      "canonical_id": "adoption-contributors",
+      "also_known_as": [
+        "adoption-rollout-contributors"
+      ],
+      "dashboards": [
+        "Adoption",
+        "Adoption — Rollout"
+      ]
     },
     {
       "id": "adoption-repositories",
@@ -1294,7 +1382,15 @@
       ],
       "sql": "SELECT ROUND(100.0*SUM(e.outcome='accepted')/NULLIF(SUM(e.outcome IN ('accepted','rejected','failed')),0),1) v FROM whodunit_events e LEFT JOIN whodunit_identities wi ON wi.alias = e.contributor WHERE (? = '__all__' OR COALESCE(wi.canonical, e.contributor) = ?) AND e.observed_at BETWEEN ? * 1000000000 AND ? * 1000000000",
       "sql_hash": "6329c9065c886745",
-      "params_schema_hash": "c91f205619b26982"
+      "params_schema_hash": "c91f205619b26982",
+      "canonical_id": "adoption-acceptance-rate",
+      "also_known_as": [
+        "adoption-rollout-acceptance-rate"
+      ],
+      "dashboards": [
+        "Adoption",
+        "Adoption — Rollout"
+      ]
     },
     {
       "id": "adoption-accepted-edits",
@@ -1378,7 +1474,15 @@
       ],
       "sql": "SELECT COUNT(*) v FROM whodunit_events e LEFT JOIN whodunit_identities wi ON wi.alias = e.contributor WHERE e.outcome IN ('accepted','rejected','failed') AND (? = '__all__' OR COALESCE(wi.canonical, e.contributor) = ?) AND e.observed_at BETWEEN ? * 1000000000 AND ? * 1000000000",
       "sql_hash": "568bf459b7c72523",
-      "params_schema_hash": "c91f205619b26982"
+      "params_schema_hash": "c91f205619b26982",
+      "canonical_id": "adoption-decided-calls",
+      "also_known_as": [
+        "adoption-rollout-decided-calls"
+      ],
+      "dashboards": [
+        "Adoption",
+        "Adoption — Rollout"
+      ]
     },
     {
       "id": "adoption-undecided",
@@ -1420,7 +1524,15 @@
       ],
       "sql": "SELECT COUNT(*) v FROM whodunit_events e LEFT JOIN whodunit_identities wi ON wi.alias = e.contributor WHERE e.outcome NOT IN ('accepted','rejected','failed') AND (? = '__all__' OR COALESCE(wi.canonical, e.contributor) = ?) AND e.observed_at BETWEEN ? * 1000000000 AND ? * 1000000000",
       "sql_hash": "0142b85efa867663",
-      "params_schema_hash": "c91f205619b26982"
+      "params_schema_hash": "c91f205619b26982",
+      "canonical_id": "adoption-undecided",
+      "also_known_as": [
+        "adoption-rollout-undecided"
+      ],
+      "dashboards": [
+        "Adoption",
+        "Adoption — Rollout"
+      ]
     },
     {
       "id": "adoption-issues-compared-ai-assisted",
@@ -1602,7 +1714,15 @@
       ],
       "sql": "SELECT e.tool AS `Tool`, SUM(e.outcome='accepted') AS `Accepted`, SUM(e.outcome='rejected') AS `Rejected`, SUM(e.outcome='failed') AS `Failed`, SUM(e.outcome NOT IN ('accepted','rejected','failed')) AS `Unknown`, SUM(e.outcome IN ('accepted','rejected','failed')) AS `Decided`, ROUND(100.0*SUM(e.outcome='accepted')/NULLIF(SUM(e.outcome IN ('accepted','rejected','failed')),0),1) AS `Accept %` FROM whodunit_events e LEFT JOIN whodunit_identities wi ON wi.alias = e.contributor WHERE (? = '__all__' OR COALESCE(wi.canonical, e.contributor) = ?) AND e.observed_at BETWEEN ? * 1000000000 AND ? * 1000000000 GROUP BY e.tool ORDER BY `Decided` DESC",
       "sql_hash": "b4b8e8700d922941",
-      "params_schema_hash": "c91f205619b26982"
+      "params_schema_hash": "c91f205619b26982",
+      "canonical_id": "adoption-acceptance-by-tool",
+      "also_known_as": [
+        "adoption-rollout-acceptance-by-tool"
+      ],
+      "dashboards": [
+        "Adoption",
+        "Adoption — Rollout"
+      ]
     },
     {
       "id": "adoption-evidence-strength",
@@ -1956,7 +2076,15 @@
       ],
       "sql": "SELECT COUNT(DISTINCT e.contributor) v FROM whodunit_events e LEFT JOIN whodunit_identities wi ON wi.alias = e.contributor WHERE e.observed_at >= (UNIX_TIMESTAMP() - 7*86400) * 1000000000 AND (? = '__all__' OR COALESCE(wi.canonical, e.contributor) = ?)",
       "sql_hash": "5d375162e1a19709",
-      "params_schema_hash": "4a729c3608370f17"
+      "params_schema_hash": "4a729c3608370f17",
+      "canonical_id": "adoption-active-this-week",
+      "also_known_as": [
+        "adoption-rollout-active-this-week"
+      ],
+      "dashboards": [
+        "Adoption",
+        "Adoption — Rollout"
+      ]
     },
     {
       "id": "adoption-active-this-month",
@@ -1980,7 +2108,15 @@
       ],
       "sql": "SELECT COUNT(DISTINCT e.contributor) v FROM whodunit_events e LEFT JOIN whodunit_identities wi ON wi.alias = e.contributor WHERE e.observed_at >= (UNIX_TIMESTAMP() - 30*86400) * 1000000000 AND (? = '__all__' OR COALESCE(wi.canonical, e.contributor) = ?)",
       "sql_hash": "ff752a34ef3a6aba",
-      "params_schema_hash": "4a729c3608370f17"
+      "params_schema_hash": "4a729c3608370f17",
+      "canonical_id": "adoption-active-this-month",
+      "also_known_as": [
+        "adoption-rollout-active-this-month"
+      ],
+      "dashboards": [
+        "Adoption",
+        "Adoption — Rollout"
+      ]
     },
     {
       "id": "adoption-stickiness",
@@ -2006,7 +2142,15 @@
       ],
       "sql": "SELECT ROUND( (SELECT COUNT(DISTINCT e.contributor) FROM whodunit_events e WHERE e.observed_at >= (UNIX_TIMESTAMP() - 86400) * 1000000000 AND (? = '__all__' OR e.contributor = ?)) * 100.0 / NULLIF((SELECT COUNT(DISTINCT e.contributor) FROM whodunit_events e WHERE e.observed_at >= (UNIX_TIMESTAMP() - 30*86400) * 1000000000 AND (? = '__all__' OR e.contributor = ?)), 0), 1) v",
       "sql_hash": "de3104e6118a4518",
-      "params_schema_hash": "4a729c3608370f17"
+      "params_schema_hash": "4a729c3608370f17",
+      "canonical_id": "adoption-stickiness",
+      "also_known_as": [
+        "adoption-rollout-stickiness"
+      ],
+      "dashboards": [
+        "Adoption",
+        "Adoption — Rollout"
+      ]
     },
     {
       "id": "adoption-mcp-calls",
@@ -2164,7 +2308,15 @@
       ],
       "sql": "SELECT ROUND(100.0 * COUNT(DISTINCT w.commit_sha) / NULLIF(COUNT(DISTINCT c.sha), 0), 1) AS coverage FROM commits c JOIN repo_commits rc ON rc.commit_sha = c.sha JOIN repo_commits rc2 ON rc2.repo_id = rc.repo_id JOIN whodunit_commits seen ON seen.commit_sha = rc2.commit_sha LEFT JOIN whodunit_commits w ON w.commit_sha = c.sha WHERE c.authored_date BETWEEN FROM_UNIXTIME(?) AND FROM_UNIXTIME(?)",
       "sql_hash": "c6c4c2b0ec8cf2cb",
-      "params_schema_hash": "2d840297b8723b6b"
+      "params_schema_hash": "2d840297b8723b6b",
+      "canonical_id": "ai-attribution-coverage",
+      "also_known_as": [
+        "ai-attribution-coverage"
+      ],
+      "dashboards": [
+        "AI attribution",
+        "AI attribution — Evidence"
+      ]
     },
     {
       "id": "ai-attribution-evidence-penetration",
@@ -2196,7 +2348,15 @@
       ],
       "sql": "SELECT 100.0 * SUM(status = 'assisted') / NULLIF(SUM(status IN ('assisted','unassisted','unmatched')), 0) AS penetration FROM whodunit_commits WHERE committed_at BETWEEN ? * 1000000000 AND ? * 1000000000",
       "sql_hash": "e3ebc457a026caba",
-      "params_schema_hash": "2d840297b8723b6b"
+      "params_schema_hash": "2d840297b8723b6b",
+      "canonical_id": "ai-attribution-penetration",
+      "also_known_as": [
+        "ai-attribution-penetration"
+      ],
+      "dashboards": [
+        "AI attribution",
+        "AI attribution — Evidence"
+      ]
     },
     {
       "id": "ai-attribution-evidence-commits",
@@ -2228,7 +2388,15 @@
       ],
       "sql": "SELECT COUNT(*) AS commits FROM whodunit_commits WHERE committed_at BETWEEN ? * 1000000000 AND ? * 1000000000",
       "sql_hash": "067936ec8ef02c69",
-      "params_schema_hash": "2d840297b8723b6b"
+      "params_schema_hash": "2d840297b8723b6b",
+      "canonical_id": "ai-attribution-commits",
+      "also_known_as": [
+        "ai-attribution-commits"
+      ],
+      "dashboards": [
+        "AI attribution",
+        "AI attribution — Evidence"
+      ]
     },
     {
       "id": "ai-attribution-evidence-median-agent-share",
@@ -2260,7 +2428,15 @@
       ],
       "sql": "SELECT AVG(t.ratio) AS median_share FROM ( SELECT c.ratio, ROW_NUMBER() OVER (ORDER BY c.ratio) AS rn, COUNT(*) OVER () AS n FROM whodunit_commits c WHERE c.ratio IS NOT NULL AND c.committed_at BETWEEN ? * 1000000000 AND ? * 1000000000 ) t WHERE t.rn IN (FLOOR((t.n + 1) / 2), CEIL((t.n + 1) / 2))",
       "sql_hash": "50e53ae57df940e1",
-      "params_schema_hash": "2d840297b8723b6b"
+      "params_schema_hash": "2d840297b8723b6b",
+      "canonical_id": "ai-attribution-median-agent-share",
+      "also_known_as": [
+        "ai-attribution-median-agent-share"
+      ],
+      "dashboards": [
+        "AI attribution",
+        "AI attribution — Evidence"
+      ]
     },
     {
       "id": "ai-attribution-evidence-evidence-mix",
@@ -2292,7 +2468,15 @@
       ],
       "sql": "SELECT CASE WHEN c.method <> 'undetermined' THEN c.method ELSE COALESCE(c.reason, CASE WHEN c.status IN ('uninstrumented','unmatched','unassisted','degraded') THEN c.status END, 'undetermined') END AS state, COUNT(*) AS commits FROM whodunit_commits c WHERE c.committed_at BETWEEN ? * 1000000000 AND ? * 1000000000 GROUP BY CASE WHEN c.method <> 'undetermined' THEN c.method ELSE COALESCE(c.reason, CASE WHEN c.status IN ('uninstrumented','unmatched','unassisted','degraded') THEN c.status END, 'undetermined') END ORDER BY commits DESC",
       "sql_hash": "5d74852dae1721db",
-      "params_schema_hash": "2d840297b8723b6b"
+      "params_schema_hash": "2d840297b8723b6b",
+      "canonical_id": "ai-attribution-evidence-mix",
+      "also_known_as": [
+        "ai-attribution-evidence-mix"
+      ],
+      "dashboards": [
+        "AI attribution",
+        "AI attribution — Evidence"
+      ]
     },
     {
       "id": "ai-attribution-evidence-agent-share-of-lines-per-assisted-commit",
@@ -2570,7 +2754,15 @@
       ],
       "sql": "SELECT FROM_UNIXTIME(FLOOR(c.committed_at / 1000000000 / 86400) * 86400) AS time, CASE WHEN c.method <> 'undetermined' THEN c.method ELSE COALESCE(c.reason, CASE WHEN c.status IN ('uninstrumented','unmatched','unassisted','degraded') THEN c.status END, 'undetermined') END AS metric, COUNT(*) AS value FROM whodunit_commits c WHERE c.committed_at BETWEEN ? * 1000000000 AND ? * 1000000000 GROUP BY time, CASE WHEN c.method <> 'undetermined' THEN c.method ELSE COALESCE(c.reason, CASE WHEN c.status IN ('uninstrumented','unmatched','unassisted','degraded') THEN c.status END, 'undetermined') END ORDER BY time",
       "sql_hash": "2ff6e0be0ca2000f",
-      "params_schema_hash": "2d840297b8723b6b"
+      "params_schema_hash": "2d840297b8723b6b",
+      "canonical_id": "ai-attribution-evidence-mix-over-time",
+      "also_known_as": [
+        "ai-attribution-evidence-mix-over-time"
+      ],
+      "dashboards": [
+        "AI attribution",
+        "AI attribution — Evidence"
+      ]
     },
     {
       "id": "ai-attribution-evidence-most-agent-edited-files",
@@ -2602,7 +2794,15 @@
       ],
       "sql": "SELECT SUBSTRING_INDEX(file, '/', -1) AS file, COUNT(*) AS agent_edits, SUM(lines_added) AS lines_written FROM whodunit_events WHERE file <> '' AND observed_at BETWEEN ? * 1000000000 AND ? * 1000000000 GROUP BY file ORDER BY agent_edits DESC LIMIT 20",
       "sql_hash": "ee4bbf4dd1ede0de",
-      "params_schema_hash": "2d840297b8723b6b"
+      "params_schema_hash": "2d840297b8723b6b",
+      "canonical_id": "ai-attribution-most-agent-edited-files",
+      "also_known_as": [
+        "ai-attribution-most-agent-edited-files"
+      ],
+      "dashboards": [
+        "AI attribution",
+        "AI attribution — Evidence"
+      ]
     },
     {
       "id": "ai-investment-delivery-outcomes-adoption-week-by-week",
@@ -3319,7 +3519,15 @@
       ],
       "sql": "SELECT COALESCE(SUM(s.input_tokens + s.output_tokens + COALESCE(s.cache_read_tokens,0) + COALESCE(s.cache_write_tokens,0)), 0) AS v FROM whodunit_sessions s LEFT JOIN whodunit_identities wi ON wi.alias = s.contributor WHERE s.first_seen BETWEEN ? * 1000000000 AND ? * 1000000000 AND s.input_tokens IS NOT NULL AND (? = '__all__' OR COALESCE(wi.canonical, s.contributor) = ?)",
       "sql_hash": "f0c025bb018b8064",
-      "params_schema_hash": "c91f205619b26982"
+      "params_schema_hash": "c91f205619b26982",
+      "canonical_id": "cost-efficiency-total-tokens",
+      "also_known_as": [
+        "cost-efficiency-total-tokens"
+      ],
+      "dashboards": [
+        "Cost & Efficiency",
+        "Cost & Efficiency — Per model"
+      ]
     },
     {
       "id": "cost-efficiency-per-model-output-tokens",
@@ -3361,7 +3569,15 @@
       ],
       "sql": "SELECT COALESCE(SUM(s.output_tokens), 0) AS v FROM whodunit_sessions s LEFT JOIN whodunit_identities wi ON wi.alias = s.contributor WHERE s.first_seen BETWEEN ? * 1000000000 AND ? * 1000000000 AND s.output_tokens IS NOT NULL AND (? = '__all__' OR COALESCE(wi.canonical, s.contributor) = ?)",
       "sql_hash": "f5df54d6cb41eacd",
-      "params_schema_hash": "c91f205619b26982"
+      "params_schema_hash": "c91f205619b26982",
+      "canonical_id": "cost-efficiency-output-tokens",
+      "also_known_as": [
+        "cost-efficiency-output-tokens"
+      ],
+      "dashboards": [
+        "Cost & Efficiency",
+        "Cost & Efficiency — Per model"
+      ]
     },
     {
       "id": "cost-efficiency-per-model-uncached-input",
@@ -3403,7 +3619,15 @@
       ],
       "sql": "SELECT COALESCE(SUM(s.input_tokens), 0) AS v FROM whodunit_sessions s LEFT JOIN whodunit_identities wi ON wi.alias = s.contributor WHERE s.first_seen BETWEEN ? * 1000000000 AND ? * 1000000000 AND s.input_tokens IS NOT NULL AND (? = '__all__' OR COALESCE(wi.canonical, s.contributor) = ?)",
       "sql_hash": "b757841fff3f6370",
-      "params_schema_hash": "c91f205619b26982"
+      "params_schema_hash": "c91f205619b26982",
+      "canonical_id": "cost-efficiency-uncached-input",
+      "also_known_as": [
+        "cost-efficiency-uncached-input"
+      ],
+      "dashboards": [
+        "Cost & Efficiency",
+        "Cost & Efficiency — Per model"
+      ]
     },
     {
       "id": "cost-efficiency-per-model-cache-reads",
@@ -3445,7 +3669,15 @@
       ],
       "sql": "SELECT COALESCE(SUM(s.cache_read_tokens), 0) AS v FROM whodunit_sessions s LEFT JOIN whodunit_identities wi ON wi.alias = s.contributor WHERE s.first_seen BETWEEN ? * 1000000000 AND ? * 1000000000 AND s.cache_read_tokens IS NOT NULL AND (? = '__all__' OR COALESCE(wi.canonical, s.contributor) = ?)",
       "sql_hash": "50af4874d16bdb61",
-      "params_schema_hash": "c91f205619b26982"
+      "params_schema_hash": "c91f205619b26982",
+      "canonical_id": "cost-efficiency-cache-reads",
+      "also_known_as": [
+        "cost-efficiency-cache-reads"
+      ],
+      "dashboards": [
+        "Cost & Efficiency",
+        "Cost & Efficiency — Per model"
+      ]
     },
     {
       "id": "cost-efficiency-per-model-served-from-cache",
@@ -3487,7 +3719,15 @@
       ],
       "sql": "SELECT ROUND(100.0 * SUM(COALESCE(s.cache_read_tokens,0)) / NULLIF(SUM(s.input_tokens + COALESCE(s.cache_read_tokens,0) + COALESCE(s.cache_write_tokens,0)), 0), 1) AS v FROM whodunit_sessions s LEFT JOIN whodunit_identities wi ON wi.alias = s.contributor WHERE s.first_seen BETWEEN ? * 1000000000 AND ? * 1000000000 AND s.input_tokens IS NOT NULL AND (? = '__all__' OR COALESCE(wi.canonical, s.contributor) = ?)",
       "sql_hash": "6566cf9401f97911",
-      "params_schema_hash": "c91f205619b26982"
+      "params_schema_hash": "c91f205619b26982",
+      "canonical_id": "cost-efficiency-served-from-cache",
+      "also_known_as": [
+        "cost-efficiency-served-from-cache"
+      ],
+      "dashboards": [
+        "Cost & Efficiency",
+        "Cost & Efficiency — Per model"
+      ]
     },
     {
       "id": "cost-efficiency-per-model-cache-write-payback",
@@ -3529,7 +3769,15 @@
       ],
       "sql": "SELECT ROUND(SUM(COALESCE(s.cache_read_tokens,0)) / NULLIF(SUM(s.cache_write_tokens), 0), 2) AS v FROM whodunit_sessions s LEFT JOIN whodunit_identities wi ON wi.alias = s.contributor WHERE s.first_seen BETWEEN ? * 1000000000 AND ? * 1000000000 AND s.cache_write_tokens IS NOT NULL AND s.cache_write_tokens > 0 AND (? = '__all__' OR COALESCE(wi.canonical, s.contributor) = ?)",
       "sql_hash": "6bbd8a8b5c451b36",
-      "params_schema_hash": "c91f205619b26982"
+      "params_schema_hash": "c91f205619b26982",
+      "canonical_id": "cost-efficiency-cache-write-payback",
+      "also_known_as": [
+        "cost-efficiency-cache-write-payback"
+      ],
+      "dashboards": [
+        "Cost & Efficiency",
+        "Cost & Efficiency — Per model"
+      ]
     },
     {
       "id": "cost-efficiency-per-model-list-price-spend-per-model-per-week",
@@ -3844,7 +4092,15 @@
       ],
       "sql": "SELECT COALESCE(NULLIF(s.model, ''), '(unattributed)') AS Model, COUNT(*) AS Sessions, SUM(s.input_tokens) AS `Uncached in`, SUM(s.output_tokens) AS `Out`, SUM(COALESCE(s.cache_read_tokens,0)) AS `Cache read`, SUM(COALESCE(s.cache_write_tokens,0)) AS `Cache write`, ROUND(100.0 * SUM(COALESCE(s.cache_read_tokens,0)) / NULLIF(SUM(s.input_tokens + COALESCE(s.cache_read_tokens,0) + COALESCE(s.cache_write_tokens,0)), 0), 1) AS `From cache %`, ROUND(SUM(COALESCE(s.cache_read_tokens,0)) / NULLIF(SUM(s.cache_write_tokens), 0), 1) AS `Write payback ×` FROM whodunit_sessions s LEFT JOIN whodunit_identities wi ON wi.alias = s.contributor WHERE s.first_seen BETWEEN ? * 1000000000 AND ? * 1000000000 AND s.input_tokens IS NOT NULL AND (? = '__all__' OR COALESCE(wi.canonical, s.contributor) = ?) GROUP BY COALESCE(NULLIF(s.model, ''), '(unattributed)') ORDER BY SUM(s.input_tokens + s.output_tokens + COALESCE(s.cache_read_tokens,0) + COALESCE(s.cache_write_tokens,0)) DESC",
       "sql_hash": "96c6a0efb2ed68f6",
-      "params_schema_hash": "c91f205619b26982"
+      "params_schema_hash": "c91f205619b26982",
+      "canonical_id": "cost-efficiency-token-use-and-cache-efficiency-by-model",
+      "also_known_as": [
+        "cost-efficiency-token-use-and-cache-efficiency-by-model"
+      ],
+      "dashboards": [
+        "Cost & Efficiency",
+        "Cost & Efficiency — Per model"
+      ]
     },
     {
       "id": "cost-efficiency-per-model-reasoning-effort",
@@ -3886,7 +4142,15 @@
       ],
       "sql": "SELECT s.effort AS metric, COUNT(*) AS value FROM whodunit_sessions s LEFT JOIN whodunit_identities wi ON wi.alias = s.contributor WHERE s.first_seen BETWEEN ? * 1000000000 AND ? * 1000000000 AND s.effort IS NOT NULL AND (? = '__all__' OR COALESCE(wi.canonical, s.contributor) = ?) GROUP BY s.effort",
       "sql_hash": "852ff68919f6f0d2",
-      "params_schema_hash": "c91f205619b26982"
+      "params_schema_hash": "c91f205619b26982",
+      "canonical_id": "cost-efficiency-reasoning-effort",
+      "also_known_as": [
+        "cost-efficiency-reasoning-effort"
+      ],
+      "dashboards": [
+        "Cost & Efficiency",
+        "Cost & Efficiency — Per model"
+      ]
     },
     {
       "id": "cost-efficiency-per-model-human-edited-the-agent-s-output",
@@ -3928,7 +4192,15 @@
       ],
       "sql": "SELECT ROUND(100.0 * SUM(CASE WHEN e.user_modified = 1 THEN 1 ELSE 0 END) / NULLIF(COUNT(*), 0), 1) AS v FROM whodunit_events e LEFT JOIN whodunit_identities wi ON wi.alias = e.contributor WHERE e.observed_at BETWEEN ? * 1000000000 AND ? * 1000000000 AND e.user_modified IS NOT NULL AND (? = '__all__' OR COALESCE(wi.canonical, e.contributor) = ?)",
       "sql_hash": "09112062aa4d8d14",
-      "params_schema_hash": "c91f205619b26982"
+      "params_schema_hash": "c91f205619b26982",
+      "canonical_id": "cost-efficiency-human-edited-the-agent-s-output",
+      "also_known_as": [
+        "cost-efficiency-human-edited-the-agent-s-output"
+      ],
+      "dashboards": [
+        "Cost & Efficiency",
+        "Cost & Efficiency — Per model"
+      ]
     },
     {
       "id": "cost-efficiency-total-tokens",
@@ -3970,7 +4242,15 @@
       ],
       "sql": "SELECT COALESCE(SUM(s.input_tokens + s.output_tokens + COALESCE(s.cache_read_tokens,0) + COALESCE(s.cache_write_tokens,0)), 0) AS v FROM whodunit_sessions s LEFT JOIN whodunit_identities wi ON wi.alias = s.contributor WHERE s.first_seen BETWEEN ? * 1000000000 AND ? * 1000000000 AND s.input_tokens IS NOT NULL AND (? = '__all__' OR COALESCE(wi.canonical, s.contributor) = ?)",
       "sql_hash": "f0c025bb018b8064",
-      "params_schema_hash": "c91f205619b26982"
+      "params_schema_hash": "c91f205619b26982",
+      "canonical_id": "cost-efficiency-total-tokens",
+      "also_known_as": [
+        "cost-efficiency-per-model-total-tokens"
+      ],
+      "dashboards": [
+        "Cost & Efficiency",
+        "Cost & Efficiency — Per model"
+      ]
     },
     {
       "id": "cost-efficiency-output-tokens",
@@ -4012,7 +4292,15 @@
       ],
       "sql": "SELECT COALESCE(SUM(s.output_tokens), 0) AS v FROM whodunit_sessions s LEFT JOIN whodunit_identities wi ON wi.alias = s.contributor WHERE s.first_seen BETWEEN ? * 1000000000 AND ? * 1000000000 AND s.output_tokens IS NOT NULL AND (? = '__all__' OR COALESCE(wi.canonical, s.contributor) = ?)",
       "sql_hash": "f5df54d6cb41eacd",
-      "params_schema_hash": "c91f205619b26982"
+      "params_schema_hash": "c91f205619b26982",
+      "canonical_id": "cost-efficiency-output-tokens",
+      "also_known_as": [
+        "cost-efficiency-per-model-output-tokens"
+      ],
+      "dashboards": [
+        "Cost & Efficiency",
+        "Cost & Efficiency — Per model"
+      ]
     },
     {
       "id": "cost-efficiency-uncached-input",
@@ -4054,7 +4342,15 @@
       ],
       "sql": "SELECT COALESCE(SUM(s.input_tokens), 0) AS v FROM whodunit_sessions s LEFT JOIN whodunit_identities wi ON wi.alias = s.contributor WHERE s.first_seen BETWEEN ? * 1000000000 AND ? * 1000000000 AND s.input_tokens IS NOT NULL AND (? = '__all__' OR COALESCE(wi.canonical, s.contributor) = ?)",
       "sql_hash": "b757841fff3f6370",
-      "params_schema_hash": "c91f205619b26982"
+      "params_schema_hash": "c91f205619b26982",
+      "canonical_id": "cost-efficiency-uncached-input",
+      "also_known_as": [
+        "cost-efficiency-per-model-uncached-input"
+      ],
+      "dashboards": [
+        "Cost & Efficiency",
+        "Cost & Efficiency — Per model"
+      ]
     },
     {
       "id": "cost-efficiency-cache-reads",
@@ -4096,7 +4392,15 @@
       ],
       "sql": "SELECT COALESCE(SUM(s.cache_read_tokens), 0) AS v FROM whodunit_sessions s LEFT JOIN whodunit_identities wi ON wi.alias = s.contributor WHERE s.first_seen BETWEEN ? * 1000000000 AND ? * 1000000000 AND s.cache_read_tokens IS NOT NULL AND (? = '__all__' OR COALESCE(wi.canonical, s.contributor) = ?)",
       "sql_hash": "50af4874d16bdb61",
-      "params_schema_hash": "c91f205619b26982"
+      "params_schema_hash": "c91f205619b26982",
+      "canonical_id": "cost-efficiency-cache-reads",
+      "also_known_as": [
+        "cost-efficiency-per-model-cache-reads"
+      ],
+      "dashboards": [
+        "Cost & Efficiency",
+        "Cost & Efficiency — Per model"
+      ]
     },
     {
       "id": "cost-efficiency-served-from-cache",
@@ -4138,7 +4442,15 @@
       ],
       "sql": "SELECT ROUND(100.0 * SUM(COALESCE(s.cache_read_tokens,0)) / NULLIF(SUM(s.input_tokens + COALESCE(s.cache_read_tokens,0) + COALESCE(s.cache_write_tokens,0)), 0), 1) AS v FROM whodunit_sessions s LEFT JOIN whodunit_identities wi ON wi.alias = s.contributor WHERE s.first_seen BETWEEN ? * 1000000000 AND ? * 1000000000 AND s.input_tokens IS NOT NULL AND (? = '__all__' OR COALESCE(wi.canonical, s.contributor) = ?)",
       "sql_hash": "6566cf9401f97911",
-      "params_schema_hash": "c91f205619b26982"
+      "params_schema_hash": "c91f205619b26982",
+      "canonical_id": "cost-efficiency-served-from-cache",
+      "also_known_as": [
+        "cost-efficiency-per-model-served-from-cache"
+      ],
+      "dashboards": [
+        "Cost & Efficiency",
+        "Cost & Efficiency — Per model"
+      ]
     },
     {
       "id": "cost-efficiency-cache-write-payback",
@@ -4180,7 +4492,15 @@
       ],
       "sql": "SELECT ROUND(SUM(COALESCE(s.cache_read_tokens,0)) / NULLIF(SUM(s.cache_write_tokens), 0), 2) AS v FROM whodunit_sessions s LEFT JOIN whodunit_identities wi ON wi.alias = s.contributor WHERE s.first_seen BETWEEN ? * 1000000000 AND ? * 1000000000 AND s.cache_write_tokens IS NOT NULL AND s.cache_write_tokens > 0 AND (? = '__all__' OR COALESCE(wi.canonical, s.contributor) = ?)",
       "sql_hash": "6bbd8a8b5c451b36",
-      "params_schema_hash": "c91f205619b26982"
+      "params_schema_hash": "c91f205619b26982",
+      "canonical_id": "cost-efficiency-cache-write-payback",
+      "also_known_as": [
+        "cost-efficiency-per-model-cache-write-payback"
+      ],
+      "dashboards": [
+        "Cost & Efficiency",
+        "Cost & Efficiency — Per model"
+      ]
     },
     {
       "id": "cost-efficiency-reasoning-tokens",
@@ -4264,7 +4584,15 @@
       ],
       "sql": "SELECT ROUND(100.0 * SUM(CASE WHEN e.user_modified = 1 THEN 1 ELSE 0 END) / NULLIF(COUNT(*), 0), 1) AS v FROM whodunit_events e LEFT JOIN whodunit_identities wi ON wi.alias = e.contributor WHERE e.observed_at BETWEEN ? * 1000000000 AND ? * 1000000000 AND e.user_modified IS NOT NULL AND (? = '__all__' OR COALESCE(wi.canonical, e.contributor) = ?)",
       "sql_hash": "09112062aa4d8d14",
-      "params_schema_hash": "c91f205619b26982"
+      "params_schema_hash": "c91f205619b26982",
+      "canonical_id": "cost-efficiency-human-edited-the-agent-s-output",
+      "also_known_as": [
+        "cost-efficiency-per-model-human-edited-the-agent-s-output"
+      ],
+      "dashboards": [
+        "Cost & Efficiency",
+        "Cost & Efficiency — Per model"
+      ]
     },
     {
       "id": "cost-efficiency-turn-latency",
@@ -4474,7 +4802,15 @@
       ],
       "sql": "SELECT s.effort AS metric, COUNT(*) AS value FROM whodunit_sessions s LEFT JOIN whodunit_identities wi ON wi.alias = s.contributor WHERE s.first_seen BETWEEN ? * 1000000000 AND ? * 1000000000 AND s.effort IS NOT NULL AND (? = '__all__' OR COALESCE(wi.canonical, s.contributor) = ?) GROUP BY s.effort",
       "sql_hash": "852ff68919f6f0d2",
-      "params_schema_hash": "c91f205619b26982"
+      "params_schema_hash": "c91f205619b26982",
+      "canonical_id": "cost-efficiency-reasoning-effort",
+      "also_known_as": [
+        "cost-efficiency-per-model-reasoning-effort"
+      ],
+      "dashboards": [
+        "Cost & Efficiency",
+        "Cost & Efficiency — Per model"
+      ]
     },
     {
       "id": "cost-efficiency-token-mix-by-model",
@@ -4600,7 +4936,15 @@
       ],
       "sql": "SELECT COALESCE(NULLIF(s.model, ''), '(unattributed)') AS Model, COUNT(*) AS Sessions, SUM(s.input_tokens) AS `Uncached in`, SUM(s.output_tokens) AS `Out`, SUM(COALESCE(s.cache_read_tokens,0)) AS `Cache read`, SUM(COALESCE(s.cache_write_tokens,0)) AS `Cache write`, ROUND(100.0 * SUM(COALESCE(s.cache_read_tokens,0)) / NULLIF(SUM(s.input_tokens + COALESCE(s.cache_read_tokens,0) + COALESCE(s.cache_write_tokens,0)), 0), 1) AS `From cache %`, ROUND(SUM(COALESCE(s.cache_read_tokens,0)) / NULLIF(SUM(s.cache_write_tokens), 0), 1) AS `Write payback ×` FROM whodunit_sessions s LEFT JOIN whodunit_identities wi ON wi.alias = s.contributor WHERE s.first_seen BETWEEN ? * 1000000000 AND ? * 1000000000 AND s.input_tokens IS NOT NULL AND (? = '__all__' OR COALESCE(wi.canonical, s.contributor) = ?) GROUP BY COALESCE(NULLIF(s.model, ''), '(unattributed)') ORDER BY SUM(s.input_tokens + s.output_tokens + COALESCE(s.cache_read_tokens,0) + COALESCE(s.cache_write_tokens,0)) DESC",
       "sql_hash": "96c6a0efb2ed68f6",
-      "params_schema_hash": "c91f205619b26982"
+      "params_schema_hash": "c91f205619b26982",
+      "canonical_id": "cost-efficiency-token-use-and-cache-efficiency-by-model",
+      "also_known_as": [
+        "cost-efficiency-per-model-token-use-and-cache-efficiency-by-model"
+      ],
+      "dashboards": [
+        "Cost & Efficiency",
+        "Cost & Efficiency — Per model"
+      ]
     },
     {
       "id": "cost-efficiency-output-tokens-per-model-over-time",
@@ -5245,7 +5589,15 @@
       ],
       "sql": "SELECT ROUND( (SELECT SUM(s.output_tokens) FROM whodunit_sessions s JOIN whodunit_repos r2 ON r2.repo_id = s.repo_id WHERE s.output_tokens IS NOT NULL AND (? = '__all__' OR r2.contributor = ?)) / NULLIF((SELECT SUM(c.lines_added + c.lines_removed) FROM whodunit_commits c JOIN whodunit_repos r3 ON r3.repo_id = c.repo_id WHERE c.status = 'assisted' AND (? = '__all__' OR r3.contributor = ?)), 0) ) AS v",
       "sql_hash": "6d7b581e96851b5e",
-      "params_schema_hash": "4a729c3608370f17"
+      "params_schema_hash": "4a729c3608370f17",
+      "canonical_id": "ai-impact-on-delivery-output-tokens-per-delivered-line",
+      "also_known_as": [
+        "ai-productivity-funnel-stage-5-cost-per-delivered-line"
+      ],
+      "dashboards": [
+        "AI Impact on Delivery",
+        "AI Productivity Funnel"
+      ]
     },
     {
       "id": "ai-impact-on-delivery-output-tokens-per-1-000-attributed-lines",
@@ -5874,7 +6226,15 @@
       ],
       "sql": "SELECT ROUND(SUM(c.status='assisted')*100.0/NULLIF(COUNT(*),0),1) AS v FROM whodunit_commits c LEFT JOIN whodunit_identities wi ON wi.alias = c.contributor WHERE (? = '__all__' OR c.method = ?) AND (? = '__all__' OR COALESCE(wi.canonical, c.contributor) = ?) AND (? = '__all__' OR c.repo_id = ?) AND c.committed_at BETWEEN ? * 1000000000 AND ? * 1000000000",
       "sql_hash": "2e132b9328f9c7c5",
-      "params_schema_hash": "c43074f0e3e4fcf2"
+      "params_schema_hash": "c43074f0e3e4fcf2",
+      "canonical_id": "executive-summary-adoption-repo",
+      "also_known_as": [
+        "ai-in-engineering-leadership-view-adoption"
+      ],
+      "dashboards": [
+        "AI in Engineering — Leadership View",
+        "Executive Summary"
+      ]
     },
     {
       "id": "executive-summary-session-depth-repo",
@@ -5926,7 +6286,15 @@
       ],
       "sql": "SELECT CASE WHEN s.mcp_calls > 0 OR s.distinct_tools >= 5 OR s.tool_calls >= 50 THEN 'agentic' WHEN s.tool_calls > 0 THEN 'edits' ELSE 'chat only' END AS `depth`, COUNT(*) AS `sessions` FROM whodunit_sessions s LEFT JOIN whodunit_identities wi ON wi.alias = s.contributor WHERE s.last_seen BETWEEN ? * 1000000000 AND ? * 1000000000 AND (? = '__all__' OR COALESCE(wi.canonical, s.contributor) = ?) AND (? = '__all__' OR s.repo_id = ?) GROUP BY `depth` ORDER BY FIELD(`depth`, 'chat only', 'edits', 'agentic')",
       "sql_hash": "d594cbbbf5215a40",
-      "params_schema_hash": "4ac3108af29627d7"
+      "params_schema_hash": "4ac3108af29627d7",
+      "canonical_id": "executive-summary-session-depth-repo",
+      "also_known_as": [
+        "ai-in-engineering-leadership-view-how-deeply-the-agent-is-used"
+      ],
+      "dashboards": [
+        "AI in Engineering — Leadership View",
+        "Executive Summary"
+      ]
     },
     {
       "id": "executive-summary-acceptance-repo",
@@ -5978,7 +6346,15 @@
       ],
       "sql": "SELECT ROUND(100.0*SUM(e.outcome='accepted')/NULLIF(SUM(e.outcome IN ('accepted','rejected','failed')),0),1) v FROM whodunit_events e LEFT JOIN whodunit_identities wi ON wi.alias = e.contributor WHERE (? = '__all__' OR COALESCE(wi.canonical, e.contributor) = ?) AND (? = '__all__' OR e.repo_id = ?) AND e.observed_at BETWEEN ? * 1000000000 AND ? * 1000000000",
       "sql_hash": "7488980f9734ecf6",
-      "params_schema_hash": "4ac3108af29627d7"
+      "params_schema_hash": "4ac3108af29627d7",
+      "canonical_id": "executive-summary-acceptance-repo",
+      "also_known_as": [
+        "ai-in-engineering-leadership-view-acceptance"
+      ],
+      "dashboards": [
+        "AI in Engineering — Leadership View",
+        "Executive Summary"
+      ]
     },
     {
       "id": "executive-summary-commits-over-time-repo",
@@ -6132,7 +6508,15 @@
       ],
       "sql": "SELECT IF(?='%Y-%m-%d', days.d, IF(?='%x-W%v', DATE(days.d - INTERVAL WEEKDAY(days.d) DAY), DATE(days.d - INTERVAL DAYOFMONTH(days.d)-1 DAY))) AS `time`, NULLIF(SUM(COALESCE(o.opened, 0)), 0) AS `opened`, NULLIF(SUM(COALESCE(c.closed, 0)), 0) AS `closed` FROM ( SELECT DATE(i.created_date) d FROM issues i JOIN board_issues bi ON bi.issue_id = i.id WHERE bi.board_id = ? AND i.created_date IS NOT NULL AND i.created_date BETWEEN ? AND ? UNION SELECT DATE(i.resolution_date) FROM issues i JOIN board_issues bi ON bi.issue_id = i.id WHERE bi.board_id = ? AND i.resolution_date IS NOT NULL AND i.status = 'DONE' AND i.resolution_date BETWEEN ? AND ? ) days LEFT JOIN ( SELECT DATE(i.created_date) d, COUNT(*) opened FROM issues i JOIN board_issues bi ON bi.issue_id = i.id WHERE bi.board_id = ? AND i.created_date IS NOT NULL AND i.created_date BETWEEN ? AND ? GROUP BY d ) o ON o.d = days.d LEFT JOIN ( SELECT DATE(i.resolution_date) d, COUNT(*) closed FROM issues i JOIN board_issues bi ON bi.issue_id = i.id WHERE bi.board_id = ? AND i.resolution_date IS NOT NULL AND i.status = 'DONE' AND i.resolution_date BETWEEN ? AND ? GROUP BY d ) c ON c.d = days.d GROUP BY `time` ORDER BY `time`",
       "sql_hash": "6e6a9e1ee19b9019",
-      "params_schema_hash": "7f99bd38deb31aa8"
+      "params_schema_hash": "7f99bd38deb31aa8",
+      "canonical_id": "executive-summary-issues-opened-vs-closed-board",
+      "also_known_as": [
+        "ai-in-engineering-leadership-view-issues-opened-vs-closed"
+      ],
+      "dashboards": [
+        "AI in Engineering — Leadership View",
+        "Executive Summary"
+      ]
     },
     {
       "id": "executive-summary-cycle-time-trend-board",
@@ -7782,7 +8166,15 @@
       ],
       "sql": "SELECT CASE WHEN ai = 1 THEN 'AI-assisted' ELSE 'not assisted' END AS `group`, ROUND(AVG(ltm)/60, 1) AS `hours` FROM ( SELECT i.issue_key, i.lead_time_minutes AS ltm, COALESCE(MAX(w.status = 'assisted'), 0) AS ai FROM issues i JOIN board_issues bi ON bi.issue_id = i.id LEFT JOIN issue_commits gc ON gc.issue_id = i.id LEFT JOIN whodunit_commits w ON w.commit_sha = gc.commit_sha WHERE w.committed_at BETWEEN ? * 1000000000 AND ? * 1000000000 AND (? = '__all__' OR w.method = ?) AND bi.board_id = ? AND i.lead_time_minutes IS NOT NULL AND i.issue_key REGEXP '^[A-Z][A-Z0-9]+-[0-9]+$' GROUP BY i.issue_key, i.lead_time_minutes ) t GROUP BY ai",
       "sql_hash": "a9ecdbfeb05d7dc4",
-      "params_schema_hash": "841210c8a971d69d"
+      "params_schema_hash": "841210c8a971d69d",
+      "canonical_id": "ai-productivity-funnel-stage-4-cycle-time-assisted-vs-not",
+      "also_known_as": [
+        "ai-productivity-funnel-stage-4-cycle-time-assisted-vs-not"
+      ],
+      "dashboards": [
+        "AI Productivity Funnel",
+        "AI Productivity Funnel — People"
+      ]
     },
     {
       "id": "ai-productivity-funnel-people-stage-5-rework-rate-assisted",
@@ -7841,7 +8233,15 @@
       ],
       "sql": "SELECT ROUND(100.0 * SUM(c.purpose = 'fix' AND c.status = 'assisted') / NULLIF(SUM(c.status = 'assisted'), 0), 1) AS v FROM whodunit_commits c LEFT JOIN whodunit_identities wi ON wi.alias = c.contributor WHERE c.committed_at BETWEEN ? * 1000000000 AND ? * 1000000000 AND (? = '__all__' OR c.method = ?) AND (? = '__all__' OR COALESCE(wi.canonical, c.contributor) = ?)",
       "sql_hash": "350de8d12e8a99bf",
-      "params_schema_hash": "6b8c85b5be7cbfda"
+      "params_schema_hash": "6b8c85b5be7cbfda",
+      "canonical_id": "ai-productivity-funnel-stage-5-rework-rate-assisted",
+      "also_known_as": [
+        "ai-productivity-funnel-stage-5-rework-rate-assisted"
+      ],
+      "dashboards": [
+        "AI Productivity Funnel",
+        "AI Productivity Funnel — People"
+      ]
     },
     {
       "id": "ai-productivity-funnel-people-habitual-use-wau-mau",
@@ -7867,7 +8267,15 @@
       ],
       "sql": "SELECT ROUND( (SELECT COUNT(*) FROM whodunit_sessions s WHERE s.last_seen >= (UNIX_TIMESTAMP() - 7*86400) * 1000000000 AND (? = '__all__' OR s.contributor = ?)) * 100.0 / NULLIF((SELECT COUNT(*) FROM whodunit_sessions s WHERE s.last_seen >= (UNIX_TIMESTAMP() - 30*86400) * 1000000000 AND (? = '__all__' OR s.contributor = ?)), 0), 0) AS v",
       "sql_hash": "3e432307c3c7d3f1",
-      "params_schema_hash": "4a729c3608370f17"
+      "params_schema_hash": "4a729c3608370f17",
+      "canonical_id": "ai-productivity-funnel-habitual-use-wau-mau",
+      "also_known_as": [
+        "ai-productivity-funnel-habitual-use-wau-mau"
+      ],
+      "dashboards": [
+        "AI Productivity Funnel",
+        "AI Productivity Funnel — People"
+      ]
     },
     {
       "id": "ai-productivity-funnel-people-stage-2-engagement-how-deep-not-how-many",
@@ -7909,7 +8317,15 @@
       ],
       "sql": "SELECT CASE WHEN s.mcp_calls > 0 OR s.distinct_tools >= 5 THEN 'agentic — MCP or many tools' WHEN s.tool_calls >= 50 THEN 'multi-file work' WHEN s.tool_calls >= 10 THEN 'wrote code' WHEN s.tool_calls > 0 THEN 'light edits' ELSE 'conversation only — no edits' END AS `intensity`, COUNT(*) AS `sessions` FROM whodunit_sessions s LEFT JOIN whodunit_identities wi ON wi.alias = s.contributor WHERE s.last_seen BETWEEN ? * 1000000000 AND ? * 1000000000 AND (? = '__all__' OR COALESCE(wi.canonical, s.contributor) = ?) GROUP BY `intensity` ORDER BY `sessions` DESC",
       "sql_hash": "80420452e9d3f3a4",
-      "params_schema_hash": "c91f205619b26982"
+      "params_schema_hash": "c91f205619b26982",
+      "canonical_id": "ai-productivity-funnel-stage-2-engagement-how-deep-not-how-many",
+      "also_known_as": [
+        "ai-productivity-funnel-stage-2-engagement-how-deep-not-how-many"
+      ],
+      "dashboards": [
+        "AI Productivity Funnel",
+        "AI Productivity Funnel — People"
+      ]
     },
     {
       "id": "ai-productivity-funnel-stage-1-adoption",
@@ -7995,7 +8411,15 @@
       ],
       "sql": "SELECT CASE WHEN s.mcp_calls > 0 OR s.distinct_tools >= 5 THEN 'agentic — MCP or many tools' WHEN s.tool_calls >= 50 THEN 'multi-file work' WHEN s.tool_calls >= 10 THEN 'wrote code' WHEN s.tool_calls > 0 THEN 'light edits' ELSE 'conversation only — no edits' END AS `intensity`, COUNT(*) AS `sessions` FROM whodunit_sessions s LEFT JOIN whodunit_identities wi ON wi.alias = s.contributor WHERE s.last_seen BETWEEN ? * 1000000000 AND ? * 1000000000 AND (? = '__all__' OR COALESCE(wi.canonical, s.contributor) = ?) GROUP BY `intensity` ORDER BY `sessions` DESC",
       "sql_hash": "80420452e9d3f3a4",
-      "params_schema_hash": "c91f205619b26982"
+      "params_schema_hash": "c91f205619b26982",
+      "canonical_id": "ai-productivity-funnel-stage-2-engagement-how-deep-not-how-many",
+      "also_known_as": [
+        "ai-productivity-funnel-people-stage-2-engagement-how-deep-not-how-many"
+      ],
+      "dashboards": [
+        "AI Productivity Funnel",
+        "AI Productivity Funnel — People"
+      ]
     },
     {
       "id": "ai-productivity-funnel-habitual-use-wau-mau",
@@ -8021,7 +8445,15 @@
       ],
       "sql": "SELECT ROUND( (SELECT COUNT(*) FROM whodunit_sessions s WHERE s.last_seen >= (UNIX_TIMESTAMP() - 7*86400) * 1000000000 AND (? = '__all__' OR s.contributor = ?)) * 100.0 / NULLIF((SELECT COUNT(*) FROM whodunit_sessions s WHERE s.last_seen >= (UNIX_TIMESTAMP() - 30*86400) * 1000000000 AND (? = '__all__' OR s.contributor = ?)), 0), 0) AS v",
       "sql_hash": "3e432307c3c7d3f1",
-      "params_schema_hash": "4a729c3608370f17"
+      "params_schema_hash": "4a729c3608370f17",
+      "canonical_id": "ai-productivity-funnel-habitual-use-wau-mau",
+      "also_known_as": [
+        "ai-productivity-funnel-people-habitual-use-wau-mau"
+      ],
+      "dashboards": [
+        "AI Productivity Funnel",
+        "AI Productivity Funnel — People"
+      ]
     },
     {
       "id": "ai-productivity-funnel-sessions-doing-real-work",
@@ -8187,7 +8619,15 @@
       ],
       "sql": "SELECT CASE WHEN ai = 1 THEN 'AI-assisted' ELSE 'not assisted' END AS `group`, ROUND(AVG(ltm)/60, 1) AS `hours` FROM ( SELECT i.issue_key, i.lead_time_minutes AS ltm, COALESCE(MAX(w.status = 'assisted'), 0) AS ai FROM issues i JOIN board_issues bi ON bi.issue_id = i.id LEFT JOIN issue_commits gc ON gc.issue_id = i.id LEFT JOIN whodunit_commits w ON w.commit_sha = gc.commit_sha WHERE w.committed_at BETWEEN ? * 1000000000 AND ? * 1000000000 AND (? = '__all__' OR w.method = ?) AND bi.board_id = ? AND i.lead_time_minutes IS NOT NULL AND i.issue_key REGEXP '^[A-Z][A-Z0-9]+-[0-9]+$' GROUP BY i.issue_key, i.lead_time_minutes ) t GROUP BY ai",
       "sql_hash": "a9ecdbfeb05d7dc4",
-      "params_schema_hash": "841210c8a971d69d"
+      "params_schema_hash": "841210c8a971d69d",
+      "canonical_id": "ai-productivity-funnel-stage-4-cycle-time-assisted-vs-not",
+      "also_known_as": [
+        "ai-productivity-funnel-people-stage-4-cycle-time-assisted-vs-not"
+      ],
+      "dashboards": [
+        "AI Productivity Funnel",
+        "AI Productivity Funnel — People"
+      ]
     },
     {
       "id": "ai-productivity-funnel-stage-5-cost-per-delivered-line",
@@ -8213,7 +8653,15 @@
       ],
       "sql": "SELECT ROUND( (SELECT SUM(s.output_tokens) FROM whodunit_sessions s JOIN whodunit_repos r2 ON r2.repo_id = s.repo_id WHERE s.output_tokens IS NOT NULL AND (? = '__all__' OR r2.contributor = ?)) / NULLIF((SELECT SUM(c.lines_added + c.lines_removed) FROM whodunit_commits c JOIN whodunit_repos r3 ON r3.repo_id = c.repo_id WHERE c.status = 'assisted' AND (? = '__all__' OR r3.contributor = ?)), 0) ) AS v",
       "sql_hash": "6d7b581e96851b5e",
-      "params_schema_hash": "4a729c3608370f17"
+      "params_schema_hash": "4a729c3608370f17",
+      "canonical_id": "ai-impact-on-delivery-output-tokens-per-delivered-line",
+      "also_known_as": [
+        "ai-impact-on-delivery-output-tokens-per-delivered-line"
+      ],
+      "dashboards": [
+        "AI Impact on Delivery",
+        "AI Productivity Funnel"
+      ]
     },
     {
       "id": "ai-productivity-funnel-stage-5-rework-rate-assisted",
@@ -8272,7 +8720,15 @@
       ],
       "sql": "SELECT ROUND(100.0 * SUM(c.purpose = 'fix' AND c.status = 'assisted') / NULLIF(SUM(c.status = 'assisted'), 0), 1) AS v FROM whodunit_commits c LEFT JOIN whodunit_identities wi ON wi.alias = c.contributor WHERE c.committed_at BETWEEN ? * 1000000000 AND ? * 1000000000 AND (? = '__all__' OR c.method = ?) AND (? = '__all__' OR COALESCE(wi.canonical, c.contributor) = ?)",
       "sql_hash": "350de8d12e8a99bf",
-      "params_schema_hash": "6b8c85b5be7cbfda"
+      "params_schema_hash": "6b8c85b5be7cbfda",
+      "canonical_id": "ai-productivity-funnel-stage-5-rework-rate-assisted",
+      "also_known_as": [
+        "ai-productivity-funnel-people-stage-5-rework-rate-assisted"
+      ],
+      "dashboards": [
+        "AI Productivity Funnel",
+        "AI Productivity Funnel — People"
+      ]
     },
     {
       "id": "ai-productivity-funnel-stage-5-pre-adoption-baseline",
@@ -8603,7 +9059,15 @@
       ],
       "sql": "SELECT b AS `length`, COUNT(*) AS `sessions` FROM ( SELECT CASE WHEN TIMESTAMPDIFF(MINUTE, FROM_UNIXTIME(first_seen/1000000000), FROM_UNIXTIME(last_seen/1000000000)) < 15 THEN '1. under 15m' WHEN TIMESTAMPDIFF(MINUTE, FROM_UNIXTIME(first_seen/1000000000), FROM_UNIXTIME(last_seen/1000000000)) < 60 THEN '2. 15-60m' WHEN TIMESTAMPDIFF(MINUTE, FROM_UNIXTIME(first_seen/1000000000), FROM_UNIXTIME(last_seen/1000000000)) < 240 THEN '3. 1-4h' ELSE '4. over 4h' END AS b FROM whodunit_sessions s WHERE s.last_seen BETWEEN ? * 1000000000 AND ? * 1000000000 AND s.agent IN (?) ) t GROUP BY b ORDER BY b",
       "sql_hash": "d5b50a80fe09aace",
-      "params_schema_hash": "c2536dfae1444f6c"
+      "params_schema_hash": "c2536dfae1444f6c",
+      "canonical_id": "agent-activity-hours-how-long-sessions-run",
+      "also_known_as": [
+        "agent-activity-hours-how-long-sessions-run"
+      ],
+      "dashboards": [
+        "Agent Activity Hours",
+        "Agent Activity Hours — Rhythm"
+      ]
     },
     {
       "id": "agent-activity-hours-rhythm-rhythm-per-person",
@@ -8710,7 +9174,15 @@
       ],
       "sql": "SELECT LPAD(HOUR(CONVERT_TZ(FROM_UNIXTIME(e.observed_at/1000000000), '+00:00', ?)),2,'0') AS `hour`, SUM(CASE WHEN e.agent='claude-code' THEN 1 ELSE 0 END) AS `claude-code`, SUM(CASE WHEN e.agent='codex' THEN 1 ELSE 0 END) AS `codex`, SUM(CASE WHEN e.agent='agy' THEN 1 ELSE 0 END) AS `agy` FROM whodunit_events e WHERE e.agent IN (?) AND e.observed_at BETWEEN ? * 1000000000 AND ? * 1000000000 GROUP BY `hour` ORDER BY `hour`",
       "sql_hash": "44177791e4961fa1",
-      "params_schema_hash": "1ba58c2717d13bc6"
+      "params_schema_hash": "1ba58c2717d13bc6",
+      "canonical_id": "agent-activity-hours-agent-activity-by-hour-of-day",
+      "also_known_as": [
+        "agent-activity-hours-agent-activity-by-hour-of-day"
+      ],
+      "dashboards": [
+        "Agent Activity Hours",
+        "Agent Activity Hours — Rhythm"
+      ]
     },
     {
       "id": "agent-activity-hours-rhythm-agent-activity-by-day-of-week",
@@ -8765,7 +9237,15 @@
       ],
       "sql": "SELECT CASE DAYOFWEEK(CONVERT_TZ(FROM_UNIXTIME(e.observed_at/1000000000), '+00:00', ?)) WHEN 1 THEN 'Sun' WHEN 2 THEN 'Mon' WHEN 3 THEN 'Tue' WHEN 4 THEN 'Wed' WHEN 5 THEN 'Thu' WHEN 6 THEN 'Fri' ELSE 'Sat' END AS `day`, SUM(CASE WHEN e.agent='claude-code' THEN 1 ELSE 0 END) AS `claude-code`, SUM(CASE WHEN e.agent='codex' THEN 1 ELSE 0 END) AS `codex`, SUM(CASE WHEN e.agent='agy' THEN 1 ELSE 0 END) AS `agy` FROM whodunit_events e WHERE e.agent IN (?) AND e.observed_at BETWEEN ? * 1000000000 AND ? * 1000000000 GROUP BY DAYOFWEEK(CONVERT_TZ(FROM_UNIXTIME(e.observed_at/1000000000), '+00:00', ?)), `day` ORDER BY DAYOFWEEK(CONVERT_TZ(FROM_UNIXTIME(e.observed_at/1000000000), '+00:00', ?))",
       "sql_hash": "168e3e9e834939d9",
-      "params_schema_hash": "1ba58c2717d13bc6"
+      "params_schema_hash": "1ba58c2717d13bc6",
+      "canonical_id": "agent-activity-hours-agent-activity-by-day-of-week",
+      "also_known_as": [
+        "agent-activity-hours-agent-activity-by-day-of-week"
+      ],
+      "dashboards": [
+        "Agent Activity Hours",
+        "Agent Activity Hours — Rhythm"
+      ]
     },
     {
       "id": "agent-activity-hours-rhythm-agent-comparison",
@@ -8801,7 +9281,15 @@
       ],
       "sql": "SELECT a.agent AS `agent`, COALESCE(s.sessions, 0) AS `sessions`, COALESCE(s.tool_calls, 0) AS `tool calls`, COALESCE(e.events, 0) AS `file edits`, COALESCE(e.`lines`, 0) AS `lines written`, COALESCE(c.commits, 0) AS `commits` FROM ( SELECT DISTINCT agent FROM whodunit_sessions WHERE agent <> '' UNION SELECT DISTINCT agent FROM whodunit_events WHERE agent <> '' ) a LEFT JOIN ( SELECT agent, COUNT(*) sessions, SUM(tool_calls) tool_calls FROM whodunit_sessions WHERE last_seen BETWEEN ? * 1000000000 AND ? * 1000000000 GROUP BY agent ) s ON s.agent = a.agent LEFT JOIN ( SELECT agent, COUNT(*) events, SUM(lines_added + lines_removed) `lines` FROM whodunit_events WHERE observed_at BETWEEN ? * 1000000000 AND ? * 1000000000 GROUP BY agent ) e ON e.agent = a.agent LEFT JOIN ( SELECT agent, COUNT(*) commits FROM whodunit_commits WHERE agent <> '' AND status = 'assisted' AND committed_at BETWEEN ? * 1000000000 AND ? * 1000000000 GROUP BY agent ) c ON c.agent = a.agent ORDER BY `file edits` DESC, `sessions` DESC",
       "sql_hash": "65bed316b0bd804d",
-      "params_schema_hash": "2d840297b8723b6b"
+      "params_schema_hash": "2d840297b8723b6b",
+      "canonical_id": "agent-activity-hours-agent-comparison",
+      "also_known_as": [
+        "agent-activity-hours-agent-comparison"
+      ],
+      "dashboards": [
+        "Agent Activity Hours",
+        "Agent Activity Hours — Rhythm"
+      ]
     },
     {
       "id": "agent-activity-hours-sessions",
@@ -9073,7 +9561,15 @@
       ],
       "sql": "SELECT b AS `length`, COUNT(*) AS `sessions` FROM ( SELECT CASE WHEN TIMESTAMPDIFF(MINUTE, FROM_UNIXTIME(first_seen/1000000000), FROM_UNIXTIME(last_seen/1000000000)) < 15 THEN '1. under 15m' WHEN TIMESTAMPDIFF(MINUTE, FROM_UNIXTIME(first_seen/1000000000), FROM_UNIXTIME(last_seen/1000000000)) < 60 THEN '2. 15-60m' WHEN TIMESTAMPDIFF(MINUTE, FROM_UNIXTIME(first_seen/1000000000), FROM_UNIXTIME(last_seen/1000000000)) < 240 THEN '3. 1-4h' ELSE '4. over 4h' END AS b FROM whodunit_sessions s WHERE s.last_seen BETWEEN ? * 1000000000 AND ? * 1000000000 AND s.agent IN (?) ) t GROUP BY b ORDER BY b",
       "sql_hash": "d5b50a80fe09aace",
-      "params_schema_hash": "c2536dfae1444f6c"
+      "params_schema_hash": "c2536dfae1444f6c",
+      "canonical_id": "agent-activity-hours-how-long-sessions-run",
+      "also_known_as": [
+        "agent-activity-hours-rhythm-how-long-sessions-run"
+      ],
+      "dashboards": [
+        "Agent Activity Hours",
+        "Agent Activity Hours — Rhythm"
+      ]
     },
     {
       "id": "agent-activity-hours-work-per-session",
@@ -9166,7 +9662,15 @@
       ],
       "sql": "SELECT LPAD(HOUR(CONVERT_TZ(FROM_UNIXTIME(e.observed_at/1000000000), '+00:00', ?)),2,'0') AS `hour`, SUM(CASE WHEN e.agent='claude-code' THEN 1 ELSE 0 END) AS `claude-code`, SUM(CASE WHEN e.agent='codex' THEN 1 ELSE 0 END) AS `codex`, SUM(CASE WHEN e.agent='agy' THEN 1 ELSE 0 END) AS `agy` FROM whodunit_events e WHERE e.agent IN (?) AND e.observed_at BETWEEN ? * 1000000000 AND ? * 1000000000 GROUP BY `hour` ORDER BY `hour`",
       "sql_hash": "44177791e4961fa1",
-      "params_schema_hash": "1ba58c2717d13bc6"
+      "params_schema_hash": "1ba58c2717d13bc6",
+      "canonical_id": "agent-activity-hours-agent-activity-by-hour-of-day",
+      "also_known_as": [
+        "agent-activity-hours-rhythm-agent-activity-by-hour-of-day"
+      ],
+      "dashboards": [
+        "Agent Activity Hours",
+        "Agent Activity Hours — Rhythm"
+      ]
     },
     {
       "id": "agent-activity-hours-agent-activity-by-day-of-week",
@@ -9221,7 +9725,15 @@
       ],
       "sql": "SELECT CASE DAYOFWEEK(CONVERT_TZ(FROM_UNIXTIME(e.observed_at/1000000000), '+00:00', ?)) WHEN 1 THEN 'Sun' WHEN 2 THEN 'Mon' WHEN 3 THEN 'Tue' WHEN 4 THEN 'Wed' WHEN 5 THEN 'Thu' WHEN 6 THEN 'Fri' ELSE 'Sat' END AS `day`, SUM(CASE WHEN e.agent='claude-code' THEN 1 ELSE 0 END) AS `claude-code`, SUM(CASE WHEN e.agent='codex' THEN 1 ELSE 0 END) AS `codex`, SUM(CASE WHEN e.agent='agy' THEN 1 ELSE 0 END) AS `agy` FROM whodunit_events e WHERE e.agent IN (?) AND e.observed_at BETWEEN ? * 1000000000 AND ? * 1000000000 GROUP BY DAYOFWEEK(CONVERT_TZ(FROM_UNIXTIME(e.observed_at/1000000000), '+00:00', ?)), `day` ORDER BY DAYOFWEEK(CONVERT_TZ(FROM_UNIXTIME(e.observed_at/1000000000), '+00:00', ?))",
       "sql_hash": "168e3e9e834939d9",
-      "params_schema_hash": "1ba58c2717d13bc6"
+      "params_schema_hash": "1ba58c2717d13bc6",
+      "canonical_id": "agent-activity-hours-agent-activity-by-day-of-week",
+      "also_known_as": [
+        "agent-activity-hours-rhythm-agent-activity-by-day-of-week"
+      ],
+      "dashboards": [
+        "Agent Activity Hours",
+        "Agent Activity Hours — Rhythm"
+      ]
     },
     {
       "id": "agent-activity-hours-code-churn-by-hour",
@@ -9310,7 +9822,15 @@
       ],
       "sql": "SELECT a.agent AS `agent`, COALESCE(s.sessions, 0) AS `sessions`, COALESCE(s.tool_calls, 0) AS `tool calls`, COALESCE(e.events, 0) AS `file edits`, COALESCE(e.`lines`, 0) AS `lines written`, COALESCE(c.commits, 0) AS `commits` FROM ( SELECT DISTINCT agent FROM whodunit_sessions WHERE agent <> '' UNION SELECT DISTINCT agent FROM whodunit_events WHERE agent <> '' ) a LEFT JOIN ( SELECT agent, COUNT(*) sessions, SUM(tool_calls) tool_calls FROM whodunit_sessions WHERE last_seen BETWEEN ? * 1000000000 AND ? * 1000000000 GROUP BY agent ) s ON s.agent = a.agent LEFT JOIN ( SELECT agent, COUNT(*) events, SUM(lines_added + lines_removed) `lines` FROM whodunit_events WHERE observed_at BETWEEN ? * 1000000000 AND ? * 1000000000 GROUP BY agent ) e ON e.agent = a.agent LEFT JOIN ( SELECT agent, COUNT(*) commits FROM whodunit_commits WHERE agent <> '' AND status = 'assisted' AND committed_at BETWEEN ? * 1000000000 AND ? * 1000000000 GROUP BY agent ) c ON c.agent = a.agent ORDER BY `file edits` DESC, `sessions` DESC",
       "sql_hash": "65bed316b0bd804d",
-      "params_schema_hash": "2d840297b8723b6b"
+      "params_schema_hash": "2d840297b8723b6b",
+      "canonical_id": "agent-activity-hours-agent-comparison",
+      "also_known_as": [
+        "agent-activity-hours-rhythm-agent-comparison"
+      ],
+      "dashboards": [
+        "Agent Activity Hours",
+        "Agent Activity Hours — Rhythm"
+      ]
     },
     {
       "id": "ai-in-engineering-leadership-view-adoption",
@@ -9379,7 +9899,15 @@
       ],
       "sql": "SELECT ROUND(SUM(c.status='assisted')*100.0/NULLIF(COUNT(*),0),1) AS v FROM whodunit_commits c LEFT JOIN whodunit_identities wi ON wi.alias = c.contributor WHERE (? = '__all__' OR c.method = ?) AND (? = '__all__' OR COALESCE(wi.canonical, c.contributor) = ?) AND (? = '__all__' OR c.repo_id = ?) AND c.committed_at BETWEEN ? * 1000000000 AND ? * 1000000000",
       "sql_hash": "2e132b9328f9c7c5",
-      "params_schema_hash": "c43074f0e3e4fcf2"
+      "params_schema_hash": "c43074f0e3e4fcf2",
+      "canonical_id": "executive-summary-adoption-repo",
+      "also_known_as": [
+        "executive-summary-adoption-repo"
+      ],
+      "dashboards": [
+        "AI in Engineering — Leadership View",
+        "Executive Summary"
+      ]
     },
     {
       "id": "ai-in-engineering-leadership-view-acceptance",
@@ -9431,7 +9959,15 @@
       ],
       "sql": "SELECT ROUND(100.0*SUM(e.outcome='accepted')/NULLIF(SUM(e.outcome IN ('accepted','rejected','failed')),0),1) v FROM whodunit_events e LEFT JOIN whodunit_identities wi ON wi.alias = e.contributor WHERE (? = '__all__' OR COALESCE(wi.canonical, e.contributor) = ?) AND (? = '__all__' OR e.repo_id = ?) AND e.observed_at BETWEEN ? * 1000000000 AND ? * 1000000000",
       "sql_hash": "7488980f9734ecf6",
-      "params_schema_hash": "4ac3108af29627d7"
+      "params_schema_hash": "4ac3108af29627d7",
+      "canonical_id": "executive-summary-acceptance-repo",
+      "also_known_as": [
+        "executive-summary-acceptance-repo"
+      ],
+      "dashboards": [
+        "AI in Engineering — Leadership View",
+        "Executive Summary"
+      ]
     },
     {
       "id": "ai-in-engineering-leadership-view-median-cycle-time-hours",
@@ -9830,7 +10366,15 @@
       ],
       "sql": "SELECT IF(?='%Y-%m-%d', days.d, IF(?='%x-W%v', DATE(days.d - INTERVAL WEEKDAY(days.d) DAY), DATE(days.d - INTERVAL DAYOFMONTH(days.d)-1 DAY))) AS `time`, NULLIF(SUM(COALESCE(o.opened, 0)), 0) AS `opened`, NULLIF(SUM(COALESCE(c.closed, 0)), 0) AS `closed` FROM ( SELECT DATE(i.created_date) d FROM issues i JOIN board_issues bi ON bi.issue_id = i.id WHERE bi.board_id = ? AND i.created_date IS NOT NULL AND i.created_date BETWEEN ? AND ? UNION SELECT DATE(i.resolution_date) FROM issues i JOIN board_issues bi ON bi.issue_id = i.id WHERE bi.board_id = ? AND i.resolution_date IS NOT NULL AND i.status = 'DONE' AND i.resolution_date BETWEEN ? AND ? ) days LEFT JOIN ( SELECT DATE(i.created_date) d, COUNT(*) opened FROM issues i JOIN board_issues bi ON bi.issue_id = i.id WHERE bi.board_id = ? AND i.created_date IS NOT NULL AND i.created_date BETWEEN ? AND ? GROUP BY d ) o ON o.d = days.d LEFT JOIN ( SELECT DATE(i.resolution_date) d, COUNT(*) closed FROM issues i JOIN board_issues bi ON bi.issue_id = i.id WHERE bi.board_id = ? AND i.resolution_date IS NOT NULL AND i.status = 'DONE' AND i.resolution_date BETWEEN ? AND ? GROUP BY d ) c ON c.d = days.d GROUP BY `time` ORDER BY `time`",
       "sql_hash": "6e6a9e1ee19b9019",
-      "params_schema_hash": "7f99bd38deb31aa8"
+      "params_schema_hash": "7f99bd38deb31aa8",
+      "canonical_id": "executive-summary-issues-opened-vs-closed-board",
+      "also_known_as": [
+        "executive-summary-issues-opened-vs-closed-board"
+      ],
+      "dashboards": [
+        "AI in Engineering — Leadership View",
+        "Executive Summary"
+      ]
     },
     {
       "id": "ai-in-engineering-leadership-view-issues-closed-cumulative",
@@ -10035,7 +10579,15 @@
       ],
       "sql": "SELECT CASE WHEN s.mcp_calls > 0 OR s.distinct_tools >= 5 OR s.tool_calls >= 50 THEN 'agentic' WHEN s.tool_calls > 0 THEN 'edits' ELSE 'chat only' END AS `depth`, COUNT(*) AS `sessions` FROM whodunit_sessions s LEFT JOIN whodunit_identities wi ON wi.alias = s.contributor WHERE s.last_seen BETWEEN ? * 1000000000 AND ? * 1000000000 AND (? = '__all__' OR COALESCE(wi.canonical, s.contributor) = ?) AND (? = '__all__' OR s.repo_id = ?) GROUP BY `depth` ORDER BY FIELD(`depth`, 'chat only', 'edits', 'agentic')",
       "sql_hash": "d594cbbbf5215a40",
-      "params_schema_hash": "4ac3108af29627d7"
+      "params_schema_hash": "4ac3108af29627d7",
+      "canonical_id": "executive-summary-session-depth-repo",
+      "also_known_as": [
+        "executive-summary-session-depth-repo"
+      ],
+      "dashboards": [
+        "AI in Engineering — Leadership View",
+        "Executive Summary"
+      ]
     },
     {
       "id": "ai-in-engineering-leadership-view-cycle-time-per-week-each-cohort",
@@ -11007,7 +11559,15 @@
       ],
       "sql": "WITH c AS ( SELECT c.purpose, CASE WHEN c.files_changed < 3 THEN '1-2 files' WHEN c.files_changed <= 20 THEN '3-20 files' ELSE '20+ files' END band, c.status, c.lines_added + c.lines_removed AS churn, c.contributor, c.committed_at FROM whodunit_commits c LEFT JOIN whodunit_identities wi ON wi.alias = c.contributor LEFT JOIN team_users tu ON tu.user_id = COALESCE(wi.canonical, c.contributor) LEFT JOIN teams t ON t.id = tu.team_id LEFT JOIN whodunit_teams wt ON wt.contributor = COALESCE(wi.canonical, c.contributor) WHERE c.committed_at BETWEEN ?*1000000000 AND ?*1000000000 AND c.contributor IS NOT NULL AND c.status IN ('assisted','unassisted','undetermined','uninstrumented','unmatched','degraded') AND CASE c.status WHEN 'assisted' THEN 1 WHEN 'unassisted' THEN 1 END = 1 AND (? = '__all__' OR c.contributor = ?) AND (? = '__all__' OR COALESCE(wt.team_name, t.name, '(unassigned)') = ?) ), cell AS ( SELECT purpose, band, status, COUNT(*) commits, SUM(churn) delivered, COUNT(DISTINCT CONCAT(contributor,'|',DATE(FROM_UNIXTIME(committed_at/1000000000)))) person_days FROM c GROUP BY purpose, band, status ), pivot AS ( SELECT purpose, band, MAX(CASE WHEN status='assisted' THEN delivered/NULLIF(person_days,0) END) a, MAX(CASE WHEN status='unassisted' THEN delivered/NULLIF(person_days,0) END) u, MAX(CASE WHEN status='assisted' THEN commits END) na, MAX(CASE WHEN status='unassisted' THEN commits END) nu FROM cell GROUP BY purpose, band ), tot AS ( SELECT status, COUNT(*) commits, SUM(churn) delivered, COUNT(DISTINCT CONCAT(contributor,'|',DATE(FROM_UNIXTIME(committed_at/1000000000)))) person_days FROM c GROUP BY status ) SELECT 'Pooled — all work' AS metric, ROUND(100*(MAX(CASE WHEN status='assisted' THEN delivered/NULLIF(person_days,0) END) - MAX(CASE WHEN status='unassisted' THEN delivered/NULLIF(person_days,0) END)) / MAX(CASE WHEN status='unassisted' THEN delivered/NULLIF(person_days,0) END),0) AS value FROM tot UNION ALL SELECT 'Conditioned — like with like', ROUND(100*(SUM(a*nu)/SUM(nu) - SUM(u*nu)/SUM(nu)) / (SUM(u*nu)/SUM(nu)),0) FROM pivot WHERE na >= 5 AND nu >= 5 AND u > 0",
       "sql_hash": "310e1609e3804622",
-      "params_schema_hash": "2366fe2ff9aa9678"
+      "params_schema_hash": "2366fe2ff9aa9678",
+      "canonical_id": "investment-case-pooled-vs-conditioned",
+      "also_known_as": [
+        "investment-case-pooled-vs-conditioned"
+      ],
+      "dashboards": [
+        "Investment Case",
+        "Productivity — five definitions"
+      ]
     },
     {
       "id": "productivity-five-definitions-rework-rate-each-side",
@@ -11060,7 +11620,15 @@
       "sql": "SELECT CASE WHEN c.status='assisted' THEN 'AI-assisted' ELSE 'Unassisted' END AS metric, ROUND(100*SUM(c.purpose='fix')/COUNT(*),1) AS value FROM whodunit_commits c LEFT JOIN whodunit_identities wi ON wi.alias = c.contributor LEFT JOIN team_users tu ON tu.user_id = COALESCE(wi.canonical, c.contributor) LEFT JOIN teams t ON t.id = tu.team_id LEFT JOIN whodunit_teams wt ON wt.contributor = COALESCE(wi.canonical, c.contributor) WHERE c.committed_at BETWEEN ?*1000000000 AND ?*1000000000 AND c.contributor IS NOT NULL AND c.status IN ('assisted','unassisted','undetermined','uninstrumented','unmatched','degraded') AND CASE c.status WHEN 'assisted' THEN 1 WHEN 'unassisted' THEN 1 END = 1 AND (? = '__all__' OR c.contributor = ?) AND (? = '__all__' OR COALESCE(wt.team_name, t.name, '(unassigned)') = ?) GROUP BY c.status HAVING COUNT(*) >= 5",
       "sql_hash": "a56444e0f92df3a6",
       "params_schema_hash": "2366fe2ff9aa9678",
-      "min_n": 5
+      "min_n": 5,
+      "canonical_id": "investment-case-rework-rate-each-side",
+      "also_known_as": [
+        "investment-case-rework-rate-each-side"
+      ],
+      "dashboards": [
+        "Investment Case",
+        "Productivity — five definitions"
+      ]
     },
     {
       "id": "productivity-five-definitions-difference-by-work-type-complexity",
@@ -12423,7 +12991,15 @@
       ],
       "sql": "WITH c AS ( SELECT c.purpose, CASE WHEN c.files_changed < 3 THEN '1-2 files' WHEN c.files_changed <= 20 THEN '3-20 files' ELSE '20+ files' END band, c.status, c.lines_added + c.lines_removed AS churn, c.contributor, c.committed_at FROM whodunit_commits c LEFT JOIN whodunit_identities wi ON wi.alias = c.contributor LEFT JOIN team_users tu ON tu.user_id = COALESCE(wi.canonical, c.contributor) LEFT JOIN teams t ON t.id = tu.team_id LEFT JOIN whodunit_teams wt ON wt.contributor = COALESCE(wi.canonical, c.contributor) WHERE c.committed_at BETWEEN ?*1000000000 AND ?*1000000000 AND c.contributor IS NOT NULL AND c.status IN ('assisted','unassisted','undetermined','uninstrumented','unmatched','degraded') AND CASE c.status WHEN 'assisted' THEN 1 WHEN 'unassisted' THEN 1 END = 1 AND (? = '__all__' OR c.contributor = ?) AND (? = '__all__' OR COALESCE(wt.team_name, t.name, '(unassigned)') = ?) ), cell AS ( SELECT purpose, band, status, COUNT(*) commits, SUM(churn) delivered, COUNT(DISTINCT CONCAT(contributor,'|',DATE(FROM_UNIXTIME(committed_at/1000000000)))) person_days FROM c GROUP BY purpose, band, status ), pivot AS ( SELECT purpose, band, MAX(CASE WHEN status='assisted' THEN delivered/NULLIF(person_days,0) END) a, MAX(CASE WHEN status='unassisted' THEN delivered/NULLIF(person_days,0) END) u, MAX(CASE WHEN status='assisted' THEN commits END) na, MAX(CASE WHEN status='unassisted' THEN commits END) nu FROM cell GROUP BY purpose, band ), tot AS ( SELECT status, COUNT(*) commits, SUM(churn) delivered, COUNT(DISTINCT CONCAT(contributor,'|',DATE(FROM_UNIXTIME(committed_at/1000000000)))) person_days FROM c GROUP BY status ) SELECT 'Pooled — all work' AS metric, ROUND(100*(MAX(CASE WHEN status='assisted' THEN delivered/NULLIF(person_days,0) END) - MAX(CASE WHEN status='unassisted' THEN delivered/NULLIF(person_days,0) END)) / MAX(CASE WHEN status='unassisted' THEN delivered/NULLIF(person_days,0) END),0) AS value FROM tot UNION ALL SELECT 'Conditioned — like with like', ROUND(100*(SUM(a*nu)/SUM(nu) - SUM(u*nu)/SUM(nu)) / (SUM(u*nu)/SUM(nu)),0) FROM pivot WHERE na >= 5 AND nu >= 5 AND u > 0",
       "sql_hash": "310e1609e3804622",
-      "params_schema_hash": "2366fe2ff9aa9678"
+      "params_schema_hash": "2366fe2ff9aa9678",
+      "canonical_id": "investment-case-pooled-vs-conditioned",
+      "also_known_as": [
+        "productivity-five-definitions-pooled-vs-conditioned"
+      ],
+      "dashboards": [
+        "Investment Case",
+        "Productivity — five definitions"
+      ]
     },
     {
       "id": "investment-case-rework-rate-each-side",
@@ -12476,7 +13052,15 @@
       "sql": "SELECT CASE WHEN c.status='assisted' THEN 'AI-assisted' ELSE 'Unassisted' END AS metric, ROUND(100*SUM(c.purpose='fix')/COUNT(*),1) AS value FROM whodunit_commits c LEFT JOIN whodunit_identities wi ON wi.alias = c.contributor LEFT JOIN team_users tu ON tu.user_id = COALESCE(wi.canonical, c.contributor) LEFT JOIN teams t ON t.id = tu.team_id LEFT JOIN whodunit_teams wt ON wt.contributor = COALESCE(wi.canonical, c.contributor) WHERE c.committed_at BETWEEN ?*1000000000 AND ?*1000000000 AND c.contributor IS NOT NULL AND c.status IN ('assisted','unassisted','undetermined','uninstrumented','unmatched','degraded') AND CASE c.status WHEN 'assisted' THEN 1 WHEN 'unassisted' THEN 1 END = 1 AND (? = '__all__' OR c.contributor = ?) AND (? = '__all__' OR COALESCE(wt.team_name, t.name, '(unassigned)') = ?) GROUP BY c.status HAVING COUNT(*) >= 5",
       "sql_hash": "a56444e0f92df3a6",
       "params_schema_hash": "2366fe2ff9aa9678",
-      "min_n": 5
+      "min_n": 5,
+      "canonical_id": "investment-case-rework-rate-each-side",
+      "also_known_as": [
+        "productivity-five-definitions-rework-rate-each-side"
+      ],
+      "dashboards": [
+        "Investment Case",
+        "Productivity — five definitions"
+      ]
     },
     {
       "id": "investment-case-sessions-not-priced-and-why",
@@ -12724,7 +13308,14 @@
       "sql": "WITH c AS ( SELECT c.status, c.purpose, COALESCE(wi.canonical, c.contributor) AS person, COALESCE(wt.team_name, t.name, '(unassigned)') AS team, c.committed_at, DATE(FROM_UNIXTIME(c.committed_at/1e9)) AS d, DATE_SUB(DATE(FROM_UNIXTIME(c.committed_at/1e9)), INTERVAL WEEKDAY(FROM_UNIXTIME(c.committed_at/1e9)) DAY) AS w FROM whodunit_commits c LEFT JOIN whodunit_identities wi ON wi.alias = c.contributor LEFT JOIN team_users tu ON tu.user_id = COALESCE(wi.canonical, c.contributor) LEFT JOIN teams t ON t.id = tu.team_id LEFT JOIN whodunit_teams wt ON wt.contributor = COALESCE(wi.canonical, c.contributor) WHERE c.committed_at BETWEEN ?*1000000000 AND ?*1000000000 AND c.contributor IS NOT NULL AND c.status IN ('assisted','unassisted','undetermined','uninstrumented','unmatched','degraded') AND (? = '__all__' OR c.method = ?) AND (? = '__all__' OR COALESCE(wi.canonical, c.contributor) = ?) AND (? = '__all__' OR COALESCE(wt.team_name, t.name, '(unassigned)') = ?)) SELECT CAST(w AS DATETIME) AS time, team AS metric, ROUND(100*SUM(status='assisted')/COUNT(*),0) AS value FROM c GROUP BY w, team HAVING COUNT(*) >= 3 ORDER BY time, team",
       "sql_hash": "62f23eccafcc3620",
       "params_schema_hash": "d6b42dd9715cfeb1",
-      "min_n": 3
+      "min_n": 3,
+      "canonical_id": "team-adoption-adoption-band-per-team-per-week",
+      "also_known_as": [
+        "team-adoption-adoption-curves-one-line-per-team"
+      ],
+      "dashboards": [
+        "Team Adoption"
+      ]
     },
     {
       "id": "team-adoption-adoption-leaderboard",
@@ -12933,7 +13524,14 @@
       "sql": "WITH c AS ( SELECT c.status, c.purpose, COALESCE(wi.canonical, c.contributor) AS person, COALESCE(wt.team_name, t.name, '(unassigned)') AS team, c.committed_at, DATE(FROM_UNIXTIME(c.committed_at/1e9)) AS d, DATE_SUB(DATE(FROM_UNIXTIME(c.committed_at/1e9)), INTERVAL WEEKDAY(FROM_UNIXTIME(c.committed_at/1e9)) DAY) AS w FROM whodunit_commits c LEFT JOIN whodunit_identities wi ON wi.alias = c.contributor LEFT JOIN team_users tu ON tu.user_id = COALESCE(wi.canonical, c.contributor) LEFT JOIN teams t ON t.id = tu.team_id LEFT JOIN whodunit_teams wt ON wt.contributor = COALESCE(wi.canonical, c.contributor) WHERE c.committed_at BETWEEN ?*1000000000 AND ?*1000000000 AND c.contributor IS NOT NULL AND c.status IN ('assisted','unassisted','undetermined','uninstrumented','unmatched','degraded') AND (? = '__all__' OR c.method = ?) AND (? = '__all__' OR COALESCE(wi.canonical, c.contributor) = ?) AND (? = '__all__' OR COALESCE(wt.team_name, t.name, '(unassigned)') = ?)) SELECT CAST(w AS DATETIME) AS time, team AS metric, ROUND(100*SUM(status='assisted')/COUNT(*),0) AS value FROM c GROUP BY w, team HAVING COUNT(*) >= 3 ORDER BY time, team",
       "sql_hash": "62f23eccafcc3620",
       "params_schema_hash": "d6b42dd9715cfeb1",
-      "min_n": 3
+      "min_n": 3,
+      "canonical_id": "team-adoption-adoption-band-per-team-per-week",
+      "also_known_as": [
+        "team-adoption-adoption-band-per-team-per-week"
+      ],
+      "dashboards": [
+        "Team Adoption"
+      ]
     },
     {
       "id": "team-adoption-spread-inside-each-team-lowest-average-highest-member",
@@ -13583,7 +14181,15 @@
       ],
       "sql": "SELECT ROUND(100.0 * COUNT(DISTINCT w.commit_sha) / NULLIF(COUNT(DISTINCT c.sha), 0), 1) AS coverage FROM commits c JOIN repo_commits rc ON rc.commit_sha = c.sha JOIN repo_commits rc2 ON rc2.repo_id = rc.repo_id JOIN whodunit_commits seen ON seen.commit_sha = rc2.commit_sha LEFT JOIN whodunit_commits w ON w.commit_sha = c.sha WHERE c.authored_date BETWEEN FROM_UNIXTIME(?) AND FROM_UNIXTIME(?)",
       "sql_hash": "c6c4c2b0ec8cf2cb",
-      "params_schema_hash": "2d840297b8723b6b"
+      "params_schema_hash": "2d840297b8723b6b",
+      "canonical_id": "ai-attribution-coverage",
+      "also_known_as": [
+        "ai-attribution-evidence-coverage"
+      ],
+      "dashboards": [
+        "AI attribution",
+        "AI attribution — Evidence"
+      ]
     },
     {
       "id": "ai-attribution-penetration",
@@ -13615,7 +14221,15 @@
       ],
       "sql": "SELECT 100.0 * SUM(status = 'assisted') / NULLIF(SUM(status IN ('assisted','unassisted','unmatched')), 0) AS penetration FROM whodunit_commits WHERE committed_at BETWEEN ? * 1000000000 AND ? * 1000000000",
       "sql_hash": "e3ebc457a026caba",
-      "params_schema_hash": "2d840297b8723b6b"
+      "params_schema_hash": "2d840297b8723b6b",
+      "canonical_id": "ai-attribution-penetration",
+      "also_known_as": [
+        "ai-attribution-evidence-penetration"
+      ],
+      "dashboards": [
+        "AI attribution",
+        "AI attribution — Evidence"
+      ]
     },
     {
       "id": "ai-attribution-commits",
@@ -13647,7 +14261,15 @@
       ],
       "sql": "SELECT COUNT(*) AS commits FROM whodunit_commits WHERE committed_at BETWEEN ? * 1000000000 AND ? * 1000000000",
       "sql_hash": "067936ec8ef02c69",
-      "params_schema_hash": "2d840297b8723b6b"
+      "params_schema_hash": "2d840297b8723b6b",
+      "canonical_id": "ai-attribution-commits",
+      "also_known_as": [
+        "ai-attribution-evidence-commits"
+      ],
+      "dashboards": [
+        "AI attribution",
+        "AI attribution — Evidence"
+      ]
     },
     {
       "id": "ai-attribution-median-agent-share",
@@ -13679,7 +14301,15 @@
       ],
       "sql": "SELECT AVG(t.ratio) AS median_share FROM ( SELECT c.ratio, ROW_NUMBER() OVER (ORDER BY c.ratio) AS rn, COUNT(*) OVER () AS n FROM whodunit_commits c WHERE c.ratio IS NOT NULL AND c.committed_at BETWEEN ? * 1000000000 AND ? * 1000000000 ) t WHERE t.rn IN (FLOOR((t.n + 1) / 2), CEIL((t.n + 1) / 2))",
       "sql_hash": "50e53ae57df940e1",
-      "params_schema_hash": "2d840297b8723b6b"
+      "params_schema_hash": "2d840297b8723b6b",
+      "canonical_id": "ai-attribution-median-agent-share",
+      "also_known_as": [
+        "ai-attribution-evidence-median-agent-share"
+      ],
+      "dashboards": [
+        "AI attribution",
+        "AI attribution — Evidence"
+      ]
     },
     {
       "id": "ai-attribution-evidence-mix",
@@ -13711,7 +14341,15 @@
       ],
       "sql": "SELECT CASE WHEN c.method <> 'undetermined' THEN c.method ELSE COALESCE(c.reason, CASE WHEN c.status IN ('uninstrumented','unmatched','unassisted','degraded') THEN c.status END, 'undetermined') END AS state, COUNT(*) AS commits FROM whodunit_commits c WHERE c.committed_at BETWEEN ? * 1000000000 AND ? * 1000000000 GROUP BY CASE WHEN c.method <> 'undetermined' THEN c.method ELSE COALESCE(c.reason, CASE WHEN c.status IN ('uninstrumented','unmatched','unassisted','degraded') THEN c.status END, 'undetermined') END ORDER BY commits DESC",
       "sql_hash": "5d74852dae1721db",
-      "params_schema_hash": "2d840297b8723b6b"
+      "params_schema_hash": "2d840297b8723b6b",
+      "canonical_id": "ai-attribution-evidence-mix",
+      "also_known_as": [
+        "ai-attribution-evidence-evidence-mix"
+      ],
+      "dashboards": [
+        "AI attribution",
+        "AI attribution — Evidence"
+      ]
     },
     {
       "id": "ai-attribution-purpose-distribution",
@@ -13775,7 +14413,15 @@
       ],
       "sql": "SELECT FROM_UNIXTIME(FLOOR(c.committed_at / 1000000000 / 86400) * 86400) AS time, CASE WHEN c.method <> 'undetermined' THEN c.method ELSE COALESCE(c.reason, CASE WHEN c.status IN ('uninstrumented','unmatched','unassisted','degraded') THEN c.status END, 'undetermined') END AS metric, COUNT(*) AS value FROM whodunit_commits c WHERE c.committed_at BETWEEN ? * 1000000000 AND ? * 1000000000 GROUP BY time, CASE WHEN c.method <> 'undetermined' THEN c.method ELSE COALESCE(c.reason, CASE WHEN c.status IN ('uninstrumented','unmatched','unassisted','degraded') THEN c.status END, 'undetermined') END ORDER BY time",
       "sql_hash": "2ff6e0be0ca2000f",
-      "params_schema_hash": "2d840297b8723b6b"
+      "params_schema_hash": "2d840297b8723b6b",
+      "canonical_id": "ai-attribution-evidence-mix-over-time",
+      "also_known_as": [
+        "ai-attribution-evidence-evidence-mix-over-time"
+      ],
+      "dashboards": [
+        "AI attribution",
+        "AI attribution — Evidence"
+      ]
     },
     {
       "id": "ai-attribution-most-agent-edited-files",
@@ -13807,7 +14453,15 @@
       ],
       "sql": "SELECT SUBSTRING_INDEX(file, '/', -1) AS file, COUNT(*) AS agent_edits, SUM(lines_added) AS lines_written FROM whodunit_events WHERE file <> '' AND observed_at BETWEEN ? * 1000000000 AND ? * 1000000000 GROUP BY file ORDER BY agent_edits DESC LIMIT 20",
       "sql_hash": "ee4bbf4dd1ede0de",
-      "params_schema_hash": "2d840297b8723b6b"
+      "params_schema_hash": "2d840297b8723b6b",
+      "canonical_id": "ai-attribution-most-agent-edited-files",
+      "also_known_as": [
+        "ai-attribution-evidence-most-agent-edited-files"
+      ],
+      "dashboards": [
+        "AI attribution",
+        "AI attribution — Evidence"
+      ]
     },
     {
       "id": "ai-attribution-agent-activity-by-tool",
