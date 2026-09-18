@@ -21,7 +21,8 @@ privacy classification and the two fields we were ignoring — see
 | [Claude Code](#claude-code) | `intersected` | Shipped |
 | [Codex CLI](#codex-cli) | `intersected` | Shipped |
 | [`agy` (Antigravity CLI)](#agy-antigravity-cli) | `intersected` | Shipped |
-| [Cursor](#cursor) | unverified | Blocked — no edit sample |
+| [Cursor](#cursor) | `intersected` | Reachable — format verified, adapter not built |
+| [GitHub Copilot](#github-copilot) | `intersected` | Reachable — format verified, adapter not built |
 | [Antigravity IDE](#antigravity-ide) | `inferred` | Bodies encrypted |
 | [Gemini CLI](#gemini-cli) | unverified | Blocked — tier removed |
 | [Gemini Code Assist](#gemini-code-assist) | — | Retired |
@@ -193,12 +194,28 @@ cover both. Three locations, all readable:
 Session blobs carry a `blobEncryptionKey` field but are **not encrypted** —
 entropy 4.65–4.99 at 100% printable, parsing as plain JSON.
 
-**Blocker:** no file-edit record exists in any of the 111 readable sessions.
-They contain only `Read`, `Glob`, `Shell`, `Grep`, `WebSearch`, and a scan
-for edit-shaped keys (`old_string`, `new_string`, `code_edit`,
-`target_file`) returned nothing. An attempt to capture a fresh edit failed
-on a usage limit. Until one real edit is captured, an adapter would be
-inventing the format.
+**Unblocked 2026-09-17.** The earlier negative — no file-edit record in
+any of 111 readable sessions — was a sampling artefact: those sessions
+held only read-only tool runs. Driving a real edit through `cursor-agent`
+and diffing the store produced the format.
+
+An edit is a `content[]` part in the session blob:
+
+```
+type: tool-call
+toolName: StrReplace
+args: { old_string, new_string, path }
+```
+
+`new_string` is the literal post-edit text — the same shape Claude Code's
+records have, so the existing hashing path applies unchanged. `meta.json`
+carries `cwd` for repository scoping.
+
+`~/.cursor/ai-tracking/ai-code-tracking.db` populates on the same edit:
+`ai_code_hashes` gains one row per added line, with an absolute
+`fileName`, a `model` and a `conversationId`; `tracked_file_content` holds
+the post-edit body. Two viable paths, then — parse `StrReplace`, or read
+Cursor's own per-line hashes. The tracked work is WHO-258.
 
 **Worth reading regardless:** `ai-code-tracking.db` shows Cursor solving the
 same problem —
@@ -264,6 +281,35 @@ Two structural notes for whoever picks it up:
 Retired. The VS Code extension refuses to sign in for individual accounts
 and directs users to Antigravity. Its `globalStorage` directory does not
 exist, so nothing is persisted to read. Not blocked — ended.
+
+### GitHub Copilot
+
+Attributed today at `declared` from the trailers it writes —
+`Agent-Logs-Url` on coding-agent commits, and `Co-authored-by: Copilot`.
+
+**The store is not `~/.copilot`**, which holds only configuration. Edit
+records live in VS Code's workspace storage:
+
+| Path | Contents |
+|---|---|
+| `…/Code/User/workspaceStorage/<hash>/chatSessions/*.json` | Sessions; plain JSON, no DB driver needed |
+| `…/workspaceStorage/<hash>/workspace.json` | Maps the opaque hash to a repository path |
+
+An edit is a `requests[].response[]` part of kind `textEditGroup`, carrying
+`uri.fsPath` and `edits[][]` of `{range, text}` — `text` being the literal
+inserted string. Sampled: 5 sessions, 47 requests, 287 edit entries with
+non-empty text. Per-request `timestamp` in epoch ms, and
+`result.timings.totalElapsed` — per-turn timing, which among the shipped
+adapters only Codex reports.
+
+Not carried: model (only an opaque `modelMessageId`), tokens, cache,
+branch, reasoning effort, permission mode, compaction. `cacheType` is
+prompt-context caching and must not be mapped to a token-cache field.
+
+**Before building, re-verify.** The sample is from January–March 2026,
+written by `github.copilot-1.372.0` / `github.copilot-chat-0.28.5`.
+Capture a fresh edit first — building against a six-month-old observed
+format is what parked Cursor for a month. The tracked work is WHO-259.
 
 ### Windsurf
 

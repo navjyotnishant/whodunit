@@ -1,9 +1,17 @@
 # whodunit and vendor usage APIs
 
 Apache DevLake ships plugins that collect AI-coding usage directly from
-vendors: `claude_code` reads Anthropic's organization admin API, `gh-copilot`
-reads GitHub's, `q_dev` reads AWS's. If you are evaluating whodunit and one of
-those is available to you, this is the honest comparison.
+vendors: `claude_code` reads Anthropic's organization usage and analytics
+APIs, `gh-copilot` reads GitHub's enterprise and organization Copilot APIs,
+`cursor` reads Cursor's Team Admin API, and `kiro` reads AWS Kiro's S3
+exports. If you are evaluating whodunit and one of those is available to
+you, this is the honest comparison.
+
+The set changes — `q_dev`, the older AWS plugin, was removed in August 2026
+in favour of `kiro`, and the plugins are not listed on DevLake's
+documentation site. The
+[plugin source tree](https://github.com/apache/devlake/tree/main/backend/plugins)
+is where to check what exists today.
 
 ## The short version
 

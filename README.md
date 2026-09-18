@@ -245,14 +245,18 @@ for the full example.
 
 ## How attribution is determined
 
-Three adapters ship today, each reading transcripts the agent already
-writes for its own purposes — whodunit only reads them:
+Five agents are attributed today. Three have a transcript adapter, each
+reading records the agent already writes for its own purposes — whodunit
+only reads them. Two more are read from the trailer they write into the
+commit themselves, which is the weakest rung the spec has:
 
 | Agent | Source | Reaches |
 |---|---|---|
 | **Claude Code** | `~/.claude/projects/**/*.jsonl` | `intersected` |
 | **Codex** | `~/.codex/sessions/**/*.jsonl` | `intersected` |
 | **Antigravity** (`agy`) | its local SQLite store | `intersected` |
+| **GitHub Copilot** | `Agent-Logs-Url`, `Co-authored-by: Copilot` | `declared` |
+| **Cursor** | `Made-with: Cursor` | `declared` |
 
 At commit time, `dun` checks which staged files were touched by a recent
 session and, if the exact text matches, upgrades confidence to
@@ -269,10 +273,17 @@ doesn't exist yet when the observation is recorded, and may later be
 amended, rebased, or squashed. Hashing what changed, not where it landed,
 keeps attribution correct across all three.
 
-Cursor and Windsurf aren't supported yet — their session history lives in
-an undocumented SQLite blob with no compatibility contract, and reverse-
-engineering it isn't a maintenance burden this project is taking on. The
-adapter interface is open for a community contribution.
+A declaration is graded lowest because nothing verified it — VS Code
+shipped `Co-authored-by: Copilot` as a default in 2026 and reverted it
+after the line appeared on commits made with Copilot switched off. Where
+an agent both declares itself and writes a transcript, the transcript's
+finding wins.
+
+**Cursor and Copilot can both reach `intersected`.** Each records the
+lines it wrote to a local store whodunit can read; the adapters are not
+written yet. Windsurf stays declaration-only — no local store has been
+located for it. The adapter interface is open for a community
+contribution.
 
 ## Compared with vendor usage APIs
 
