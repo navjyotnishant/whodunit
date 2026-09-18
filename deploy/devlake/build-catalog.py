@@ -58,6 +58,9 @@ import pathlib
 import re
 import sys
 
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+from panelsql import panels, strip_line_comments  # noqa: E402
+
 HERE = pathlib.Path(__file__).parent
 SOURCE = HERE / "dashboards"
 OUTPUT = HERE / "catalog.json"
@@ -266,14 +269,6 @@ def dashboard_param_schemas(dashboard):
     }
 
 
-def panels(dashboard):
-    """Yield every panel, including those nested inside collapsed rows."""
-    for panel in dashboard.get("panels", []):
-        yield panel
-        for child in panel.get("panels", []) or []:
-            yield child
-
-
 def parameterize(sql):
     """Return (sql_with_placeholders, ordered param names).
 
@@ -329,45 +324,6 @@ def parameterize(sql):
     # eating the `-[0-9]+` in the issue_key guard's regex.
     sql = strip_line_comments(sql)
     return " ".join(sql.split()), params
-
-
-def strip_line_comments(sql):
-    """Remove `-- ...` comments, respecting single-quoted string literals."""
-    out, in_string, i = [], False, 0
-    while i < len(sql):
-        ch = sql[i]
-        if in_string:
-            out.append(ch)
-            if ch == "\\" and i + 1 < len(sql):
-                out.append(sql[i + 1])
-                i += 2
-                continue
-            if ch == "'":
-                # '' inside a literal is an escaped quote, not the end.
-                if i + 1 < len(sql) and sql[i + 1] == "'":
-                    out.append("'")
-                    i += 2
-                    continue
-                in_string = False
-            i += 1
-            continue
-        if ch == "'":
-            in_string = True
-            out.append(ch)
-            i += 1
-            continue
-        # MySQL needs whitespace after `--` for it to be a comment, which is
-        # what leaves `-[0-9]+$` in the issue_key regex alone.
-        if sql[i : i + 3] in ("-- ", "--\t", "--\n") or sql[i:] == "--":
-            j = sql.find("\n", i)
-            if j == -1:
-                break
-            out.append("\n")
-            i = j + 1
-            continue
-        out.append(ch)
-        i += 1
-    return "".join(out)
 
 
 def param_schema_list(names, dashboard_schemas):

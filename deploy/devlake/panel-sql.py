@@ -22,8 +22,13 @@ real data, which is what is being checked.
 """
 
 import json
+import pathlib
 import re
 import sys
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+from panelsql import panels, strip_line_comments  # noqa: E402
+
 
 # Grafana macros. The time filter is widened rather than honored: a panel
 # scoped to "last 6 hours" would return nothing on a database whose data is a
@@ -103,14 +108,6 @@ def _substitute(variables: dict, match, name: str | None = None) -> str:
     return "'" + value.replace("'", "''") + "'"
 
 
-def panels(dashboard: dict):
-    """Yield every panel, including those nested inside collapsed rows."""
-    for panel in dashboard.get("panels", []):
-        yield panel
-        for child in panel.get("panels", []):
-            yield child
-
-
 def runnable(sql: str, variables: dict) -> str:
     for pattern, replacement in MACROS.items():
         sql = re.sub(pattern, replacement, sql)
@@ -145,49 +142,6 @@ def runnable(sql: str, variables: dict) -> str:
 
     # One line per query, since verify.sh reads them line by line.
     return " ".join(sql.split())
-
-
-def strip_line_comments(sql: str) -> str:
-    """Remove `-- ...` comments, respecting single-quoted string literals.
-
-    Quote-aware because `'--'` inside a literal is data, not a comment, and
-    stripping from there would truncate a valid query. MySQL also requires
-    whitespace after `--` for it to open a comment, which is what leaves the
-    `-[0-9]+` in the issue_key guard's regex alone.
-    """
-    out, in_string, i = [], False, 0
-    while i < len(sql):
-        ch = sql[i]
-        if in_string:
-            out.append(ch)
-            if ch == "\\" and i + 1 < len(sql):
-                out.append(sql[i + 1])
-                i += 2
-                continue
-            if ch == "'":
-                # '' inside a literal is an escaped quote, not the end.
-                if i + 1 < len(sql) and sql[i + 1] == "'":
-                    out.append("'")
-                    i += 2
-                    continue
-                in_string = False
-            i += 1
-            continue
-        if ch == "'":
-            in_string = True
-            out.append(ch)
-            i += 1
-            continue
-        if sql[i : i + 3] in ("-- ", "--\t", "--\n") or sql[i:] == "--":
-            j = sql.find("\n", i)
-            if j == -1:
-                break
-            out.append("\n")
-            i = j + 1
-            continue
-        out.append(ch)
-        i += 1
-    return "".join(out)
 
 
 def main() -> int:
