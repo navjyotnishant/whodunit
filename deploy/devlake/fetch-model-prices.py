@@ -105,7 +105,14 @@ def fetch(url):
 
 
 def strip_tags(page):
-    page = re.sub(r"<script.*?</script>|<style.*?</style>", " ", page, flags=re.S)
+    # re.I as well as re.S: without it `<SCRIPT>` and `<Style>` survive the
+    # strip and their bodies land in the text this parses prices out of.
+    # HTML tag names are case-insensitive, so a vendor changing their
+    # markup's casing would silently start injecting stray numbers into the
+    # price table. Flagged by CodeQL as py/bad-tag-filter.
+    page = re.sub(
+        r"<script.*?</script>|<style.*?</style>", " ", page, flags=re.S | re.I
+    )
     text = re.sub(r"<[^>]+>", " ", page)
     return re.sub(r"\s+", " ", html.unescape(text))
 
