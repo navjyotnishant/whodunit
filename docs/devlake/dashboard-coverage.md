@@ -31,8 +31,10 @@ why:
   connection configured, and none planned.
 - **7 `Demo-*` dashboards** — DevLake's stock samples, carrying fabricated
   data.
-- **6 whodunit dashboards** — they read the `whodunit_*` tables the CLI syncs
-  directly, are unaffected by every gap here, and are known-good.
+- **whodunit's own dashboards** — 19 of them as of 2026-09-18, up from 6 when
+  this was audited. They read the `whodunit_*` tables the CLI syncs directly,
+  are unaffected by every gap here, and are covered by
+  `deploy/devlake/check-panel-results.py` rather than by this document.
 
 ## Two traps to know before reading any panel
 
