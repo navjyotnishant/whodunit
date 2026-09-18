@@ -94,15 +94,29 @@ func (c ChangedBy) Explain() string {
 }
 
 // Status is the top-level attribution status.
+//
+// A new value here is a downstream event, not just a local one:
+// deploy/devlake/check-status-set.py mirrors this set against every
+// dashboard panel's own status list, and whodunit-mcp vendors those panels'
+// SQL verbatim as its query catalog. Adding a status without updating both
+// reproduces WHO-218 — a status silently joins the wrong side of an
+// existing IN(...)/NOT IN(...) set and every panel or catalog query built
+// on it renders a plausible, wrong number rather than an error.
 type Status string
 
 const (
 	StatusAssisted Status = "assisted"
 
 	// StatusUndetermined is what v=1 stamped whenever no determination
-	// could be made, and it meant four different things at once. Kept
-	// because it is written into every commit made before v=2 and those
-	// trailers cannot be rewritten - but nothing emits it now.
+	// could be made, and it meant four different things at once. It is
+	// written into every commit made before v=2, and those trailers
+	// cannot be rewritten.
+	//
+	// v=2 kept emitting it for one case, deliberately: an agent's
+	// transcript directory that does not exist. The hook cannot see
+	// whether an agent ran, and saying so is the honest answer where
+	// unassisted would be a positive claim it never earned (WHO-236,
+	// cmd/dun/hook.go). That is the only remaining producer.
 	StatusUndetermined Status = "undetermined"
 
 	// The four situations undetermined used to conflate (WHO-211). They

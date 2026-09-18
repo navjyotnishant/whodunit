@@ -305,6 +305,16 @@ to start without and creates the datasource its own entrypoint fails to.
 in this repository. MySQL is bound to `3306` on your machine. Fine for
 evaluating on a laptop; do not put this on a network anyone else can reach.
 
+**If you want to query this database from an AI tool** (Claude Desktop or
+any MCP client), use [whodunit-mcp](https://github.com/navjyotnishant/whodunit-mcp)
+rather than a generic MySQL MCP server — this database has already produced
+plausible-looking wrong numbers from unguarded SQL (see `check-issue-key-guard.py`
+and `check-status-set.py` in this directory), and a curated, read-only server
+inherits those guards instead of routing around them. It needs its own
+dedicated `GRANT SELECT ON lake.*` user, documented in that repo's README —
+**never** point it at the `merico`/`merico` credential above, which has full
+read-write access.
+
 **Not required.** whodunit works without any of this — `dun report` renders a
 self-contained HTML file with no server at all. DevLake matters when several
 repositories or several people's data need to be looked at together.

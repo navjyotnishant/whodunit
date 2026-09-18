@@ -22,12 +22,20 @@ real data, which is what is being checked.
 """
 
 import json
+import pathlib
 import re
 import sys
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+from panelsql import panels, strip_line_comments  # noqa: E402
+
 
 # Grafana macros. The time filter is widened rather than honored: a panel
 # scoped to "last 6 hours" would return nothing on a database whose data is a
 # day old, and that is not the failure being looked for.
+# A leftover Grafana variable, as distinct from a `$` that is regex syntax.
+LEFTOVER_VARIABLE = re.compile(r"\$\{?[A-Za-z_]\w*")
+
 MACROS = {
     r"\$__timeFilter\([^)]*\)": "1=1",
     r"\$__timeGroup\(([^,]+),[^)]*\)": r"\1",
@@ -100,14 +108,6 @@ def _substitute(variables: dict, match, name: str | None = None) -> str:
     return "'" + value.replace("'", "''") + "'"
 
 
-def panels(dashboard: dict):
-    """Yield every panel, including those nested inside collapsed rows."""
-    for panel in dashboard.get("panels", []):
-        yield panel
-        for child in panel.get("panels", []):
-            yield child
-
-
 def runnable(sql: str, variables: dict) -> str:
     for pattern, replacement in MACROS.items():
         sql = re.sub(pattern, replacement, sql)
@@ -132,6 +132,14 @@ def runnable(sql: str, variables: dict) -> str:
             sql,
         )
 
+    # Strip `--` line comments BEFORE flattening. Collapsing newlines turns a
+    # trailing comment into one that swallows the entire rest of the query,
+    # and MySQL then reports `syntax error near ''` — an unexpected end of
+    # input, pointing nowhere near the actual line. The Burn-up panel carries
+    # two such comments; it works in Grafana, which sends the SQL unflattened,
+    # and only breaks here (WHO-242).
+    sql = strip_line_comments(sql)
+
     # One line per query, since verify.sh reads them line by line.
     return " ".join(sql.split())
 
@@ -155,8 +163,16 @@ def main() -> int:
             # lie about the dashboard. Skipped — but said out loud on stderr,
             # because silently dropping queries makes a partial check look
             # like a complete one.
-            if "$" in query:
-                unresolved = set(re.findall(r"\$\{?\w+", query))
+            # A variable is `$` followed by a word character; a regex
+            # end-anchor is `$` followed by a quote or end of string. Testing
+            # `"$" in query` cannot tell them apart, so every panel carrying
+            # the issue_key guard `'^[A-Z][A-Z0-9]+-[0-9]+$'` was skipped —
+            # 33 of them, i.e. exactly the queries written most carefully,
+            # and verify.sh reported success having checked none (WHO-242).
+            # The tell was the message itself: findall matched nothing, so it
+            # printed "unresolved" with an empty list.
+            unresolved = set(LEFTOVER_VARIABLE.findall(query))
+            if unresolved:
                 print(
                     f"  (skipped a panel query: unresolved {', '.join(sorted(unresolved))})",
                     file=sys.stderr,

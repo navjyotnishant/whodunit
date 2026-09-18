@@ -42,6 +42,13 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 
 # Every status `dun` can write. internal/spec/trailer.go is the source of
 # truth; this mirrors it.
+#
+# whodunit-mcp's catalog.json vendors the SQL these panels run, one query
+# per panel, unedited. A status added here without updating every panel's
+# set reproduces the WHO-218 failure inside that catalog too — the MCP
+# server has no way to know a query it is publishing verbatim just went
+# stale, since check-catalog-fidelity.py only proves the catalog MATCHES
+# the panels, not that either is complete against the current vocabulary.
 STATUSES = {
     "assisted",
     "unassisted",
