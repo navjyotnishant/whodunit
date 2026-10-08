@@ -85,9 +85,9 @@ func prepare(t *testing.T, dir, msg string, gitArgs ...string) string {
 func trailerCount(msg string) int { return len(trailerLines(msg)) }
 
 func TestAmendKeepsTheExistingTrailer(t *testing.T) {
-	dir, _, head := repoWithTwoCommits(t)
-	// --amend and --amend --no-edit both arrive as "commit <HEAD>".
-	got := prepare(t, dir, "commit b.txt\n\n"+strongTrailer+"\n", "commit", head)
+	dir, _, _ := repoWithTwoCommits(t)
+	// --amend and --amend --no-edit both arrive as the literal "commit HEAD".
+	got := prepare(t, dir, "commit b.txt\n\n"+strongTrailer+"\n", "commit", "HEAD")
 
 	if n := trailerCount(got); n != 1 {
 		t.Fatalf("got %d trailers, want 1:\n%s", n, got)

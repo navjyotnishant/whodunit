@@ -165,23 +165,16 @@ func stripTrailers(msg string) string {
 }
 
 // reusesOtherCommit reports whether git pre-filled the message from a
-// commit other than HEAD (`git commit -c/-C <other>`). git passes
-// "commit <sha>" for --amend and for -c/-C alike; only the sha tells them
-// apart, and --amend always names HEAD. Any failure to resolve answers no,
-// which keeps the existing trailer: the outcome that never loses evidence.
+// commit other than the one being amended (`git commit -c/-C <other>`).
+//
+// git passes "commit <name>" for --amend and for -c/-C alike. For --amend
+// the name is always the literal string "HEAD"; for -c/-C it is whatever
+// the user typed (verified: `-C HEAD~1` arrives as "HEAD~1", `-C <sha>` as
+// the sha). So the string alone separates them and nothing needs resolving.
+// `-C HEAD` is indistinguishable from an amend and keeps the trailer, the
+// outcome that never loses evidence.
 func reusesOtherCommit(args []string) bool {
-	if len(args) < 2 || args[0] != "commit" {
-		return false
-	}
-	head, err := exec.Command("git", "rev-parse", "HEAD").Output()
-	if err != nil {
-		return false
-	}
-	from, err := exec.Command("git", "rev-parse", args[1]).Output()
-	if err != nil {
-		return false
-	}
-	return strings.TrimSpace(string(from)) != strings.TrimSpace(string(head))
+	return len(args) >= 2 && args[0] == "commit" && args[1] != "HEAD"
 }
 
 // keepStrongestTrailer leaves a single trailer in the message. One is left
