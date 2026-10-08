@@ -19,6 +19,7 @@ import (
 	"github.com/navjyotnishant/whodunit/internal/hooklog"
 	"github.com/navjyotnishant/whodunit/internal/journal"
 	"github.com/navjyotnishant/whodunit/internal/replaylog"
+	"github.com/navjyotnishant/whodunit/internal/repoid"
 	"github.com/navjyotnishant/whodunit/internal/spec"
 	"github.com/spf13/cobra"
 )
@@ -128,6 +129,16 @@ func runPrepareCommitMsg(args []string) error {
 	}
 
 	trailer := determineTrailer(msg)
+
+	// Mark commits made under the origin id scheme. Teammates' dun finds the
+	// marker in history and switches with them, so a team moves when one
+	// person opts in rather than when all of them remember to (WHO-263).
+	if r, err := repoid.Resolve(""); err == nil && r.Scheme == repoid.SchemeOrigin {
+		if trailer.Extra == nil {
+			trailer.Extra = map[string]string{}
+		}
+		trailer.Extra[repoid.MarkerKey] = repoid.MarkerValue
+	}
 
 	f, err := os.OpenFile(msgFile, os.O_APPEND|os.O_WRONLY, 0o644)
 	if err != nil {
