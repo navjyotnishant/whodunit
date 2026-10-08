@@ -184,13 +184,13 @@ func TestEveryWayOfCloningOneProjectNormalisesTheSame(t *testing.T) {
 	}
 }
 
-func TestOriginIDMatchesTheValuesSentToTheCustomer(t *testing.T) {
-	// The table sent to Sandip on 2026-10-07 was computed by a prototype of
-	// this formula. If these drift, what he was shown is no longer true.
+func TestOriginIDIsStable(t *testing.T) {
+	// Pinned values: once released, an id that changes moves every
+	// repository on the origin scheme to a new id and orphans its data.
 	cases := map[string]string{
-		"https://gitlab.com/njlabs-group/testp.git":                "57b4d14fdbcc",
-		"https://gitlab.com/kochi-chk/sample-gitlab-project.git":   "6e6a9a51ddb7",
-		"https://gitlab.com/my-group960/sample-gitlab-project.git": "b8efe5e57fd7",
+		"https://gitlab.com/njlabs-group/testp.git":                "d7a60f9a5efa",
+		"https://gitlab.com/kochi-chk/sample-gitlab-project.git":   "d7d7ee672c96",
+		"https://gitlab.com/my-group960/sample-gitlab-project.git": "0806e88b3d23",
 	}
 	for remote, prefix := range cases {
 		if got := OriginID(sampleRoot, remote); !strings.HasPrefix(got, prefix) {

@@ -18,8 +18,8 @@
 //
 //   - root: id = root commit SHA. Every repository instrumented before this
 //     change stays on it, so no working repository's id ever moves.
-//   - origin: id = sha1 of the root and the normalised origin URL, the same
-//     40-hex shape. Repositories instrumented from now on use it, so two
+//   - origin: id = SHA-256 of the root and the normalised origin URL,
+//     truncated to the same 40-hex shape. Repositories instrumented from now on use it, so two
 //     projects from one template differ while every clone of one project
 //     agrees. Only the hash is ever stored or sent, never the URL.
 //
@@ -28,7 +28,7 @@
 package repoid
 
 import (
-	"crypto/sha1"
+	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
 	"net/url"
@@ -249,11 +249,12 @@ func RootFor(dir string) (string, error) {
 	return roots[0], nil
 }
 
-// OriginID is the origin-scheme id: 40 hex, the same shape as a commit SHA,
-// so every store and column that holds a root id holds this unchanged.
+// OriginID is the origin-scheme id: SHA-256 truncated to 40 hex, the same
+// shape as a commit SHA, so every store and column that holds a root id
+// holds this unchanged.
 func OriginID(root, remote string) string {
-	sum := sha1.Sum([]byte("whodunit-repo-v2\x00" + root + "\x00" + NormalizeRemote(remote)))
-	return hex.EncodeToString(sum[:])
+	sum := sha256.Sum256([]byte("whodunit-repo-v2\x00" + root + "\x00" + NormalizeRemote(remote)))
+	return hex.EncodeToString(sum[:])[:40]
 }
 
 // NormalizeRemote reduces a clone URL to host/path so every way of cloning
