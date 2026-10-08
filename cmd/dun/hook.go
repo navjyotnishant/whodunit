@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bufio"
 	"fmt"
 	"os"
 	"os/exec"
@@ -20,6 +19,7 @@ import (
 	"github.com/navjyotnishant/whodunit/internal/hooklog"
 	"github.com/navjyotnishant/whodunit/internal/journal"
 	"github.com/navjyotnishant/whodunit/internal/replaylog"
+	"github.com/navjyotnishant/whodunit/internal/repoid"
 	"github.com/navjyotnishant/whodunit/internal/spec"
 	"github.com/spf13/cobra"
 )
@@ -107,7 +107,38 @@ func runPrepareCommitMsg(args []string) error {
 	// own, and that is the only evidence such a commit carries.
 	existing, _ := os.ReadFile(msgFile)
 
-	trailer := determineTrailer(string(existing))
+	// A message that already carries a trailer is a message git pre-filled
+	// from an earlier commit: --amend, -c/-C, a rebase squash. Appending a
+	// second one made commit-msg reject the commit, so an amend was
+	// impossible on any instrumented repository (WHO-261).
+	//
+	// Kept rather than recomputed. On an amend the index is compared with
+	// the commit being amended, so a recomputation sees only the newly
+	// staged change and would replace real evidence with undetermined. The
+	// one case that is recomputed is a message reused from a different
+	// commit: its trailer describes that commit's change, not this one.
+	msg := string(existing)
+	if trailers := trailerLines(msg); len(trailers) > 0 {
+		if !reusesOtherCommit(args[1:]) {
+			return keepStrongestTrailer(msgFile, msg, trailers)
+		}
+		msg = stripTrailers(msg)
+		if err := os.WriteFile(msgFile, []byte(msg), 0o644); err != nil {
+			return nil // never fail the commit over a stamping error
+		}
+	}
+
+	trailer := determineTrailer(msg)
+
+	// Mark commits made under the origin id scheme. Teammates' dun finds the
+	// marker in history and switches with them, so a team moves when one
+	// person opts in rather than when all of them remember to (WHO-263).
+	if r, err := repoid.Resolve(""); err == nil && r.Scheme == repoid.SchemeOrigin {
+		if trailer.Extra == nil {
+			trailer.Extra = map[string]string{}
+		}
+		trailer.Extra[repoid.MarkerKey] = repoid.MarkerValue
+	}
 
 	f, err := os.OpenFile(msgFile, os.O_APPEND|os.O_WRONLY, 0o644)
 	if err != nil {
@@ -115,6 +146,75 @@ func runPrepareCommitMsg(args []string) error {
 	}
 	defer f.Close()
 	fmt.Fprintf(f, "\n%s\n", trailer.Format())
+	return nil
+}
+
+// trailerLines returns the value of every AI-Attribution line in a commit
+// message. The same rule commit-msg counts with, so the two hooks cannot
+// disagree about what is a trailer.
+func trailerLines(msg string) []string {
+	prefix := spec.TrailerKey + ":"
+	var values []string
+	for _, line := range strings.Split(msg, "\n") {
+		if strings.HasPrefix(line, prefix) {
+			values = append(values, strings.TrimSpace(line[len(prefix):]))
+		}
+	}
+	return values
+}
+
+// stripTrailers removes every AI-Attribution line from a commit message.
+func stripTrailers(msg string) string {
+	prefix := spec.TrailerKey + ":"
+	var kept []string
+	for _, line := range strings.Split(msg, "\n") {
+		if !strings.HasPrefix(line, prefix) {
+			kept = append(kept, line)
+		}
+	}
+	return strings.TrimRight(strings.Join(kept, "\n"), "\n") + "\n"
+}
+
+// reusesOtherCommit reports whether git pre-filled the message from a
+// commit other than the one being amended (`git commit -c/-C <other>`).
+//
+// git passes "commit <name>" for --amend and for -c/-C alike. For --amend
+// the name is always the literal string "HEAD"; for -c/-C it is whatever
+// the user typed (verified: `-C HEAD~1` arrives as "HEAD~1", `-C <sha>` as
+// the sha). So the string alone separates them and nothing needs resolving.
+// `-C HEAD` is indistinguishable from an amend and keeps the trailer, the
+// outcome that never loses evidence.
+func reusesOtherCommit(args []string) bool {
+	return len(args) >= 2 && args[0] == "commit" && args[1] != "HEAD"
+}
+
+// keepStrongestTrailer leaves a single trailer in the message. One is left
+// exactly as written. Several (a rebase squash joins the messages of the
+// commits it combines) collapse to the one resting on the strongest
+// evidence. If none parses, the message is left alone and commit-msg
+// reports it, which is the existing behaviour for a malformed trailer.
+func keepStrongestTrailer(msgFile, msg string, values []string) error {
+	if len(values) == 1 {
+		return nil
+	}
+	var best spec.Trailer
+	found := false
+	for _, v := range values {
+		t, err := spec.Parse(v)
+		if err != nil {
+			continue
+		}
+		if !found {
+			best, found = t, true
+			continue
+		}
+		best = attribution.Best(best, t)
+	}
+	if !found {
+		return nil
+	}
+	out := stripTrailers(msg) + "\n" + best.Format() + "\n"
+	_ = os.WriteFile(msgFile, []byte(out), 0o644) // never fail the commit
 	return nil
 }
 
@@ -439,21 +539,11 @@ func runCommitMsg(args []string) error {
 	}
 	msgFile := args[0]
 
-	f, err := os.Open(msgFile)
+	data, err := os.ReadFile(msgFile)
 	if err != nil {
 		return nil
 	}
-	defer f.Close()
-
-	var matches []string
-	scanner := bufio.NewScanner(f)
-	prefix := spec.TrailerKey + ":"
-	for scanner.Scan() {
-		line := scanner.Text()
-		if strings.HasPrefix(line, prefix) {
-			matches = append(matches, strings.TrimSpace(line[len(prefix):]))
-		}
-	}
+	matches := trailerLines(string(data))
 
 	if len(matches) == 0 {
 		return nil // no trailer present: not this hook's problem

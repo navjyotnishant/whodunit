@@ -107,28 +107,28 @@ func TestIDIsStableAsHistoryGrows(t *testing.T) {
 }
 
 func TestCloneAtADifferentPathHasTheSameID(t *testing.T) {
-	// The point of using the root commit rather than a filesystem path:
-	// the same repository is the same repository wherever it is checked out.
-	origin := newRepo(t)
-	commitIn(t, origin, "a.txt")
-	chdir(t, origin)
-	want, err := ForCurrentRepo()
-	if err != nil {
-		t.Fatalf("ForCurrentRepo: %v", err)
-	}
+	// The point of not using a filesystem path: the same repository is the
+	// same repository wherever it is checked out. Modelled as a team works —
+	// every checkout a clone of one server — so both share an origin.
+	t.Setenv("WHODUNIT_HOME", t.TempDir())
+	server := newRepo(t)
+	commitIn(t, server, "a.txt")
 
-	clone := filepath.Join(t.TempDir(), "clone")
-	if out, err := exec.Command("git", "clone", "-q", origin, clone).CombinedOutput(); err != nil {
-		t.Fatalf("git clone: %v\n%s", err, out)
+	var ids []string
+	for _, name := range []string{"alice", "bob"} {
+		clone := filepath.Join(t.TempDir(), name)
+		if out, err := exec.Command("git", "clone", "-q", server, clone).CombinedOutput(); err != nil {
+			t.Fatalf("git clone: %v\n%s", err, out)
+		}
+		chdir(t, clone)
+		id, err := ForCurrentRepo()
+		if err != nil {
+			t.Fatalf("ForCurrentRepo in %s: %v", name, err)
+		}
+		ids = append(ids, id)
 	}
-
-	chdir(t, clone)
-	got, err := ForCurrentRepo()
-	if err != nil {
-		t.Fatalf("ForCurrentRepo in clone: %v", err)
-	}
-	if got != want {
-		t.Errorf("clone at a different path got %q, want %q", got, want)
+	if ids[0] != ids[1] {
+		t.Errorf("two clones of one repository got %q and %q, want the same id", ids[0], ids[1])
 	}
 }
 
