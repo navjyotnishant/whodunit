@@ -340,7 +340,12 @@ enumerated in full so there is no need to take this on trust:
 | `whodunit_baselines` | The pre-adoption snapshot: commit counts, median diff size, revert rate, cadence |
 
 The repository id is the root commit SHA — stable across clones, and it
-identifies the repository without revealing its name or remote.
+identifies the repository without revealing its name or remote. A
+repository instrumented from 0.6.2 on, or switched with
+`dun init --distinct`, uses a hash of the root commit and its normalised
+`origin` URL instead, so projects created from a template that copies its
+history (GitLab's "Create from template") stay apart. Only the hash is sent,
+never the URL.
 
 **The two identifying fields are the contributor email and the file paths.**
 An email is required for a shared database to attribute anything to anyone,

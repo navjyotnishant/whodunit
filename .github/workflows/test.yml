@@ -32,6 +32,8 @@ jobs:
   # and the gofmt check below is a shell expression that would need
   # rewriting for PowerShell to no benefit.
   lint:
+    permissions:
+      contents: read
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -69,6 +71,8 @@ jobs:
   # Placeholders are allowlisted by VALUE in .gitleaks.toml, not by path,
   # so a real credential pasted into a documented file is still caught.
   secrets:
+    permissions:
+      contents: read
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -93,6 +97,8 @@ jobs:
   # which is '\' on Windows, while its comment says it replaces '/'. See
   # docs/adapters/agent-support.md.
   test:
+    permissions:
+      contents: read
     strategy:
       # Do not cancel the other platforms when one fails. Knowing whether a
       # failure is Windows-only or everywhere is most of the diagnosis.

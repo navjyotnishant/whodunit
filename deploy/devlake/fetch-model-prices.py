@@ -105,7 +105,24 @@ def fetch(url):
 
 
 def strip_tags(page):
-    page = re.sub(r"<script.*?</script>|<style.*?</style>", " ", page, flags=re.S)
+    # Three things this pattern has to get right, each one a way for a
+    # script body to survive the strip and land in the text prices are
+    # parsed out of — `var x=99` reaching a price table is exactly the
+    # quiet wrong number this repository exists to avoid.
+    #
+    #   re.I        — tag names are case-insensitive, so `<SCRIPT>` counts.
+    #   </script\s*> — HTML allows whitespace before the closing bracket,
+    #                 and `</script >` is a real thing browsers accept.
+    #   \b          — without it `<scriptfoo>` would match as a script tag.
+    #
+    # Both CodeQL py/bad-tag-filter alerts were on this line: the first for
+    # the casing, the second for the whitespace.
+    page = re.sub(
+        r"<script\b.*?</script\s*>|<style\b.*?</style\s*>",
+        " ",
+        page,
+        flags=re.S | re.I,
+    )
     text = re.sub(r"<[^>]+>", " ", page)
     return re.sub(r"\s+", " ", html.unescape(text))
 

@@ -224,7 +224,10 @@ func Determine(entries []journal.Entry, stagedFiles []string, agentLineHashes ma
 // contributed nothing (NAV-21).
 func FromDeclaration(d *declared.Declaration) spec.Trailer {
 	if d == nil {
-		return spec.Undetermined()
+		// WithStatus, not spec.Undetermined: the latter leaves the version
+		// unset, so a commit with nothing staged was stamped v=1 while every
+		// other commit says v=2 (WHO-262).
+		return spec.WithStatus(spec.StatusUndetermined)
 	}
 	return spec.Trailer{
 		SpecVer: spec.Version,

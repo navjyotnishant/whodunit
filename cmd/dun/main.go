@@ -35,6 +35,15 @@ func newRootCmd() *cobra.Command {
 			return runWelcome(cmd.OutOrStdout(), cmd)
 		},
 		SilenceUsage: true,
+		// Every command, hooks included, while this repository's id is
+		// shared with other projects (WHO-263). Silent otherwise.
+		PersistentPreRun: func(cmd *cobra.Command, args []string) {
+			// Not while running the very command it would recommend.
+			if f := cmd.Flags().Lookup("distinct"); f != nil && f.Changed {
+				return
+			}
+			warnSharedRepoID(cmd.ErrOrStderr())
+		},
 	}
 	root.AddCommand(newInitCmd())
 	root.AddCommand(newStatusCmd())
