@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **`git commit --amend` was impossible in an instrumented repository.** git pre-fills an amended commit's message with the original, trailer included, and `prepare-commit-msg` appended a second `AI-Attribution` trailer without looking; `commit-msg` then counted two and rejected the commit with "commit message has 2 AI-Attribution trailers, exactly one is required". `--amend --no-edit` and `git commit -C HEAD` failed the same way. A message that already carries a trailer now keeps it rather than gaining another: on an amend the index is compared with the commit being amended, so recomputing would see only the newly staged change and replace real evidence with `undetermined`. Several trailers, as a `rebase -i` squash produces, collapse to the one resting on the strongest evidence. Only a message reused from a *different* commit (`git commit -C <other>`) is recomputed, since its trailer describes that commit. Reported by a customer team; until upgrading, `git -c core.hooksPath=/dev/null commit --amend --no-edit` amends without dun's hooks (WHO-261).
+
+- **A commit with nothing staged was stamped `v=1`.** An amend with no new change, or `git commit --allow-empty`, took an early path that built its trailer without a format version, and an unset version prints as 1: a v2 vocabulary announcing itself as v1, the ambiguity the version exists to prevent. That path now stamps the current version like every other (WHO-262).
+
 ## [0.6.1] - 2026-09-09
 
 ### Added
