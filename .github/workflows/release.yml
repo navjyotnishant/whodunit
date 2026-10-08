@@ -30,21 +30,41 @@ jobs:
           ref: ${{ inputs.tag || github.ref_name }}
 
       # One name for the tag whichever way the workflow started.
+      #
+      # A tag with a pre-release suffix (v0.6.2-beta.1) is a beta: published
+      # as a GitHub pre-release so it never becomes "latest" — which is what
+      # `dun`'s version check and every installer read — and kept out of
+      # Homebrew and Scoop. It lets a fix be tested by the people who
+      # reported it before it is promoted through PRD.
       - name: Resolve the tag
         id: t
-        run: echo "tag=${{ inputs.tag || github.ref_name }}" >> "$GITHUB_OUTPUT"
+        run: |
+          tag='${{ inputs.tag || github.ref_name }}'
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          case "$tag" in
+            *-*) echo "pre=true" >> "$GITHUB_OUTPUT" ;;
+            *)   echo "pre=false" >> "$GITHUB_OUTPUT" ;;
+          esac
 
       # Resolve the tag rather than trusting GITHUB_SHA: on a workflow_call
       # that is the caller's commit, not the commit being released.
-      - name: Require tag to be on PRD
+      #
+      # A release must be on PRD. A beta may be on main as well — testing a
+      # fix before promotion is the point of one — but nowhere else, so a
+      # tag on a stray branch still cannot publish.
+      - name: Require tag to be on PRD (or main, for a beta)
         run: |
           tag='${{ steps.t.outputs.tag }}'
-          git fetch --quiet origin PRD
+          git fetch --quiet origin PRD main
           sha=$(git rev-list -n1 "$tag")
-          if ! git merge-base --is-ancestor "$sha" origin/PRD; then
-            echo "::error::Tag ${tag} is not on PRD - releases are only cut from PRD."
-            exit 1
+          if git merge-base --is-ancestor "$sha" origin/PRD; then
+            exit 0
           fi
+          if [ '${{ steps.t.outputs.pre }}' = 'true' ] && git merge-base --is-ancestor "$sha" origin/main; then
+            exit 0
+          fi
+          echo "::error::Tag ${tag} is not on PRD - releases are only cut from PRD (a pre-release tag may also be on main)."
+          exit 1
 
       - uses: actions/setup-go@v5
         with:
@@ -87,6 +107,11 @@ jobs:
         run: |
           version="${{ steps.t.outputs.tag }}"
           version="${version#v}"
+          # A beta has no section of its own yet: what it contains is
+          # whatever is unreleased.
+          if [ '${{ steps.t.outputs.pre }}' = 'true' ]; then
+            version="Unreleased"
+          fi
           if awk -v v="$version" '
             $0 ~ "^## \\[" v "\\]" { found = 1; next }
             found && /^## \[/ { exit }
@@ -105,12 +130,16 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          pre=""
+          if [ '${{ steps.t.outputs.pre }}' = 'true' ]; then
+            pre="--prerelease"
+          fi
           if [ "${{ steps.notes.outputs.have_notes }}" = "true" ]; then
             gh release create "${{ steps.t.outputs.tag }}" dist/dun_* dist/whodunit_dashboards_* dist/checksums.txt \
-              --title "${{ steps.t.outputs.tag }}" --notes-file /tmp/notes.md
+              --title "${{ steps.t.outputs.tag }}" --notes-file /tmp/notes.md $pre
           else
             gh release create "${{ steps.t.outputs.tag }}" dist/dun_* dist/whodunit_dashboards_* dist/checksums.txt \
-              --title "${{ steps.t.outputs.tag }}" --generate-notes
+              --title "${{ steps.t.outputs.tag }}" --generate-notes $pre
           fi
 
   # Publishing to the package managers, which used to be two manual steps.
@@ -128,6 +157,8 @@ jobs:
   # else. Absent, this job is skipped and the release still publishes -
   # degrading rather than failing a release over packaging.
   publish-packages:
+    # Never for a beta: `brew upgrade dun` would install it for everyone.
+    if: ${{ !contains(inputs.tag || github.ref_name, '-') }}
     permissions:
       contents: read
     needs: release
