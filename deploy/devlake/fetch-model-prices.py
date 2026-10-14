@@ -32,11 +32,11 @@ Usage:
 
 import argparse
 import datetime as dt
-import html
 import re
 import subprocess
 import sys
 import urllib.request
+from html.parser import HTMLParser
 
 ANTHROPIC_URL = "https://platform.claude.com/docs/en/about-claude/pricing"
 OPENAI_URL = "https://developers.openai.com/api/docs/pricing"
@@ -104,27 +104,50 @@ def fetch(url):
         return r.read().decode("utf-8", "replace")
 
 
+class _TextExtractor(HTMLParser):
+    """Collect visible text, dropping script and style bodies entirely."""
+
+    def __init__(self):
+        super().__init__(convert_charrefs=True)
+        self.parts = []
+        self._skip_depth = 0
+
+    def handle_starttag(self, tag, attrs):
+        if tag in ("script", "style"):
+            self._skip_depth += 1
+
+    def handle_endtag(self, tag):
+        if tag in ("script", "style") and self._skip_depth:
+            self._skip_depth -= 1
+
+    def handle_data(self, data):
+        if not self._skip_depth:
+            self.parts.append(data)
+
+
 def strip_tags(page):
-    # Three things this pattern has to get right, each one a way for a
-    # script body to survive the strip and land in the text prices are
-    # parsed out of — `var x=99` reaching a price table is exactly the
-    # quiet wrong number this repository exists to avoid.
-    #
-    #   re.I        — tag names are case-insensitive, so `<SCRIPT>` counts.
-    #   </script\s*> — HTML allows whitespace before the closing bracket,
-    #                 and `</script >` is a real thing browsers accept.
-    #   \b          — without it `<scriptfoo>` would match as a script tag.
-    #
-    # Both CodeQL py/bad-tag-filter alerts were on this line: the first for
-    # the casing, the second for the whitespace.
-    page = re.sub(
-        r"<script\b.*?</script\s*>|<style\b.*?</style\s*>",
-        " ",
-        page,
-        flags=re.S | re.I,
-    )
-    text = re.sub(r"<[^>]+>", " ", page)
-    return re.sub(r"\s+", " ", html.unescape(text))
+    r"""Return a page's visible text, with script and style bodies removed.
+
+    A real parser rather than a regex, because the regex was wrong twice.
+    CodeQL's py/bad-tag-filter flagged the same line three times: first for
+    case (`<SCRIPT>`), then for whitespace before the bracket
+    (`</script >`), then for junk inside the closing tag
+    (`</script\t\n bar>`). Each fix closed one variant and left the next.
+
+    That is the tell that this is not a regex problem. HTML's closing-tag
+    grammar is more permissive than it looks, and a pattern that
+    approximates it will keep being not-quite-right — while every miss
+    leaks a script body into the text prices are parsed out of, and a
+    stray `var x=99` in a price table is exactly the quiet wrong number
+    this repository exists to avoid.
+
+    html.parser is stdlib, handles every one of those variants, and its
+    correctness is not this project's to maintain.
+    """
+    extractor = _TextExtractor()
+    extractor.feed(page)
+    extractor.close()
+    return re.sub(r"\s+", " ", "".join(extractor.parts)).strip()
 
 
 # A main-table row, tags stripped, reads
