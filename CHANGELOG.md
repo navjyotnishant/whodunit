@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.2] - 2026-10-14
+
 ### Fixed
 
 - **Projects created from a GitLab template shared one repository id, so dun merged them.** The id was the root commit, and GitLab's "Create from template" imports the template's history: every project made from "Sample GitLab Project" starts at `b362ea7a` (verified on gitlab.com across unrelated projects created 2021 to 2026). `dun repos list` kept only the last one initialised, a second project's `dun baseline capture` was refused, and journal and datalake rows from both merged. A repository instrumented from now on gets an id hashed from its root commit and normalised `origin` URL: same 40-hex shape, so no schema, store or dashboard changes, and every way of cloning one project (SSH, HTTPS, a CI token) gives one value. Only the hash is stored or sent. **No existing id changes**: a repository with dun trailers in its history, or registered on this machine, stays on the root commit. Repositories already affected switch with `dun init --distinct`, run once by one person; their commits carry `idv=2`, and teammates' dun follows after they pull. Until then every dun command prints a reminder in a repository whose root is a known history-importing template or collides with another checkout on the machine. Data already merged under the shared id is not split (WHO-263).
@@ -251,7 +253,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Initial release.
 
-[Unreleased]: https://github.com/navjyotnishant/whodunit/compare/v0.6.1...HEAD
+[Unreleased]: https://github.com/navjyotnishant/whodunit/compare/v0.6.2...HEAD
+[0.6.2]: https://github.com/navjyotnishant/whodunit/compare/v0.6.1...v0.6.2
 [0.6.1]: https://github.com/navjyotnishant/whodunit/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/navjyotnishant/whodunit/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/navjyotnishant/whodunit/compare/v0.4.0...v0.5.0
