@@ -31,6 +31,7 @@ var trackedHooks = []string{"prepare-commit-msg", "commit-msg", "pre-push"}
 
 func newInitCmd() *cobra.Command {
 	var repoPath string
+	var distinct bool
 
 	cmd := &cobra.Command{
 		Use:   "init",
@@ -44,12 +45,63 @@ func newInitCmd() *cobra.Command {
 			"decision that belongs to you, one repository at a time. Run\n" +
 			"`dun repos` to see candidates.",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if distinct {
+				if err := pinDistinctID(cmd, repoPath); err != nil {
+					return err
+				}
+			}
 			return runInit(cmd, repoPath)
 		},
 	}
 
 	cmd.Flags().StringVar(&repoPath, "repo", "", "repository to instrument (default: current directory)")
+	cmd.Flags().BoolVar(&distinct, "distinct", false,
+		"give this repository its own id when it shares a root commit with others (e.g. created from a GitLab template)")
 	return cmd
+}
+
+// pinDistinctID moves an already-instrumented repository from the shared
+// root-commit id to its own origin-based id (WHO-263).
+//
+// Pinned in .git/config, so it holds on this clone at once. Teammates do
+// not need to run it: this clone's next commit carries the marker, and
+// their dun follows it from history after they pull.
+func pinDistinctID(cmd *cobra.Command, repoPath string) error {
+	dir := repoPath
+	before, err := repoid.Resolve(dir)
+	if err != nil {
+		return fmt.Errorf("--distinct: %w", err)
+	}
+	if !repoid.HasOrigin(dir) {
+		return fmt.Errorf("--distinct needs an `origin` remote: the distinct id is derived from it")
+	}
+	if err := repoid.Pin(dir, repoid.SchemeOrigin); err != nil {
+		return err
+	}
+	after, err := repoid.Resolve(dir)
+	if err != nil {
+		return err
+	}
+
+	// Drop the shared entry only if it is this checkout's. Repositories that
+	// collided share one registry entry, and it may be the other project's.
+	if before.ID != after.ID && repoid.RegisteredHere(dir, before.ID) {
+		_, _ = registry.Remove(before.ID)
+	}
+
+	fmt.Fprintf(cmd.OutOrStdout(),
+		"repository id: %s → %s (distinct)\n"+
+			"Data already recorded under the shared id stays there; new work is recorded under the new one.\n"+
+			"Teammates switch automatically once they pull a commit made after this.\n\n",
+		short(before.ID), short(after.ID))
+	return nil
+}
+
+func short(id string) string {
+	if len(id) > 12 {
+		return id[:12]
+	}
+	return id
 }
 
 func runInit(cmd *cobra.Command, repoPath string) error {
