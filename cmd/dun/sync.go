@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"io"
 	"net/url"
-	"os/exec"
-	"strings"
 	"time"
 
 	"github.com/navjyotnishant/whodunit/internal/attribution"
@@ -354,15 +352,15 @@ func commitLineRows(commits []report.Commit, repoID string, now time.Time) ([]si
 	if len(commits) == 0 {
 		return nil, nil
 	}
-	top, err := exec.Command("git", "rev-parse", "--show-toplevel").Output()
+	root, err := attribution.RepoRoot()
 	if err != nil {
-		return nil, fmt.Errorf("commit lines: find repository root: %w", err)
+		return nil, err
 	}
 	shas := make([]string, len(commits))
 	for i, c := range commits {
 		shas[i] = c.SHA
 	}
-	lines, err := attribution.CommittedLines(strings.TrimSpace(string(top)), shas)
+	lines, err := attribution.CommittedLines(root, shas)
 	if err != nil {
 		return nil, err
 	}

@@ -269,8 +269,12 @@ func WriteProgress(db *Store, p Payload, onRow func(done, total int)) (Counts, e
 		tick()
 	}
 
+	commitLineStmt := upsertCommitLineSQLite
+	if mysql {
+		commitLineStmt = upsertCommitLineMySQL
+	}
 	for _, l := range p.CommitLines {
-		if _, err := tx.Exec(upsertCommitLine(mysql),
+		if _, err := tx.Exec(commitLineStmt,
 			l.RepoID, l.CommitSHA, int64(l.Hash), l.FilePath, l.SyncedAt.UnixNano()); err != nil {
 			return counts, fmt.Errorf("write commit line: %w", err)
 		}

@@ -27,6 +27,25 @@ type CommittedLine struct {
 	Hash uint64
 }
 
+// gitBin is git resolved to an absolute path once, rather than a bare name
+// looked up through PATH on every call (as in internal/repoid).
+var gitBin = func() string {
+	if p, err := exec.LookPath("git"); err == nil {
+		return p
+	}
+	return "git"
+}()
+
+// RepoRoot returns the top level of the repository containing the current
+// directory.
+func RepoRoot() (string, error) {
+	out, err := exec.Command(gitBin, "rev-parse", "--show-toplevel").Output()
+	if err != nil {
+		return "", fmt.Errorf("attribution: find repository root: %w", err)
+	}
+	return strings.TrimSpace(string(out)), nil
+}
+
 // commitMarker opens each commit in the combined log output. A NUL cannot
 // start a diff line, so it cannot be confused with content.
 const commitMarker = "\x00commit "
@@ -48,7 +67,7 @@ func CommittedLines(root string, shas []string) (map[string][]CommittedLine, err
 	if len(shas) == 0 {
 		return out, nil
 	}
-	cmd := exec.Command("git", "-C", root, "log", "--stdin", "--no-walk=unsorted",
+	cmd := exec.Command(gitBin, "-C", root, "log", "--stdin", "--no-walk=unsorted",
 		"--format=%x00commit %H", "--patch", "-m", "--first-parent", "--unified=0",
 		"--no-color", "--no-ext-diff", "--no-textconv",
 		"--src-prefix=a/", "--dst-prefix=b/")

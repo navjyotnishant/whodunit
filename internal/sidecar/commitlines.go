@@ -62,10 +62,18 @@ func ensureCommitLinesSchema(db *Store) error {
 	return nil
 }
 
+// The two dialects' upserts are constants, not built per call, so the SQL
+// sent is fixed text and every value goes through a placeholder.
+const (
+	upsertCommitLineSQLite = `INSERT INTO whodunit_commit_lines (repo_id, commit_sha, line_hash, file_path, synced_at) VALUES (?, ?, ?, ?, ?)` +
+		` ON CONFLICT(repo_id, commit_sha, line_hash) DO UPDATE SET file_path=excluded.file_path, synced_at=excluded.synced_at`
+	upsertCommitLineMySQL = `INSERT INTO whodunit_commit_lines (repo_id, commit_sha, line_hash, file_path, synced_at) VALUES (?, ?, ?, ?, ?)` +
+		` ON DUPLICATE KEY UPDATE file_path=VALUES(file_path), synced_at=VALUES(synced_at)`
+)
+
 func upsertCommitLine(mysql bool) string {
-	cols := `INSERT INTO whodunit_commit_lines (repo_id, commit_sha, line_hash, file_path, synced_at) VALUES (?, ?, ?, ?, ?)`
 	if mysql {
-		return cols + ` ON DUPLICATE KEY UPDATE file_path=VALUES(file_path), synced_at=VALUES(synced_at)`
+		return upsertCommitLineMySQL
 	}
-	return cols + ` ON CONFLICT(repo_id, commit_sha, line_hash) DO UPDATE SET file_path=excluded.file_path, synced_at=excluded.synced_at`
+	return upsertCommitLineSQLite
 }
