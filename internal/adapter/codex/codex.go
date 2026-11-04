@@ -302,21 +302,15 @@ func normalizeDir(p string) string {
 	return p
 }
 
-// ParseSince reads every apply_patch edit at or after `since` from one
+// parseSince reads every apply_patch edit at or after `since` from one
 // rollout transcript, along with what happened to each call.
 //
 // Two passes, for the same reason as Claude Code: a call and its result are
 // separate records and the result arrives later, so outcomes are collected
 // first and joined by call_id.
-func ParseSince(path string, since time.Time) ([]journal.Entry, error) {
-	return parseSince(path, since, nil)
-}
-
-// Registered for pkg/capture's keyed parsing (adapter.ParseSinceKeyed).
-func init() { adapter.RegisterKeyed(AgentName, parseSince) }
-
-// parseSince is ParseSince with an optional keyed hasher (adapter.LineHasher);
-// nil keeps the default path unchanged.
+//
+// keyed is the optional hasher pkg/capture passes (adapter.LineHasher); dun
+// calls ParseSince, which passes nil, so its path is unchanged.
 func parseSince(path string, since time.Time, keyed adapter.LineHasher) ([]journal.Entry, error) {
 	// A transcript untouched since the cutoff has nothing to contribute.
 	// Checked before anything is read: collecting outcomes below is a full
@@ -594,3 +588,11 @@ func hunkHash(file string, added []string) string {
 	sum := sha256.Sum256([]byte(file + "\x00" + strings.Join(added, "\n")))
 	return "sha256:" + hex.EncodeToString(sum[:])
 }
+
+// ParseSince is parseSince without a keyed hasher: what dun calls.
+func ParseSince(path string, since time.Time) ([]journal.Entry, error) {
+	return parseSince(path, since, nil)
+}
+
+// Registered for pkg/capture's keyed parsing (adapter.ParseSinceKeyed).
+func init() { adapter.RegisterKeyed(AgentName, parseSince) }
