@@ -24,6 +24,7 @@
 package adapter
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/navjyotnishant/whodunit/internal/journal"
@@ -125,10 +126,24 @@ func ByName(name string) Adapter {
 // dun never supplies one.
 type LineHasher func(file, text string) []uint64
 
-// KeyedParser is implemented by every adapter: ParseSince plus a LineHasher
-// whose result lands in Entry.KeyedLineHashes. A nil hasher is ParseSince.
-type KeyedParser interface {
-	ParseSinceKeyed(path string, since time.Time, keyed LineHasher) ([]journal.Entry, error)
+// keyedParsers maps an agent name to its ParseSince variant that also takes
+// a LineHasher, registered next to the adapter itself.
+var keyedParsers = map[string]func(path string, since time.Time, keyed LineHasher) ([]journal.Entry, error){}
+
+// RegisterKeyed records an adapter's keyed parse function. Call it from the
+// same init function as Register.
+func RegisterKeyed(name string, parse func(path string, since time.Time, keyed LineHasher) ([]journal.Entry, error)) {
+	keyedParsers[name] = parse
+}
+
+// ParseSinceKeyed is a.ParseSince with a LineHasher whose result lands in
+// Entry.KeyedLineHashes. A nil hasher gives exactly a.ParseSince.
+func ParseSinceKeyed(a Adapter, path string, since time.Time, keyed LineHasher) ([]journal.Entry, error) {
+	parse, ok := keyedParsers[a.Name()]
+	if !ok {
+		return nil, fmt.Errorf("adapter %q does not support keyed parsing", a.Name())
+	}
+	return parse(path, since, keyed)
 }
 
 // HashKeyed applies h when there is one. Adapters call it next to

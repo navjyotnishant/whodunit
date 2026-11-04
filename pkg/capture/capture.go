@@ -70,11 +70,7 @@ func ParseKeyed(a Agent, path string, since time.Time, k Keyed) ([]Entry, error)
 	if k.RepoRoot == "" {
 		return nil, fmt.Errorf("capture: ParseKeyed needs a repository root")
 	}
-	p, ok := a.(adapter.KeyedParser)
-	if !ok {
-		return nil, fmt.Errorf("capture: agent %q does not support keyed parsing", a.Name())
-	}
-	return p.ParseSinceKeyed(path, since, func(file, text string) []uint64 {
+	return adapter.ParseSinceKeyed(a, path, since, func(file, text string) []uint64 {
 		rel, err := linehash.RepoRelative(k.RepoRoot, file)
 		if err != nil {
 			return nil
