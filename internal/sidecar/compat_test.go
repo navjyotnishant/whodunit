@@ -9,10 +9,10 @@ package sidecar
 
 import (
 	"fmt"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/navjyotnishant/whodunit/internal/compattest"
 )
 
 func TestCompatGoldenSidecarSchemaAndSQL(t *testing.T) {
@@ -43,7 +43,7 @@ func TestCompatGoldenSidecarSchemaAndSQL(t *testing.T) {
 			fmt.Fprintf(&b, "== %s(mysql=%v)\n%s\n", s.name, mysql, s.fn(mysql))
 		}
 	}
-	compatGolden(t, "sidecar.golden", b.String())
+	compattest.Golden(t, "sidecar.golden", b.String())
 }
 
 // Tables ADR 0008 adds only when opted in. None may appear in the default schema.
@@ -55,27 +55,5 @@ func TestCompatDefaultSchemaHasNoOptInTables(t *testing.T) {
 		if strings.Contains(all, TablePrefix+name) || strings.Contains(all, name) {
 			t.Errorf("default sidecar schema mentions opt-in table %q; it must only be created when enabled", name)
 		}
-	}
-}
-
-func compatGolden(t *testing.T, name, got string) {
-	t.Helper()
-	path := filepath.Join("testdata", "compat", name)
-	if os.Getenv("WHODUNIT_UPDATE_COMPAT") == "1" {
-		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(path, []byte(got), 0o644); err != nil {
-			t.Fatal(err)
-		}
-		return
-	}
-	want, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatalf("read golden %s: %v (generate with WHODUNIT_UPDATE_COMPAT=1)", path, err)
-	}
-	if string(want) != got {
-		t.Fatalf("compatibility break: output differs from %s.\n"+
-			"Existing users' stored data depends on this output; see ADR 0008.\n--- want\n%s\n--- got\n%s", path, want, got)
 	}
 }

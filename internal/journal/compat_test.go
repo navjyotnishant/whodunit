@@ -8,10 +8,10 @@ package journal
 
 import (
 	"fmt"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/navjyotnishant/whodunit/internal/compattest"
 )
 
 func TestCompatGoldenJournalSchema(t *testing.T) {
@@ -59,33 +59,11 @@ func TestCompatGoldenJournalSchema(t *testing.T) {
 		}
 		cols.Close()
 	}
-	compatGolden(t, "journal_schema.golden", b.String())
+	compattest.Golden(t, "journal_schema.golden", b.String())
 
 	for _, tbl := range tables {
 		if tbl == "agent_lines_keyed" {
 			t.Errorf("default journal created opt-in table %q; it must only exist when keyed hashing is enabled", tbl)
 		}
-	}
-}
-
-func compatGolden(t *testing.T, name, got string) {
-	t.Helper()
-	path := filepath.Join("testdata", "compat", name)
-	if os.Getenv("WHODUNIT_UPDATE_COMPAT") == "1" {
-		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(path, []byte(got), 0o644); err != nil {
-			t.Fatal(err)
-		}
-		return
-	}
-	want, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatalf("read golden %s: %v (generate with WHODUNIT_UPDATE_COMPAT=1)", path, err)
-	}
-	if string(want) != got {
-		t.Fatalf("compatibility break: output differs from %s.\n"+
-			"Existing users' stored data depends on this output; see ADR 0008.\n--- want\n%s\n--- got\n%s", path, want, got)
 	}
 }
