@@ -809,6 +809,15 @@ func Purge(dataDir, repoID string) (int64, error) {
 	if _, err := db.Exec(`DELETE FROM agent_lines WHERE repo_id = ?`, repoID); err != nil {
 		return 0, fmt.Errorf("journal: purge line hashes: %w", err)
 	}
+	// Keyed line hashes too, when an opted-in caller ever wrote them. The
+	// check keeps purge from creating the table on a journal that has none.
+	if keyed, err := keyedTableExists(db); err != nil {
+		return 0, err
+	} else if keyed {
+		if _, err := db.Exec(`DELETE FROM agent_lines_keyed WHERE repo_id = ?`, repoID); err != nil {
+			return 0, fmt.Errorf("journal: purge keyed line hashes: %w", err)
+		}
+	}
 
 	// Metadata carries the contributor identity, so it goes too — leaving
 	// it would keep the most identifying part of what was recorded.
@@ -940,8 +949,9 @@ const vacuumThreshold = 4 << 20
 // is disk hygiene, and scoping it would leave the hashes of a repository
 // nobody works in any more sitting there forever.
 //
-// Only agent_lines is touched. That table and its indexes are roughly 72% of
-// the file and grow about seven rows per journal entry, so it is the whole
+// Only agent_lines is touched, plus agent_lines_keyed when an opted-in
+// caller created it (keyed.go), since it is the same data in another
+// scheme. agent_lines and its indexes are roughly 72% of the file and grow about seven rows per journal entry, so it is the whole
 // of the growth problem. Entries, sessions and metadata are kept: the report
 // builds its history from them, `dun verify` reports recency from them, and
 // an old commit stays checkable against them long after its line hashes have
@@ -966,6 +976,17 @@ func Prune(dataDir string, olderThan time.Time) (deleted int64, vacuumed bool, e
 		return 0, false, fmt.Errorf("journal: prune: %w", err)
 	}
 	deleted, _ = res.RowsAffected()
+	// Retention applies to keyed line hashes exactly as to unkeyed ones.
+	if keyed, err := keyedTableExists(db); err != nil {
+		return deleted, false, err
+	} else if keyed {
+		kres, err := db.Exec(`DELETE FROM agent_lines_keyed WHERE first_ts < ?`, olderThan.UnixNano())
+		if err != nil {
+			return deleted, false, fmt.Errorf("journal: prune keyed: %w", err)
+		}
+		kn, _ := kres.RowsAffected()
+		deleted += kn
+	}
 	if deleted == 0 {
 		return 0, false, nil
 	}
@@ -1007,5 +1028,15 @@ func PruneCount(dataDir string, olderThan time.Time) (int64, error) {
 	var n int64
 	err = db.QueryRow(`SELECT COUNT(*) FROM agent_lines WHERE first_ts < ?`,
 		olderThan.UnixNano()).Scan(&n)
-	return n, err
+	if err != nil {
+		return n, err
+	}
+	keyed, err := keyedTableExists(db)
+	if err != nil || !keyed {
+		return n, err
+	}
+	var kn int64
+	err = db.QueryRow(`SELECT COUNT(*) FROM agent_lines_keyed WHERE first_ts < ?`,
+		olderThan.UnixNano()).Scan(&kn)
+	return n + kn, err
 }
