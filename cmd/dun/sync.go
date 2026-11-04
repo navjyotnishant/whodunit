@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/navjyotnishant/whodunit/internal/attribution"
 	"github.com/navjyotnishant/whodunit/internal/baseline"
 	"github.com/navjyotnishant/whodunit/internal/config"
 	"github.com/navjyotnishant/whodunit/internal/hooklog"
@@ -139,6 +140,9 @@ func runSync(cmd *cobra.Command, dsn string, limit int, dryRun bool, repoFlag st
 
 	fmt.Fprintf(w, "\nsent %d commit(s), %d event(s), %d session(s), %d line hash(es)\n",
 		counts.Commits, counts.Events, counts.Sessions, counts.Lines)
+	if counts.CommitLines > 0 {
+		fmt.Fprintf(w, "sent %d commit line(s)\n", counts.CommitLines)
+	}
 
 	// The same housekeeping the pre-push hook does, for the same reason:
 	// the data has just reached a second place, which is the only condition
@@ -239,6 +243,18 @@ func buildPayload(limit int) (sidecar.Payload, error) {
 	if cfg, err := config.Load(); err == nil {
 		p.Identities = sidecar.IdentityRowsFrom(cfg.Identities, cfg.ResolveIdentity, now)
 		p.Teams = sidecar.TeamRowsFrom(cfg.Teams, cfg.ResolveIdentity, now)
+
+		// Opt-in (sync.commit_lines). Unlike the lookups above, a failure
+		// here fails the sync: someone turned this on to get these rows,
+		// and a sync that quietly published without them would look
+		// complete when it is not.
+		if cfg.Sync.CommitLinesEnabled() {
+			rows, err := commitLineRows(stats.Commits, repoID, now)
+			if err != nil {
+				return p, err
+			}
+			p.CommitLines = rows
+		}
 	}
 
 	// The pre-adoption baseline, when one was captured (NAV-107).
@@ -278,6 +294,11 @@ func describePayload(w io.Writer, p sidecar.Payload) {
 	fmt.Fprintf(w, "  %-14s %d\n", "agent events", len(p.Events))
 	fmt.Fprintf(w, "  %-14s %d\n", "sessions", len(p.Sessions))
 	fmt.Fprintf(w, "  %-14s %d\n", "line hashes", len(p.Lines))
+	if len(p.CommitLines) > 0 {
+		// Listed apart from the counts above because it carries a file path
+		// per row, which nothing else in a default sync does per line.
+		fmt.Fprintf(w, "  %-14s %d, with file paths (sync.commit_lines)\n", "commit lines", len(p.CommitLines))
+	}
 
 	// Named explicitly rather than folded into a count. A baseline is a
 	// summary of the repository BEFORE instrumentation, which is a
@@ -322,4 +343,34 @@ func redactedTarget(dsn string) string {
 		u.User = url.User(u.User.Username())
 	}
 	return u.String()
+}
+
+// commitLineRows hashes the lines each collected commit added, for
+// sync.commit_lines. Commits are read from the repository root so paths are
+// relative to it whatever directory sync ran from.
+func commitLineRows(commits []report.Commit, repoID string, now time.Time) ([]sidecar.CommitLineRow, error) {
+	if len(commits) == 0 {
+		return nil, nil
+	}
+	root, err := attribution.RepoRoot()
+	if err != nil {
+		return nil, err
+	}
+	shas := make([]string, len(commits))
+	for i, c := range commits {
+		shas[i] = c.SHA
+	}
+	lines, err := attribution.CommittedLines(root, shas)
+	if err != nil {
+		return nil, err
+	}
+	var rows []sidecar.CommitLineRow
+	for _, sha := range shas {
+		for _, l := range lines[sha] {
+			rows = append(rows, sidecar.CommitLineRow{
+				RepoID: repoID, CommitSHA: sha, FilePath: l.Path, Hash: l.Hash, SyncedAt: now,
+			})
+		}
+	}
+	return rows, nil
 }

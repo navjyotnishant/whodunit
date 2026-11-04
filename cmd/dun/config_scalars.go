@@ -79,6 +79,31 @@ func scalarSettings() []scalarSetting {
 			},
 		},
 		{
+			Key: "sync.commit_lines",
+			Help: "publish each commit's line hashes and file paths on sync, " +
+				"so dashboards can show which committed lines an agent wrote (on/off)",
+			Get: func(c config.Config) string {
+				if c.Sync.CommitLinesEnabled() {
+					return "on"
+				}
+				return "off"
+			},
+			Set: func(c *config.Config, v string) error {
+				on, err := parseOnOff("sync.commit_lines", v)
+				if err != nil {
+					return err
+				}
+				if c.Sync == nil {
+					if !on {
+						return nil // off is the default; nothing to record
+					}
+					c.Sync = &config.SyncConfig{}
+				}
+				c.Sync.CommitLines = on
+				return nil
+			},
+		},
+		{
 			Key: "version_check",
 			Help: "whether dun may ask GitHub once a day if a newer release " +
 				"exists (on/off)",
@@ -198,4 +223,15 @@ func settingKeysList() string {
 		fmt.Fprintf(&b, "\n  %-20s %s", s.Key, s.Help)
 	}
 	return b.String()
+}
+
+// parseOnOff reads the spellings of a boolean setting that people type.
+func parseOnOff(key, v string) (bool, error) {
+	switch strings.ToLower(v) {
+	case "on", "true", "yes", "1":
+		return true, nil
+	case "off", "false", "no", "0":
+		return false, nil
+	}
+	return false, fmt.Errorf("%s must be on or off, got %q", key, v)
 }
