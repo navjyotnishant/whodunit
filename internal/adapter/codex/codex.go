@@ -312,6 +312,9 @@ func ParseSince(path string, since time.Time) ([]journal.Entry, error) {
 	return parseSince(path, since, nil)
 }
 
+// Registered for pkg/capture's keyed parsing (adapter.ParseSinceKeyed).
+func init() { adapter.RegisterKeyed(AgentName, parseSince) }
+
 // parseSince is ParseSince with an optional keyed hasher (adapter.LineHasher);
 // nil keeps the default path unchanged.
 func parseSince(path string, since time.Time, keyed adapter.LineHasher) ([]journal.Entry, error) {
