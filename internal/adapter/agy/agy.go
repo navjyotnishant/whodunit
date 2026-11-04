@@ -469,6 +469,12 @@ func copyFile(src, dst string) error {
 // every entry in a conversation shares it — but it is honest: inventing
 // per-step times would imply precision the store does not have.
 func ParseSince(path string, since time.Time) ([]journal.Entry, error) {
+	return parseSince(path, since, nil)
+}
+
+// parseSince is ParseSince with an optional keyed hasher (adapter.LineHasher);
+// nil keeps the default path unchanged.
+func parseSince(path string, since time.Time, keyed adapter.LineHasher) ([]journal.Entry, error) {
 	info, err := os.Stat(path)
 	if err != nil {
 		return nil, err
@@ -541,6 +547,8 @@ func ParseSince(path string, since time.Time) ([]journal.Entry, error) {
 			LinesRemoved: removed,
 			HunkHash:     hunkHash(c.TargetFile, produced),
 			LineHashes:   linehash.OfText(linehash.Canonical(c.TargetFile), produced),
+
+			KeyedLineHashes: adapter.HashKeyed(keyed, linehash.Canonical(c.TargetFile), produced),
 			// From steps.status — see outcomeFor. An earlier version
 			// hardcoded "unknown" here on the belief that agy records no
 			// rejection signal; it does, on every row.

@@ -309,6 +309,12 @@ func normalizeDir(p string) string {
 // separate records and the result arrives later, so outcomes are collected
 // first and joined by call_id.
 func ParseSince(path string, since time.Time) ([]journal.Entry, error) {
+	return parseSince(path, since, nil)
+}
+
+// parseSince is ParseSince with an optional keyed hasher (adapter.LineHasher);
+// nil keeps the default path unchanged.
+func parseSince(path string, since time.Time, keyed adapter.LineHasher) ([]journal.Entry, error) {
 	// A transcript untouched since the cutoff has nothing to contribute.
 	// Checked before anything is read: collecting outcomes below is a full
 	// pass over the file, so without this a no-op ingest costs more than a
@@ -416,10 +422,12 @@ func ParseSince(path string, since time.Time) ([]journal.Entry, error) {
 
 			added, removed := fp.Added, fp.Removed
 			lines := linehash.OfText(linehash.Canonical(file), strings.Join(fp.AddedLines, "\n"))
+			keyedLines := adapter.HashKeyed(keyed, linehash.Canonical(file), strings.Join(fp.AddedLines, "\n"))
 			// A rejected or failed patch never reached the file, so its
 			// text must not count as agent-authored code.
 			if outcome != OutcomeAccepted {
 				lines = nil
+				keyedLines = nil
 				added, removed = 0, 0
 			}
 
@@ -438,6 +446,8 @@ func ParseSince(path string, since time.Time) ([]journal.Entry, error) {
 				HunkHash:     hunkHash(file, fp.AddedLines),
 				LineHashes:   lines,
 				Outcome:      string(outcome),
+
+				KeyedLineHashes: keyedLines,
 			})
 		}
 	}

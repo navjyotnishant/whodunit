@@ -117,3 +117,26 @@ func ByName(name string) Adapter {
 	}
 	return nil
 }
+
+// LineHasher computes a second, opt-in set of hashes for the lines an agent
+// produced in one file: canonical absolute path and the produced text, as the
+// adapter passes them to linehash.OfText. It exists so pkg/capture can add
+// keyed hashes (ADR 0008 in whodunit-pro) while the text is still in memory.
+// dun never supplies one.
+type LineHasher func(file, text string) []uint64
+
+// KeyedParser is implemented by every adapter: ParseSince plus a LineHasher
+// whose result lands in Entry.KeyedLineHashes. A nil hasher is ParseSince.
+type KeyedParser interface {
+	ParseSinceKeyed(path string, since time.Time, keyed LineHasher) ([]journal.Entry, error)
+}
+
+// HashKeyed applies h when there is one. Adapters call it next to
+// linehash.OfText so both hash sets come from the same text under the same
+// conditions.
+func HashKeyed(h LineHasher, file, text string) []uint64 {
+	if h == nil {
+		return nil
+	}
+	return h(file, text)
+}

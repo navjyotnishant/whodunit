@@ -30,6 +30,11 @@ func (Adapter) ParseSince(path string, since time.Time) ([]journal.Entry, error)
 	return ParseSince(path, since)
 }
 
+// ParseSinceKeyed implements adapter.KeyedParser.
+func (Adapter) ParseSinceKeyed(path string, since time.Time, keyed adapter.LineHasher) ([]journal.Entry, error) {
+	return parseSince(path, since, keyed)
+}
+
 func (Adapter) ParseSessionActivity(path string, since time.Time) ([]journal.Session, error) {
 	return ParseSessionActivity(path, since)
 }

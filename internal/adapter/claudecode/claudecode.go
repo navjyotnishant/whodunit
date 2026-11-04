@@ -349,6 +349,12 @@ func (r *resultContent) UnmarshalJSON(data []byte) error {
 // transcript format degrades to fewer entries rather than a hard failure
 // (fail to undetermined, not error).
 func ParseSince(path string, since time.Time) ([]journal.Entry, error) {
+	return parseSince(path, since, nil)
+}
+
+// parseSince is ParseSince with an optional keyed hasher (adapter.LineHasher);
+// nil keeps the default path unchanged.
+func parseSince(path string, since time.Time, keyed adapter.LineHasher) ([]journal.Entry, error) {
 	// A transcript untouched since the cutoff has nothing to contribute, so
 	// it is not opened at all.
 	//
@@ -485,8 +491,10 @@ func ParseSince(path string, since time.Time) ([]journal.Entry, error) {
 			// must not count as agent-authored code. Carrying line hashes
 			// for it would attribute lines that do not exist.
 			lineHashes := linehash.OfText(linehash.Canonical(block.Input.FilePath), produced)
+			keyedHashes := adapter.HashKeyed(keyed, linehash.Canonical(block.Input.FilePath), produced)
 			if outcome != OutcomeAccepted {
 				lineHashes = nil
+				keyedHashes = nil
 				added, removed = 0, 0
 			}
 
@@ -507,6 +515,8 @@ func ParseSince(path string, since time.Time) ([]journal.Entry, error) {
 				Branch:       r.GitBranch,
 				MCPServer:    r.MCPServer,
 				UserModified: userModifiedOf(edited, block.ID),
+
+				KeyedLineHashes: keyedHashes,
 			})
 		}
 	}
