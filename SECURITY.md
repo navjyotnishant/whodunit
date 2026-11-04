@@ -105,3 +105,25 @@ beyond the commit's own author.
 
 If you believe a trailer can be made to carry more than that, it is in
 scope and worth reporting.
+
+## A note on line hashes
+
+To match an agent's lines against a commit, whodunit stores a hash per
+line: the first 8 bytes of SHA-256 over the file's path and the trimmed
+line. These hashes sit in the local journal and, if you run `dun sync`, in
+the database you configured. They are not in trailers.
+
+**These hashes are not secret, and short lines are guessable.** Nothing
+secret goes into them, so anyone holding a hash and the file's path can
+test guesses offline. A line such as `return nil` or `x := 0` is recovered
+quickly, and a longer line can be confirmed if the guesser already
+suspects its content. Treat a synced line-hash table with the same care as
+the repository it describes.
+
+**A keyed mode exists for that reason.** `pkg/linehash` provides
+`OfKeyed`, an HMAC-SHA256 over the repo-relative path and the line, with a
+versioned secret of at least 32 bytes. Without the key, its hashes reveal
+nothing about the lines. `dun` does not compute keyed hashes by default: it
+keeps today's hashes so existing journals and synced data keep matching,
+and a test fails the build if `dun` code starts calling `OfKeyed`. Keep the
+key out of the repository and out of the database that holds the hashes.

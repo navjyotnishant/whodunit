@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Importable Go packages, versioned v0.** `pkg/linehash` (`Of`, `OfText`, `Canonical`, `Substantive`, and the new keyed hashes), `pkg/attribution` (`Intersect`, the distinct line overlap that makes a commit `intersected`) and `pkg/registry` (the metric catalog behind the dashboards and the MCP server, loaded from `deploy/devlake/catalog.json` with no second copy). They are thin wrappers over `internal/`, so they hash and count exactly as `dun` does. Names may change before 1.0; hash values do not.
+- **Keyed line hashes, opt-in and unused by `dun`.** `OfKeyed` is an HMAC-SHA256 over the repo-relative path and the trimmed line, with a versioned secret of at least 32 bytes. Its hashes cannot be guessed without the key and are the same in every clone of a repository. `RepoRelative` gives the path it expects and resolves symlinks even for a file that no longer exists. `dun` does not call either: its hashes, journal, sync payload and trailers are unchanged, and a test fails the build if that stops being true (ADR 0008 in whodunit-pro).
+- **A compatibility suite gates CI.** Golden files pin the stored formats existing installs depend on: line hashes, the journal schema, the DevLake schema and sync SQL, and every trailer form. `make compat` runs it, and any difference fails the build.
+
+### Security
+
+- **SECURITY.md now says plainly that unkeyed line hashes are guessable** for short lines, and where the keyed mode is.
+
 ## [0.6.2] - 2026-10-14
 
 ### Fixed
