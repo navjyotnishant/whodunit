@@ -141,7 +141,7 @@ func Write(db *Store, p Payload) (Counts, error) {
 // A nil callback makes this exactly Write.
 func WriteProgress(db *Store, p Payload, onRow func(done, total int)) (Counts, error) {
 	var counts Counts
-	total := len(p.Commits) + len(p.Events) + len(p.Sessions) + len(p.Lines)
+	total := len(p.Commits) + len(p.Events) + len(p.Sessions) + len(p.Lines) + len(p.CommitLines)
 	done := 0
 	tick := func() {
 		done++
@@ -150,6 +150,15 @@ func WriteProgress(db *Store, p Payload, onRow func(done, total int)) (Counts, e
 		}
 	}
 	mysql := db.mysql
+
+	// Before the transaction: MySQL commits implicitly on DDL. Only a
+	// payload that carries commit lines gets here, so default sync never
+	// creates the table.
+	if len(p.CommitLines) > 0 {
+		if err := ensureCommitLinesSchema(db); err != nil {
+			return counts, err
+		}
+	}
 
 	tx, err := db.Begin()
 	if err != nil {
@@ -260,6 +269,15 @@ func WriteProgress(db *Store, p Payload, onRow func(done, total int)) (Counts, e
 		tick()
 	}
 
+	for _, l := range p.CommitLines {
+		if _, err := tx.Exec(upsertCommitLine(mysql),
+			l.RepoID, l.CommitSHA, int64(l.Hash), l.FilePath, l.SyncedAt.UnixNano()); err != nil {
+			return counts, fmt.Errorf("write commit line: %w", err)
+		}
+		counts.CommitLines++
+		tick()
+	}
+
 	if err := tx.Commit(); err != nil {
 		return counts, fmt.Errorf("commit: %w", err)
 	}
@@ -274,6 +292,9 @@ type Counts struct {
 	Lines     int
 	Sessions  int
 	Baselines int
+
+	// CommitLines is zero unless sync.commit_lines is on.
+	CommitLines int
 }
 
 // The two engines spell "insert or replace" differently and neither

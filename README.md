@@ -339,6 +339,17 @@ enumerated in full so there is no need to take this on trust:
 | `whodunit_event_lines` | Line hashes and first-seen timestamps |
 | `whodunit_baselines` | The pre-adoption snapshot: commit counts, median diff size, revert rate, cadence |
 
+One more table is sent only if you turn it on with
+`dun config set sync.commit_lines on`. It is never created otherwise:
+
+| Table | Contents |
+|---|---|
+| `whodunit_commit_lines` | Per commit: the hash of each line it added and that line's **file path** |
+
+Joined with `whodunit_event_lines`, it shows which committed lines, in which
+files, an agent wrote, rather than only the commit's ratio. The cost is a
+file path for every committed line, so it stays off unless you choose it.
+
 The repository id is the root commit SHA — stable across clones, and it
 identifies the repository without revealing its name or remote. A
 repository instrumented from 0.6.2 on, or switched with

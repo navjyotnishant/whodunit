@@ -225,6 +225,11 @@ type Payload struct {
 	// Baseline is the repository's pre-adoption snapshot, when one was
 	// captured. Absent for a repository instrumented without one.
 	Baseline *BaselineRow
+
+	// CommitLines are the line hashes each commit added, with file paths.
+	// Empty unless sync.commit_lines is on, and an empty slice writes
+	// nothing and creates no table (ADR 0008 in whodunit-pro).
+	CommitLines []CommitLineRow
 }
 
 // CommitRowsFrom maps analysed commits onto the dashboard grain.

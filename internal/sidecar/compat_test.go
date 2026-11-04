@@ -57,3 +57,12 @@ func TestCompatDefaultSchemaHasNoOptInTables(t *testing.T) {
 		}
 	}
 }
+
+// The opt-in commit lines table is a stored format once enabled, so it is
+// pinned too, separately from the default schema above.
+func TestCompatGoldenCommitLinesSchemaAndSQL(t *testing.T) {
+	got := "== CommitLinesSchema\n" + CommitLinesSchema + "\n== index\n" + commitLinesIndex + "\n" +
+		"== upsertCommitLine(mysql=false)\n" + upsertCommitLine(false) + "\n" +
+		"== upsertCommitLine(mysql=true)\n" + upsertCommitLine(true) + "\n"
+	compattest.Golden(t, "sidecar_commit_lines.golden", got)
+}

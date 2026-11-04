@@ -37,29 +37,51 @@ func StagedLines() ([]uint64, error) {
 // the file it belongs to.
 func stagedLineHashes(diff, root string) []uint64 {
 	var hashes []uint64
+	walkAddedLines(diff, root, func(_, abs, content string) {
+		hashes = append(hashes, linehash.Of(abs, content))
+	})
+	return hashes
+}
+
+// walkAddedLines calls fn for every substantive added line of a unified
+// diff, with the file's diff-relative path, its canonical absolute path
+// under root, and the line's content.
+//
+// The one parser behind both the staged diff at commit time and committed
+// history at sync time, so the two hash the same lines the same way.
+func walkAddedLines(diff, root string, fn func(rel, abs, content string)) {
 	scanner := bufio.NewScanner(strings.NewReader(diff))
 	scanner.Buffer(make([]byte, 0, 64*1024), 8*1024*1024)
 
-	var currentFile string
+	var rel, abs string
 	for scanner.Scan() {
 		line := scanner.Text()
 		switch {
 		case strings.HasPrefix(line, "+++ "):
-			currentFile = resolveDiffPath(line[4:], root)
+			rel, abs = diffTarget(line[4:], root)
 		case strings.HasPrefix(line, "--- "), strings.HasPrefix(line, "@@"):
 			continue
 		case strings.HasPrefix(line, "+"):
-			if currentFile == "" {
+			if abs == "" {
 				continue
 			}
 			content := line[1:]
 			if !linehash.Substantive(content) {
 				continue
 			}
-			hashes = append(hashes, linehash.Of(currentFile, content))
+			fn(rel, abs, content)
 		}
 	}
-	return hashes
+}
+
+// diffTarget splits a "+++" target into its repo-relative path and its
+// canonical absolute path. Both are empty for a deletion.
+func diffTarget(target, root string) (rel, abs string) {
+	rel = strings.TrimPrefix(target, "b/")
+	if rel == "/dev/null" {
+		return "", ""
+	}
+	return rel, resolveDiffPath(target, root)
 }
 
 // resolveDiffPath turns a unified-diff "+++ b/some/path.go" target (or

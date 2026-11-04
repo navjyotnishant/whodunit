@@ -186,6 +186,21 @@ type SyncConfig struct {
 
 	// OnPush syncs automatically from the pre-push hook.
 	OnPush bool `json:"on_push,omitempty"`
+
+	// CommitLines publishes, per commit, the hash of every line it added
+	// and the file it is in, to whodunit_commit_lines (ADR 0008 in
+	// whodunit-pro). With the agent line hashes sync already sends, that
+	// says which committed lines, in which files, an agent wrote.
+	//
+	// Off by default because it sends something sync never sent before: a
+	// file path for every committed line. Hashes still cannot be read back
+	// into code, but the paths are as identifying as the repository's tree.
+	CommitLines bool `json:"commit_lines,omitempty"`
+}
+
+// CommitLinesEnabled reports whether sync should publish commit lines.
+func (s *SyncConfig) CommitLinesEnabled() bool {
+	return s != nil && s.CommitLines
 }
 
 // Configured reports whether a sync target exists.
