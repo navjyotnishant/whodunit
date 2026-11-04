@@ -92,6 +92,15 @@ func (e Env) agentLineHashes(since time.Time) map[uint64]struct{} {
 	return defaultAgentLineHashes(since, e.repoID)
 }
 
+// gitBin is git resolved to an absolute path once, rather than a bare name
+// looked up through PATH on every call (as in internal/repoid).
+var gitBin = func() string {
+	if p, err := exec.LookPath("git"); err == nil {
+		return p
+	}
+	return "git"
+}()
+
 // lookbackDays is the attribution window in days, for the log message.
 var lookbackDays = int(attribution.LookbackWindow / (24 * time.Hour))
 
@@ -526,7 +535,7 @@ func defaultAgentLineHashes(since time.Time, repoID func() (string, error)) map[
 
 // StagedFiles returns repo-relative paths of files staged for this commit.
 func StagedFiles() ([]string, error) {
-	out, err := exec.Command("git", "diff", "--cached", "--name-only").Output()
+	out, err := exec.Command(gitBin, "diff", "--cached", "--name-only").Output()
 	if err != nil {
 		return nil, err
 	}
