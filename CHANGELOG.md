@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-11-04
+
 ### Added
 
 - **Importable Go packages, versioned v0.** `pkg/linehash` (`Of`, `OfText`, `Canonical`, `Substantive`, and the new keyed hashes), `pkg/attribution` (`Intersect`, the distinct line overlap that makes a commit `intersected`) and `pkg/registry` (the metric catalog behind the dashboards and the MCP server, loaded from `deploy/devlake/catalog.json` with no second copy). They are thin wrappers over `internal/`, so they hash and count exactly as `dun` does. Names may change before 1.0; hash values do not.
@@ -265,7 +267,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Initial release.
 
-[Unreleased]: https://github.com/navjyotnishant/whodunit/compare/v0.6.2...HEAD
+[Unreleased]: https://github.com/navjyotnishant/whodunit/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/navjyotnishant/whodunit/compare/v0.6.2...v0.7.0
 [0.6.2]: https://github.com/navjyotnishant/whodunit/compare/v0.6.1...v0.6.2
 [0.6.1]: https://github.com/navjyotnishant/whodunit/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/navjyotnishant/whodunit/compare/v0.5.0...v0.6.0
