@@ -1,0 +1,91 @@
+adapters: agy, claude-code, codex
+
+== agy agy/testdata/conversation.db
+{"ts":"2026-01-02T03:04:05Z","agent":"agy","agent_version":"","session":"conversation","event":"tool_use","tool":"replace_file_content","file":"/repo/calc.py","lines_added":5,"lines_removed":2,"hunk_hash":"sha256:567bda54fef6e1dc861316f9bc1040731e11bc875fcecb9a0c4aa9e292be08dc","spec_version":"","outcome":"accepted"}
+  line_hashes: 1f3c9e142723fdd1 1f0fd903b7788a25 c6457d9554ac5951 b54c0815ba2ece64
+{"ts":"2026-01-02T03:04:05Z","agent":"agy","agent_version":"","session":"conversation","event":"tool_use","tool":"write_file","file":"/repo/util.py","lines_added":2,"hunk_hash":"sha256:2ab9dca97b9af1200f86bfe2d8477d2747a140889b590f3615a382eb55531edd","spec_version":"","outcome":"rejected"}
+  line_hashes: e0bcfa82a77fcd5d 0ec03ad56d0fe124
+{"ts":"2026-01-02T03:04:05Z","agent":"agy","agent_version":"","session":"conversation","event":"tool_use","tool":"write_file","file":"/elsewhere/other.py","lines_added":1,"hunk_hash":"sha256:fd6b56090efda4c3f99de7fd986692012b798c7c233443b9c591169e3caac26f","spec_version":"","outcome":"failed"}
+  line_hashes: 37e456662466e563
+session {"Session":"conversation","Agent":"agy","AgentVersion":"","FirstSeen":"2026-01-02T03:04:05Z","LastSeen":"2026-01-02T03:04:05Z","UserMessages":0,"AgentMessages":0,"ToolCalls":8,"DistinctTools":2,"MCPCalls":0,"InputTokens":null,"OutputTokens":null,"CacheReadTokens":null,"CacheWriteTokens":null,"ReasoningTokens":null,"DurationMS":null,"TimeToFirstTokenMS":null,"Effort":"","PermissionMode":"","Compactions":null,"Model":""}
+
+== claude-code claudecode/testdata/claude-code-2.1.183.jsonl
+{"ts":"2026-06-20T00:34:41.623Z","agent":"claude-code","agent_version":"2.1.183","session":"fixture-session","event":"tool_use","tool":"Write","file":"/repo/fixture1.go","hunk_hash":"sha256:aeb114c66ae0f9b0801fa03faec69849a3e3ec3c8b0e87bb8bf26b46f21a84cc","spec_version":"","outcome":"rejected","branch":"main"}
+{"ts":"2026-06-20T00:34:47.434Z","agent":"claude-code","agent_version":"2.1.183","session":"fixture-session","event":"tool_use","tool":"Write","file":"/repo/fixture2.go","lines_added":6,"hunk_hash":"sha256:9af7df8e6d53e4c4d6cbd00f39bcfcc690ae5b3bb7d563b3e572b7083338722c","spec_version":"","outcome":"accepted","branch":"main"}
+  line_hashes: 39f277af3f490b8e d7c429f22ac1130d 97c019a94eaedf76
+session {"Session":"fixture-session","Agent":"claude-code","AgentVersion":"2.1.183","FirstSeen":"2026-06-20T00:34:41.623Z","LastSeen":"2026-06-20T00:34:47.434Z","UserMessages":1,"AgentMessages":2,"ToolCalls":2,"DistinctTools":1,"MCPCalls":0,"InputTokens":null,"OutputTokens":null,"CacheReadTokens":null,"CacheWriteTokens":null,"ReasoningTokens":null,"DurationMS":null,"TimeToFirstTokenMS":null,"Effort":"","PermissionMode":"","Compactions":0,"Model":""}
+
+== claude-code claudecode/testdata/claude-code-2.1.190.jsonl
+{"ts":"2026-06-24T19:30:52.33Z","agent":"claude-code","agent_version":"2.1.190","session":"fixture-session","event":"tool_use","tool":"Write","file":"/repo/fixture1.go","lines_added":6,"hunk_hash":"sha256:aeb114c66ae0f9b0801fa03faec69849a3e3ec3c8b0e87bb8bf26b46f21a84cc","spec_version":"","outcome":"accepted","branch":"main"}
+  line_hashes: 0c9a4d680c93828f d9ece437cbb99b71 fe34a9a0d0dc7206
+{"ts":"2026-06-24T19:31:10.322Z","agent":"claude-code","agent_version":"2.1.190","session":"fixture-session","event":"tool_use","tool":"Edit","file":"/repo/fixture2.go","lines_added":1,"lines_removed":1,"hunk_hash":"sha256:b0ba09f53c942ee06b63019eb73daaa8b535af53a9cf26017858e58b8df919e7","spec_version":"","outcome":"accepted","branch":"main"}
+  line_hashes: b0ba09f53c942ee0
+session {"Session":"fixture-session","Agent":"claude-code","AgentVersion":"2.1.190","FirstSeen":"2026-06-24T19:30:52.33Z","LastSeen":"2026-06-24T19:31:10.322Z","UserMessages":1,"AgentMessages":2,"ToolCalls":2,"DistinctTools":2,"MCPCalls":0,"InputTokens":null,"OutputTokens":null,"CacheReadTokens":null,"CacheWriteTokens":null,"ReasoningTokens":null,"DurationMS":null,"TimeToFirstTokenMS":null,"Effort":"","PermissionMode":"","Compactions":0,"Model":""}
+
+== claude-code claudecode/testdata/claude-code-2.1.205.jsonl
+{"ts":"2026-07-09T22:08:09.965Z","agent":"claude-code","agent_version":"2.1.205","session":"fixture-session","event":"tool_use","tool":"Write","file":"/repo/fixture1.go","lines_added":6,"hunk_hash":"sha256:aeb114c66ae0f9b0801fa03faec69849a3e3ec3c8b0e87bb8bf26b46f21a84cc","spec_version":"","outcome":"accepted","branch":"main"}
+  line_hashes: 0c9a4d680c93828f d9ece437cbb99b71 fe34a9a0d0dc7206
+{"ts":"2026-07-09T22:11:30.502Z","agent":"claude-code","agent_version":"2.1.205","session":"fixture-session","event":"tool_use","tool":"Write","file":"/repo/fixture2.go","lines_added":6,"hunk_hash":"sha256:9af7df8e6d53e4c4d6cbd00f39bcfcc690ae5b3bb7d563b3e572b7083338722c","spec_version":"","outcome":"accepted","branch":"main"}
+  line_hashes: 39f277af3f490b8e d7c429f22ac1130d 97c019a94eaedf76
+session {"Session":"fixture-session","Agent":"claude-code","AgentVersion":"2.1.205","FirstSeen":"2026-07-09T22:08:09.965Z","LastSeen":"2026-07-09T22:11:30.502Z","UserMessages":1,"AgentMessages":2,"ToolCalls":2,"DistinctTools":1,"MCPCalls":0,"InputTokens":null,"OutputTokens":null,"CacheReadTokens":null,"CacheWriteTokens":null,"ReasoningTokens":null,"DurationMS":null,"TimeToFirstTokenMS":null,"Effort":"","PermissionMode":"","Compactions":0,"Model":""}
+
+== claude-code claudecode/testdata/claude-code-2.1.206.jsonl
+{"ts":"2026-08-11T19:33:58.575Z","agent":"claude-code","agent_version":"2.1.206","session":"fixture-session","event":"tool_use","tool":"Write","file":"/repo/fixture1.go","lines_added":6,"hunk_hash":"sha256:aeb114c66ae0f9b0801fa03faec69849a3e3ec3c8b0e87bb8bf26b46f21a84cc","spec_version":"","outcome":"accepted","branch":"main"}
+  line_hashes: 0c9a4d680c93828f d9ece437cbb99b71 fe34a9a0d0dc7206
+session {"Session":"fixture-session","Agent":"claude-code","AgentVersion":"2.1.206","FirstSeen":"2026-08-11T19:33:58.575Z","LastSeen":"2026-08-11T19:33:58.575Z","UserMessages":1,"AgentMessages":1,"ToolCalls":1,"DistinctTools":1,"MCPCalls":0,"InputTokens":null,"OutputTokens":null,"CacheReadTokens":null,"CacheWriteTokens":null,"ReasoningTokens":null,"DurationMS":null,"TimeToFirstTokenMS":null,"Effort":"","PermissionMode":"","Compactions":0,"Model":""}
+
+== claude-code claudecode/testdata/claude-code-2.1.210.jsonl
+{"ts":"2026-07-16T16:30:38.376Z","agent":"claude-code","agent_version":"2.1.210","session":"fixture-session","event":"tool_use","tool":"Write","file":"/repo/fixture1.go","lines_added":6,"hunk_hash":"sha256:aeb114c66ae0f9b0801fa03faec69849a3e3ec3c8b0e87bb8bf26b46f21a84cc","spec_version":"","outcome":"accepted","branch":"main"}
+  line_hashes: 0c9a4d680c93828f d9ece437cbb99b71 fe34a9a0d0dc7206
+{"ts":"2026-07-16T16:30:49.766Z","agent":"claude-code","agent_version":"2.1.210","session":"fixture-session","event":"tool_use","tool":"Edit","file":"/repo/fixture2.go","lines_added":1,"lines_removed":1,"hunk_hash":"sha256:b0ba09f53c942ee06b63019eb73daaa8b535af53a9cf26017858e58b8df919e7","spec_version":"","outcome":"accepted","branch":"main"}
+  line_hashes: b0ba09f53c942ee0
+session {"Session":"fixture-session","Agent":"claude-code","AgentVersion":"2.1.210","FirstSeen":"2026-07-16T16:30:38.376Z","LastSeen":"2026-07-16T16:30:49.766Z","UserMessages":1,"AgentMessages":2,"ToolCalls":2,"DistinctTools":2,"MCPCalls":0,"InputTokens":null,"OutputTokens":null,"CacheReadTokens":null,"CacheWriteTokens":null,"ReasoningTokens":null,"DurationMS":null,"TimeToFirstTokenMS":null,"Effort":"","PermissionMode":"","Compactions":0,"Model":""}
+
+== claude-code claudecode/testdata/claude-code-2.1.211.jsonl
+{"ts":"2026-07-16T18:01:20.947Z","agent":"claude-code","agent_version":"2.1.211","session":"fixture-session","event":"tool_use","tool":"Edit","file":"/repo/fixture1.go","lines_added":1,"lines_removed":1,"hunk_hash":"sha256:7ebda7e076f652a327bd4c219bfa777c7cfc271e92462a512c0ae918b958cc37","spec_version":"","outcome":"accepted","branch":"main"}
+  line_hashes: 7ebda7e076f652a3
+{"ts":"2026-07-16T18:01:30.454Z","agent":"claude-code","agent_version":"2.1.211","session":"fixture-session","event":"tool_use","tool":"Edit","file":"/repo/fixture2.go","lines_added":1,"lines_removed":1,"hunk_hash":"sha256:b0ba09f53c942ee06b63019eb73daaa8b535af53a9cf26017858e58b8df919e7","spec_version":"","outcome":"accepted","branch":"main"}
+  line_hashes: b0ba09f53c942ee0
+session {"Session":"fixture-session","Agent":"claude-code","AgentVersion":"2.1.211","FirstSeen":"2026-07-16T18:01:20.947Z","LastSeen":"2026-07-16T18:01:30.454Z","UserMessages":1,"AgentMessages":2,"ToolCalls":2,"DistinctTools":1,"MCPCalls":0,"InputTokens":null,"OutputTokens":null,"CacheReadTokens":null,"CacheWriteTokens":null,"ReasoningTokens":null,"DurationMS":null,"TimeToFirstTokenMS":null,"Effort":"","PermissionMode":"","Compactions":0,"Model":""}
+
+== claude-code claudecode/testdata/claude-code-2.1.216.jsonl
+{"ts":"2026-07-21T21:35:15.167Z","agent":"claude-code","agent_version":"2.1.216","session":"fixture-session","event":"tool_use","tool":"Write","file":"/repo/fixture1.go","lines_added":6,"hunk_hash":"sha256:aeb114c66ae0f9b0801fa03faec69849a3e3ec3c8b0e87bb8bf26b46f21a84cc","spec_version":"","outcome":"accepted","branch":"main"}
+  line_hashes: 0c9a4d680c93828f d9ece437cbb99b71 fe34a9a0d0dc7206
+{"ts":"2026-07-21T21:35:21.29Z","agent":"claude-code","agent_version":"2.1.216","session":"fixture-session","event":"tool_use","tool":"Edit","file":"/repo/fixture2.go","lines_added":1,"lines_removed":1,"hunk_hash":"sha256:b0ba09f53c942ee06b63019eb73daaa8b535af53a9cf26017858e58b8df919e7","spec_version":"","outcome":"accepted","branch":"main"}
+  line_hashes: b0ba09f53c942ee0
+session {"Session":"fixture-session","Agent":"claude-code","AgentVersion":"2.1.216","FirstSeen":"2026-07-21T21:35:15.167Z","LastSeen":"2026-07-21T21:35:21.29Z","UserMessages":1,"AgentMessages":2,"ToolCalls":2,"DistinctTools":2,"MCPCalls":0,"InputTokens":null,"OutputTokens":null,"CacheReadTokens":null,"CacheWriteTokens":null,"ReasoningTokens":null,"DurationMS":null,"TimeToFirstTokenMS":null,"Effort":"","PermissionMode":"","Compactions":0,"Model":""}
+
+== claude-code claudecode/testdata/claude-code-2.1.220.jsonl
+{"ts":"2026-07-31T18:23:54.178Z","agent":"claude-code","agent_version":"2.1.220","session":"fixture-session","event":"tool_use","tool":"Write","file":"/repo/fixture1.go","lines_added":6,"hunk_hash":"sha256:aeb114c66ae0f9b0801fa03faec69849a3e3ec3c8b0e87bb8bf26b46f21a84cc","spec_version":"","outcome":"accepted","branch":"main"}
+  line_hashes: 0c9a4d680c93828f d9ece437cbb99b71 fe34a9a0d0dc7206
+{"ts":"2026-07-31T18:24:10.982Z","agent":"claude-code","agent_version":"2.1.220","session":"fixture-session","event":"tool_use","tool":"Edit","file":"/repo/fixture2.go","lines_added":1,"lines_removed":1,"hunk_hash":"sha256:b0ba09f53c942ee06b63019eb73daaa8b535af53a9cf26017858e58b8df919e7","spec_version":"","outcome":"accepted","branch":"main"}
+  line_hashes: b0ba09f53c942ee0
+session {"Session":"fixture-session","Agent":"claude-code","AgentVersion":"2.1.220","FirstSeen":"2026-07-31T18:23:54.178Z","LastSeen":"2026-07-31T18:24:10.982Z","UserMessages":1,"AgentMessages":2,"ToolCalls":2,"DistinctTools":2,"MCPCalls":0,"InputTokens":null,"OutputTokens":null,"CacheReadTokens":null,"CacheWriteTokens":null,"ReasoningTokens":null,"DurationMS":null,"TimeToFirstTokenMS":null,"Effort":"","PermissionMode":"","Compactions":0,"Model":""}
+
+== claude-code claudecode/testdata/claude-code-2.1.221.jsonl
+{"ts":"2026-08-04T22:28:43.442Z","agent":"claude-code","agent_version":"2.1.221","session":"fixture-session","event":"tool_use","tool":"Write","file":"/repo/fixture1.go","lines_added":6,"hunk_hash":"sha256:aeb114c66ae0f9b0801fa03faec69849a3e3ec3c8b0e87bb8bf26b46f21a84cc","spec_version":"","outcome":"accepted","branch":"main"}
+  line_hashes: 0c9a4d680c93828f d9ece437cbb99b71 fe34a9a0d0dc7206
+{"ts":"2026-08-04T22:31:31.825Z","agent":"claude-code","agent_version":"2.1.221","session":"fixture-session","event":"tool_use","tool":"Write","file":"/repo/fixture2.go","lines_added":6,"hunk_hash":"sha256:9af7df8e6d53e4c4d6cbd00f39bcfcc690ae5b3bb7d563b3e572b7083338722c","spec_version":"","outcome":"accepted","branch":"main"}
+  line_hashes: 39f277af3f490b8e d7c429f22ac1130d 97c019a94eaedf76
+session {"Session":"fixture-session","Agent":"claude-code","AgentVersion":"2.1.221","FirstSeen":"2026-08-04T22:28:43.442Z","LastSeen":"2026-08-04T22:31:31.825Z","UserMessages":1,"AgentMessages":2,"ToolCalls":2,"DistinctTools":1,"MCPCalls":0,"InputTokens":null,"OutputTokens":null,"CacheReadTokens":null,"CacheWriteTokens":null,"ReasoningTokens":null,"DurationMS":null,"TimeToFirstTokenMS":null,"Effort":"","PermissionMode":"","Compactions":0,"Model":""}
+
+== claude-code claudecode/testdata/claude-code-2.1.226.jsonl
+{"ts":"2026-08-10T00:59:37.007Z","agent":"claude-code","agent_version":"2.1.226","session":"fixture-session","event":"tool_use","tool":"Write","file":"/repo/fixture1.go","lines_added":6,"hunk_hash":"sha256:aeb114c66ae0f9b0801fa03faec69849a3e3ec3c8b0e87bb8bf26b46f21a84cc","spec_version":"","outcome":"accepted","branch":"main"}
+  line_hashes: 0c9a4d680c93828f d9ece437cbb99b71 fe34a9a0d0dc7206
+{"ts":"2026-08-10T01:50:42.547Z","agent":"claude-code","agent_version":"2.1.226","session":"fixture-session","event":"tool_use","tool":"Write","file":"/repo/fixture2.go","lines_added":6,"hunk_hash":"sha256:9af7df8e6d53e4c4d6cbd00f39bcfcc690ae5b3bb7d563b3e572b7083338722c","spec_version":"","outcome":"accepted","branch":"main"}
+  line_hashes: 39f277af3f490b8e d7c429f22ac1130d 97c019a94eaedf76
+session {"Session":"fixture-session","Agent":"claude-code","AgentVersion":"2.1.226","FirstSeen":"2026-08-10T00:59:37.007Z","LastSeen":"2026-08-10T01:50:42.547Z","UserMessages":1,"AgentMessages":2,"ToolCalls":2,"DistinctTools":1,"MCPCalls":0,"InputTokens":null,"OutputTokens":null,"CacheReadTokens":null,"CacheWriteTokens":null,"ReasoningTokens":null,"DurationMS":null,"TimeToFirstTokenMS":null,"Effort":"","PermissionMode":"","Compactions":0,"Model":""}
+
+== claude-code claudecode/testdata/claude-code-2.1.227.jsonl
+{"ts":"2026-08-11T22:50:01.653Z","agent":"claude-code","agent_version":"2.1.227","session":"fixture-session","event":"tool_use","tool":"Write","file":"/repo/fixture1.go","lines_added":6,"hunk_hash":"sha256:aeb114c66ae0f9b0801fa03faec69849a3e3ec3c8b0e87bb8bf26b46f21a84cc","spec_version":"","outcome":"accepted","branch":"main"}
+  line_hashes: 0c9a4d680c93828f d9ece437cbb99b71 fe34a9a0d0dc7206
+{"ts":"2026-08-11T22:50:09.451Z","agent":"claude-code","agent_version":"2.1.227","session":"fixture-session","event":"tool_use","tool":"Write","file":"/repo/fixture2.go","lines_added":6,"hunk_hash":"sha256:9af7df8e6d53e4c4d6cbd00f39bcfcc690ae5b3bb7d563b3e572b7083338722c","spec_version":"","outcome":"accepted","branch":"main"}
+  line_hashes: 39f277af3f490b8e d7c429f22ac1130d 97c019a94eaedf76
+session {"Session":"fixture-session","Agent":"claude-code","AgentVersion":"2.1.227","FirstSeen":"2026-08-11T22:50:01.653Z","LastSeen":"2026-08-11T22:50:09.451Z","UserMessages":1,"AgentMessages":2,"ToolCalls":2,"DistinctTools":1,"MCPCalls":0,"InputTokens":null,"OutputTokens":null,"CacheReadTokens":null,"CacheWriteTokens":null,"ReasoningTokens":null,"DurationMS":null,"TimeToFirstTokenMS":null,"Effort":"","PermissionMode":"","Compactions":0,"Model":""}
+
+== codex codex/testdata/rollout-basic.jsonl
+{"ts":"2026-08-12T10:00:02Z","agent":"codex","agent_version":"0.147.0","session":"sess-abc","event":"tool_use","tool":"apply_patch","file":"/repo/calc.py","lines_added":5,"lines_removed":2,"hunk_hash":"sha256:567bda54fef6e1dc861316f9bc1040731e11bc875fcecb9a0c4aa9e292be08dc","spec_version":"","outcome":"accepted"}
+  line_hashes: 1f3c9e142723fdd1 1f0fd903b7788a25 c6457d9554ac5951 b54c0815ba2ece64
+{"ts":"2026-08-12T10:00:04Z","agent":"codex","agent_version":"0.147.0","session":"sess-abc","event":"tool_use","tool":"apply_patch","file":"/abs/new.py","hunk_hash":"sha256:f56c1868c0ef6639dec2c06fb8034919eba80afc4491a0956d3300839f800de6","spec_version":"","outcome":"failed"}
+{"ts":"2026-08-12T10:00:06Z","agent":"codex","agent_version":"0.147.0","session":"sess-abc","event":"tool_call","tool":"exec_command","spec_version":""}
+session {"Session":"sess-abc","Agent":"codex","AgentVersion":"0.147.0","FirstSeen":"2026-08-12T10:00:00Z","LastSeen":"2026-08-12T10:00:07Z","UserMessages":1,"AgentMessages":1,"ToolCalls":3,"DistinctTools":2,"MCPCalls":0,"InputTokens":null,"OutputTokens":null,"CacheReadTokens":null,"CacheWriteTokens":null,"ReasoningTokens":null,"DurationMS":null,"TimeToFirstTokenMS":null,"Effort":"","PermissionMode":"","Compactions":0,"Model":""}
