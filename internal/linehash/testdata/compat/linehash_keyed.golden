@@ -1,0 +1,28 @@
+"main.go"	"package main"	a64a64c884ee0305
+"main.go"	"\tfmt.Println(\"hello\")   "	f76fca49c23065be
+"main.go"	"}"	e2155b98c5fb4054
+"main.go"	""	09b695c54829be84
+"main.go"	"    "	09b695c54829be84
+"main.go"	"// ünïcode comment ✓"	1ac70af6851c96a2
+"main.go"	"return nil"	7d2191bc2e0fa0d3
+"pkg/../main.go"	"package main"	a64a64c884ee0305
+"pkg/../main.go"	"\tfmt.Println(\"hello\")   "	f76fca49c23065be
+"pkg/../main.go"	"}"	e2155b98c5fb4054
+"pkg/../main.go"	""	09b695c54829be84
+"pkg/../main.go"	"    "	09b695c54829be84
+"pkg/../main.go"	"// ünïcode comment ✓"	1ac70af6851c96a2
+"pkg/../main.go"	"return nil"	7d2191bc2e0fa0d3
+"internal\\x.go"	"package main"	34503f51990bf77b
+"internal\\x.go"	"\tfmt.Println(\"hello\")   "	0bc06c298177d620
+"internal\\x.go"	"}"	2478de60b03daf87
+"internal\\x.go"	""	7df2f67e9c5dd1f2
+"internal\\x.go"	"    "	7df2f67e9c5dd1f2
+"internal\\x.go"	"// ünïcode comment ✓"	d6406e70f858b6d4
+"internal\\x.go"	"return nil"	591d19a27cd8b14a
+"a b/ünïcode.go"	"package main"	edbdf64904597954
+"a b/ünïcode.go"	"\tfmt.Println(\"hello\")   "	1c8a1503401340f7
+"a b/ünïcode.go"	"}"	49799da287cbd499
+"a b/ünïcode.go"	""	8012f8c9f14612e7
+"a b/ünïcode.go"	"    "	8012f8c9f14612e7
+"a b/ünïcode.go"	"// ünïcode comment ✓"	91716a2eb95d086e
+"a b/ünïcode.go"	"return nil"	8373687ffe714463

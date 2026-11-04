@@ -151,17 +151,7 @@ func Determine(entries []journal.Entry, stagedFiles []string, agentLineHashes ma
 	// method was always meant to mean — matching whole tool outputs against
 	// whole diff hunks only ever fired when a file was created whole and
 	// committed untouched (NAV-52).
-	counted := map[uint64]bool{}
-	agentLines := 0
-	for _, h := range staged.Lines {
-		if counted[h] {
-			continue
-		}
-		if _, ok := agentLineHashes[h]; ok {
-			counted[h] = true
-			agentLines++
-		}
-	}
+	agentLines := Intersect(staged.Lines, agentLineHashes)
 
 	method := spec.MethodObserved
 	if agentLines > 0 {
@@ -282,4 +272,26 @@ func whatChangedIt(entries []journal.Entry) spec.ChangedBy {
 	// No entry carried the signal. Absent rather than guessed: Codex and
 	// agy never report it, and on those agents this is permanent.
 	return ""
+}
+
+// Intersect counts the distinct staged line hashes that an agent produced.
+//
+// Distinct, because a file that legitimately repeats a line should not let
+// one agent-written line claim several. A count above zero is what makes a
+// commit's method intersected. The hashes on both sides must come from the
+// same scheme (linehash.Of, or OfKeyed with the same key); mixing them
+// matches nothing.
+func Intersect(staged []uint64, agent map[uint64]struct{}) int {
+	counted := make(map[uint64]bool, len(staged))
+	n := 0
+	for _, h := range staged {
+		if counted[h] {
+			continue
+		}
+		if _, ok := agent[h]; ok {
+			counted[h] = true
+			n++
+		}
+	}
+	return n
 }
