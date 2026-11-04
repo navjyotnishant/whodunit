@@ -53,25 +53,8 @@ func (w *Writer) AppendKeyedLines(keyVersion int, hashes []uint64, ts time.Time)
 		return fmt.Errorf("journal: create keyed lines table: %w", err)
 	}
 
-	tx, err := w.db.Begin()
-	if err != nil {
-		return fmt.Errorf("journal: begin: %w", err)
-	}
-	defer tx.Rollback()
-
-	stmt, err := tx.Prepare(`INSERT OR IGNORE INTO agent_lines_keyed (repo_id, key_version, line_hash, first_ts) VALUES (?, ?, ?, ?)`)
-	if err != nil {
-		return fmt.Errorf("journal: prepare keyed line insert: %w", err)
-	}
-	defer stmt.Close()
-
-	for _, h := range hashes {
-		// Same signed round-trip as AppendLines.
-		if _, err := stmt.Exec(w.repoID, keyVersion, int64(h), ts.UnixNano()); err != nil {
-			return fmt.Errorf("journal: insert keyed line hash: %w", err)
-		}
-	}
-	return tx.Commit()
+	return insertHashes(w.db, `INSERT OR IGNORE INTO agent_lines_keyed (repo_id, key_version, line_hash, first_ts) VALUES (?, ?, ?, ?)`,
+		hashes, func(h int64) []any { return []any{w.repoID, keyVersion, h, ts.UnixNano()} })
 }
 
 // ReadKeyedLineHashes returns the keyed hashes recorded for a repository
@@ -91,26 +74,9 @@ func ReadKeyedLineHashes(dataDir, repoID string, keyVersion int, since time.Time
 	if err != nil || !exists {
 		return nil, err
 	}
-	rows, err := db.Query(
+	return queryHashes(db,
 		`SELECT line_hash FROM agent_lines_keyed WHERE repo_id = ? AND key_version = ? AND first_ts >= ?`,
 		repoID, keyVersion, since.UnixNano())
-	if err != nil {
-		return nil, fmt.Errorf("journal: query keyed line hashes: %w", err)
-	}
-	defer rows.Close()
-
-	out := map[uint64]struct{}{}
-	for rows.Next() {
-		var h int64
-		if err := rows.Scan(&h); err != nil {
-			return nil, fmt.Errorf("journal: scan keyed line hash: %w", err)
-		}
-		out[uint64(h)] = struct{}{}
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("journal: keyed line hash rows: %w", err)
-	}
-	return out, nil
 }
 
 // keyedTableExists reports whether an opted-in caller ever wrote keyed lines.

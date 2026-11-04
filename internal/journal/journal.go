@@ -639,22 +639,28 @@ func (w *Writer) AppendLines(hashes []uint64, ts time.Time) error {
 		ts = time.Now().UTC()
 	}
 
-	tx, err := w.db.Begin()
+	return insertHashes(w.db, `INSERT OR IGNORE INTO agent_lines (repo_id, line_hash, first_ts) VALUES (?, ?, ?)`,
+		hashes, func(h int64) []any { return []any{w.repoID, h, ts.UnixNano()} })
+}
+
+// insertHashes inserts one row per hash in a single transaction. args builds
+// the row for a hash. SQLite INTEGER is signed 64-bit and the hash is
+// unsigned; the bit pattern round-trips, which is all a lookup key needs.
+func insertHashes(db *sql.DB, query string, hashes []uint64, args func(h int64) []any) error {
+	tx, err := db.Begin()
 	if err != nil {
 		return fmt.Errorf("journal: begin: %w", err)
 	}
 	defer tx.Rollback()
 
-	stmt, err := tx.Prepare(`INSERT OR IGNORE INTO agent_lines (repo_id, line_hash, first_ts) VALUES (?, ?, ?)`)
+	stmt, err := tx.Prepare(query)
 	if err != nil {
 		return fmt.Errorf("journal: prepare line insert: %w", err)
 	}
 	defer stmt.Close()
 
 	for _, h := range hashes {
-		// SQLite INTEGER is signed 64-bit; the hash is unsigned. The bit
-		// pattern round-trips, which is all a lookup key needs.
-		if _, err := stmt.Exec(w.repoID, int64(h), ts.UnixNano()); err != nil {
+		if _, err := stmt.Exec(args(int64(h))...); err != nil {
 			return fmt.Errorf("journal: insert line hash: %w", err)
 		}
 	}
@@ -674,9 +680,15 @@ func ReadLineHashes(dataDir, repoID string, since time.Time) (map[uint64]struct{
 	}
 	defer db.Close()
 
-	rows, err := db.Query(
+	return queryHashes(db,
 		`SELECT line_hash FROM agent_lines WHERE repo_id = ? AND first_ts >= ?`,
 		repoID, since.UnixNano())
+}
+
+// queryHashes runs a query selecting one line_hash column and returns the
+// distinct hashes, undoing the signed round-trip insertHashes makes.
+func queryHashes(db *sql.DB, query string, args ...any) (map[uint64]struct{}, error) {
+	rows, err := db.Query(query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("journal: query line hashes: %w", err)
 	}
