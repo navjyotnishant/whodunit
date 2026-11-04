@@ -12,12 +12,12 @@
 # Everything here uses the Go toolchain and nothing else. No target
 # installs anything.
 
-.PHONY: check test race bench lint fmt vet dashboards perf clean help
+.PHONY: check test compat race bench lint fmt vet dashboards perf clean help
 .DEFAULT_GOAL := help
 
 # The full gate. Ordered cheapest-first so an obvious failure reports in
 # seconds rather than after the race detector has run.
-check: lint test race perf bench dashboards
+check: lint compat test race perf bench dashboards
 	@echo "all checks passed"
 
 # Formatting, as a check rather than a rewrite: `make check` must not
@@ -35,6 +35,13 @@ lint: fmt vet
 
 test:
 	@go test ./...
+
+# Compatibility gate (ADR 0008 in whodunit-pro): stored formats existing
+# users depend on (line hashes, journal and sidecar schema, sync SQL,
+# trailers) must not change. Goldens live in each package's testdata/compat.
+# Regenerate only for a deliberate format change: WHODUNIT_UPDATE_COMPAT=1 make compat
+compat:
+	@go test -count=1 -run Compat ./internal/linehash ./internal/journal ./internal/sidecar ./internal/spec
 
 # Races are invisible to a plain `go test`. Roughly ten times the wall
 # clock, which is why it is a separate target and why CI runs it on one

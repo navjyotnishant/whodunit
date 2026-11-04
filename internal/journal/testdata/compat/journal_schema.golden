@@ -1,0 +1,132 @@
+== index idx_agent_lines_repo_ts (on agent_lines)
+CREATE INDEX idx_agent_lines_repo_ts ON agent_lines(repo_id, first_ts)
+== index idx_entries_repo_file (on entries)
+CREATE INDEX idx_entries_repo_file ON entries(repo_id, file)
+== index idx_entries_repo_ts (on entries)
+CREATE INDEX idx_entries_repo_ts ON entries(repo_id, ts)
+== table agent_lines (on agent_lines)
+CREATE TABLE agent_lines (
+	repo_id   TEXT NOT NULL,
+	line_hash INTEGER NOT NULL,
+	first_ts  INTEGER NOT NULL,
+	PRIMARY KEY (repo_id, line_hash)
+)
+== table entries (on entries)
+CREATE TABLE entries (
+	repo_id       TEXT NOT NULL,
+	ts            INTEGER NOT NULL,
+	agent         TEXT NOT NULL,
+	agent_version TEXT NOT NULL,
+	session       TEXT NOT NULL,
+	event         TEXT NOT NULL,
+	tool          TEXT NOT NULL DEFAULT '',
+	file          TEXT NOT NULL DEFAULT '',
+	lines_added   INTEGER NOT NULL DEFAULT 0,
+	lines_removed INTEGER NOT NULL DEFAULT 0,
+	hunk_hash     TEXT NOT NULL DEFAULT '',
+	spec_version  TEXT NOT NULL,
+	outcome       TEXT NOT NULL DEFAULT '',
+
+	-- NULLable, unlike everything above (NAV-88).
+	--
+	-- Those default to '' or 0 because every agent supplies them. These
+	-- cannot be: agy records no branch at all, and only Claude Code
+	-- reports whether a human edited the agent's output. A default asserts
+	-- "measured, and it was empty" about something never measurable, and
+	-- nothing downstream can tell the two apart afterwards (NAV-21).
+	model         TEXT,
+	branch        TEXT,
+	mcp_server    TEXT,
+	user_modified INTEGER,
+
+	UNIQUE(repo_id, session, ts, tool, file, hunk_hash)
+)
+== table repo_metadata (on repo_metadata)
+CREATE TABLE repo_metadata (
+	repo_id      TEXT PRIMARY KEY,
+	contributor  TEXT NOT NULL DEFAULT '',
+	spec_version TEXT NOT NULL,
+	updated_at   INTEGER NOT NULL
+)
+== table sessions (on sessions)
+CREATE TABLE sessions (
+	repo_id        TEXT NOT NULL,
+	session        TEXT NOT NULL,
+	agent          TEXT NOT NULL DEFAULT '',
+	agent_version  TEXT NOT NULL DEFAULT '',
+	first_seen     INTEGER NOT NULL,
+	last_seen      INTEGER NOT NULL,
+	user_messages  INTEGER NOT NULL DEFAULT 0,
+	agent_messages INTEGER NOT NULL DEFAULT 0,
+	tool_calls     INTEGER NOT NULL DEFAULT 0,
+	distinct_tools INTEGER NOT NULL DEFAULT 0,
+	mcp_calls      INTEGER NOT NULL DEFAULT 0,
+
+	-- Measured cost, timing and autonomy (NAV-88), all NULLable. agy
+	-- supplies none of them, and only Codex separates reasoning tokens or
+	-- records timing — so two agents out of three leave those NULL
+	-- permanently. Zero would read as "this agent is free".
+	input_tokens           INTEGER,
+	output_tokens          INTEGER,
+	cache_read_tokens      INTEGER,
+	cache_write_tokens     INTEGER,
+	reasoning_tokens       INTEGER,
+	duration_ms            INTEGER,
+	time_to_first_token_ms INTEGER,
+	effort                 TEXT,
+	permission_mode        TEXT,
+	model                  TEXT,
+	compactions            INTEGER,
+
+	PRIMARY KEY (repo_id, session)
+)
+== columns agent_lines
+repo_id TEXT notnull=1 default="" pk=1
+line_hash INTEGER notnull=1 default="" pk=2
+first_ts INTEGER notnull=1 default="" pk=0
+== columns entries
+repo_id TEXT notnull=1 default="" pk=0
+ts INTEGER notnull=1 default="" pk=0
+agent TEXT notnull=1 default="" pk=0
+agent_version TEXT notnull=1 default="" pk=0
+session TEXT notnull=1 default="" pk=0
+event TEXT notnull=1 default="" pk=0
+tool TEXT notnull=1 default="''" pk=0
+file TEXT notnull=1 default="''" pk=0
+lines_added INTEGER notnull=1 default="0" pk=0
+lines_removed INTEGER notnull=1 default="0" pk=0
+hunk_hash TEXT notnull=1 default="''" pk=0
+spec_version TEXT notnull=1 default="" pk=0
+outcome TEXT notnull=1 default="''" pk=0
+model TEXT notnull=0 default="" pk=0
+branch TEXT notnull=0 default="" pk=0
+mcp_server TEXT notnull=0 default="" pk=0
+user_modified INTEGER notnull=0 default="" pk=0
+== columns repo_metadata
+repo_id TEXT notnull=0 default="" pk=1
+contributor TEXT notnull=1 default="''" pk=0
+spec_version TEXT notnull=1 default="" pk=0
+updated_at INTEGER notnull=1 default="" pk=0
+== columns sessions
+repo_id TEXT notnull=1 default="" pk=1
+session TEXT notnull=1 default="" pk=2
+agent TEXT notnull=1 default="''" pk=0
+agent_version TEXT notnull=1 default="''" pk=0
+first_seen INTEGER notnull=1 default="" pk=0
+last_seen INTEGER notnull=1 default="" pk=0
+user_messages INTEGER notnull=1 default="0" pk=0
+agent_messages INTEGER notnull=1 default="0" pk=0
+tool_calls INTEGER notnull=1 default="0" pk=0
+distinct_tools INTEGER notnull=1 default="0" pk=0
+mcp_calls INTEGER notnull=1 default="0" pk=0
+input_tokens INTEGER notnull=0 default="" pk=0
+output_tokens INTEGER notnull=0 default="" pk=0
+cache_read_tokens INTEGER notnull=0 default="" pk=0
+cache_write_tokens INTEGER notnull=0 default="" pk=0
+reasoning_tokens INTEGER notnull=0 default="" pk=0
+duration_ms INTEGER notnull=0 default="" pk=0
+time_to_first_token_ms INTEGER notnull=0 default="" pk=0
+effort TEXT notnull=0 default="" pk=0
+permission_mode TEXT notnull=0 default="" pk=0
+model TEXT notnull=0 default="" pk=0
+compactions INTEGER notnull=0 default="" pk=0

@@ -1,0 +1,64 @@
+"/repo/main.go"	"package main"	c840db5355892ef8
+"/repo/main.go"	"\tfmt.Println(\"hello\")   "	1bacb7690c4cc963
+"/repo/main.go"	"}"	d40dd9db9e8c5ed8
+"/repo/main.go"	""	c2476b8493c3eb84
+"/repo/main.go"	"    "	c2476b8493c3eb84
+"/repo/main.go"	"// ünïcode comment ✓"	c894e131de7c1d95
+"/repo/main.go"	"return nil"	8ca5fcb912405e30
+"/repo//main.go"	"package main"	c840db5355892ef8
+"/repo//main.go"	"\tfmt.Println(\"hello\")   "	1bacb7690c4cc963
+"/repo//main.go"	"}"	d40dd9db9e8c5ed8
+"/repo//main.go"	""	c2476b8493c3eb84
+"/repo//main.go"	"    "	c2476b8493c3eb84
+"/repo//main.go"	"// ünïcode comment ✓"	c894e131de7c1d95
+"/repo//main.go"	"return nil"	8ca5fcb912405e30
+"/repo/./pkg/../main.go"	"package main"	c840db5355892ef8
+"/repo/./pkg/../main.go"	"\tfmt.Println(\"hello\")   "	1bacb7690c4cc963
+"/repo/./pkg/../main.go"	"}"	d40dd9db9e8c5ed8
+"/repo/./pkg/../main.go"	""	c2476b8493c3eb84
+"/repo/./pkg/../main.go"	"    "	c2476b8493c3eb84
+"/repo/./pkg/../main.go"	"// ünïcode comment ✓"	c894e131de7c1d95
+"/repo/./pkg/../main.go"	"return nil"	8ca5fcb912405e30
+"C:\\repo\\main.go"	"package main"	76ae370af4ac5702
+"C:\\repo\\main.go"	"\tfmt.Println(\"hello\")   "	80583e98205357ef
+"C:\\repo\\main.go"	"}"	2edb14a65575a512
+"C:\\repo\\main.go"	""	90147ab40e9accf7
+"C:\\repo\\main.go"	"    "	90147ab40e9accf7
+"C:\\repo\\main.go"	"// ünïcode comment ✓"	e91212912d7d83d1
+"C:\\repo\\main.go"	"return nil"	fe1f705a1d00b574
+"C:/repo/main.go"	"package main"	76ae370af4ac5702
+"C:/repo/main.go"	"\tfmt.Println(\"hello\")   "	80583e98205357ef
+"C:/repo/main.go"	"}"	2edb14a65575a512
+"C:/repo/main.go"	""	90147ab40e9accf7
+"C:/repo/main.go"	"    "	90147ab40e9accf7
+"C:/repo/main.go"	"// ünïcode comment ✓"	e91212912d7d83d1
+"C:/repo/main.go"	"return nil"	fe1f705a1d00b574
+"/private/tmp/repo/a b/ünïcode.go"	"package main"	a49bd102379e8edf
+"/private/tmp/repo/a b/ünïcode.go"	"\tfmt.Println(\"hello\")   "	bfa3ac96946a4751
+"/private/tmp/repo/a b/ünïcode.go"	"}"	888b0aea84120fff
+"/private/tmp/repo/a b/ünïcode.go"	""	c1f6291a72c51ba0
+"/private/tmp/repo/a b/ünïcode.go"	"    "	c1f6291a72c51ba0
+"/private/tmp/repo/a b/ünïcode.go"	"// ünïcode comment ✓"	72c7ca187307f07b
+"/private/tmp/repo/a b/ünïcode.go"	"return nil"	d3f54ae6c696b0ad
+"relative/path.go"	"package main"	0ea319a0f9c8c44d
+"relative/path.go"	"\tfmt.Println(\"hello\")   "	aa2734c7458d8448
+"relative/path.go"	"}"	f392975d95ba4c82
+"relative/path.go"	""	424f51b409dba375
+"relative/path.go"	"    "	424f51b409dba375
+"relative/path.go"	"// ünïcode comment ✓"	fa4281a4678339c4
+"relative/path.go"	"return nil"	bab554ae66310843
+""	"package main"	07df079fd754942a
+""	"\tfmt.Println(\"hello\")   "	b4d2adb9aef14dd2
+""	"}"	96ed520f5948ca82
+""	""	6e340b9cffb37a98
+""	"    "	6e340b9cffb37a98
+""	"// ünïcode comment ✓"	736d1001902c2707
+""	"return nil"	15cc774b5a82bbac
+OfText "line one\n\tline two\n}\n\nlast line without newline": a30609f57c053f80 a8cb69d301fcbb0c 114196c837de59cc
+Substantive "package main" = true
+Substantive "\tfmt.Println(\"hello\")   " = true
+Substantive "}" = false
+Substantive "" = false
+Substantive "    " = false
+Substantive "// ünïcode comment ✓" = true
+Substantive "return nil" = true

@@ -1,0 +1,21 @@
+Version=2 VersionKey=v TrailerKey=AI-Attribution
+AI-Attribution: v=2; status=assisted; method=undetermined
+AI-Attribution: v=2; status=undetermined; method=undetermined
+AI-Attribution: v=2; status=unassisted; method=undetermined
+AI-Attribution: v=2; status=unmatched; method=undetermined
+AI-Attribution: v=2; status=degraded; method=undetermined
+AI-Attribution: v=2; status=uninstrumented; method=undetermined
+AI-Attribution: v=1; status=undetermined; method=undetermined
+AI-Attribution: v=2; status=assisted; method=undetermined; agent=claude-code; agent_version=2.1.0
+AI-Attribution: v=2; status=assisted; method=undetermined; agent=claude-code; agent_version=2.1.0; ratio=0.46; model=claude-opus-5; session=sess-123
+AI-Attribution: v=2; status=assisted; method=declared; agent=claude-code; agent_version=2.1.0
+AI-Attribution: v=2; status=assisted; method=declared; agent=claude-code; agent_version=2.1.0; ratio=0.46; model=claude-opus-5; session=sess-123
+AI-Attribution: v=2; status=assisted; method=inferred; agent=claude-code; agent_version=2.1.0
+AI-Attribution: v=2; status=assisted; method=inferred; agent=claude-code; agent_version=2.1.0; ratio=0.46; model=claude-opus-5; session=sess-123
+AI-Attribution: v=2; status=assisted; method=observed; agent=claude-code; agent_version=2.1.0
+AI-Attribution: v=2; status=assisted; method=observed; agent=claude-code; agent_version=2.1.0; ratio=0.46; model=claude-opus-5; session=sess-123
+AI-Attribution: v=2; status=assisted; method=intersected; agent=claude-code; agent_version=2.1.0
+AI-Attribution: v=2; status=assisted; method=intersected; agent=claude-code; agent_version=2.1.0; ratio=0.46; model=claude-opus-5; session=sess-123
+AI-Attribution: v=2; status=assisted; method=observed; agent=codex; ratio=0.00; changed_by=human
+AI-Attribution: v=2; status=assisted; method=observed; agent=codex; ratio=0.00; changed_by=agent
+AI-Attribution: v=2; status=assisted; method=intersected; x_future=1
