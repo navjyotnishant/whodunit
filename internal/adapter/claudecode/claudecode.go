@@ -338,7 +338,7 @@ func (r *resultContent) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-// ParseSince reads every tool_use (Edit/Write) event at or after `since`
+// parseSince reads every tool_use (Edit/Write) event at or after `since`
 // from the given transcript file, along with what happened to each call.
 //
 // Two passes: a tool call and its result are separate records, and the
@@ -348,7 +348,10 @@ func (r *resultContent) UnmarshalJSON(data []byte) error {
 // Unrecognized lines are skipped, never fatal — a malformed or future
 // transcript format degrades to fewer entries rather than a hard failure
 // (fail to undetermined, not error).
-func ParseSince(path string, since time.Time) ([]journal.Entry, error) {
+//
+// keyed is the optional hasher pkg/capture passes (adapter.LineHasher); dun
+// calls ParseSince, which passes nil, so its path is unchanged.
+func parseSince(path string, since time.Time, keyed adapter.LineHasher) ([]journal.Entry, error) {
 	// A transcript untouched since the cutoff has nothing to contribute, so
 	// it is not opened at all.
 	//
@@ -485,8 +488,10 @@ func ParseSince(path string, since time.Time) ([]journal.Entry, error) {
 			// must not count as agent-authored code. Carrying line hashes
 			// for it would attribute lines that do not exist.
 			lineHashes := linehash.OfText(linehash.Canonical(block.Input.FilePath), produced)
+			keyedHashes := adapter.HashKeyed(keyed, linehash.Canonical(block.Input.FilePath), produced)
 			if outcome != OutcomeAccepted {
 				lineHashes = nil
+				keyedHashes = nil
 				added, removed = 0, 0
 			}
 
@@ -507,6 +512,8 @@ func ParseSince(path string, since time.Time) ([]journal.Entry, error) {
 				Branch:       r.GitBranch,
 				MCPServer:    r.MCPServer,
 				UserModified: userModifiedOf(edited, block.ID),
+
+				KeyedLineHashes: keyedHashes,
 			})
 		}
 	}
@@ -799,3 +806,11 @@ func hunkHash(filePath, tool, content, resultText string) string {
 	sum := sha256.Sum256([]byte(filePath + "\x00" + text))
 	return "sha256:" + hex.EncodeToString(sum[:])
 }
+
+// ParseSince is parseSince without a keyed hasher: what dun calls.
+func ParseSince(path string, since time.Time) ([]journal.Entry, error) {
+	return parseSince(path, since, nil)
+}
+
+// Registered for pkg/capture's keyed parsing (adapter.ParseSinceKeyed).
+func init() { adapter.RegisterKeyed(AgentName, parseSince) }

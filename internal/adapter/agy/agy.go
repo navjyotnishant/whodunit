@@ -462,13 +462,16 @@ func copyFile(src, dst string) error {
 	return os.WriteFile(dst, data, 0o600)
 }
 
-// ParseSince turns one conversation database into journal entries.
+// parseSince turns one conversation database into journal entries.
 //
 // The steps table carries no timestamp per row, so the database's own
 // modification time stands in for when the work happened. That is coarse —
 // every entry in a conversation shares it — but it is honest: inventing
 // per-step times would imply precision the store does not have.
-func ParseSince(path string, since time.Time) ([]journal.Entry, error) {
+//
+// keyed is the optional hasher pkg/capture passes (adapter.LineHasher); dun
+// calls ParseSince, which passes nil, so its path is unchanged.
+func parseSince(path string, since time.Time, keyed adapter.LineHasher) ([]journal.Entry, error) {
 	info, err := os.Stat(path)
 	if err != nil {
 		return nil, err
@@ -541,6 +544,8 @@ func ParseSince(path string, since time.Time) ([]journal.Entry, error) {
 			LinesRemoved: removed,
 			HunkHash:     hunkHash(c.TargetFile, produced),
 			LineHashes:   linehash.OfText(linehash.Canonical(c.TargetFile), produced),
+
+			KeyedLineHashes: adapter.HashKeyed(keyed, linehash.Canonical(c.TargetFile), produced),
 			// From steps.status — see outcomeFor. An earlier version
 			// hardcoded "unknown" here on the belief that agy records no
 			// rejection signal; it does, on every row.
@@ -646,3 +651,11 @@ func hunkHash(file, produced string) string {
 	sum := sha256.Sum256([]byte(file + "\x00" + produced))
 	return "sha256:" + hex.EncodeToString(sum[:])
 }
+
+// ParseSince is parseSince without a keyed hasher: what dun calls.
+func ParseSince(path string, since time.Time) ([]journal.Entry, error) {
+	return parseSince(path, since, nil)
+}
+
+// Registered for pkg/capture's keyed parsing (adapter.ParseSinceKeyed).
+func init() { adapter.RegisterKeyed(AgentName, parseSince) }

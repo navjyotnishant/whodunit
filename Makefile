@@ -41,7 +41,7 @@ test:
 # trailers) must not change. Goldens live in each package's testdata/compat.
 # Regenerate only for a deliberate format change: WHODUNIT_UPDATE_COMPAT=1 make compat
 compat:
-	@go test -count=1 -run Compat ./internal/linehash ./internal/journal ./internal/sidecar ./internal/spec ./internal/adapter ./cmd/dun
+	@go test -count=1 -run Compat ./internal/linehash ./internal/journal ./internal/sidecar ./internal/spec ./internal/adapter ./cmd/dun ./pkg/capture
 
 # Races are invisible to a plain `go test`. Roughly ten times the wall
 # clock, which is why it is a separate target and why CI runs it on one

@@ -1,0 +1,40 @@
+== agy conversation.db
+replace_file_content /repo/calc.py: e28c636cbf1073c4 4866c86212991c69 cdf4799ff30bbed6 728cbb39c5dd93d3
+write_file /repo/util.py: 63593f9d2c7431bf be9520e2d80362be
+write_file /elsewhere/other.py: aa3af559ac53ecb6
+== claude-code claude-code-2.1.183.jsonl
+Write /repo/fixture1.go: 
+Write /repo/fixture2.go: c6a8bca89034d8bd 86e0db942e036e18 61ef142a8b59a2ce
+== claude-code claude-code-2.1.190.jsonl
+Write /repo/fixture1.go: 14518b8384f70225 e7443b34b050c733 72414374a7154705
+Edit /repo/fixture2.go: a9ef1e4043af7dbd
+== claude-code claude-code-2.1.205.jsonl
+Write /repo/fixture1.go: 14518b8384f70225 e7443b34b050c733 72414374a7154705
+Write /repo/fixture2.go: c6a8bca89034d8bd 86e0db942e036e18 61ef142a8b59a2ce
+== claude-code claude-code-2.1.206.jsonl
+Write /repo/fixture1.go: 14518b8384f70225 e7443b34b050c733 72414374a7154705
+== claude-code claude-code-2.1.210.jsonl
+Write /repo/fixture1.go: 14518b8384f70225 e7443b34b050c733 72414374a7154705
+Edit /repo/fixture2.go: a9ef1e4043af7dbd
+== claude-code claude-code-2.1.211.jsonl
+Edit /repo/fixture1.go: 45c22186b4186f7e
+Edit /repo/fixture2.go: a9ef1e4043af7dbd
+== claude-code claude-code-2.1.216.jsonl
+Write /repo/fixture1.go: 14518b8384f70225 e7443b34b050c733 72414374a7154705
+Edit /repo/fixture2.go: a9ef1e4043af7dbd
+== claude-code claude-code-2.1.220.jsonl
+Write /repo/fixture1.go: 14518b8384f70225 e7443b34b050c733 72414374a7154705
+Edit /repo/fixture2.go: a9ef1e4043af7dbd
+== claude-code claude-code-2.1.221.jsonl
+Write /repo/fixture1.go: 14518b8384f70225 e7443b34b050c733 72414374a7154705
+Write /repo/fixture2.go: c6a8bca89034d8bd 86e0db942e036e18 61ef142a8b59a2ce
+== claude-code claude-code-2.1.226.jsonl
+Write /repo/fixture1.go: 14518b8384f70225 e7443b34b050c733 72414374a7154705
+Write /repo/fixture2.go: c6a8bca89034d8bd 86e0db942e036e18 61ef142a8b59a2ce
+== claude-code claude-code-2.1.227.jsonl
+Write /repo/fixture1.go: 14518b8384f70225 e7443b34b050c733 72414374a7154705
+Write /repo/fixture2.go: c6a8bca89034d8bd 86e0db942e036e18 61ef142a8b59a2ce
+== codex rollout-basic.jsonl
+apply_patch /repo/calc.py: e28c636cbf1073c4 4866c86212991c69 cdf4799ff30bbed6 728cbb39c5dd93d3
+apply_patch /abs/new.py: 
+exec_command : 

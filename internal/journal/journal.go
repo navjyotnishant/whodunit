@@ -80,6 +80,12 @@ type Entry struct {
 	// per event, and they are lookup keys rather than something a human
 	// reads. They are stored in their own table, not on the entry row.
 	LineHashes []uint64 `json:"-"`
+
+	// KeyedLineHashes are the same lines hashed with linehash.OfKeyed over
+	// repo-relative paths, filled only when a caller asks for them through
+	// pkg/capture (ADR 0008 in whodunit-pro). dun never does, so for dun this
+	// is always nil. Never stored by this package and never serialised.
+	KeyedLineHashes []uint64 `json:"-"`
 }
 
 // SpecVersion is the journal schema version this package writes.
