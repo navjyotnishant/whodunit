@@ -1,0 +1,479 @@
+SchemaVersion=2 TablePrefix=whodunit_
+
+== Schema
+
+-- Which schema version this database has actually had applied.
+--
+-- Separate from the schema_version stamped on synced rows: that records
+-- which definition produced a number, this records what the database has
+-- been migrated to. A rebuild is gated on it, so it must be readable
+-- before any table it gates is touched, and it must survive that rebuild.
+--
+-- One row, id = 1. A single-row table rather than a key-value store
+-- because there is exactly one fact here and inventing a schema registry
+-- for it would be more machinery than the question deserves.
+CREATE TABLE IF NOT EXISTS whodunit_schema (
+	id         INTEGER NOT NULL,
+	version    BIGINT  NOT NULL,
+	applied_at BIGINT  NOT NULL,
+	PRIMARY KEY (id)
+);
+
+-- Which addresses belong to the same person.
+--
+-- One person picks up a second identity the moment one machine is
+-- configured with a GitHub noreply address and another with their real
+-- one. Nothing announces it: both are valid, both commit, and the
+-- dashboards show two contributors. Measured on one install, 148 of 1,263
+-- commits sat under a second address, so filtering to either silently
+-- dropped a ninth of the work.
+--
+-- Read-time resolution, deliberately. The literal committer email stays in
+-- every commit row, every event row and every commit object. This is a
+-- lookup table joined when a dashboard asks who someone is. A wrong entry
+-- is corrected by editing one line rather than by re-syncing history, and
+-- that reversibility is the reason it is a table rather than a rewrite.
+--
+-- Chains are flattened before they are written: alias holds every address,
+-- canonical holds where it ends up, so SQL never has to follow c -> b -> a
+-- recursively and cannot disagree with config.ResolveIdentity about the
+-- answer (WHO-208).
+--
+-- Not new personal data: both addresses already appear in every commit
+-- object this maps between (NAV-25).
+CREATE TABLE IF NOT EXISTS whodunit_identities (
+	alias        VARCHAR(320) NOT NULL,
+	canonical    VARCHAR(320) NOT NULL,
+	synced_at    BIGINT       NOT NULL,
+	PRIMARY KEY (alias)
+);
+
+-- Team membership, published from the teams map in ~/.whodunit/config.json
+-- so a dashboard can report group-level adoption rather than a list of
+-- named individuals (WHO-211, completing WHO-157).
+--
+-- One row per person, keyed on the canonical address: config is keyed by
+-- team because that is the shape someone maintains by hand, but a person
+-- can only count under one team in a panel, so the map is inverted here
+-- and a contributor listed twice takes the alphabetically first team.
+-- Aliases are resolved before the row is written, so a second machine
+-- lands in the same team as the first.
+--
+-- Read first by every team join. DevLake's own teams/team_users are the
+-- fallback for anyone this table does not name. A value someone typed on
+-- purpose beats one that arrived on a connector sync. A person in neither
+-- source is "(unassigned)", never dropped (NAV-21).
+--
+-- Org metadata, not new personal data: the address already appears in
+-- every commit object, and which team someone is on is a fact about the
+-- organisation chart (NAV-25).
+--
+-- The column is team_name rather than team on purpose: nearly every panel
+-- aliases its resolved team AS team and then writes GROUP BY team, and
+-- MySQL binds an unqualified GROUP BY name to a real column before a
+-- select alias. A column called team made every one of those queries
+-- fail only_full_group_by the moment the table was joined.
+CREATE TABLE IF NOT EXISTS whodunit_teams (
+	contributor  VARCHAR(320) NOT NULL,
+	team_name    VARCHAR(190) NOT NULL,
+	synced_at    BIGINT       NOT NULL,
+	PRIMARY KEY (contributor)
+);
+
+-- List prices per model, per million tokens, so the cost panels can price
+-- each session at its own model's rate rather than one typed number.
+--
+-- Created empty here and filled by deploy/devlake/fetch-model-prices.py,
+-- which reads the providers' pricing pages. Created by the schema rather
+-- than only by that script so a dashboard that joins it runs on a fresh
+-- datalake before anyone has fetched prices: the join finds no row and the
+-- panel reports the session as unpriced, which is the truthful state, not
+-- a SQL error for a missing table. Absent price never becomes zero.
+CREATE TABLE IF NOT EXISTS whodunit_model_prices (
+	model           VARCHAR(64)   NOT NULL,
+	provider        VARCHAR(16)   NOT NULL,
+	input_usd       DECIMAL(10,4) NOT NULL,
+	cache_read_usd  DECIMAL(10,4) NOT NULL,
+	cache_write_usd DECIMAL(10,4) NOT NULL,
+	output_usd      DECIMAL(10,4) NOT NULL,
+	source          VARCHAR(255)  NOT NULL,
+	fetched_at      DATETIME      NOT NULL,
+	PRIMARY KEY (model)
+);
+
+-- One row per repository. Holds facts that do not vary per commit.
+CREATE TABLE IF NOT EXISTS whodunit_repos (
+	repo_id      VARCHAR(64)  NOT NULL,
+	contributor  VARCHAR(320) NOT NULL DEFAULT '',
+	spec_version VARCHAR(16)  NOT NULL DEFAULT '',
+	synced_at    BIGINT       NOT NULL,
+
+	-- 1536 bytes under utf8mb4, against InnoDB's 3072-byte index limit.
+	-- Measured rather than assumed, which is what ruled out hashing the
+	-- address into a fixed-width surrogate.
+	PRIMARY KEY (repo_id, contributor)
+);
+
+-- One row per commit: the dashboard grain.
+--
+-- status and method are stored as written in the trailer rather than as
+-- an enum id, so a reader never needs a lookup table to understand a row,
+-- and an unrecognised future value survives instead of being dropped.
+--
+-- ratio is nullable on purpose. A commit with no line-level evidence has
+-- no share to report, and 0.0 would assert the agent contributed nothing
+-- (NAV-8).
+CREATE TABLE IF NOT EXISTS whodunit_commits (
+	commit_sha    VARCHAR(64)  NOT NULL,
+	repo_id       VARCHAR(64)  NOT NULL,
+	-- Who synced this row, carried rather than joined.
+	--
+	-- repo_id is the root commit SHA, identical for everyone who clones
+	-- the repository, so resolving identity through whodunit_repos meant
+	-- resolving it through a row two people share (WHO-192).
+	--
+	-- NULLable, unlike the columns around it. A row synced before this
+	-- column existed has no contributor to report, and '' would assert
+	-- "measured, and it was nobody" about something never measured
+	-- (NAV-21). A panel renders NULL as unattributed, never as a person.
+	contributor   VARCHAR(320),
+	committed_at  BIGINT       NOT NULL,
+	status        VARCHAR(32)  NOT NULL,
+	method        VARCHAR(32)  NOT NULL,
+	agent         VARCHAR(64)  NOT NULL DEFAULT '',
+	agent_version VARCHAR(64)  NOT NULL DEFAULT '',
+	purpose       VARCHAR(32)  NOT NULL DEFAULT '',
+	ratio         REAL,
+	lines_added   BIGINT       NOT NULL DEFAULT 0,
+	lines_removed BIGINT       NOT NULL DEFAULT 0,
+	files_changed BIGINT       NOT NULL DEFAULT 0,
+	spec_version  VARCHAR(16)  NOT NULL DEFAULT '',
+	schema_version BIGINT      NOT NULL,
+	synced_at     BIGINT       NOT NULL,
+
+	-- Why a commit carries no attribution (WHO-210). NULLable, and NULL
+	-- means "not classified" rather than "no reason" (NAV-21).
+	--
+	-- method=undetermined answers four different questions at once: the
+	-- hooks were not installed yet, an agent was active but touched none
+	-- of these files, nobody used an agent at all, or attribution itself
+	-- failed. Only the last two are worth acting on, and a reader cannot
+	-- currently tell which one they are looking at.
+	--
+	-- Reconstructed, not measured: derived from the hook log after the
+	-- fact, never written at determination time. WHO-211 does that, where
+	-- the answer is actually known rather than inferred.
+	reason        VARCHAR(32),
+
+	-- Why an observed commit's agent text is not what got staged
+	-- (WHO-213): 'human' if someone revised it, 'agent' if a later turn
+	-- replaced it. NULL where the agent does not report it, which is
+	-- permanent for Codex and agy rather than pending.
+	changed_by    VARCHAR(16),
+
+	PRIMARY KEY (commit_sha, repo_id)
+);
+
+-- One row per observed agent edit: the journal, mirrored.
+--
+-- This is the grain that answers what the trailer cannot — an agent
+-- touching a file that never reached a commit leaves a row here and
+-- nothing in whodunit_commits.
+CREATE TABLE IF NOT EXISTS whodunit_events (
+	-- Identity is a hash of (repo, session, timestamp, tool, file, hunk),
+	-- not those columns directly. A file path can be 512 characters, and
+	-- MySQL caps a key at 3072 bytes — four such columns exceed it. The
+	-- hash also makes re-syncing the same event a no-op, which is what
+	-- keeps sync idempotent.
+	event_id      VARCHAR(64)  NOT NULL,
+	repo_id       VARCHAR(64)  NOT NULL,
+
+	-- Carried, not joined — see whodunit_commits above for why, and
+	-- NULLable for the same reason (WHO-192, NAV-21).
+	contributor   VARCHAR(320),
+
+	observed_at   BIGINT       NOT NULL,
+	agent         VARCHAR(64)  NOT NULL,
+	agent_version VARCHAR(64)  NOT NULL DEFAULT '',
+	session       VARCHAR(128) NOT NULL DEFAULT '',
+	event         VARCHAR(32)  NOT NULL,
+	tool          VARCHAR(64)  NOT NULL DEFAULT '',
+	file          VARCHAR(512) NOT NULL DEFAULT '',
+	lines_added   BIGINT       NOT NULL DEFAULT 0,
+	lines_removed BIGINT       NOT NULL DEFAULT 0,
+	hunk_hash     VARCHAR(80)  NOT NULL DEFAULT '',
+	spec_version  VARCHAR(16)  NOT NULL DEFAULT '',
+	outcome       VARCHAR(16)  NOT NULL DEFAULT '',
+	synced_at     BIGINT       NOT NULL,
+
+	-- NULLable, unlike everything above, and deliberately so (NAV-88).
+	--
+	-- The columns above default to '' or 0 because every agent supplies
+	-- them. These cannot be: agy records no branch at all, and only Claude
+	-- Code reports whether a human edited the agent's output. A default
+	-- would assert "measured, and it was empty" about something never
+	-- measurable, and nothing downstream could tell the two apart
+	-- afterwards (NAV-21).
+	--
+	-- A panel reading these must render NULL as "not reported by this
+	-- agent", never as zero.
+	model         VARCHAR(64),
+	branch        VARCHAR(255),
+	mcp_server    VARCHAR(128),
+	user_modified TINYINT,
+
+	PRIMARY KEY (event_id)
+);
+
+-- Engagement per session (NAV-55): counts only, never message content.
+-- A message count needs no message text, which is what keeps this
+-- compatible with the no-prompt-text rule.
+CREATE TABLE IF NOT EXISTS whodunit_sessions (
+	repo_id        VARCHAR(64)  NOT NULL,
+
+	-- Carried, not joined — see whodunit_commits above (WHO-170).
+	contributor    VARCHAR(320),
+
+	session        VARCHAR(128) NOT NULL,
+	agent          VARCHAR(64)  NOT NULL DEFAULT '',
+	agent_version  VARCHAR(64)  NOT NULL DEFAULT '',
+	first_seen     BIGINT       NOT NULL,
+	last_seen      BIGINT       NOT NULL,
+	user_messages  BIGINT       NOT NULL DEFAULT 0,
+	agent_messages BIGINT       NOT NULL DEFAULT 0,
+	tool_calls     BIGINT       NOT NULL DEFAULT 0,
+	distinct_tools BIGINT       NOT NULL DEFAULT 0,
+	mcp_calls      BIGINT       NOT NULL DEFAULT 0,
+	synced_at      BIGINT       NOT NULL,
+
+	-- Measured cost, timing and autonomy (NAV-88). All NULLable: agy
+	-- supplies none of them — verified genuinely absent rather than merely
+	-- unread — and only Codex separates reasoning tokens or records
+	-- timing at all. Two agents out of three leave those NULL permanently,
+	-- which is a fact about the agents rather than a gap awaiting work.
+	--
+	-- Zero would be the wrong default here in a specific and expensive
+	-- way: on a cost panel it reads as "this agent is free".
+	input_tokens           BIGINT,
+	output_tokens          BIGINT,
+	cache_read_tokens      BIGINT,
+	cache_write_tokens     BIGINT,
+	reasoning_tokens       BIGINT,
+	duration_ms            BIGINT,
+	time_to_first_token_ms BIGINT,
+	effort                 VARCHAR(16),
+	permission_mode        VARCHAR(32),
+	model                  VARCHAR(64),
+	compactions            BIGINT,
+
+	PRIMARY KEY (repo_id, session)
+);
+
+-- One row per captured pre-adoption baseline (NAV-107).
+--
+-- The comparison this table exists for is the only honest one available:
+-- the same repository before and after, with the selection problem absent
+-- by construction. Assisted against unassisted commits in the same period
+-- is a different and weaker question, because an agent is reached for on
+-- some kinds of work and not others.
+--
+-- Keyed by repo_id and captured_at rather than repo_id alone. A snapshot
+-- is immutable once written locally, so a second one with a different
+-- capture time is a NEW baseline — recapturing after a --force, or a
+-- different window — and overwriting silently would destroy the record of
+-- what was actually compared.
+--
+-- manual_* are nullable throughout: they come from PR and CI systems this
+-- tool cannot see, and are absent in every snapshot captured so far. A
+-- zero would assert a measured zero (NAV-21).
+CREATE TABLE IF NOT EXISTS whodunit_baselines (
+	repo_id             VARCHAR(64)  NOT NULL,
+	captured_at         BIGINT       NOT NULL,
+	window_days         BIGINT       NOT NULL,
+	head_sha            VARCHAR(64)  NOT NULL DEFAULT '',
+	schema_version      VARCHAR(16)  NOT NULL DEFAULT '',
+
+	-- The measured span. NULL on snapshots captured before these were
+	-- recorded, which carry only window_days. A panel comparing before
+	-- against after has to state which window it means, and "90 days
+	-- ending at some capture date" is not that.
+	window_since        BIGINT,
+	window_until        BIGINT,
+
+	commits             BIGINT       NOT NULL DEFAULT 0,
+	commits_per_week    REAL,
+	median_diff_lines   BIGINT,
+	mean_hours_between  REAL,
+	reverts             BIGINT,
+	revert_rate         REAL,
+
+	synced_at           BIGINT       NOT NULL,
+	PRIMARY KEY (repo_id, captured_at)
+);
+
+-- Hashes of lines an agent produced (NAV-52).
+--
+-- Only hashes, never the lines. A hash cannot be read back into code, so
+-- this table cannot reconstruct anyone's source — which is what makes it
+-- safe to hold centrally at all.
+CREATE TABLE IF NOT EXISTS whodunit_event_lines (
+	repo_id   VARCHAR(64) NOT NULL,
+	line_hash BIGINT      NOT NULL,
+	first_at  BIGINT      NOT NULL,
+	synced_at BIGINT      NOT NULL,
+	PRIMARY KEY (repo_id, line_hash)
+);
+
+== Migrations
+ALTER TABLE whodunit_commits ADD COLUMN contributor VARCHAR(320)
+ALTER TABLE whodunit_events ADD COLUMN contributor VARCHAR(320)
+ALTER TABLE whodunit_sessions ADD COLUMN contributor VARCHAR(320)
+ALTER TABLE whodunit_events ADD COLUMN outcome VARCHAR(16) NOT NULL DEFAULT ''
+ALTER TABLE whodunit_events ADD COLUMN model VARCHAR(64)
+ALTER TABLE whodunit_events ADD COLUMN branch VARCHAR(255)
+ALTER TABLE whodunit_events ADD COLUMN mcp_server VARCHAR(128)
+ALTER TABLE whodunit_events ADD COLUMN user_modified TINYINT
+ALTER TABLE whodunit_sessions ADD COLUMN input_tokens BIGINT
+ALTER TABLE whodunit_sessions ADD COLUMN output_tokens BIGINT
+ALTER TABLE whodunit_sessions ADD COLUMN cache_read_tokens BIGINT
+ALTER TABLE whodunit_sessions ADD COLUMN cache_write_tokens BIGINT
+ALTER TABLE whodunit_sessions ADD COLUMN reasoning_tokens BIGINT
+ALTER TABLE whodunit_sessions ADD COLUMN duration_ms BIGINT
+ALTER TABLE whodunit_sessions ADD COLUMN time_to_first_token_ms BIGINT
+ALTER TABLE whodunit_sessions ADD COLUMN effort VARCHAR(16)
+ALTER TABLE whodunit_sessions ADD COLUMN permission_mode VARCHAR(32)
+ALTER TABLE whodunit_sessions ADD COLUMN model VARCHAR(64)
+ALTER TABLE whodunit_sessions ADD COLUMN compactions BIGINT
+ALTER TABLE whodunit_baselines ADD COLUMN window_since BIGINT
+ALTER TABLE whodunit_baselines ADD COLUMN window_until BIGINT
+ALTER TABLE whodunit_commits ADD COLUMN reason VARCHAR(32)
+ALTER TABLE whodunit_commits ADD COLUMN changed_by VARCHAR(16)
+== Indexes
+CREATE INDEX idx_whodunit_commits_repo_time ON whodunit_commits (repo_id, committed_at)
+CREATE INDEX idx_whodunit_commits_method ON whodunit_commits (repo_id, method)
+CREATE INDEX idx_whodunit_events_repo_time ON whodunit_events (repo_id, observed_at)
+CREATE INDEX idx_whodunit_events_file ON whodunit_events (repo_id, file)
+== upsertRepo(mysql=false)
+INSERT INTO whodunit_repos (repo_id, contributor, spec_version, synced_at) VALUES (?, ?, ?, ?) ON CONFLICT(repo_id, contributor) DO UPDATE SET spec_version=excluded.spec_version, synced_at=excluded.synced_at
+== upsertRepo(mysql=true)
+INSERT INTO whodunit_repos (repo_id, contributor, spec_version, synced_at) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE spec_version=VALUES(spec_version), synced_at=VALUES(synced_at)
+== upsertIdentity(mysql=false)
+INSERT INTO whodunit_identities (alias, canonical, synced_at) VALUES (?, ?, ?) ON CONFLICT(alias) DO UPDATE SET canonical=excluded.canonical, synced_at=excluded.synced_at
+== upsertIdentity(mysql=true)
+INSERT INTO whodunit_identities (alias, canonical, synced_at) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE canonical=VALUES(canonical), synced_at=VALUES(synced_at)
+== upsertCommit(mysql=false)
+INSERT INTO whodunit_commits
+		(commit_sha, repo_id, contributor, committed_at, status, method, agent,
+		 agent_version, purpose, ratio, lines_added, lines_removed, files_changed,
+		 spec_version, schema_version, synced_at, changed_by)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(commit_sha, repo_id) DO UPDATE SET
+		contributor=excluded.contributor,
+		status=excluded.status, method=excluded.method, agent=excluded.agent,
+		agent_version=excluded.agent_version, purpose=excluded.purpose,
+		ratio=excluded.ratio, lines_added=excluded.lines_added,
+		lines_removed=excluded.lines_removed, files_changed=excluded.files_changed,
+		spec_version=excluded.spec_version, schema_version=excluded.schema_version,
+		synced_at=excluded.synced_at, changed_by=excluded.changed_by
+== upsertCommit(mysql=true)
+INSERT INTO whodunit_commits
+		(commit_sha, repo_id, contributor, committed_at, status, method, agent,
+		 agent_version, purpose, ratio, lines_added, lines_removed, files_changed,
+		 spec_version, schema_version, synced_at, changed_by)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE
+			contributor=VALUES(contributor),
+			status=VALUES(status), method=VALUES(method), agent=VALUES(agent),
+			agent_version=VALUES(agent_version), purpose=VALUES(purpose),
+			ratio=VALUES(ratio), lines_added=VALUES(lines_added),
+			lines_removed=VALUES(lines_removed), files_changed=VALUES(files_changed),
+			spec_version=VALUES(spec_version), schema_version=VALUES(schema_version),
+			synced_at=VALUES(synced_at), changed_by=VALUES(changed_by)
+== upsertEvent(mysql=false)
+INSERT INTO whodunit_events
+		(event_id, repo_id, contributor, observed_at, agent, agent_version, session, event,
+		 tool, file, lines_added, lines_removed, hunk_hash, spec_version, outcome, synced_at,
+		 model, branch, mcp_server, user_modified)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(event_id) DO UPDATE SET outcome=excluded.outcome,
+		lines_added=excluded.lines_added, lines_removed=excluded.lines_removed,
+		synced_at=excluded.synced_at,
+		model=COALESCE(excluded.model, whodunit_events.model),
+		branch=COALESCE(excluded.branch, whodunit_events.branch),
+		mcp_server=COALESCE(excluded.mcp_server, whodunit_events.mcp_server),
+		user_modified=COALESCE(excluded.user_modified, whodunit_events.user_modified)
+== upsertEvent(mysql=true)
+INSERT INTO whodunit_events
+		(event_id, repo_id, contributor, observed_at, agent, agent_version, session, event,
+		 tool, file, lines_added, lines_removed, hunk_hash, spec_version, outcome, synced_at,
+		 model, branch, mcp_server, user_modified)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE outcome=VALUES(outcome),
+			lines_added=VALUES(lines_added), lines_removed=VALUES(lines_removed),
+			synced_at=VALUES(synced_at),
+			model=COALESCE(VALUES(model), model),
+			branch=COALESCE(VALUES(branch), branch),
+			mcp_server=COALESCE(VALUES(mcp_server), mcp_server),
+			user_modified=COALESCE(VALUES(user_modified), user_modified)
+== upsertSession(mysql=false)
+INSERT INTO whodunit_sessions
+		(repo_id, contributor, session, agent, agent_version, first_seen, last_seen,
+		 user_messages, agent_messages, tool_calls, distinct_tools, mcp_calls, synced_at,
+		 input_tokens, output_tokens, cache_read_tokens, cache_write_tokens,
+		 reasoning_tokens, duration_ms, time_to_first_token_ms,
+		 effort, permission_mode, model, compactions)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(repo_id, session) DO UPDATE SET
+		contributor=excluded.contributor,
+		last_seen=excluded.last_seen, user_messages=excluded.user_messages,
+		agent_messages=excluded.agent_messages, tool_calls=excluded.tool_calls,
+		distinct_tools=excluded.distinct_tools, mcp_calls=excluded.mcp_calls,
+		synced_at=excluded.synced_at,
+		input_tokens=COALESCE(excluded.input_tokens, whodunit_sessions.input_tokens),
+		output_tokens=COALESCE(excluded.output_tokens, whodunit_sessions.output_tokens),
+		cache_read_tokens=COALESCE(excluded.cache_read_tokens, whodunit_sessions.cache_read_tokens),
+		cache_write_tokens=COALESCE(excluded.cache_write_tokens, whodunit_sessions.cache_write_tokens),
+		reasoning_tokens=COALESCE(excluded.reasoning_tokens, whodunit_sessions.reasoning_tokens),
+		duration_ms=COALESCE(excluded.duration_ms, whodunit_sessions.duration_ms),
+		time_to_first_token_ms=COALESCE(excluded.time_to_first_token_ms, whodunit_sessions.time_to_first_token_ms),
+		effort=COALESCE(excluded.effort, whodunit_sessions.effort),
+		permission_mode=COALESCE(excluded.permission_mode, whodunit_sessions.permission_mode),
+		model=COALESCE(excluded.model, whodunit_sessions.model),
+		compactions=COALESCE(excluded.compactions, whodunit_sessions.compactions)
+== upsertSession(mysql=true)
+INSERT INTO whodunit_sessions
+		(repo_id, contributor, session, agent, agent_version, first_seen, last_seen,
+		 user_messages, agent_messages, tool_calls, distinct_tools, mcp_calls, synced_at,
+		 input_tokens, output_tokens, cache_read_tokens, cache_write_tokens,
+		 reasoning_tokens, duration_ms, time_to_first_token_ms,
+		 effort, permission_mode, model, compactions)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE
+			contributor=VALUES(contributor),
+			last_seen=VALUES(last_seen), user_messages=VALUES(user_messages),
+			agent_messages=VALUES(agent_messages), tool_calls=VALUES(tool_calls),
+			distinct_tools=VALUES(distinct_tools), mcp_calls=VALUES(mcp_calls),
+			synced_at=VALUES(synced_at),
+			input_tokens=COALESCE(VALUES(input_tokens), input_tokens),
+			output_tokens=COALESCE(VALUES(output_tokens), output_tokens),
+			cache_read_tokens=COALESCE(VALUES(cache_read_tokens), cache_read_tokens),
+			cache_write_tokens=COALESCE(VALUES(cache_write_tokens), cache_write_tokens),
+			reasoning_tokens=COALESCE(VALUES(reasoning_tokens), reasoning_tokens),
+			duration_ms=COALESCE(VALUES(duration_ms), duration_ms),
+			time_to_first_token_ms=COALESCE(VALUES(time_to_first_token_ms), time_to_first_token_ms),
+			effort=COALESCE(VALUES(effort), effort),
+			permission_mode=COALESCE(VALUES(permission_mode), permission_mode),
+			model=COALESCE(VALUES(model), model),
+			compactions=COALESCE(VALUES(compactions), compactions)
+== upsertBaseline(mysql=false)
+INSERT INTO whodunit_baselines
+		(repo_id, captured_at, window_days, head_sha, schema_version,
+		 window_since, window_until,
+		 commits, commits_per_week, median_diff_lines, mean_hours_between,
+		 reverts, revert_rate, synced_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(repo_id, captured_at) DO UPDATE SET synced_at=excluded.synced_at
+== upsertBaseline(mysql=true)
+INSERT INTO whodunit_baselines
+		(repo_id, captured_at, window_days, head_sha, schema_version,
+		 window_since, window_until,
+		 commits, commits_per_week, median_diff_lines, mean_hours_between,
+		 reverts, revert_rate, synced_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE synced_at=VALUES(synced_at)
+== upsertLine(mysql=false)
+INSERT INTO whodunit_event_lines (repo_id, line_hash, first_at, synced_at) VALUES (?, ?, ?, ?) ON CONFLICT(repo_id, line_hash) DO UPDATE SET synced_at=excluded.synced_at
+== upsertLine(mysql=true)
+INSERT INTO whodunit_event_lines (repo_id, line_hash, first_at, synced_at) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE synced_at=VALUES(synced_at)

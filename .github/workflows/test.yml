@@ -52,6 +52,12 @@ jobs:
       - name: Lint
         run: make lint
 
+      # Stored formats existing users depend on: line hashes, journal and
+      # sidecar schema, sync SQL, trailers. A failure here means the change
+      # would silently break data recorded by an earlier release (ADR 0008).
+      - name: Compatibility with existing users
+        run: make compat
+
       # The importable dashboards are generated from the mounted ones, so
       # they cannot drift silently — a stale export is only discovered when
       # someone imports it and finds a panel missing.
