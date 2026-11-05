@@ -264,6 +264,36 @@ At commit time, `dun` checks which staged files were touched by a recent
 session and, if the exact text matches, upgrades confidence to
 `intersected`.
 
+### Claude Desktop (Cowork)
+
+Claude Desktop's agent mode, Cowork, runs in one of two places, and
+whodunit reaches each differently.
+
+- **Local Cowork** runs Claude Code in a VM on your machine. Its
+  transcripts sit under Claude Desktop's data directory
+  (`~/Library/Application Support/Claude/local-agent-mode-sessions` on
+  macOS) with paths written as the VM sees them. The `claude-desktop`
+  adapter reads the sessions that had this repository connected as a
+  folder, maps each path back to your machine, and keeps only edits inside
+  this repository. Write and Edit reach `intersected`.
+- **Cloud Cowork** runs in Anthropic's cloud and leaves no transcript
+  here. When it edits your files through the Desktop Commander MCP server,
+  that server's history (`~/.claude-server-commander/tool-history.jsonl`)
+  records the text written, and the `desktop-commander` adapter reads it.
+  Edits made through Cowork's own remote shell leave no local record and
+  cannot be attributed. Desktop Commander keeps under a day of history, so
+  run `dun daemon` (or commit soon after) for these edits to be caught.
+
+Cowork is used for much more than code. Only code work is recorded: file
+writes inside this repository. No other tool calls are journaled, not even
+by name, and a session's message and token counts are kept only if it
+wrote a file here. Plain Claude Desktop chat writes no transcript and is
+never read.
+
+Either location can be overridden with `WHODUNIT_CLAUDE_DESKTOP_PATH` and
+`WHODUNIT_DESKTOP_COMMANDER_PATH`, or with `dun config`, like every other
+agent. Windows locations are not yet verified.
+
 What each agent records differs, and whodunit does not paper over it. Only
 Codex reports per-turn timing; only Claude Code reports whether a human
 edited the agent's output; Antigravity reports no token usage at all. A
@@ -316,6 +346,10 @@ It reads local files and git.
   summary before sending. See [What `dun sync` sends](#what-dun-sync-sends).
 - No prompt text, file *contents*, hostnames, or remote URLs are ever
   recorded — the journal schema has no field that could hold them.
+- **Only code work is read from general-purpose agents.** Claude Desktop
+  (Cowork) and Desktop Commander are also used for email, documents and
+  other tools; from them, only file writes inside the repository are
+  recorded. See [Claude Desktop (Cowork)](#claude-desktop-cowork).
 - **File paths and a contributor identity are recorded.** The journal
   stores which files an agent edited, and `repo_metadata` stores the git
   committer email for the repository. Both stay local until you sync.

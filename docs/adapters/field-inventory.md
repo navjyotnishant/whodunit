@@ -260,6 +260,50 @@ Do not chase these — they were checked and are not there:
 The 921 apparent "subagent" hits are system-prompt text describing a tool.
 This is the clearest case of why greps do not settle these questions.
 
+## Claude Desktop (Cowork, local)
+
+`~/Library/Application Support/Claude/local-agent-mode-sessions/<account>/<org>/local_<id>/.claude/projects/<slug>/*.jsonl`,
+Claude Code's own format, plus one metadata file per session,
+`local_<id>.json`. Surveyed 2026-11-05: 242 sessions, 208 transcripts.
+
+### Read today
+
+From the transcript, the same fields as Claude Code, with one difference:
+only Write, Edit and `mcp__workspace__bash` calls produce entries. Every
+other call is skipped, name included. From the metadata file, only
+`userSelectedFolders` and `folderMountNames`.
+
+### Present, not to be read
+
+| Source | Why not |
+|---|---|
+| tool calls other than file writes | Cowork drafts email, works CRMs and builds documents; the tool and MCP server names alone describe that work |
+| sessions that wrote nothing in the repository | their message and token counts describe other work |
+| `remoteMcpServersConfig`, `enabledMcpTools` | which connectors a person has, not what they coded |
+| `userApprovedFileAccessPaths`, `fsDetectedFiles` | file names outside the repository |
+| `title`, `coworkSyspromptMap` | session titles are often the subject of the conversation |
+
+## Desktop Commander
+
+`~/.claude-server-commander/tool-history.jsonl` — one call per line:
+`timestamp`, `toolName`, `arguments`, `output`, `duration`. Surveyed
+2026-11-05: 1,470 calls covering about nine hours.
+
+### Read today
+
+`write_file` (`path`, `content`), `edit_block` (`file_path`, `old_string`,
+`new_string`), `start_process` (`command`, for write targets only), and
+`output.isError`. Lines for other tools are not decoded.
+
+### Confirmed genuinely absent
+
+- **session id, model, client name or version** — the history does not say
+  which client made a call
+- **token usage, turn timing** — not recorded
+
+The `claude_tool_call*.log` files in the same directory are a plain-text
+log of arguments only, without outcomes, and are not read.
+
 ---
 
 ## Cross-agent summary
