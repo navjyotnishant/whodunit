@@ -66,7 +66,7 @@ func TestAgentsInDunsOrder(t *testing.T) {
 	for _, a := range Agents() {
 		names = append(names, a.Name())
 	}
-	if got := strings.Join(names, ","); got != "agy,claude-code,codex,claude-desktop,desktop-commander" {
+	if got := strings.Join(names, ","); got != "agy,claude-code,codex" {
 		t.Fatalf("Agents() = %s", got)
 	}
 	if ByName("codex") == nil || ByName("nope") != nil {
@@ -168,4 +168,17 @@ func TestCompatGoldenKeyedCapture(t *testing.T) {
 		}
 	}
 	compattest.Golden(t, "capture_keyed.golden", b.String())
+}
+
+// EnableOptIn adds the opt-in agents after dun's three, which is what
+// whodunit Pro's collector asks for.
+func TestEnableOptInAddsCoworkAgents(t *testing.T) {
+	EnableOptIn()
+	var names []string
+	for _, a := range Agents() {
+		names = append(names, a.Name())
+	}
+	if got := strings.Join(names, ","); got != "agy,claude-code,codex,claude-desktop,desktop-commander" {
+		t.Fatalf("Agents() after EnableOptIn = %s", got)
+	}
 }

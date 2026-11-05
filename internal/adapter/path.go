@@ -107,6 +107,10 @@ const (
 	// states are not collapsed into two.
 	StateMissing State = "path not found"
 
+	// StateDisabled means an opt-in agent that is not turned on. Nothing
+	// was looked at.
+	StateDisabled State = "off"
+
 	// StateError means the probe itself failed — unreadable directory, bad
 	// permissions. Distinct from "nothing there", because absence of
 	// evidence must never be reported as evidence of absence (NAV-21).
@@ -139,9 +143,13 @@ type Detection struct {
 // This runs during `dun init`, where it must never slow down or fail the
 // thing the user actually asked for.
 func Detect(cwd string) []Detection {
-	all := All()
+	all := Known()
 	out := make([]Detection, 0, len(all))
 	for _, a := range all {
+		if !Enabled(a.Name()) {
+			out = append(out, Detection{Agent: a.Name(), Root: a.Root(), State: StateDisabled})
+			continue
+		}
 		out = append(out, detectOne(a, cwd))
 	}
 	return out

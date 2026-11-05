@@ -34,6 +34,6 @@ func (Adapter) ParseSessionActivity(path string, since time.Time) ([]journal.Ses
 }
 
 func init() {
-	adapter.RegisterLater(Adapter{})
+	adapter.RegisterOptIn(Adapter{})
 	adapter.RegisterKeyed(AgentName, parseSince)
 }

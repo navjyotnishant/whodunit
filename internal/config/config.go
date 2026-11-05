@@ -308,6 +308,10 @@ type AgentConfig struct {
 	// Path is the directory this agent stores transcripts under, replacing
 	// the built-in default.
 	Path string `json:"path,omitempty"`
+
+	// Enabled turns on an opt-in agent (claude-desktop, desktop-commander).
+	// Nil and false both mean off. Agents that are not opt-in ignore it.
+	Enabled *bool `json:"enabled,omitempty"`
 }
 
 // MinRetentionDays is the shortest retention that does not undermine

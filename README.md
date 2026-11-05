@@ -247,7 +247,8 @@ for the full example.
 
 Seven agents are attributed today. Five have a transcript adapter, each
 reading records the agent already writes for its own purposes — whodunit
-only reads them. Two more are read from the trailer they write into the
+only reads them. Two of those, Claude Desktop and Desktop Commander, are
+off until you opt in. Two more are read from the trailer they write into the
 commit themselves, which is the weakest rung the spec has:
 
 | Agent | Source | Reaches |
@@ -255,8 +256,8 @@ commit themselves, which is the weakest rung the spec has:
 | **Claude Code** | `~/.claude/projects/**/*.jsonl` | `intersected` |
 | **Codex** | `~/.codex/sessions/**/*.jsonl` | `intersected` |
 | **Antigravity** (`agy`) | its local SQLite store | `intersected` |
-| **Claude Desktop** (Cowork, local) | `local-agent-mode-sessions/**/*.jsonl` | `intersected` |
-| **Desktop Commander** | `~/.claude-server-commander/tool-history.jsonl` | `intersected` |
+| **Claude Desktop** (Cowork, local; opt-in) | `local-agent-mode-sessions/**/*.jsonl` | `intersected` |
+| **Desktop Commander** (opt-in) | `~/.claude-server-commander/tool-history.jsonl` | `intersected` |
 | **GitHub Copilot** | `Agent-Logs-Url`, `Co-authored-by: Copilot` | `declared` |
 | **Cursor** | `Made-with: Cursor` | `declared` |
 
@@ -267,7 +268,16 @@ session and, if the exact text matches, upgrades confidence to
 ### Claude Desktop (Cowork)
 
 Claude Desktop's agent mode, Cowork, runs in one of two places, and
-whodunit reaches each differently.
+whodunit reaches each differently. Both adapters are **off by default**,
+because these stores also hold work that is not code. Turn them on with:
+
+```sh
+dun config set agent.claude-desktop.enabled on
+dun config set agent.desktop-commander.enabled on
+```
+
+`dun config agents` shows each as `off` until then. whodunit Pro turns both
+on for enrolled machines.
 
 - **Local Cowork** runs Claude Code in a VM on your machine. Its
   transcripts sit under Claude Desktop's data directory
@@ -346,10 +356,10 @@ It reads local files and git.
   summary before sending. See [What `dun sync` sends](#what-dun-sync-sends).
 - No prompt text, file *contents*, hostnames, or remote URLs are ever
   recorded — the journal schema has no field that could hold them.
-- **Only code work is read from general-purpose agents.** Claude Desktop
-  (Cowork) and Desktop Commander are also used for email, documents and
-  other tools; from them, only file writes inside the repository are
-  recorded. See [Claude Desktop (Cowork)](#claude-desktop-cowork).
+- **Only code work is read from general-purpose agents, and only if you
+  opt in.** Claude Desktop (Cowork) and Desktop Commander are also used for
+  email, documents and other tools. They are off by default; once turned
+  on, only file writes inside the repository are recorded. See [Claude Desktop (Cowork)](#claude-desktop-cowork).
 - **File paths and a contributor identity are recorded.** The journal
   stores which files an agent edited, and `repo_metadata` stores the git
   committer email for the repository. Both stay local until you sync.

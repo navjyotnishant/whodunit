@@ -74,7 +74,8 @@ func newConfigSetCmd() *cobra.Command {
 		Example: "  dun config set monthly_spend 350\n" +
 			"  dun config set backup_days 14\n" +
 			"  dun config set retention_days 90\n" +
-			"  dun config set agent.claude-code.path /path/to/projects",
+			"  dun config set agent.claude-code.path /path/to/projects\n" +
+			"  dun config set agent.claude-desktop.enabled on",
 		Args: cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runConfigSet(cmd, args[0], args[1])
@@ -124,6 +125,65 @@ func agentPathKey(key string) string {
 	return name
 }
 
+// agentEnabledKey parses "agent.<name>.enabled" into the agent name.
+func agentEnabledKey(key string) string {
+	rest, ok := strings.CutPrefix(key, "agent.")
+	if !ok {
+		return ""
+	}
+	name, ok := strings.CutSuffix(rest, ".enabled")
+	if !ok || name == "" {
+		return ""
+	}
+	return name
+}
+
+// setAgentEnabled turns an opt-in agent on or off. Only opt-in agents take
+// the setting: the others are always on, and accepting "off" for them would
+// suggest a switch that does nothing.
+func setAgentEnabled(cmd *cobra.Command, key, agent, value string) error {
+	if !adapter.IsOptIn(agent) {
+		return fmt.Errorf("%s is always on; only opt-in agents take %s (%s)",
+			agent, key, strings.Join(optInNames(), ", "))
+	}
+	on, err := parseOnOff(key, value)
+	if err != nil {
+		return err
+	}
+	cfg, err := config.Load()
+	if err != nil {
+		return err
+	}
+	if cfg.Agents == nil {
+		cfg.Agents = map[string]config.AgentConfig{}
+	}
+	a := cfg.Agents[agent]
+	a.Enabled = &on
+	cfg.Agents[agent] = a
+	if err := config.Save(cfg); err != nil {
+		return err
+	}
+	fmt.Fprintf(cmd.OutOrStdout(), "%s = %s\n", key, onOff(on))
+	return nil
+}
+
+func optInNames() []string {
+	var names []string
+	for _, a := range adapter.Known() {
+		if adapter.IsOptIn(a.Name()) {
+			names = append(names, a.Name())
+		}
+	}
+	return names
+}
+
+func onOff(on bool) string {
+	if on {
+		return "on"
+	}
+	return "off"
+}
+
 func runConfigSet(cmd *cobra.Command, key, value string) error {
 	// Scalars first: they are the settings people go looking for, and until
 	// now the only way to set one was to edit the JSON by hand.
@@ -140,6 +200,13 @@ func runConfigSet(cmd *cobra.Command, key, value string) error {
 		}
 		fmt.Fprintf(cmd.OutOrStdout(), "%s = %s\n", key, sc.Get(cfg))
 		return nil
+	}
+
+	if agent := agentEnabledKey(key); agent != "" {
+		if adapter.ByName(agent) == nil {
+			return fmt.Errorf("unknown agent %q — known agents: %s", agent, strings.Join(agentNames(), ", "))
+		}
+		return setAgentEnabled(cmd, key, agent, value)
 	}
 
 	agent := agentPathKey(key)
@@ -189,6 +256,14 @@ func runConfigGet(cmd *cobra.Command, key string) error {
 		return nil
 	}
 
+	if agent := agentEnabledKey(key); agent != "" {
+		if adapter.ByName(agent) == nil {
+			return fmt.Errorf("unknown agent %q — known agents: %s", agent, strings.Join(agentNames(), ", "))
+		}
+		fmt.Fprintln(cmd.OutOrStdout(), onOff(adapter.Enabled(agent)))
+		return nil
+	}
+
 	agent := agentPathKey(key)
 	if agent == "" {
 		return fmt.Errorf("unknown setting %q — known settings: %s", key, settingKeys())
@@ -211,7 +286,7 @@ func runConfigGet(cmd *cobra.Command, key string) error {
 
 func agentNames() []string {
 	var names []string
-	for _, a := range adapter.All() {
+	for _, a := range adapter.Known() {
 		names = append(names, a.Name())
 	}
 	return names

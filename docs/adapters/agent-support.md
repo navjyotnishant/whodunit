@@ -21,8 +21,8 @@ privacy classification and the two fields we were ignoring — see
 | [Claude Code](#claude-code) | `intersected` | Shipped |
 | [Codex CLI](#codex-cli) | `intersected` | Shipped |
 | [`agy` (Antigravity CLI)](#agy-antigravity-cli) | `intersected` | Shipped |
-| [Claude Desktop (Cowork)](#claude-desktop-cowork) | `intersected` local, `declared` cloud | Shipped (local) |
-| [Desktop Commander](#claude-desktop-cowork) | `intersected` | Shipped |
+| [Claude Desktop (Cowork)](#claude-desktop-cowork) | `intersected` local, `declared` cloud | Shipped (local), opt-in |
+| [Desktop Commander](#claude-desktop-cowork) | `intersected` | Shipped, opt-in |
 | [Cursor](#cursor) | `intersected` | Reachable — format verified, adapter not built |
 | [GitHub Copilot](#github-copilot) | `intersected` | Reachable — format verified, adapter not built |
 | [Antigravity IDE](#antigravity-ide) | `inferred` | Bodies encrypted |
@@ -212,7 +212,12 @@ Most writes land in the session's own `outputs` folder, which is not a
 repository; those are ignored. The rest land in connected folders, which
 can be repositories.
 
-Shipped: [`internal/adapter/claudedesktop`](../../internal/adapter/claudedesktop).
+Shipped: [`internal/adapter/claudedesktop`](../../internal/adapter/claudedesktop),
+off by default. `dun config set agent.claude-desktop.enabled on` turns it
+on; `pkg/capture.EnableOptIn()` turns on both opt-in adapters for a program
+built on the public packages (whodunit Pro's collector). Opt-in adapters are
+registered with `adapter.RegisterOptIn` and consulted after agy, Claude Code
+and Codex.
 It does three things beyond the Claude Code adapter, and reuses that
 parser for the rest:
 

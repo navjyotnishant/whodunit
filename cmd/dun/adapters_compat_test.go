@@ -11,14 +11,15 @@ import (
 // when two agents touched the same lines, which session a trailer names first.
 // Pinned before capture moves behind a public package (spec 002, task T001).
 //
-// Agents added since come after the original three (adapter.RegisterLater),
-// so the order among those three, and every answer it decides, is unchanged.
+// Agents added since are opt-in (adapter.RegisterOptIn): with no config,
+// dun consults exactly these three, in this order.
 func TestCompatAdapterOrderAsDunSeesIt(t *testing.T) {
+	t.Setenv("WHODUNIT_HOME", t.TempDir())
 	var names []string
 	for _, a := range adapter.All() {
 		names = append(names, a.Name())
 	}
-	if got, want := strings.Join(names, ","), "agy,claude-code,codex,claude-desktop,desktop-commander"; got != want {
+	if got, want := strings.Join(names, ","), "agy,claude-code,codex"; got != want {
 		t.Fatalf("adapter order = %s, want %s", got, want)
 	}
 }
