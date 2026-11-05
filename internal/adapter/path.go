@@ -139,8 +139,9 @@ type Detection struct {
 // This runs during `dun init`, where it must never slow down or fail the
 // thing the user actually asked for.
 func Detect(cwd string) []Detection {
-	out := make([]Detection, 0, len(registered))
-	for _, a := range registered {
+	all := All()
+	out := make([]Detection, 0, len(all))
+	for _, a := range all {
 		out = append(out, detectOne(a, cwd))
 	}
 	return out

@@ -25,6 +25,48 @@ import (
 
 const AgentName = "claude-code"
 
+// Options lets another host that writes Claude Code transcripts reuse this
+// parser. Claude Desktop's local agent mode (Cowork) is the case: same
+// records, but its own agent name, its own shell tool, and file paths
+// written as the VM sees them rather than as the host does.
+//
+// ParseSince and ParseSessionActivity pass DefaultOptions, so Claude Code's
+// own output is what it was before this type existed; the adapter compat
+// golden pins that.
+type Options struct {
+	// Agent is written to every entry and session.
+	Agent string
+
+	// BashTool is the tool name whose command is scanned for write
+	// targets (WHO-238).
+	BashTool string
+
+	// MapPath rewrites a file path from the transcript into the path the
+	// file has on this machine, before it is hashed. It returns false for a
+	// path that is not on this machine, or not in scope, and that entry is
+	// dropped: a path that exists nowhere can only produce a wrong match.
+	// Nil means paths are used as written.
+	MapPath func(string) (string, bool)
+
+	// EditsOnly drops every call that is not a file write: no bare
+	// tool_call entries, so no tool or MCP server names. For a host whose
+	// sessions are not about one repository, where a call that touched no
+	// file in it says nothing about it and may be about something else
+	// entirely: email, a CRM, a document.
+	EditsOnly bool
+}
+
+// DefaultOptions is Claude Code itself.
+func DefaultOptions() Options { return Options{Agent: AgentName, BashTool: "Bash"} }
+
+// mapPath applies MapPath when one is set.
+func (o Options) mapPath(p string) (string, bool) {
+	if o.MapPath == nil {
+		return p, true
+	}
+	return o.MapPath(p)
+}
+
 // ProjectsDir returns the root directory Claude Code stores session
 // transcripts under.
 //
@@ -352,6 +394,16 @@ func (r *resultContent) UnmarshalJSON(data []byte) error {
 // keyed is the optional hasher pkg/capture passes (adapter.LineHasher); dun
 // calls ParseSince, which passes nil, so its path is unchanged.
 func parseSince(path string, since time.Time, keyed adapter.LineHasher) ([]journal.Entry, error) {
+	return ParseWithKeyed(path, since, DefaultOptions(), keyed)
+}
+
+// ParseWith is ParseSince for a host other than Claude Code. See Options.
+func ParseWith(path string, since time.Time, opts Options) ([]journal.Entry, error) {
+	return ParseWithKeyed(path, since, opts, nil)
+}
+
+// ParseWithKeyed is ParseWith with pkg/capture's optional keyed hasher.
+func ParseWithKeyed(path string, since time.Time, opts Options, keyed adapter.LineHasher) ([]journal.Entry, error) {
 	// A transcript untouched since the cutoff has nothing to contribute, so
 	// it is not opened at all.
 	//
@@ -396,6 +448,12 @@ func parseSince(path string, since time.Time, keyed adapter.LineHasher) ([]journ
 				continue
 			}
 			if block.Name != "Edit" && block.Name != "Write" {
+				if opts.EditsOnly {
+					if block.Name == opts.BashTool {
+						entries = append(entries, bashWrites(r, block, opts)...)
+					}
+					continue
+				}
 				// Every other tool is recorded as a bare call: which tool,
 				// when, in which session. No file, no line hashes, no
 				// arguments.
@@ -408,7 +466,7 @@ func parseSince(path string, since time.Time, keyed adapter.LineHasher) ([]journ
 				// dropping block.Input keeps that property.
 				entries = append(entries, journal.Entry{
 					Timestamp:    r.Timestamp,
-					Agent:        AgentName,
+					Agent:        opts.Agent,
 					AgentVersion: r.Version,
 					Session:      r.SessionID,
 					Event:        "tool_call",
@@ -432,36 +490,14 @@ func parseSince(path string, since time.Time, keyed adapter.LineHasher) ([]journ
 				// read here and goes out of scope with the loop iteration —
 				// the heredoc body in `cat > f <<'EOF' … EOF` is file content
 				// and never reaches an entry (NAV-25).
-				if block.Name == "Bash" {
-					targets, incomplete := WriteTargets(block.Input.Command, r.Cwd)
-					for _, target := range targets {
-						// No LinesAdded and no HunkHash, deliberately. The
-						// command carries no diff, and a fabricated one would
-						// let a Bash edit claim `intersected` on evidence that
-						// does not exist. Absent beats invented (NAV-21).
-						e := journal.Entry{
-							Timestamp:    r.Timestamp,
-							Agent:        AgentName,
-							AgentVersion: r.Version,
-							Session:      r.SessionID,
-							Event:        "tool_use",
-							Tool:         block.Name,
-							File:         target,
-							Model:        modelOf(r),
-							Branch:       r.GitBranch,
-							MCPServer:    r.MCPServer,
-						}
-						// A command that also writes somewhere this could not
-						// name yields an INCOMPLETE file set. Recording it as
-						// ordinary evidence would let a partial list read as a
-						// full one, which is the wrong answer wearing the shape
-						// of a finding.
-						if incomplete {
-							e.Outcome = string(OutcomePartial)
-						}
-						entries = append(entries, e)
-					}
+				if block.Name == opts.BashTool {
+					entries = append(entries, bashWrites(r, block, opts)...)
 				}
+				continue
+			}
+
+			file, ok := opts.mapPath(block.Input.FilePath)
+			if !ok {
 				continue
 			}
 
@@ -487,8 +523,8 @@ func parseSince(path string, since time.Time, keyed adapter.LineHasher) ([]journ
 			// A rejected or failed call never reached the file, so its text
 			// must not count as agent-authored code. Carrying line hashes
 			// for it would attribute lines that do not exist.
-			lineHashes := linehash.OfText(linehash.Canonical(block.Input.FilePath), produced)
-			keyedHashes := adapter.HashKeyed(keyed, linehash.Canonical(block.Input.FilePath), produced)
+			lineHashes := linehash.OfText(linehash.Canonical(file), produced)
+			keyedHashes := adapter.HashKeyed(keyed, linehash.Canonical(file), produced)
 			if outcome != OutcomeAccepted {
 				lineHashes = nil
 				keyedHashes = nil
@@ -497,15 +533,15 @@ func parseSince(path string, since time.Time, keyed adapter.LineHasher) ([]journ
 
 			entries = append(entries, journal.Entry{
 				Timestamp:    r.Timestamp,
-				Agent:        AgentName,
+				Agent:        opts.Agent,
 				AgentVersion: r.Version,
 				Session:      r.SessionID,
 				Event:        "tool_use",
 				Tool:         block.Name,
-				File:         block.Input.FilePath,
+				File:         file,
 				LinesAdded:   added,
 				LinesRemoved: removed,
-				HunkHash:     hunkHash(block.Input.FilePath, block.Name, block.Input.Content, block.Input.NewString),
+				HunkHash:     hunkHash(file, block.Name, block.Input.Content, block.Input.NewString),
 				LineHashes:   lineHashes,
 				Outcome:      string(outcome),
 				Model:        modelOf(r),
@@ -534,6 +570,12 @@ func parseSince(path string, since time.Time, keyed adapter.LineHasher) ([]journ
 // An earlier SessionActivity struct duplicated it field for field, which
 // bought nothing and cost a copy loop at every call site.
 func ParseSessionActivity(path string, since time.Time) ([]journal.Session, error) {
+	return ParseSessionActivityWith(path, since, DefaultOptions())
+}
+
+// ParseSessionActivityWith is ParseSessionActivity for a host other than
+// Claude Code. See Options.
+func ParseSessionActivityWith(path string, since time.Time, opts Options) ([]journal.Session, error) {
 	f, err := os.Open(path)
 	if err != nil {
 		return nil, err
@@ -584,7 +626,7 @@ func ParseSessionActivity(path string, since time.Time) ([]journal.Session, erro
 		if !ok {
 			a = &acc{tools: map[string]bool{}, seenMessages: map[string]bool{}}
 			a.s.Session = r.SessionID
-			a.s.Agent = AgentName
+			a.s.Agent = opts.Agent
 			a.s.FirstSeen = r.Timestamp
 			sessions[r.SessionID] = a
 		}
@@ -717,6 +759,47 @@ func ParseSessionActivity(path string, since time.Time) ([]journal.Session, erro
 		out = append(out, a.s)
 	}
 	return out, nil
+}
+
+// bashWrites names the files a shell call writes (WHO-238).
+//
+// Only the file NAMES leave this function. block.Input.Command is read here
+// and goes out of scope with it: the heredoc body in `cat > f <<'EOF' … EOF`
+// is file content and never reaches an entry (NAV-25).
+//
+// No LinesAdded and no HunkHash, deliberately. The command carries no diff,
+// and a fabricated one would let a shell edit claim `intersected` on
+// evidence that does not exist. Absent beats invented (NAV-21).
+func bashWrites(r record, block toolUseBlock, opts Options) []journal.Entry {
+	targets, incomplete := WriteTargets(block.Input.Command, r.Cwd)
+	var out []journal.Entry
+	for _, target := range targets {
+		target, ok := opts.mapPath(target)
+		if !ok {
+			continue
+		}
+		e := journal.Entry{
+			Timestamp:    r.Timestamp,
+			Agent:        opts.Agent,
+			AgentVersion: r.Version,
+			Session:      r.SessionID,
+			Event:        "tool_use",
+			Tool:         block.Name,
+			File:         target,
+			Model:        modelOf(r),
+			Branch:       r.GitBranch,
+			MCPServer:    r.MCPServer,
+		}
+		// A command that also writes somewhere this could not name yields an
+		// INCOMPLETE file set. Recording it as ordinary evidence would let a
+		// partial list read as a full one, which is the wrong answer wearing
+		// the shape of a finding.
+		if incomplete {
+			e.Outcome = string(OutcomePartial)
+		}
+		out = append(out, e)
+	}
+	return out
 }
 
 func int64p(v int64) *int64 { return &v }

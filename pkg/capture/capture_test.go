@@ -66,7 +66,7 @@ func TestAgentsInDunsOrder(t *testing.T) {
 	for _, a := range Agents() {
 		names = append(names, a.Name())
 	}
-	if got := strings.Join(names, ","); got != "agy,claude-code,codex" {
+	if got := strings.Join(names, ","); got != "agy,claude-code,codex,claude-desktop,desktop-commander" {
 		t.Fatalf("Agents() = %s", got)
 	}
 	if ByName("codex") == nil || ByName("nope") != nil {

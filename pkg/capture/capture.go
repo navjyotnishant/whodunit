@@ -29,7 +29,9 @@ import (
 	// The adapters dun registers, in the order dun registers them.
 	_ "github.com/navjyotnishant/whodunit/internal/adapter/agy"
 	_ "github.com/navjyotnishant/whodunit/internal/adapter/claudecode"
+	_ "github.com/navjyotnishant/whodunit/internal/adapter/claudedesktop"
 	_ "github.com/navjyotnishant/whodunit/internal/adapter/codex"
+	_ "github.com/navjyotnishant/whodunit/internal/adapter/desktopcommander"
 )
 
 // Entry is one observed agent action, as dun journals it.
@@ -44,8 +46,8 @@ type Agent = adapter.Adapter
 // Agents returns every supported agent, in dun's order.
 func Agents() []Agent { return adapter.All() }
 
-// ByName returns the agent with that name ("claude-code", "codex", "agy"),
-// or nil.
+// ByName returns the agent with that name ("claude-code", "codex", "agy",
+// "claude-desktop", "desktop-commander"), or nil.
 func ByName(name string) Agent { return adapter.ByName(name) }
 
 // Keyed says how to compute keyed line hashes.

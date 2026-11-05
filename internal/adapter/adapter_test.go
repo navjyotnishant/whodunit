@@ -115,6 +115,30 @@ func TestSessionFilesDistinguishesErrorFromEmpty(t *testing.T) {
 // imported package.
 func restore(t *testing.T) func() {
 	t.Helper()
-	saved := registered
-	return func() { registered = saved }
+	saved, savedLater := registered, later
+	return func() { registered, later = saved, savedLater }
+}
+
+// An adapter added after the first three must come after them, whatever its
+// name, so the order among the existing agents does not change.
+func TestRegisterLaterComesAfterRegister(t *testing.T) {
+	defer restore(t)()
+	registered, later = nil, nil
+	RegisterLater(fake{name: "a-later"})
+	Register(fake{name: "z-first"})
+	all := All()
+	if len(all) != 2 || all[0].Name() != "z-first" || all[1].Name() != "a-later" {
+		t.Fatalf("All() order wrong: %v", names(all))
+	}
+	if ByName("a-later") == nil {
+		t.Fatal("ByName does not find an adapter registered later")
+	}
+}
+
+func names(as []Adapter) []string {
+	var out []string
+	for _, a := range as {
+		out = append(out, a.Name())
+	}
+	return out
 }

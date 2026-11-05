@@ -96,22 +96,39 @@ func Register(a Adapter) {
 	registered = append(registered, a)
 }
 
+// later holds adapters added after the first three agents, consulted after
+// every adapter registered with Register.
+//
+// Packages initialise in import-path order, so a new adapter registered with
+// Register lands wherever its name sorts: claude-desktop between claude-code
+// and codex. Order decides which session a trailer names first when two
+// agents touched the same lines, so slotting a new agent in among the old
+// ones would change that answer for people who never use the new agent.
+// Appending here keeps the original order and puts new agents last.
+var later []Adapter
+
+// RegisterLater is Register for an adapter that must not change the order
+// the existing adapters are consulted in.
+func RegisterLater(a Adapter) {
+	later = append(later, a)
+}
+
 // All returns every registered adapter.
 //
 // Commands iterate this instead of naming an agent, so an agent added later
 // is picked up by ingest, the hooks, the daemon and status without any of
 // them changing.
 func All() []Adapter {
-	out := make([]Adapter, len(registered))
-	copy(out, registered)
-	return out
+	out := make([]Adapter, 0, len(registered)+len(later))
+	out = append(out, registered...)
+	return append(out, later...)
 }
 
 // ByName returns the adapter with the given agent name, or nil.
 // Used where a specific agent is addressed — a config override, or a
 // `--agent` flag.
 func ByName(name string) Adapter {
-	for _, a := range registered {
+	for _, a := range All() {
 		if a.Name() == name {
 			return a
 		}
