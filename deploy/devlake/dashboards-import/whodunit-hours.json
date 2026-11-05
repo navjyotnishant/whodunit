@@ -489,7 +489,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT LPAD(HOUR(CONVERT_TZ(FROM_UNIXTIME(e.observed_at/1000000000), '+00:00', '$tz')),2,'0') AS `hour`,\n       SUM(CASE WHEN e.agent='claude-code' THEN 1 ELSE 0 END) AS `claude-code`,\n       SUM(CASE WHEN e.agent='codex' THEN 1 ELSE 0 END) AS `codex`,\n       SUM(CASE WHEN e.agent='agy' THEN 1 ELSE 0 END) AS `agy`\nFROM whodunit_events e\nWHERE e.agent IN ($agent)\n  AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nGROUP BY `hour` ORDER BY `hour`"
+          "rawSql": "SELECT LPAD(HOUR(CONVERT_TZ(FROM_UNIXTIME(e.observed_at/1000000000), '+00:00', '$tz')),2,'0') AS `hour`,\n       SUM(CASE WHEN e.agent='claude-code' THEN 1 ELSE 0 END) AS `claude-code`,\n       SUM(CASE WHEN e.agent='codex' THEN 1 ELSE 0 END) AS `codex`,\n       SUM(CASE WHEN e.agent='agy' THEN 1 ELSE 0 END) AS `agy`,\n       SUM(CASE WHEN e.agent='claude-desktop' THEN 1 ELSE 0 END) AS `claude-desktop`,\n       SUM(CASE WHEN e.agent='desktop-commander' THEN 1 ELSE 0 END) AS `desktop-commander`\nFROM whodunit_events e\nWHERE e.agent IN ($agent)\n  AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nGROUP BY `hour` ORDER BY `hour`"
         }
       ],
       "fieldConfig": {
@@ -554,6 +554,36 @@
                 "value": {
                   "mode": "fixed",
                   "fixedColor": "purple"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "claude-desktop"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "orange"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "desktop-commander"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "yellow"
                 }
               }
             ]
@@ -595,7 +625,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT CASE DAYOFWEEK(CONVERT_TZ(FROM_UNIXTIME(e.observed_at/1000000000), '+00:00', '$tz'))\n         WHEN 1 THEN 'Sun' WHEN 2 THEN 'Mon' WHEN 3 THEN 'Tue' WHEN 4 THEN 'Wed'\n         WHEN 5 THEN 'Thu' WHEN 6 THEN 'Fri' ELSE 'Sat' END AS `day`,\n       SUM(CASE WHEN e.agent='claude-code' THEN 1 ELSE 0 END) AS `claude-code`,\n       SUM(CASE WHEN e.agent='codex' THEN 1 ELSE 0 END) AS `codex`,\n       SUM(CASE WHEN e.agent='agy' THEN 1 ELSE 0 END) AS `agy`\nFROM whodunit_events e\nWHERE e.agent IN ($agent)\n  AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nGROUP BY DAYOFWEEK(CONVERT_TZ(FROM_UNIXTIME(e.observed_at/1000000000), '+00:00', '$tz')), `day` ORDER BY DAYOFWEEK(CONVERT_TZ(FROM_UNIXTIME(e.observed_at/1000000000), '+00:00', '$tz'))"
+          "rawSql": "SELECT CASE DAYOFWEEK(CONVERT_TZ(FROM_UNIXTIME(e.observed_at/1000000000), '+00:00', '$tz'))\n         WHEN 1 THEN 'Sun' WHEN 2 THEN 'Mon' WHEN 3 THEN 'Tue' WHEN 4 THEN 'Wed'\n         WHEN 5 THEN 'Thu' WHEN 6 THEN 'Fri' ELSE 'Sat' END AS `day`,\n       SUM(CASE WHEN e.agent='claude-code' THEN 1 ELSE 0 END) AS `claude-code`,\n       SUM(CASE WHEN e.agent='codex' THEN 1 ELSE 0 END) AS `codex`,\n       SUM(CASE WHEN e.agent='agy' THEN 1 ELSE 0 END) AS `agy`,\n       SUM(CASE WHEN e.agent='claude-desktop' THEN 1 ELSE 0 END) AS `claude-desktop`,\n       SUM(CASE WHEN e.agent='desktop-commander' THEN 1 ELSE 0 END) AS `desktop-commander`\nFROM whodunit_events e\nWHERE e.agent IN ($agent)\n  AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nGROUP BY DAYOFWEEK(CONVERT_TZ(FROM_UNIXTIME(e.observed_at/1000000000), '+00:00', '$tz')), `day` ORDER BY DAYOFWEEK(CONVERT_TZ(FROM_UNIXTIME(e.observed_at/1000000000), '+00:00', '$tz'))"
         }
       ],
       "fieldConfig": {
@@ -660,6 +690,36 @@
                 "value": {
                   "mode": "fixed",
                   "fixedColor": "purple"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "claude-desktop"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "orange"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "desktop-commander"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "yellow"
                 }
               }
             ]
@@ -774,7 +834,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "-- Top 15 by total calls. Without the cap this drew every distinct tool —\n-- 145 on the real lake — as one unreadable band of labels. MCP tools are\n-- shortened to \"server · tool\" so the axis reads; the raw name is in the\n-- MCP dashboards.\nSELECT REPLACE(REGEXP_REPLACE(e.tool, '^mcp__(codex_apps__|claude_ai_|plugin_[a-z]+_)?', ''), '__', ' · ') AS `tool`,\n       SUM(CASE WHEN e.agent='claude-code' THEN 1 ELSE 0 END) AS `claude-code`,\n       SUM(CASE WHEN e.agent='codex' THEN 1 ELSE 0 END) AS `codex`,\n       SUM(CASE WHEN e.agent='agy' THEN 1 ELSE 0 END) AS `agy`\nFROM whodunit_events e\nWHERE e.tool <> ''\n  AND e.agent IN ($agent)\n  AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nGROUP BY `tool`\nORDER BY COUNT(*) DESC\nLIMIT 15"
+          "rawSql": "-- Top 15 by total calls. Without the cap this drew every distinct tool —\n-- 145 on the real lake — as one unreadable band of labels. MCP tools are\n-- shortened to \"server · tool\" so the axis reads; the raw name is in the\n-- MCP dashboards.\nSELECT REPLACE(REGEXP_REPLACE(e.tool, '^mcp__(codex_apps__|claude_ai_|plugin_[a-z]+_)?', ''), '__', ' · ') AS `tool`,\n       SUM(CASE WHEN e.agent='claude-code' THEN 1 ELSE 0 END) AS `claude-code`,\n       SUM(CASE WHEN e.agent='codex' THEN 1 ELSE 0 END) AS `codex`,\n       SUM(CASE WHEN e.agent='agy' THEN 1 ELSE 0 END) AS `agy`,\n       SUM(CASE WHEN e.agent='claude-desktop' THEN 1 ELSE 0 END) AS `claude-desktop`,\n       SUM(CASE WHEN e.agent='desktop-commander' THEN 1 ELSE 0 END) AS `desktop-commander`\nFROM whodunit_events e\nWHERE e.tool <> ''\n  AND e.agent IN ($agent)\n  AND e.observed_at BETWEEN $__unixEpochFrom() * 1000000000 AND $__unixEpochTo() * 1000000000\nGROUP BY `tool`\nORDER BY COUNT(*) DESC\nLIMIT 15"
         }
       ],
       "options": {
@@ -861,6 +921,36 @@
                 }
               }
             ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "claude-desktop"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "orange"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "desktop-commander"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "yellow"
+                }
+              }
+            ]
           }
         ]
       }
@@ -922,7 +1012,7 @@
       },
       "options": {
         "mode": "markdown",
-        "content": "## When and how the agent is used\n*Working rhythm, tool mix and session shape — from the agent's own session records.*\n\nEvery figure is measured from what the agent did on this machine. Nothing is self-reported, and no vendor API is involved, so this works the same for Claude Code, Codex and `agy`.\n\n**No prompt or response text is recorded anywhere** — whodunit stores counts, file paths and line hashes, never message content. Message *volume* is as close as this gets to measuring conversation, and that is deliberate.\n\nSet **Timezone** below to read hours in your own working day rather than UTC, and **Agent** to narrow to one tool."
+        "content": "## When and how the agent is used\n*Working rhythm, tool mix and session shape — from the agent's own session records.*\n\nEvery figure is measured from what the agent did on this machine. Nothing is self-reported, and no vendor API is involved, so this works the same for Claude Code, Codex and `agy`. Claude Desktop (Cowork) and Desktop Commander, which are opt-in, contribute file writes only: their other tool calls are never recorded, so they appear in rhythm and tool panels only where they wrote code.\n\n**No prompt or response text is recorded anywhere** — whodunit stores counts, file paths and line hashes, never message content. Message *volume* is as close as this gets to measuring conversation, and that is deliberate.\n\nSet **Timezone** below to read hours in your own working day rather than UTC, and **Agent** to narrow to one tool."
       }
     }
   ],

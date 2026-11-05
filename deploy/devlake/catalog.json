@@ -1,5 +1,5 @@
 {
-  "source_sha256": "022b01c534ddb9fb3752ea82a511a8d680daecca29a0e2756bb7180276bd3d6b",
+  "source_sha256": "2922c2759f3ae252c67fbc3123cf14519d863c594d52ea9869f6bd32850dd033",
   "dashboard_count": 19,
   "metric_count": 279,
   "metrics": [
@@ -9172,8 +9172,8 @@
           "description": "End of the reporting window (epoch macro)."
         }
       ],
-      "sql": "SELECT LPAD(HOUR(CONVERT_TZ(FROM_UNIXTIME(e.observed_at/1000000000), '+00:00', ?)),2,'0') AS `hour`, SUM(CASE WHEN e.agent='claude-code' THEN 1 ELSE 0 END) AS `claude-code`, SUM(CASE WHEN e.agent='codex' THEN 1 ELSE 0 END) AS `codex`, SUM(CASE WHEN e.agent='agy' THEN 1 ELSE 0 END) AS `agy` FROM whodunit_events e WHERE e.agent IN (?) AND e.observed_at BETWEEN ? * 1000000000 AND ? * 1000000000 GROUP BY `hour` ORDER BY `hour`",
-      "sql_hash": "44177791e4961fa1",
+      "sql": "SELECT LPAD(HOUR(CONVERT_TZ(FROM_UNIXTIME(e.observed_at/1000000000), '+00:00', ?)),2,'0') AS `hour`, SUM(CASE WHEN e.agent='claude-code' THEN 1 ELSE 0 END) AS `claude-code`, SUM(CASE WHEN e.agent='codex' THEN 1 ELSE 0 END) AS `codex`, SUM(CASE WHEN e.agent='agy' THEN 1 ELSE 0 END) AS `agy`, SUM(CASE WHEN e.agent='claude-desktop' THEN 1 ELSE 0 END) AS `claude-desktop`, SUM(CASE WHEN e.agent='desktop-commander' THEN 1 ELSE 0 END) AS `desktop-commander` FROM whodunit_events e WHERE e.agent IN (?) AND e.observed_at BETWEEN ? * 1000000000 AND ? * 1000000000 GROUP BY `hour` ORDER BY `hour`",
+      "sql_hash": "1861363e016ca196",
       "params_schema_hash": "1ba58c2717d13bc6",
       "canonical_id": "agent-activity-hours-agent-activity-by-hour-of-day",
       "also_known_as": [
@@ -9235,8 +9235,8 @@
           "description": "End of the reporting window (epoch macro)."
         }
       ],
-      "sql": "SELECT CASE DAYOFWEEK(CONVERT_TZ(FROM_UNIXTIME(e.observed_at/1000000000), '+00:00', ?)) WHEN 1 THEN 'Sun' WHEN 2 THEN 'Mon' WHEN 3 THEN 'Tue' WHEN 4 THEN 'Wed' WHEN 5 THEN 'Thu' WHEN 6 THEN 'Fri' ELSE 'Sat' END AS `day`, SUM(CASE WHEN e.agent='claude-code' THEN 1 ELSE 0 END) AS `claude-code`, SUM(CASE WHEN e.agent='codex' THEN 1 ELSE 0 END) AS `codex`, SUM(CASE WHEN e.agent='agy' THEN 1 ELSE 0 END) AS `agy` FROM whodunit_events e WHERE e.agent IN (?) AND e.observed_at BETWEEN ? * 1000000000 AND ? * 1000000000 GROUP BY DAYOFWEEK(CONVERT_TZ(FROM_UNIXTIME(e.observed_at/1000000000), '+00:00', ?)), `day` ORDER BY DAYOFWEEK(CONVERT_TZ(FROM_UNIXTIME(e.observed_at/1000000000), '+00:00', ?))",
-      "sql_hash": "168e3e9e834939d9",
+      "sql": "SELECT CASE DAYOFWEEK(CONVERT_TZ(FROM_UNIXTIME(e.observed_at/1000000000), '+00:00', ?)) WHEN 1 THEN 'Sun' WHEN 2 THEN 'Mon' WHEN 3 THEN 'Tue' WHEN 4 THEN 'Wed' WHEN 5 THEN 'Thu' WHEN 6 THEN 'Fri' ELSE 'Sat' END AS `day`, SUM(CASE WHEN e.agent='claude-code' THEN 1 ELSE 0 END) AS `claude-code`, SUM(CASE WHEN e.agent='codex' THEN 1 ELSE 0 END) AS `codex`, SUM(CASE WHEN e.agent='agy' THEN 1 ELSE 0 END) AS `agy`, SUM(CASE WHEN e.agent='claude-desktop' THEN 1 ELSE 0 END) AS `claude-desktop`, SUM(CASE WHEN e.agent='desktop-commander' THEN 1 ELSE 0 END) AS `desktop-commander` FROM whodunit_events e WHERE e.agent IN (?) AND e.observed_at BETWEEN ? * 1000000000 AND ? * 1000000000 GROUP BY DAYOFWEEK(CONVERT_TZ(FROM_UNIXTIME(e.observed_at/1000000000), '+00:00', ?)), `day` ORDER BY DAYOFWEEK(CONVERT_TZ(FROM_UNIXTIME(e.observed_at/1000000000), '+00:00', ?))",
+      "sql_hash": "785cdfb717854f5a",
       "params_schema_hash": "1ba58c2717d13bc6",
       "canonical_id": "agent-activity-hours-agent-activity-by-day-of-week",
       "also_known_as": [
@@ -9660,8 +9660,8 @@
           "description": "End of the reporting window (epoch macro)."
         }
       ],
-      "sql": "SELECT LPAD(HOUR(CONVERT_TZ(FROM_UNIXTIME(e.observed_at/1000000000), '+00:00', ?)),2,'0') AS `hour`, SUM(CASE WHEN e.agent='claude-code' THEN 1 ELSE 0 END) AS `claude-code`, SUM(CASE WHEN e.agent='codex' THEN 1 ELSE 0 END) AS `codex`, SUM(CASE WHEN e.agent='agy' THEN 1 ELSE 0 END) AS `agy` FROM whodunit_events e WHERE e.agent IN (?) AND e.observed_at BETWEEN ? * 1000000000 AND ? * 1000000000 GROUP BY `hour` ORDER BY `hour`",
-      "sql_hash": "44177791e4961fa1",
+      "sql": "SELECT LPAD(HOUR(CONVERT_TZ(FROM_UNIXTIME(e.observed_at/1000000000), '+00:00', ?)),2,'0') AS `hour`, SUM(CASE WHEN e.agent='claude-code' THEN 1 ELSE 0 END) AS `claude-code`, SUM(CASE WHEN e.agent='codex' THEN 1 ELSE 0 END) AS `codex`, SUM(CASE WHEN e.agent='agy' THEN 1 ELSE 0 END) AS `agy`, SUM(CASE WHEN e.agent='claude-desktop' THEN 1 ELSE 0 END) AS `claude-desktop`, SUM(CASE WHEN e.agent='desktop-commander' THEN 1 ELSE 0 END) AS `desktop-commander` FROM whodunit_events e WHERE e.agent IN (?) AND e.observed_at BETWEEN ? * 1000000000 AND ? * 1000000000 GROUP BY `hour` ORDER BY `hour`",
+      "sql_hash": "1861363e016ca196",
       "params_schema_hash": "1ba58c2717d13bc6",
       "canonical_id": "agent-activity-hours-agent-activity-by-hour-of-day",
       "also_known_as": [
@@ -9723,8 +9723,8 @@
           "description": "End of the reporting window (epoch macro)."
         }
       ],
-      "sql": "SELECT CASE DAYOFWEEK(CONVERT_TZ(FROM_UNIXTIME(e.observed_at/1000000000), '+00:00', ?)) WHEN 1 THEN 'Sun' WHEN 2 THEN 'Mon' WHEN 3 THEN 'Tue' WHEN 4 THEN 'Wed' WHEN 5 THEN 'Thu' WHEN 6 THEN 'Fri' ELSE 'Sat' END AS `day`, SUM(CASE WHEN e.agent='claude-code' THEN 1 ELSE 0 END) AS `claude-code`, SUM(CASE WHEN e.agent='codex' THEN 1 ELSE 0 END) AS `codex`, SUM(CASE WHEN e.agent='agy' THEN 1 ELSE 0 END) AS `agy` FROM whodunit_events e WHERE e.agent IN (?) AND e.observed_at BETWEEN ? * 1000000000 AND ? * 1000000000 GROUP BY DAYOFWEEK(CONVERT_TZ(FROM_UNIXTIME(e.observed_at/1000000000), '+00:00', ?)), `day` ORDER BY DAYOFWEEK(CONVERT_TZ(FROM_UNIXTIME(e.observed_at/1000000000), '+00:00', ?))",
-      "sql_hash": "168e3e9e834939d9",
+      "sql": "SELECT CASE DAYOFWEEK(CONVERT_TZ(FROM_UNIXTIME(e.observed_at/1000000000), '+00:00', ?)) WHEN 1 THEN 'Sun' WHEN 2 THEN 'Mon' WHEN 3 THEN 'Tue' WHEN 4 THEN 'Wed' WHEN 5 THEN 'Thu' WHEN 6 THEN 'Fri' ELSE 'Sat' END AS `day`, SUM(CASE WHEN e.agent='claude-code' THEN 1 ELSE 0 END) AS `claude-code`, SUM(CASE WHEN e.agent='codex' THEN 1 ELSE 0 END) AS `codex`, SUM(CASE WHEN e.agent='agy' THEN 1 ELSE 0 END) AS `agy`, SUM(CASE WHEN e.agent='claude-desktop' THEN 1 ELSE 0 END) AS `claude-desktop`, SUM(CASE WHEN e.agent='desktop-commander' THEN 1 ELSE 0 END) AS `desktop-commander` FROM whodunit_events e WHERE e.agent IN (?) AND e.observed_at BETWEEN ? * 1000000000 AND ? * 1000000000 GROUP BY DAYOFWEEK(CONVERT_TZ(FROM_UNIXTIME(e.observed_at/1000000000), '+00:00', ?)), `day` ORDER BY DAYOFWEEK(CONVERT_TZ(FROM_UNIXTIME(e.observed_at/1000000000), '+00:00', ?))",
+      "sql_hash": "785cdfb717854f5a",
       "params_schema_hash": "1ba58c2717d13bc6",
       "canonical_id": "agent-activity-hours-agent-activity-by-day-of-week",
       "also_known_as": [
@@ -13939,8 +13939,8 @@
           "format": "opaque-id"
         }
       ],
-      "sql": "SELECT COALESCE(wt.team_name, t.name, '(unassigned)') AS `team`, SUM(e.agent = 'claude-code') AS `claude-code`, SUM(e.agent = 'codex') AS `codex`, SUM(e.agent = 'agy') AS `agy` FROM whodunit_events e LEFT JOIN whodunit_identities wi ON wi.alias = e.contributor LEFT JOIN team_users tu ON tu.user_id = COALESCE(wi.canonical, e.contributor) LEFT JOIN teams t ON t.id = tu.team_id LEFT JOIN whodunit_teams wt ON wt.contributor = COALESCE(wi.canonical, e.contributor) WHERE e.observed_at BETWEEN ? * 1000000000 AND ? * 1000000000 AND (? = '__all__' OR COALESCE(wt.team_name, t.name, '(unassigned)') = ?) AND (? = '__all__' OR COALESCE(wi.canonical, e.contributor) = ?) GROUP BY COALESCE(wt.team_name, t.name, '(unassigned)') ORDER BY `claude-code` DESC",
-      "sql_hash": "95064449273c66ea",
+      "sql": "SELECT COALESCE(wt.team_name, t.name, '(unassigned)') AS `team`, SUM(e.agent = 'claude-code') AS `claude-code`, SUM(e.agent = 'codex') AS `codex`, SUM(e.agent = 'agy') AS `agy`, SUM(e.agent = 'claude-desktop') AS `claude-desktop`, SUM(e.agent = 'desktop-commander') AS `desktop-commander` FROM whodunit_events e LEFT JOIN whodunit_identities wi ON wi.alias = e.contributor LEFT JOIN team_users tu ON tu.user_id = COALESCE(wi.canonical, e.contributor) LEFT JOIN teams t ON t.id = tu.team_id LEFT JOIN whodunit_teams wt ON wt.contributor = COALESCE(wi.canonical, e.contributor) WHERE e.observed_at BETWEEN ? * 1000000000 AND ? * 1000000000 AND (? = '__all__' OR COALESCE(wt.team_name, t.name, '(unassigned)') = ?) AND (? = '__all__' OR COALESCE(wi.canonical, e.contributor) = ?) GROUP BY COALESCE(wt.team_name, t.name, '(unassigned)') ORDER BY `claude-code` DESC",
+      "sql_hash": "1cd3f6b0097c52d2",
       "params_schema_hash": "2366fe2ff9aa9678"
     },
     {
