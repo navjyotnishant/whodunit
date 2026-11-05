@@ -55,6 +55,19 @@ import (
 // that looks complete is the wrong-number-that-reads-as-a-finding this
 // project exists to avoid, so the caller must not treat it as full evidence.
 func WriteTargets(command, cwd string) (paths []string, incomplete bool) {
+	raw, incomplete := writeTargetsRaw(command)
+	for _, target := range raw {
+		paths = append(paths, resolveTarget(target, cwd))
+	}
+	return paths, incomplete
+}
+
+// writeTargetsRaw is WriteTargets without resolving the targets: each is
+// returned as the command wrote it. For a shell whose paths are not this
+// machine's, such as Cowork's Linux VM on a Windows host, where resolving
+// /sessions/... against a Windows cwd would produce a path that exists
+// nowhere.
+func writeTargetsRaw(command string) (paths []string, incomplete bool) {
 	if command == "" {
 		return nil, false
 	}
@@ -131,7 +144,7 @@ func WriteTargets(command, cwd string) (paths []string, incomplete bool) {
 	}
 
 	for target := range found {
-		paths = append(paths, resolveTarget(target, cwd))
+		paths = append(paths, target)
 	}
 	return paths, incomplete
 }

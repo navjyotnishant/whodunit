@@ -8,7 +8,7 @@ from vendor documentation, which describes intent rather than what lands on
 disk. Where something could not be verified, the row says so instead of
 guessing.
 
-**Last surveyed: 2026-08-13.**
+**Last surveyed: 2026-08-13; Claude Desktop added 2026-11-05.**
 
 For what each agent records on disk versus what whodunit reads — with counts,
 privacy classification and the two fields we were ignoring — see
@@ -21,6 +21,8 @@ privacy classification and the two fields we were ignoring — see
 | [Claude Code](#claude-code) | `intersected` | Shipped |
 | [Codex CLI](#codex-cli) | `intersected` | Shipped |
 | [`agy` (Antigravity CLI)](#agy-antigravity-cli) | `intersected` | Shipped |
+| [Claude Desktop (Cowork)](#claude-desktop-cowork) | `intersected` local, `declared` cloud | Shipped (local), opt-in |
+| [Desktop Commander](#claude-desktop-cowork) | `intersected` | Shipped, opt-in |
 | [Cursor](#cursor) | `intersected` | Reachable — format verified, adapter not built |
 | [GitHub Copilot](#github-copilot) | `intersected` | Reachable — format verified, adapter not built |
 | [Antigravity IDE](#antigravity-ide) | `inferred` | Bodies encrypted |
@@ -179,6 +181,98 @@ minutes earlier in the same session, and a restart may enable native MCP
 calls. Worth re-checking before treating it as permanent.
 
 ## Blocked, and why
+
+### Claude Desktop (Cowork)
+
+Surveyed 2026-11-05 on one macOS machine. Claude Desktop's chat mode edits
+no files and is out of scope. Its agent mode, Cowork, edits files in folders
+the user connects, and runs in one of two places. The two leave different
+evidence on disk, so they are two sources, not one.
+
+**Local Cowork** runs Claude Code inside a VM on the user's machine. The
+transcripts are ordinary Claude Code JSONL (`entrypoint: "local-agent"`,
+`version` 2.1.x), so the existing Claude Code parser reads them unchanged.
+What differs is where they live and how paths are written.
+
+| | Local Cowork |
+|---|---|
+| Store | `~/Library/Application Support/Claude/local-agent-mode-sessions/<account>/<org>/local_<id>/.claude/projects/<slug>/*.jsonl` |
+| Session metadata | `…/<org>/local_<id>.json`, next to the session directory |
+| Format | Claude Code JSONL, append-only |
+| Repo key | not the slug: `cwd` is the session's own `outputs` directory |
+| Edit record | `tool_use` Edit/Write, and `mcp__workspace__bash` |
+| Paths in edits | VM paths, `/sessions/<name>/mnt/<mount>/…` |
+| Path mapping | `folderMountNames` in the session metadata maps host folder to `<mount>` |
+| Model | `model` in the session metadata |
+| **Ceiling** | **`intersected`** for Edit/Write; bash writes as for Claude Code |
+
+On the survey machine: 448 sessions, 208 transcripts, January to November
+2026, holding 753 Edit, 302 Write and 2,229 `mcp__workspace__bash` calls.
+Most writes land in the session's own `outputs` folder, which is not a
+repository; those are ignored. The rest land in connected folders, which
+can be repositories.
+
+Shipped: [`internal/adapter/claudedesktop`](../../internal/adapter/claudedesktop),
+off by default. `dun config set agent.claude-desktop.enabled on` turns it
+on; `pkg/capture.EnableOptIn()` turns on both opt-in adapters for a program
+built on the public packages (whodunit Pro's collector). Opt-in adapters are
+registered with `adapter.RegisterOptIn` and consulted after agy, Claude Code
+and Codex.
+It does three things beyond the Claude Code adapter, and reuses that
+parser for the rest:
+
+1. Discovers the store above instead of `~/.claude/projects`, reading only
+   the first 8 KB of each metadata file for `userSelectedFolders` (15 ms
+   per commit across 242 sessions).
+2. Rewrites each VM path to a host path through `folderMountNames`, falling
+   back to the folder's base name for older sessions, and drops a path when
+   two connected folders share that name.
+3. Keeps only edits inside the repository being committed, since one
+   session can connect several folders, and reports the agent as
+   `claude-desktop`.
+4. Records code work only. A Cowork session is as likely to be email, a CRM
+   or a slide deck as code, so it journals no bare tool calls (no tool or
+   MCP server names, which Claude Code's adapter does record), and keeps a
+   session's message and token counts only when that session wrote a file
+   in the repository. Desktop Commander's adapter reads only `write_file`,
+   `edit_block` and `start_process` lines, and keeps only those that write
+   inside the repository.
+
+What reaches the journal, and so what `dun sync` can send, is the same for
+all three paths: file path, line counts, line hashes, timestamps, session
+id, model and, for Cowork sessions that wrote code, counts. Prompt text,
+replies, tool arguments and file contents are never decoded. The text an
+edit wrote is read only to hash it.
+
+**Cloud Cowork** runs in Anthropic's cloud. Its transcript never reaches the
+user's machine, so there is nothing to intersect against from the
+transcript side. Edits reach the machine through the desktop bridge, and
+only one bridge path leaves a usable record:
+
+| Bridge path | Local record | Ceiling |
+|---|---|---|
+| Desktop Commander `write_file` / `edit_block` | `~/.claude-server-commander/tool-history.jsonl`: timestamp, tool name, full arguments including the written text | `intersected` |
+| Remote shell (`device_bash`) | none found | `declared` at most |
+| File commit from the cloud workspace | none found | `declared` at most |
+
+`tool-history.jsonl` is a Desktop Commander log, not a Claude one, and it
+holds every client's calls, not only Cowork's. It carries no session id or
+model, and its retention is not known. It is a second adapter,
+[`internal/adapter/desktopcommander`](../../internal/adapter/desktopcommander),
+useful whenever any agent writes through that server. It lists the history
+for a repository only when a `write_file` or `edit_block` in it targets that
+repository, so a history that merely mentions a repository does not count
+as having searched it. On the survey machine it held under a day of calls;
+edits older than that are gone before any commit can use them.
+
+The remaining gap is commits made from cloud Cowork through the remote
+shell. The hooks see the commit, but no local transcript explains it, so it
+records as `unmatched` or `undetermined`. Closing that gap needs Anthropic to
+leave a local record of bridge writes, or a trailer the session adds itself.
+
+Not verified: Windows and Linux store locations, and whether Cowork's
+`Edit` results carry the same rejection signal as Claude Code's.
+
 
 ### Cursor
 

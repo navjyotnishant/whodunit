@@ -10,7 +10,9 @@ import (
 	"github.com/navjyotnishant/whodunit/internal/adapter"
 	_ "github.com/navjyotnishant/whodunit/internal/adapter/agy"
 	_ "github.com/navjyotnishant/whodunit/internal/adapter/claudecode"
+	_ "github.com/navjyotnishant/whodunit/internal/adapter/claudedesktop"
 	_ "github.com/navjyotnishant/whodunit/internal/adapter/codex"
+	_ "github.com/navjyotnishant/whodunit/internal/adapter/desktopcommander"
 	"github.com/navjyotnishant/whodunit/internal/journal"
 	"github.com/spf13/cobra"
 )

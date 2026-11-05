@@ -27,9 +27,25 @@ func printDetections(w io.Writer, ds []adapter.Detection, verbose bool) {
 	c := termcolor.New(w)
 	found := 0
 
+	width := 14
 	for _, d := range ds {
+		width = max(width, len(d.Agent))
+	}
+
+	for _, d := range ds {
+		// An opt-in agent that is off is reported only when asked for
+		// detail (`dun config agents`), so `dun init` reads as it always
+		// has for someone who never turns one on.
+		if d.State == adapter.StateDisabled && !verbose {
+			continue
+		}
 		var mark, note string
 		switch d.State {
+		case adapter.StateDisabled:
+			mark = c.S(termcolor.Muted, "off")
+			note = "opt in: dun config set agent." + d.Agent + ".enabled on"
+			fmt.Fprintf(w, "  %-*s %-16s  %s\n", width, d.Agent, mark, c.S(termcolor.Muted, note))
+			continue
 		case adapter.StateFound:
 			found++
 			mark = c.S(termcolor.Good, "found")
@@ -54,7 +70,9 @@ func printDetections(w io.Writer, ds []adapter.Detection, verbose bool) {
 			note = d.Err.Error()
 		}
 
-		fmt.Fprintf(w, "  %-14s %-16s", d.Agent, mark)
+		// Padded to the longest agent name, so a name added later cannot
+		// push its row out of line.
+		fmt.Fprintf(w, "  %-*s %-16s", width, d.Agent, mark)
 		if verbose && d.Root != "" && d.State != adapter.StateMissing && d.State != adapter.StateNotInstalled {
 			fmt.Fprintf(w, " %s", c.S(termcolor.Muted, d.Root))
 			if d.Source != adapter.SourceDefault {

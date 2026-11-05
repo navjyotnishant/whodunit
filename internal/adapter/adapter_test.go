@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/navjyotnishant/whodunit/internal/config"
 	"github.com/navjyotnishant/whodunit/internal/journal"
 )
 
@@ -115,6 +116,56 @@ func TestSessionFilesDistinguishesErrorFromEmpty(t *testing.T) {
 // imported package.
 func restore(t *testing.T) func() {
 	t.Helper()
-	saved := registered
-	return func() { registered = saved }
+	saved, savedOptIn, savedAll := registered, optIn, allOptIn
+	return func() { registered, optIn, allOptIn = saved, savedOptIn, savedAll }
+}
+
+// An opt-in adapter is absent until enabled, and then comes after every
+// adapter registered with Register, whatever its name.
+func TestOptInIsOffUntilEnabled(t *testing.T) {
+	defer restore(t)()
+	t.Setenv("WHODUNIT_HOME", t.TempDir())
+	registered, optIn, allOptIn = nil, nil, false
+	RegisterOptIn(fake{name: "a-optin"})
+	Register(fake{name: "z-first"})
+
+	if all := All(); len(all) != 1 || all[0].Name() != "z-first" {
+		t.Fatalf("All() with opt-in off = %v, want only z-first", names(all))
+	}
+	if ByName("a-optin") == nil {
+		t.Fatal("ByName must find a disabled opt-in adapter, so settings can name it")
+	}
+	if d := Detect(t.TempDir()); len(d) != 2 || d[1].State != StateDisabled {
+		t.Fatalf("Detect = %+v, want the opt-in adapter reported as off", d)
+	}
+
+	EnableOptIn()
+	all := All()
+	if len(all) != 2 || all[0].Name() != "z-first" || all[1].Name() != "a-optin" {
+		t.Fatalf("All() with opt-in on = %v", names(all))
+	}
+}
+
+// The config file turns on one opt-in agent at a time.
+func TestOptInFromConfig(t *testing.T) {
+	defer restore(t)()
+	t.Setenv("WHODUNIT_HOME", t.TempDir())
+	registered, optIn, allOptIn = nil, nil, false
+	RegisterOptIn(fake{name: "one"})
+	RegisterOptIn(fake{name: "two"})
+	on := true
+	if err := config.Save(config.Config{Agents: map[string]config.AgentConfig{"one": {Enabled: &on}}}); err != nil {
+		t.Fatal(err)
+	}
+	if got := names(All()); len(got) != 1 || got[0] != "one" {
+		t.Fatalf("All() = %v, want only the enabled agent", got)
+	}
+}
+
+func names(as []Adapter) []string {
+	var out []string
+	for _, a := range as {
+		out = append(out, a.Name())
+	}
+	return out
 }

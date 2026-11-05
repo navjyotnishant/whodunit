@@ -27,6 +27,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/navjyotnishant/whodunit/internal/config"
 	"github.com/navjyotnishant/whodunit/internal/journal"
 )
 
@@ -96,22 +97,97 @@ func Register(a Adapter) {
 	registered = append(registered, a)
 }
 
+// optIn holds adapters that are off unless turned on: agents whose stores
+// are not only about code, added after the first three (Claude Desktop's
+// Cowork, Desktop Commander).
+//
+// Off by default so that an existing dun install behaves exactly as before
+// on a machine that happens to have Claude Desktop: no new store is read and
+// no commit's result changes until someone runs
+// `dun config set agent.<name>.enabled on`. whodunit Pro turns them all on
+// with EnableOptIn.
+//
+// Consulted after every adapter registered with Register. Packages
+// initialise in import-path order, so claude-desktop would otherwise land
+// between claude-code and codex, and order decides which session a trailer
+// names first when two agents touched the same lines.
+var optIn []Adapter
+
+// allOptIn is set by EnableOptIn.
+var allOptIn bool
+
+// RegisterOptIn is Register for an adapter that is off until enabled.
+func RegisterOptIn(a Adapter) {
+	optIn = append(optIn, a)
+}
+
+// EnableOptIn turns on every opt-in adapter for this process, whatever the
+// config file says. For programs built on the public packages that want
+// every agent, which is whodunit Pro's collector. dun never calls it.
+func EnableOptIn() { allOptIn = true }
+
+// IsOptIn reports whether the named agent is off unless enabled.
+func IsOptIn(name string) bool {
+	for _, a := range optIn {
+		if a.Name() == name {
+			return true
+		}
+	}
+	return false
+}
+
+// Enabled reports whether an adapter takes part. Always true for one
+// registered with Register; for an opt-in one, true only after EnableOptIn
+// or with `agent.<name>.enabled` on in the config file. A config file that
+// cannot be read leaves opt-in agents off: turning on a new store because a
+// file was unreadable would be the surprise this exists to prevent.
+func Enabled(name string) bool {
+	if !IsOptIn(name) {
+		return true
+	}
+	if allOptIn {
+		return true
+	}
+	cfg, err := config.Load()
+	if err != nil {
+		return false
+	}
+	a, ok := cfg.Agents[name]
+	return ok && a.Enabled != nil && *a.Enabled
+}
+
+// Known returns every adapter, enabled or not: what `dun config` can name
+// and `dun config agents` can report on.
+func Known() []Adapter {
+	out := make([]Adapter, 0, len(registered)+len(optIn))
+	out = append(out, registered...)
+	return append(out, optIn...)
+}
+
 // All returns every registered adapter.
 //
 // Commands iterate this instead of naming an agent, so an agent added later
 // is picked up by ingest, the hooks, the daemon and status without any of
 // them changing.
 func All() []Adapter {
-	out := make([]Adapter, len(registered))
-	copy(out, registered)
+	out := make([]Adapter, 0, len(registered)+len(optIn))
+	out = append(out, registered...)
+	for _, a := range optIn {
+		if Enabled(a.Name()) {
+			out = append(out, a)
+		}
+	}
 	return out
 }
 
 // ByName returns the adapter with the given agent name, or nil.
 // Used where a specific agent is addressed — a config override, or a
 // `--agent` flag.
+//
+// Opt-in adapters are found whether or not they are enabled, so a setting can
+// name one before it is turned on.
 func ByName(name string) Adapter {
-	for _, a := range registered {
+	for _, a := range Known() {
 		if a.Name() == name {
 			return a
 		}

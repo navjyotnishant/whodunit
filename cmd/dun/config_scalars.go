@@ -146,7 +146,7 @@ func scalarByKey(key string) (scalarSetting, bool) {
 // settingKeys lists everything `dun config set` accepts, for the error
 // message someone sees after guessing wrong.
 func settingKeys() string {
-	keys := []string{"agent.<name>.path"}
+	keys := []string{"agent.<name>.path", "agent.<name>.enabled"}
 	for _, s := range scalarSettings() {
 		keys = append(keys, s.Key)
 	}
@@ -203,8 +203,14 @@ func runConfigList(w io.Writer) error {
 	if len(cfg.Agents) > 0 {
 		fmt.Fprintln(w)
 		for name, a := range cfg.Agents {
-			fmt.Fprintf(w, "  %-16s %s\n",
-				c.S(termcolor.Bold, "agent."+name+".path"), a.Path)
+			if a.Path != "" {
+				fmt.Fprintf(w, "  %-16s %s\n",
+					c.S(termcolor.Bold, "agent."+name+".path"), a.Path)
+			}
+			if a.Enabled != nil {
+				fmt.Fprintf(w, "  %-16s %s\n",
+					c.S(termcolor.Bold, "agent."+name+".enabled"), onOff(*a.Enabled))
+			}
 		}
 	}
 
@@ -219,6 +225,8 @@ func settingKeysList() string {
 	var b strings.Builder
 	b.WriteString(fmt.Sprintf("%-20s %s", "agent.<name>.path",
 		"where that agent keeps its transcripts"))
+	fmt.Fprintf(&b, "\n  %-20s %s", "agent.<name>.enabled",
+		"turn on an opt-in agent: claude-desktop, desktop-commander (on/off)")
 	for _, s := range scalarSettings() {
 		fmt.Fprintf(&b, "\n  %-20s %s", s.Key, s.Help)
 	}

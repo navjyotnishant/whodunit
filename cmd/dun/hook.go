@@ -7,7 +7,9 @@ import (
 
 	_ "github.com/navjyotnishant/whodunit/internal/adapter/agy"
 	_ "github.com/navjyotnishant/whodunit/internal/adapter/claudecode"
+	_ "github.com/navjyotnishant/whodunit/internal/adapter/claudedesktop"
 	_ "github.com/navjyotnishant/whodunit/internal/adapter/codex"
+	_ "github.com/navjyotnishant/whodunit/internal/adapter/desktopcommander"
 	"github.com/navjyotnishant/whodunit/internal/config"
 	"github.com/navjyotnishant/whodunit/internal/hooklog"
 	"github.com/navjyotnishant/whodunit/internal/replaylog"

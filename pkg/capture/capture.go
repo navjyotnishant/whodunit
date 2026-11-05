@@ -29,7 +29,9 @@ import (
 	// The adapters dun registers, in the order dun registers them.
 	_ "github.com/navjyotnishant/whodunit/internal/adapter/agy"
 	_ "github.com/navjyotnishant/whodunit/internal/adapter/claudecode"
+	_ "github.com/navjyotnishant/whodunit/internal/adapter/claudedesktop"
 	_ "github.com/navjyotnishant/whodunit/internal/adapter/codex"
+	_ "github.com/navjyotnishant/whodunit/internal/adapter/desktopcommander"
 )
 
 // Entry is one observed agent action, as dun journals it.
@@ -41,11 +43,21 @@ type Session = journal.Session
 // Agent reads one coding agent's local transcripts.
 type Agent = adapter.Adapter
 
-// Agents returns every supported agent, in dun's order.
+// Agents returns every enabled agent, in dun's order. Opt-in agents
+// (claude-desktop, desktop-commander) are included only after EnableOptIn,
+// or when the user turned them on in dun's config.
 func Agents() []Agent { return adapter.All() }
 
-// ByName returns the agent with that name ("claude-code", "codex", "agy"),
-// or nil.
+// EnableOptIn turns on the opt-in agents for this process: Claude Desktop's
+// Cowork and Desktop Commander. They are off in dun unless a user opts in,
+// because their stores also hold work that is not code; they still record
+// only file writes inside the repository. whodunit Pro's collector calls
+// this at start-up. It also applies to pkg/trailer, which shares the agent
+// list.
+func EnableOptIn() { adapter.EnableOptIn() }
+
+// ByName returns the agent with that name ("claude-code", "codex", "agy",
+// "claude-desktop", "desktop-commander"), or nil.
 func ByName(name string) Agent { return adapter.ByName(name) }
 
 // Keyed says how to compute keyed line hashes.
