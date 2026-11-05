@@ -21,7 +21,8 @@ privacy classification and the two fields we were ignoring — see
 | [Claude Code](#claude-code) | `intersected` | Shipped |
 | [Codex CLI](#codex-cli) | `intersected` | Shipped |
 | [`agy` (Antigravity CLI)](#agy-antigravity-cli) | `intersected` | Shipped |
-| [Claude Desktop (Cowork)](#claude-desktop-cowork) | `intersected` local, `declared` cloud | Reachable — format verified, adapter not built |
+| [Claude Desktop (Cowork)](#claude-desktop-cowork) | `intersected` local, `declared` cloud | Shipped (local) |
+| [Desktop Commander](#claude-desktop-cowork) | `intersected` | Shipped |
 | [Cursor](#cursor) | `intersected` | Reachable — format verified, adapter not built |
 | [GitHub Copilot](#github-copilot) | `intersected` | Reachable — format verified, adapter not built |
 | [Antigravity IDE](#antigravity-ide) | `inferred` | Bodies encrypted |
@@ -211,13 +212,19 @@ Most writes land in the session's own `outputs` folder, which is not a
 repository; those are ignored. The rest land in connected folders, which
 can be repositories.
 
-What the adapter needs beyond the Claude Code one:
+Shipped: [`internal/adapter/claudedesktop`](../../internal/adapter/claudedesktop).
+It does three things beyond the Claude Code adapter, and reuses that
+parser for the rest:
 
-1. Discover the store above instead of `~/.claude/projects`.
-2. Rewrite each VM path to a host path through `folderMountNames`, then key
-   the edit by that path's repository, not by the transcript slug.
-3. Report the agent as Claude Desktop, so Cowork work is not counted as
-   Claude Code work.
+1. Discovers the store above instead of `~/.claude/projects`, reading only
+   the first 8 KB of each metadata file for `userSelectedFolders` (15 ms
+   per commit across 242 sessions).
+2. Rewrites each VM path to a host path through `folderMountNames`, falling
+   back to the folder's base name for older sessions, and drops a path when
+   two connected folders share that name.
+3. Keeps only edits inside the repository being committed, since one
+   session can connect several folders, and reports the agent as
+   `claude-desktop`.
 
 **Cloud Cowork** runs in Anthropic's cloud. Its transcript never reaches the
 user's machine, so there is nothing to intersect against from the
@@ -232,9 +239,13 @@ only one bridge path leaves a usable record:
 
 `tool-history.jsonl` is a Desktop Commander log, not a Claude one, and it
 holds every client's calls, not only Cowork's. It carries no session id or
-model, and its retention is not known. Treat it as a second adapter
-(`desktopcommander`), useful whenever any agent writes through that server,
-rather than as part of the Claude Desktop adapter.
+model, and its retention is not known. It is a second adapter,
+[`internal/adapter/desktopcommander`](../../internal/adapter/desktopcommander),
+useful whenever any agent writes through that server. It lists the history
+for a repository only when a `write_file` or `edit_block` in it targets that
+repository, so a history that merely mentions a repository does not count
+as having searched it. On the survey machine it held under a day of calls;
+edits older than that are gone before any commit can use them.
 
 The remaining gap is commits made from cloud Cowork through the remote
 shell. The hooks see the commit, but no local transcript explains it, so it

@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Claude Desktop's agent mode (Cowork) is attributed when it runs locally.** A local Cowork session runs Claude Code in a VM, so its transcripts are Claude Code's own format, kept under Claude Desktop's data directory (`~/Library/Application Support/Claude/local-agent-mode-sessions` on macOS) with every path written as the VM sees it, `/sessions/<name>/mnt/<folder>/…`. The new `claude-desktop` adapter finds the sessions that had the repository connected, maps each path back through the session's own folder map, and hands the transcript to the Claude Code parser, so Write and Edit reach `intersected` and Cowork's shell writes are named as Bash writes are. Edits to the session's scratch folders, and to other folders connected to the same session, are dropped rather than credited to this repository. Recorded as `claude-desktop`, not `claude-code`. On the survey machine: 208 transcripts; listing costs 15 ms per commit.
+
+- **Edits made through Desktop Commander are attributed.** Desktop Commander is an MCP server that gives an AI client file and shell access to a machine, and keeps a history of its calls in `~/.claude-server-commander/tool-history.jsonl`. That history is the only local record of what a cloud Cowork session, or any other remote client, wrote here. Its `write_file` and `edit_block` calls carry the text written, which is hashed like a Write or Edit and reaches `intersected`; a failed call carries no hashes. The history records no session, model or client, so the agent is `desktop-commander` and sessions are grouped per day. The server keeps the history short (under a day on the survey machine), so edits are only caught if the daemon or a commit runs while they are still in it. On the survey machine it held 99 hashed edits to one repository whose commits had all resolved `unmatched`.
+
+### Changed
+
+- **For existing users, only machines with Claude Desktop or Desktop Commander see any difference.** Without either installed, both adapters find nothing and every result is unchanged. With them, a commit their edits explain moves from `unmatched` or `undetermined` to an assisted status, and a repository whose only evidence is one of these stores can now resolve `unassisted` where it used to be `undetermined`, as Claude Code's per-repository directory already allows. The two new agent names appear in synced data; the DevLake panels that list agents by name (`claude-code`, `codex`, `agy`) do not show them yet. Claude Code's own parsing is unchanged: the parser now takes options, and Claude Code passes the old values.
+
 ## [0.6.2] - 2026-10-14
 
 ### Fixed

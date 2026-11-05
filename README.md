@@ -245,7 +245,7 @@ for the full example.
 
 ## How attribution is determined
 
-Five agents are attributed today. Three have a transcript adapter, each
+Seven agents are attributed today. Five have a transcript adapter, each
 reading records the agent already writes for its own purposes — whodunit
 only reads them. Two more are read from the trailer they write into the
 commit themselves, which is the weakest rung the spec has:
@@ -255,6 +255,8 @@ commit themselves, which is the weakest rung the spec has:
 | **Claude Code** | `~/.claude/projects/**/*.jsonl` | `intersected` |
 | **Codex** | `~/.codex/sessions/**/*.jsonl` | `intersected` |
 | **Antigravity** (`agy`) | its local SQLite store | `intersected` |
+| **Claude Desktop** (Cowork, local) | `local-agent-mode-sessions/**/*.jsonl` | `intersected` |
+| **Desktop Commander** | `~/.claude-server-commander/tool-history.jsonl` | `intersected` |
 | **GitHub Copilot** | `Agent-Logs-Url`, `Co-authored-by: Copilot` | `declared` |
 | **Cursor** | `Made-with: Cursor` | `declared` |
 

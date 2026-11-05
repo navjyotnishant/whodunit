@@ -25,6 +25,41 @@ import (
 
 const AgentName = "claude-code"
 
+// Options lets another host that writes Claude Code transcripts reuse this
+// parser. Claude Desktop's local agent mode (Cowork) is the case: same
+// records, but its own agent name, its own shell tool, and file paths
+// written as the VM sees them rather than as the host does.
+//
+// The zero-cost path is the default: ParseSince and ParseSessionActivity
+// call the With variants with DefaultOptions, so Claude Code's own output
+// is byte-for-byte what it was before this type existed.
+type Options struct {
+	// Agent is written to every entry and session.
+	Agent string
+
+	// BashTool is the tool name whose command is scanned for write
+	// targets (WHO-238).
+	BashTool string
+
+	// MapPath rewrites a file path from the transcript into the path the
+	// repository has on this machine, before it is hashed. It returns
+	// false for a path that is not on this machine at all, and that entry
+	// is dropped: a path that exists nowhere can only produce a wrong
+	// match. Nil means paths are used as written.
+	MapPath func(string) (string, bool)
+}
+
+// DefaultOptions is Claude Code itself.
+func DefaultOptions() Options { return Options{Agent: AgentName, BashTool: "Bash"} }
+
+// mapPath applies MapPath when one is set.
+func (o Options) mapPath(p string) (string, bool) {
+	if o.MapPath == nil {
+		return p, true
+	}
+	return o.MapPath(p)
+}
+
 // ProjectsDir returns the root directory Claude Code stores session
 // transcripts under.
 //
@@ -349,6 +384,11 @@ func (r *resultContent) UnmarshalJSON(data []byte) error {
 // transcript format degrades to fewer entries rather than a hard failure
 // (fail to undetermined, not error).
 func ParseSince(path string, since time.Time) ([]journal.Entry, error) {
+	return ParseWith(path, since, DefaultOptions())
+}
+
+// ParseWith is ParseSince for a host other than Claude Code. See Options.
+func ParseWith(path string, since time.Time, opts Options) ([]journal.Entry, error) {
 	// A transcript untouched since the cutoff has nothing to contribute, so
 	// it is not opened at all.
 	//
@@ -405,7 +445,7 @@ func ParseSince(path string, since time.Time) ([]journal.Entry, error) {
 				// dropping block.Input keeps that property.
 				entries = append(entries, journal.Entry{
 					Timestamp:    r.Timestamp,
-					Agent:        AgentName,
+					Agent:        opts.Agent,
 					AgentVersion: r.Version,
 					Session:      r.SessionID,
 					Event:        "tool_call",
@@ -429,16 +469,20 @@ func ParseSince(path string, since time.Time) ([]journal.Entry, error) {
 				// read here and goes out of scope with the loop iteration —
 				// the heredoc body in `cat > f <<'EOF' … EOF` is file content
 				// and never reaches an entry (NAV-25).
-				if block.Name == "Bash" {
+				if block.Name == opts.BashTool {
 					targets, incomplete := WriteTargets(block.Input.Command, r.Cwd)
 					for _, target := range targets {
+						target, ok := opts.mapPath(target)
+						if !ok {
+							continue
+						}
 						// No LinesAdded and no HunkHash, deliberately. The
 						// command carries no diff, and a fabricated one would
 						// let a Bash edit claim `intersected` on evidence that
 						// does not exist. Absent beats invented (NAV-21).
 						e := journal.Entry{
 							Timestamp:    r.Timestamp,
-							Agent:        AgentName,
+							Agent:        opts.Agent,
 							AgentVersion: r.Version,
 							Session:      r.SessionID,
 							Event:        "tool_use",
@@ -459,6 +503,11 @@ func ParseSince(path string, since time.Time) ([]journal.Entry, error) {
 						entries = append(entries, e)
 					}
 				}
+				continue
+			}
+
+			file, ok := opts.mapPath(block.Input.FilePath)
+			if !ok {
 				continue
 			}
 
@@ -484,7 +533,7 @@ func ParseSince(path string, since time.Time) ([]journal.Entry, error) {
 			// A rejected or failed call never reached the file, so its text
 			// must not count as agent-authored code. Carrying line hashes
 			// for it would attribute lines that do not exist.
-			lineHashes := linehash.OfText(linehash.Canonical(block.Input.FilePath), produced)
+			lineHashes := linehash.OfText(linehash.Canonical(file), produced)
 			if outcome != OutcomeAccepted {
 				lineHashes = nil
 				added, removed = 0, 0
@@ -492,15 +541,15 @@ func ParseSince(path string, since time.Time) ([]journal.Entry, error) {
 
 			entries = append(entries, journal.Entry{
 				Timestamp:    r.Timestamp,
-				Agent:        AgentName,
+				Agent:        opts.Agent,
 				AgentVersion: r.Version,
 				Session:      r.SessionID,
 				Event:        "tool_use",
 				Tool:         block.Name,
-				File:         block.Input.FilePath,
+				File:         file,
 				LinesAdded:   added,
 				LinesRemoved: removed,
-				HunkHash:     hunkHash(block.Input.FilePath, block.Name, block.Input.Content, block.Input.NewString),
+				HunkHash:     hunkHash(file, block.Name, block.Input.Content, block.Input.NewString),
 				LineHashes:   lineHashes,
 				Outcome:      string(outcome),
 				Model:        modelOf(r),
@@ -527,6 +576,12 @@ func ParseSince(path string, since time.Time) ([]journal.Entry, error) {
 // An earlier SessionActivity struct duplicated it field for field, which
 // bought nothing and cost a copy loop at every call site.
 func ParseSessionActivity(path string, since time.Time) ([]journal.Session, error) {
+	return ParseSessionActivityWith(path, since, DefaultOptions())
+}
+
+// ParseSessionActivityWith is ParseSessionActivity for a host other than
+// Claude Code. See Options.
+func ParseSessionActivityWith(path string, since time.Time, opts Options) ([]journal.Session, error) {
 	f, err := os.Open(path)
 	if err != nil {
 		return nil, err
@@ -577,7 +632,7 @@ func ParseSessionActivity(path string, since time.Time) ([]journal.Session, erro
 		if !ok {
 			a = &acc{tools: map[string]bool{}, seenMessages: map[string]bool{}}
 			a.s.Session = r.SessionID
-			a.s.Agent = AgentName
+			a.s.Agent = opts.Agent
 			a.s.FirstSeen = r.Timestamp
 			sessions[r.SessionID] = a
 		}
