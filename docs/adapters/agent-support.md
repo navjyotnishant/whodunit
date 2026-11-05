@@ -225,6 +225,19 @@ parser for the rest:
 3. Keeps only edits inside the repository being committed, since one
    session can connect several folders, and reports the agent as
    `claude-desktop`.
+4. Records code work only. A Cowork session is as likely to be email, a CRM
+   or a slide deck as code, so it journals no bare tool calls (no tool or
+   MCP server names, which Claude Code's adapter does record), and keeps a
+   session's message and token counts only when that session wrote a file
+   in the repository. Desktop Commander's adapter reads only `write_file`,
+   `edit_block` and `start_process` lines, and keeps only those that write
+   inside the repository.
+
+What reaches the journal, and so what `dun sync` can send, is the same for
+all three paths: file path, line counts, line hashes, timestamps, session
+id, model and, for Cowork sessions that wrote code, counts. Prompt text,
+replies, tool arguments and file contents are never decoded. The text an
+edit wrote is read only to hash it.
 
 **Cloud Cowork** runs in Anthropic's cloud. Its transcript never reaches the
 user's machine, so there is nothing to intersect against from the

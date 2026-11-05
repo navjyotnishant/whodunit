@@ -144,13 +144,43 @@ func ParseSince(path string, since time.Time) ([]journal.Entry, error) {
 	return claudecode.ParseWith(path, since, opts)
 }
 
-// ParseSessionActivity summarises one Cowork transcript's sessions.
+// ParseSessionActivity summarises the Cowork sessions in one transcript that
+// edited a file in this repository, and no others.
+//
+// A Cowork session is often not coding at all: the same app drafts email,
+// works a CRM, builds a deck. Connecting a folder that holds a repository
+// does not make the rest of that session about the repository, so its
+// message counts and token use are reported only when it wrote code here.
+// Counts only, never content, as for Claude Code (NAV-55).
 func ParseSessionActivity(path string, since time.Time) ([]journal.Session, error) {
 	opts, ok := optionsFor(path)
 	if !ok {
 		return nil, nil
 	}
-	return claudecode.ParseSessionActivityWith(path, since, opts)
+	entries, err := claudecode.ParseWith(path, since, opts)
+	if err != nil {
+		return nil, err
+	}
+	coding := map[string]bool{}
+	for _, e := range entries {
+		if e.File != "" {
+			coding[e.Session] = true
+		}
+	}
+	if len(coding) == 0 {
+		return nil, nil
+	}
+	all, err := claudecode.ParseSessionActivityWith(path, since, opts)
+	if err != nil {
+		return nil, err
+	}
+	out := all[:0]
+	for _, s := range all {
+		if coding[s.Session] {
+			out = append(out, s)
+		}
+	}
+	return out, nil
 }
 
 // optionsFor builds the parser options for the session a transcript belongs
@@ -167,8 +197,9 @@ func optionsFor(transcript string) (claudecode.Options, bool) {
 	}
 	repo := scopeOf(transcript)
 	return claudecode.Options{
-		Agent:    AgentName,
-		BashTool: bashTool,
+		Agent:     AgentName,
+		BashTool:  bashTool,
+		EditsOnly: true,
 		MapPath: func(p string) (string, bool) {
 			host, ok := m.hostPath(p)
 			if !ok {
@@ -176,7 +207,7 @@ func optionsFor(transcript string) (claudecode.Options, bool) {
 			}
 			// A transcript parsed without being listed first has no scope,
 			// and every connected folder is kept.
-			if repo != "" && !within(linehash.Canonical(host), repo) {
+			if repo != "" && !within(host, repo) {
 				return "", false
 			}
 			return host, true
@@ -234,7 +265,7 @@ func (m mounts) hostPath(p string) (string, bool) {
 		return filepath.Join(host, filepath.FromSlash(sm[2])), true
 	}
 	if filepath.IsAbs(p) {
-		clean := filepath.Clean(p)
+		clean := linehash.Canonical(p)
 		for _, f := range m.folders {
 			if within(clean, f) {
 				return clean, true
@@ -290,20 +321,26 @@ func loadMounts(meta string) (mounts, error) {
 	if err := json.Unmarshal(raw, &sm); err != nil {
 		return mounts{}, err
 	}
+	// Folders are stored canonical, resolved once here while they exist,
+	// so a mapped path agrees with the repository path the hook is given
+	// even when the file itself does not exist yet: /var against
+	// /private/var on macOS, where resolving the file would fail and leave
+	// the two spellings apart.
 	m := mounts{byMount: map[string]string{}}
 	seen := map[string]int{}
 	for _, f := range sm.UserSelectedFolders {
 		if f == "" {
 			continue
 		}
-		m.folders = append(m.folders, filepath.Clean(f))
+		c := linehash.Canonical(f)
+		m.folders = append(m.folders, c)
 		if name, ok := sm.FolderMountNames[f]; ok && name != "" {
-			m.byMount[name] = filepath.Clean(f)
+			m.byMount[name] = c
 			continue
 		}
 		base := filepath.Base(f)
 		seen[base]++
-		m.byMount[base] = filepath.Clean(f)
+		m.byMount[base] = c
 	}
 	for base, n := range seen {
 		if n > 1 {
@@ -312,8 +349,8 @@ func loadMounts(meta string) (mounts, error) {
 	}
 	for host, name := range sm.FolderMountNames {
 		if _, ok := m.byMount[name]; !ok && name != "" && host != "" {
-			m.byMount[name] = filepath.Clean(host)
-			m.folders = append(m.folders, filepath.Clean(host))
+			m.byMount[name] = linehash.Canonical(host)
+			m.folders = append(m.folders, linehash.Canonical(host))
 		}
 	}
 

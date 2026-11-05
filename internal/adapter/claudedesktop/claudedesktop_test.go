@@ -137,8 +137,8 @@ func TestParseSinceMapsVMPathsAndDropsTheRest(t *testing.T) {
 				files[e.File] = true
 			}
 		}
-		main := filepath.Join(repo, "main.go")
-		gen := linehash.Canonical(filepath.Join(repo, "gen.go"))
+		main := filepath.Join(linehash.Canonical(repo), "main.go")
+		gen := filepath.Join(linehash.Canonical(repo), "gen.go")
 		if !files[main] {
 			t.Errorf("mountNames=%v: no entry for %s in %v", mountNames, main, files)
 		}
@@ -186,9 +186,57 @@ func TestEditsToOtherConnectedFoldersAreScopedOut(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, e := range entries {
-		if e.File != "" && e.File != filepath.Join(repo, "a.go") {
+		if e.File != "" && e.File != filepath.Join(linehash.Canonical(repo), "a.go") {
 			t.Errorf("entry for %s journaled against %s", e.File, repo)
 		}
+	}
+}
+
+// A Cowork session is often not coding. Its other tool calls, and any
+// session that wrote nothing in the repository, must not reach the journal.
+func TestOnlyCodeWorkIsRecorded(t *testing.T) {
+	repo, transcript := layout(t, true)
+	ts := time.Date(2026, 11, 5, 12, 0, 0, 0, time.UTC).Format(time.RFC3339)
+	writeLines(t, transcript, []map[string]any{
+		// A session that only sent email and read a CRM.
+		{"type": "user", "timestamp": ts, "sessionId": "chat", "message": map[string]any{"content": "draft a reply to the vendor"}},
+		{"type": "assistant", "timestamp": ts, "sessionId": "chat", "message": map[string]any{"id": "c1", "content": []map[string]any{
+			{"type": "text", "text": "Here is a draft."},
+			{"type": "tool_use", "id": "g1", "name": "mcp__Gmail__send_message", "input": map[string]any{"to": "x@example.com"}},
+			{"type": "tool_use", "id": "w1", "name": "Write", "input": map[string]any{"file_path": "/sessions/x/mnt/outputs/reply.md", "content": "Hi\n"}},
+		}}},
+		// A session that also wrote code here.
+		{"type": "assistant", "timestamp": ts, "sessionId": "code", "message": map[string]any{"id": "k1", "content": []map[string]any{
+			{"type": "tool_use", "id": "e1", "name": "mcp__EngageHub__list_contacts", "input": map[string]any{}},
+			{"type": "tool_use", "id": "w2", "name": "Write", "input": map[string]any{"file_path": "/sessions/x/mnt/repo/a.go", "content": "package a\n"}},
+		}}},
+		{"type": "user", "timestamp": ts, "sessionId": "code", "message": map[string]any{"content": []map[string]any{
+			{"type": "tool_result", "tool_use_id": "w2", "content": "ok"},
+		}}},
+	})
+	if _, err := SessionFiles(repo); err != nil {
+		t.Fatal(err)
+	}
+
+	entries, err := ParseSince(transcript, time.Time{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 1 || entries[0].File != filepath.Join(linehash.Canonical(repo), "a.go") {
+		t.Fatalf("entries = %+v, want only the write to a.go", entries)
+	}
+	for _, e := range entries {
+		if e.Event == "tool_call" || e.MCPServer != "" || strings.HasPrefix(e.Tool, "mcp__") {
+			t.Errorf("non-code call recorded: %+v", e)
+		}
+	}
+
+	sessions, err := ParseSessionActivity(transcript, time.Time{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(sessions) != 1 || sessions[0].Session != "code" {
+		t.Fatalf("sessions = %+v, want only the session that wrote code here", sessions)
 	}
 }
 

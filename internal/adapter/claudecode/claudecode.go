@@ -47,6 +47,13 @@ type Options struct {
 	// is dropped: a path that exists nowhere can only produce a wrong
 	// match. Nil means paths are used as written.
 	MapPath func(string) (string, bool)
+
+	// EditsOnly drops every call that is not a file write: no bare
+	// tool_call entries, so no tool or MCP server names. For a host whose
+	// sessions are not about one repository, where a call that touched no
+	// file in it says nothing about it and may be about something else
+	// entirely: email, a CRM, a document.
+	EditsOnly bool
 }
 
 // DefaultOptions is Claude Code itself.
@@ -433,6 +440,12 @@ func ParseWith(path string, since time.Time, opts Options) ([]journal.Entry, err
 				continue
 			}
 			if block.Name != "Edit" && block.Name != "Write" {
+				if opts.EditsOnly {
+					if block.Name == opts.BashTool {
+						entries = append(entries, bashWrites(r, block, opts)...)
+					}
+					continue
+				}
 				// Every other tool is recorded as a bare call: which tool,
 				// when, in which session. No file, no line hashes, no
 				// arguments.
@@ -470,38 +483,7 @@ func ParseWith(path string, since time.Time, opts Options) ([]journal.Entry, err
 				// the heredoc body in `cat > f <<'EOF' … EOF` is file content
 				// and never reaches an entry (NAV-25).
 				if block.Name == opts.BashTool {
-					targets, incomplete := WriteTargets(block.Input.Command, r.Cwd)
-					for _, target := range targets {
-						target, ok := opts.mapPath(target)
-						if !ok {
-							continue
-						}
-						// No LinesAdded and no HunkHash, deliberately. The
-						// command carries no diff, and a fabricated one would
-						// let a Bash edit claim `intersected` on evidence that
-						// does not exist. Absent beats invented (NAV-21).
-						e := journal.Entry{
-							Timestamp:    r.Timestamp,
-							Agent:        opts.Agent,
-							AgentVersion: r.Version,
-							Session:      r.SessionID,
-							Event:        "tool_use",
-							Tool:         block.Name,
-							File:         target,
-							Model:        modelOf(r),
-							Branch:       r.GitBranch,
-							MCPServer:    r.MCPServer,
-						}
-						// A command that also writes somewhere this could not
-						// name yields an INCOMPLETE file set. Recording it as
-						// ordinary evidence would let a partial list read as a
-						// full one, which is the wrong answer wearing the shape
-						// of a finding.
-						if incomplete {
-							e.Outcome = string(OutcomePartial)
-						}
-						entries = append(entries, e)
-					}
+					entries = append(entries, bashWrites(r, block, opts)...)
 				}
 				continue
 			}
@@ -765,6 +747,46 @@ func ParseSessionActivityWith(path string, since time.Time, opts Options) ([]jou
 		out = append(out, a.s)
 	}
 	return out, nil
+}
+
+// bashWrites names the files a shell call writes (WHO-238).
+//
+// Only the file NAMES leave this function. block.Input.Command is read here
+// and goes out of scope with it: the heredoc body in `cat > f <<'EOF' … EOF`
+// is file content and never reaches an entry (NAV-25).
+//
+// No LinesAdded and no HunkHash, deliberately. The command carries no diff,
+// and a fabricated one would let a shell edit claim `intersected` on
+// evidence that does not exist. Absent beats invented (NAV-21).
+func bashWrites(r record, block toolUseBlock, opts Options) []journal.Entry {
+	targets, incomplete := WriteTargets(block.Input.Command, r.Cwd)
+	var out []journal.Entry
+	for _, target := range targets {
+		target, ok := opts.mapPath(target)
+		if !ok {
+			continue
+		}
+		e := journal.Entry{
+			Timestamp:    r.Timestamp,
+			Agent:        opts.Agent,
+			AgentVersion: r.Version,
+			Session:      r.SessionID,
+			Event:        "tool_use",
+			Tool:         block.Name,
+			File:         target,
+			Model:        modelOf(r),
+			Branch:       r.GitBranch,
+			MCPServer:    r.MCPServer,
+		}
+		// A command that also writes somewhere this could not name yields an
+		// INCOMPLETE file set. Recording it as ordinary evidence would let a
+		// partial list read as a full one.
+		if incomplete {
+			e.Outcome = string(OutcomePartial)
+		}
+		out = append(out, e)
+	}
+	return out
 }
 
 func int64p(v int64) *int64 { return &v }
