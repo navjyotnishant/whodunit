@@ -242,8 +242,14 @@ func TestOnlyCodeWorkIsRecorded(t *testing.T) {
 
 func TestAmbiguousBaseNamesAreNotMapped(t *testing.T) {
 	base := t.TempDir()
+	a, b := filepath.Join(base, "a", "repo"), filepath.Join(base, "b", "repo")
+	for _, d := range []string{a, b} {
+		if err := os.MkdirAll(d, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
 	meta := filepath.Join(base, "local_z.json")
-	writeJSON(t, meta, map[string]any{"userSelectedFolders": []string{"/a/repo", "/b/repo"}})
+	writeJSON(t, meta, map[string]any{"userSelectedFolders": []string{a, b}})
 	m, err := loadMounts(meta)
 	if err != nil {
 		t.Fatal(err)
@@ -252,7 +258,8 @@ func TestAmbiguousBaseNamesAreNotMapped(t *testing.T) {
 		t.Fatalf("ambiguous mount mapped to %s", p)
 	}
 	// A host path inside a connected folder is still kept as written.
-	if p, ok := m.hostPath("/b/repo/x.go"); !ok || p != "/b/repo/x.go" {
+	want := filepath.Join(linehash.Canonical(b), "x.go")
+	if p, ok := m.hostPath(filepath.Join(b, "x.go")); !ok || filepath.Clean(p) != filepath.Clean(want) {
 		t.Fatalf("host path = %q, %v", p, ok)
 	}
 }

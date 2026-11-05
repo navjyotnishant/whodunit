@@ -772,6 +772,20 @@ func ParseSessionActivityWith(path string, since time.Time, opts Options) ([]jou
 // evidence that does not exist. Absent beats invented (NAV-21).
 func bashWrites(r record, block toolUseBlock, opts Options) []journal.Entry {
 	targets, incomplete := WriteTargets(block.Input.Command, r.Cwd)
+	if opts.MapPath != nil {
+		// The shell is another machine's: an absolute target is that
+		// machine's path and goes to MapPath as written. Only a relative
+		// one is resolved here, against the cwd the transcript recorded.
+		var raw []string
+		raw, incomplete = writeTargetsRaw(block.Input.Command)
+		targets = targets[:0]
+		for _, t := range raw {
+			if !strings.HasPrefix(t, "/") {
+				t = resolveTarget(t, r.Cwd)
+			}
+			targets = append(targets, t)
+		}
+	}
 	var out []journal.Entry
 	for _, target := range targets {
 		target, ok := opts.mapPath(target)

@@ -249,6 +249,13 @@ var vmPath = regexp.MustCompile(`^/sessions/[^/]+/mnt/([^/]+)(?:/(.*))?$`)
 type mounts struct {
 	byMount map[string]string
 	folders []string
+
+	// raw is each connected folder as the metadata spells it, paired by
+	// index with folders. A host path written in a transcript uses this
+	// spelling, and the file it names may not exist yet, so it cannot be
+	// resolved on its own; it is matched here and rebased onto the
+	// canonical folder.
+	raw []string
 }
 
 // hostPath rewrites a transcript path to this machine's. A host path inside
@@ -270,10 +277,17 @@ func (m mounts) hostPath(p string) (string, bool) {
 		return filepath.Join(host, filepath.FromSlash(sm[2])), true
 	}
 	if filepath.IsAbs(p) {
-		clean := linehash.Canonical(p)
-		for _, f := range m.folders {
+		clean := filepath.Clean(p)
+		for i, f := range m.folders {
 			if within(clean, f) {
 				return clean, true
+			}
+			if r := m.raw[i]; within(clean, r) {
+				rel, err := filepath.Rel(r, clean)
+				if err != nil {
+					continue
+				}
+				return filepath.Join(f, rel), true
 			}
 		}
 	}
@@ -339,6 +353,7 @@ func loadMounts(meta string) (mounts, error) {
 		}
 		c := linehash.Canonical(f)
 		m.folders = append(m.folders, c)
+		m.raw = append(m.raw, filepath.Clean(f))
 		if name, ok := sm.FolderMountNames[f]; ok && name != "" {
 			m.byMount[name] = c
 			continue
@@ -356,6 +371,7 @@ func loadMounts(meta string) (mounts, error) {
 		if _, ok := m.byMount[name]; !ok && name != "" && host != "" {
 			m.byMount[name] = linehash.Canonical(host)
 			m.folders = append(m.folders, linehash.Canonical(host))
+			m.raw = append(m.raw, filepath.Clean(host))
 		}
 	}
 
