@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-11-06
+
 ### Added
 
 - **`pkg/capture`: agent transcript capture as an importable v0 package.** `Agents()` returns the adapters `dun` ingests with (agy, Claude Code, Codex), in the order `dun` registers them, and each agent's `ParseSince` returns exactly the entries `dun` journals. `ParseKeyed` additionally fills `Entry.KeyedLineHashes` with `linehash.OfKeyed` hashes over repo-relative paths, computed while the agent's text is still in memory, which is the only point it can be; edits to files outside the given repository get none. `dun` never calls it: its journal, hook, sync and trailers are unchanged, the adapter output golden added beforehand is unchanged, and the guard test still fails the build if `dun` code computes keyed hashes. For the whodunit Pro collector (spec 002, task T001).
@@ -279,7 +281,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Initial release.
 
-[Unreleased]: https://github.com/navjyotnishant/whodunit/compare/v0.7.0...HEAD
+[Unreleased]: https://github.com/navjyotnishant/whodunit/compare/v0.8.0...HEAD
+[0.8.0]: https://github.com/navjyotnishant/whodunit/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/navjyotnishant/whodunit/compare/v0.6.2...v0.7.0
 [0.6.2]: https://github.com/navjyotnishant/whodunit/compare/v0.6.1...v0.6.2
 [0.6.1]: https://github.com/navjyotnishant/whodunit/compare/v0.6.0...v0.6.1
