@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.1] - 2026-11-07
+
 ### Fixed
 
 - **A git command can no longer hang forever.** The git calls behind repository ids (`pkg/repoid`), committed lines (`pkg/attribution`) and staged files (`pkg/trailer`) now stop after two minutes, never prompt on a terminal and take no optional locks. On 2026-11-06 a `git rev-parse --show-toplevel` hung for over 90 minutes in one repository and stopped a long-running program built on these packages. A command that finishes in time behaves exactly as before; every compatibility golden is unchanged.
@@ -285,7 +287,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Initial release.
 
-[Unreleased]: https://github.com/navjyotnishant/whodunit/compare/v0.8.0...HEAD
+[Unreleased]: https://github.com/navjyotnishant/whodunit/compare/v0.8.1...HEAD
+[0.8.1]: https://github.com/navjyotnishant/whodunit/compare/v0.8.0...v0.8.1
 [0.8.0]: https://github.com/navjyotnishant/whodunit/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/navjyotnishant/whodunit/compare/v0.6.2...v0.7.0
 [0.6.2]: https://github.com/navjyotnishant/whodunit/compare/v0.6.1...v0.6.2
