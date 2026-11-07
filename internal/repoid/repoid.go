@@ -37,6 +37,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/navjyotnishant/whodunit/internal/gitexec"
 	"github.com/navjyotnishant/whodunit/internal/registry"
 )
 
@@ -78,9 +79,7 @@ var gitBin = func() string {
 }()
 
 func git(dir string, args ...string) (string, error) {
-	cmd := exec.Command(gitBin, args...)
-	cmd.Dir = dir
-	out, err := cmd.Output()
+	out, err := gitexec.Output(gitBin, dir, args...)
 	return strings.TrimSpace(string(out)), err
 }
 
