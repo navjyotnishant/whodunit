@@ -25,6 +25,7 @@ import (
 	"github.com/navjyotnishant/whodunit/internal/attribution"
 	"github.com/navjyotnishant/whodunit/internal/config"
 	"github.com/navjyotnishant/whodunit/internal/declared"
+	"github.com/navjyotnishant/whodunit/internal/gitexec"
 	"github.com/navjyotnishant/whodunit/internal/hooklog"
 	"github.com/navjyotnishant/whodunit/internal/journal"
 	"github.com/navjyotnishant/whodunit/internal/replaylog"
@@ -537,7 +538,7 @@ func defaultAgentLineHashes(since time.Time, repoID func() (string, error)) map[
 
 // StagedFiles returns repo-relative paths of files staged for this commit.
 func StagedFiles() ([]string, error) {
-	out, err := exec.Command(gitBin, "diff", "--cached", "--name-only").Output()
+	out, err := gitexec.Output(gitBin, "", "diff", "--cached", "--name-only")
 	if err != nil {
 		return nil, err
 	}

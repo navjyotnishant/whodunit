@@ -12,6 +12,7 @@ import (
 	"os/exec"
 	"strings"
 
+	"github.com/navjyotnishant/whodunit/internal/gitexec"
 	"github.com/navjyotnishant/whodunit/internal/linehash"
 )
 
@@ -45,7 +46,7 @@ var gitBin = func() string {
 // RepoRoot returns the top level of the repository containing the current
 // directory.
 func RepoRoot() (string, error) {
-	out, err := exec.Command(gitBin, "rev-parse", "--show-toplevel").Output()
+	out, err := gitexec.Output(gitBin, "", "rev-parse", "--show-toplevel")
 	if err != nil {
 		return "", fmt.Errorf("attribution: find repository root: %w", err)
 	}
@@ -92,10 +93,11 @@ func committedLines(root string, shas []string, hasher LineHasher) (map[string][
 	if len(shas) == 0 {
 		return out, nil
 	}
-	cmd := exec.Command(gitBin, "-C", root, "log", "--stdin", "--no-walk=unsorted",
+	cmd, cancel := gitexec.Command(gitBin, "-C", root, "log", "--stdin", "--no-walk=unsorted",
 		"--format=%x00commit %H", "--patch", "-m", "--first-parent", "--unified=0",
 		"--no-color", "--no-ext-diff", "--no-textconv",
 		"--src-prefix=a/", "--dst-prefix=b/")
+	defer cancel()
 	cmd.Stdin = strings.NewReader(strings.Join(shas, "\n") + "\n")
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
