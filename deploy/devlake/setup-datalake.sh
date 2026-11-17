@@ -24,7 +24,14 @@ set -eu
 # The DevLake release this is tested against. Upstream ships the compose file
 # only as a release asset — it is not in their git tree, so there is no raw
 # URL for it.
-DEVLAKE_VERSION="${DEVLAKE_VERSION:-v1.0.3-beta15}"
+#
+# beta19 rather than beta15: beta15 aborts its first migration on a fresh
+# MySQL 8 database with "Error 1091: Can't DROP 'idx__tool_sonarqube_issue_
+# code_blocks_component'" (apache/devlake#9011, fixed from beta16). beta19 has
+# one known bug that matters here: its org plugin routes (/plugins/org/*)
+# return 404 (apache/devlake#9327), so teams cannot be loaded from CSV and
+# come from the `teams` map in dun's config instead.
+DEVLAKE_VERSION="${DEVLAKE_VERSION:-v1.0.3-beta19}"
 DEVLAKE_REPO="${DEVLAKE_REPO:-apache/devlake}"
 
 # Wrapped in main() and called at the bottom, so a download truncated
@@ -78,7 +85,7 @@ Stand up an Apache DevLake stack for whodunit to publish into.
 
   -y, --yes           do not pause for confirmation
       --no-dashboards skip step 2 (import them later)
-      --version TAG   DevLake release to use (default v1.0.3-beta15)
+      --version TAG   DevLake release to use (default v1.0.3-beta19)
 
 Files are written into the current directory: docker-compose.yml and
 env.example are fetched from upstream, .env is generated once.
@@ -100,6 +107,7 @@ This will, in the current directory ($(pwd)):
   4. import the whodunit dashboards into grafana
 
 Ports used: 3306 (mysql), 3002 (grafana), 4000 (config UI), 8080 (api).
+Grafana is opened at http://localhost:4000/grafana; port 3002 redirects there.
 
 EOF
 }
@@ -127,15 +135,34 @@ fetch_one() {
 	fi
 	_url="https://github.com/$DEVLAKE_REPO/releases/download/$DEVLAKE_VERSION/$_name"
 	printf '  fetching %s ... ' "$_name"
-	if curl -fsSL -o "$_name.partial" "$_url"; then
+	# Status read directly rather than inferred from the message: curl -f
+	# exits 22 only when the server answered with an HTTP error, which is
+	# the one case where the version is the likely culprit. Every other
+	# status (35 TLS handshake, 60 certificate, 6 and 7 DNS and connect, 28
+	# timeout) means the request never got an answer, and blaming the
+	# version sent people off to check a release that was fine.
+	_rc=0
+	curl -fsSL -o "$_name.partial" "$_url" || _rc=$?
+	if [ "$_rc" -eq 0 ]; then
 		mv "$_name.partial" "$_name"
 		echo "ok"
 	else
 		rm -f "$_name.partial"
 		echo "failed"
-		die "could not fetch $_url
-	   check that $DEVLAKE_VERSION is a real DevLake release:
+		if [ "$_rc" -eq 22 ]; then
+			die "could not fetch $_url
+	   GitHub answered with an error, so $DEVLAKE_VERSION may not be a real
+	   DevLake release, or it has no $_name. Releases:
 	   https://github.com/$DEVLAKE_REPO/releases"
+		fi
+		die "could not fetch $_url
+	   curl exited $_rc: the connection to GitHub failed, which is a network,
+	   proxy or TLS problem, not a missing release. To carry on without it,
+	   download these two files in a browser into this folder
+	   ($(pwd)), keeping their names, then run this again:
+	     https://github.com/$DEVLAKE_REPO/releases/download/$DEVLAKE_VERSION/docker-compose.yml
+	     https://github.com/$DEVLAKE_REPO/releases/download/$DEVLAKE_VERSION/env.example
+	   Files already here are kept, so nothing is downloaded a second time."
 	fi
 }
 
@@ -396,7 +423,7 @@ summary() {
 DevLake is up.
 
   config UI   http://localhost:4000
-  grafana     http://localhost:3002        ($_gcreds)
+  grafana     http://localhost:4000/grafana ($_gcreds)
   mysql       127.0.0.1:3306               ($_dbuser / $_dbpass, database "$_dbname")
 
 Developers publish into it with:
@@ -449,7 +476,7 @@ EOF
 	# values are public knowledge already — printing them costs nothing and
 	# makes the instruction actionable.
 	if [ "$_gpass" = admin ]; then
-		printf '  %-9s %-20s %s\n' grafana "admin / admin" "http://localhost:3002"
+		printf '  %-9s %-20s %s\n' grafana "admin / admin" "http://localhost:4000/grafana"
 	fi
 	if [ "$_dbpass" = merico ]; then
 		printf '  %-9s %-20s %s\n' mysql "$_dbuser / $_dbpass" "127.0.0.1:3306"

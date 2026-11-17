@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **A fresh datalake install no longer fails its first migration.** `setup-datalake.sh` pinned DevLake `v1.0.3-beta15`, which aborts on a new MySQL 8 database with `Error 1091 (42000): Can't DROP 'idx__tool_sonarqube_issue_code_blocks_component'` ([apache/devlake#9011](https://github.com/apache/devlake/issues/9011)). It now defaults to `v1.0.3-beta19`, which installed cleanly on a user's machine. beta19 has its own upstream bug: `/plugins/org/*` returns 404 ([apache/devlake#9327](https://github.com/apache/devlake/issues/9327)), so DevLake's `teams.csv` route does not work on it. Teams come from the `teams` map in `~/.whodunit/config.json`, which already took precedence. `--version v1.0.3-beta18` is the untested alternative if the CSV route is needed.
+- **The setup script no longer blames the DevLake version for a network failure.** `curl: (35) schannel: failed to receive handshake` on a locked-down Windows network ended in "check that the version is a real DevLake release", though the release was fine. It now tells HTTP errors (curl exit 22: the version may be wrong) from connection failures (anything else: network, proxy or TLS), and for the latter says which two files to download in a browser and where to put them, since files already present are kept.
+- **Grafana's address is now given as `http://localhost:4000/grafana`.** The setup summary, the credentials warning and the datalake README named port `3002`, which redirects there because DevLake's compose file sets Grafana's root URL behind the config UI.
+
 ## [0.8.1] - 2026-11-07
 
 ### Fixed
