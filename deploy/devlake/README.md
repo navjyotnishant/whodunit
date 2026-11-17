@@ -43,7 +43,7 @@ else.
 | | |
 |---|---|
 | Config UI | http://localhost:4000 |
-| Grafana | http://localhost:3002 — `admin` / `admin` on first start |
+| Grafana | http://localhost:4000/grafana — `admin` / `admin` on first start. Port `3002` redirects there: the compose file sets Grafana's root URL behind the config UI. |
 | MySQL | `127.0.0.1:3306` — `merico` / `merico`, database `lake` |
 
 ## Publishing into it
@@ -219,6 +219,29 @@ comment, which is not a fork worth maintaining — it just went stale every time
 DevLake released. Note the compose file is published **only as a release
 asset**, not in upstream's git tree, so there is no raw URL for it.
 
+### Which DevLake release, and why
+
+`setup-datalake.sh` pins `v1.0.3-beta19`. Two upstream bugs decide this, and
+both are in DevLake, not here:
+
+- **`v1.0.3-beta15` cannot migrate a fresh MySQL 8 database.** The first
+  migration fails with `Error 1091 (42000): Can't DROP
+  'idx__tool_sonarqube_issue_code_blocks_component'` and the config UI says
+  "Operation failed" ([apache/devlake#9011](https://github.com/apache/devlake/issues/9011),
+  fixed from beta16).
+- **`v1.0.3-beta19` serves no `/plugins/org/*` routes.** `teams.csv` and
+  `users.csv` return `404 page not found` on port `8080` and through the
+  config UI alike ([apache/devlake#9327](https://github.com/apache/devlake/issues/9327)).
+  The fix is on DevLake's `main` but in no release yet. Teams therefore come
+  from the `teams` map in `~/.whodunit/config.json`, which `dun sync`
+  publishes and which wins over DevLake's team tables anyway; see
+  [Teams and identities](https://docs.whodunit.njlabs.dev/reference/teams-and-identities).
+  The one other way out, if you need DevLake's own CSV route, is
+  `--version v1.0.3-beta18`: it has the migration fix and loads the org plugin
+  as a pointer, so its routes should register. Nobody here has run it.
+
+Move the pin once a release after beta19 carries the fix for #9327.
+
 ### Editing them
 
 `dashboards/` holds the canonical files; `dashboards-import/` is generated
@@ -342,7 +365,7 @@ delete the fetched files and re-run with the tag you want:
 
 ```sh
 rm docker-compose.yml env.example
-sh setup-datalake.sh --version v1.0.3-beta16
+sh setup-datalake.sh --version v1.0.3-beta19
 ```
 
 Your `.env` is not touched — delete it if you want the new `env.example`
