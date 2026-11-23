@@ -119,6 +119,9 @@ CREATE TABLE IF NOT EXISTS entries (
 	mcp_server    TEXT,
 	user_modified INTEGER,
 
+	-- When the row was written or last changed, for incremental sync.
+	changed_at    INTEGER NOT NULL DEFAULT 0,
+
 	UNIQUE(repo_id, session, ts, tool, file, hunk_hash)
 );
 CREATE INDEX IF NOT EXISTS idx_entries_repo_ts ON entries(repo_id, ts);
@@ -135,6 +138,7 @@ CREATE TABLE IF NOT EXISTS agent_lines (
 	repo_id   TEXT NOT NULL,
 	line_hash INTEGER NOT NULL,
 	first_ts  INTEGER NOT NULL,
+	added_at  INTEGER NOT NULL DEFAULT 0,
 	PRIMARY KEY (repo_id, line_hash)
 );
 CREATE INDEX IF NOT EXISTS idx_agent_lines_repo_ts ON agent_lines(repo_id, first_ts);
@@ -181,6 +185,8 @@ CREATE TABLE IF NOT EXISTS sessions (
 	model                  TEXT,
 	compactions            INTEGER,
 
+	changed_at             INTEGER NOT NULL DEFAULT 0,
+
 	PRIMARY KEY (repo_id, session)
 );
 
@@ -189,6 +195,17 @@ CREATE TABLE IF NOT EXISTS repo_metadata (
 	contributor  TEXT NOT NULL DEFAULT '',
 	spec_version TEXT NOT NULL,
 	updated_at   INTEGER NOT NULL
+);
+
+-- When each repository last synced successfully to each target, so the
+-- next sync sends only rows changed since then. target is the database
+-- address without credentials: pointing a repository at a different lake
+-- starts it from nothing rather than from another lake's mark.
+CREATE TABLE IF NOT EXISTS sync_marks (
+	repo_id   TEXT NOT NULL,
+	target    TEXT NOT NULL,
+	synced_at INTEGER NOT NULL,
+	PRIMARY KEY (repo_id, target)
 );
 `
 
@@ -253,6 +270,22 @@ var migrations = []string{
 	// NAV-106. How often the session's context was compacted — nil where
 	// the agent does not report it, which is agy.
 	`ALTER TABLE sessions ADD COLUMN compactions INTEGER`,
+
+	// When a row was last written or changed, so `dun sync` sends only
+	// what changed since its last successful run (incremental sync).
+	//
+	// Not the event's own ts: ingest runs after the fact, so an event can
+	// land in the journal long after it happened, and filtering on ts
+	// would skip it. agent_lines gets added_at for the same reason — its
+	// first_ts is the entry's timestamp, not the moment it was recorded.
+	//
+	// 0 on rows written by a dun that predates the column; StampUnmarked
+	// fixes those up at the start of each sync.
+	`ALTER TABLE entries ADD COLUMN changed_at INTEGER NOT NULL DEFAULT 0`,
+	`ALTER TABLE sessions ADD COLUMN changed_at INTEGER NOT NULL DEFAULT 0`,
+	`ALTER TABLE agent_lines ADD COLUMN added_at INTEGER NOT NULL DEFAULT 0`,
+	`CREATE INDEX IF NOT EXISTS idx_entries_repo_changed ON entries(repo_id, changed_at)`,
+	`CREATE INDEX IF NOT EXISTS idx_agent_lines_repo_added ON agent_lines(repo_id, added_at)`,
 }
 
 // DBPath returns the journal database location inside the given data
@@ -328,8 +361,13 @@ func (w *Writer) Append(e Entry) error {
 		// The measured columns are COALESCEd for the same reason the
 		// session ones are: a re-ingest over a window that cannot see them
 		// must not erase what an earlier pass established.
-		`INSERT INTO entries (repo_id, ts, agent, agent_version, session, event, tool, file, lines_added, lines_removed, hunk_hash, spec_version, outcome, model, branch, mcp_server, user_modified)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		//
+		// The WHERE skips the update when nothing would change. Ingest
+		// re-reads a lookback window on every run, and without it every
+		// re-read row would get a fresh changed_at and go out again on the
+		// next incremental sync.
+		`INSERT INTO entries (repo_id, ts, agent, agent_version, session, event, tool, file, lines_added, lines_removed, hunk_hash, spec_version, outcome, model, branch, mcp_server, user_modified, changed_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		 ON CONFLICT(repo_id, session, ts, tool, file, hunk_hash) DO UPDATE SET
 		   outcome=excluded.outcome,
 		   lines_added=excluded.lines_added,
@@ -337,10 +375,19 @@ func (w *Writer) Append(e Entry) error {
 		   model=COALESCE(excluded.model, entries.model),
 		   branch=COALESCE(excluded.branch, entries.branch),
 		   mcp_server=COALESCE(excluded.mcp_server, entries.mcp_server),
-		   user_modified=COALESCE(excluded.user_modified, entries.user_modified)`,
+		   user_modified=COALESCE(excluded.user_modified, entries.user_modified),
+		   changed_at=excluded.changed_at
+		 WHERE entries.outcome IS NOT excluded.outcome
+		    OR entries.lines_added IS NOT excluded.lines_added
+		    OR entries.lines_removed IS NOT excluded.lines_removed
+		    OR entries.model IS NOT COALESCE(excluded.model, entries.model)
+		    OR entries.branch IS NOT COALESCE(excluded.branch, entries.branch)
+		    OR entries.mcp_server IS NOT COALESCE(excluded.mcp_server, entries.mcp_server)
+		    OR entries.user_modified IS NOT COALESCE(excluded.user_modified, entries.user_modified)`,
 		w.repoID, e.Timestamp.UnixNano(), e.Agent, e.AgentVersion, e.Session, e.Event,
 		e.Tool, e.File, e.LinesAdded, e.LinesRemoved, e.HunkHash, e.SpecVersion, e.Outcome,
 		nullString(e.Model), nullString(e.Branch), nullString(e.MCPServer), e.UserModified,
+		time.Now().UnixNano(),
 	)
 	if err != nil {
 		return fmt.Errorf("journal: insert entry: %w", err)
@@ -435,8 +482,8 @@ func (w *Writer) UpsertSession(s Session) error {
 		   user_messages, agent_messages, tool_calls, distinct_tools, mcp_calls,
 		   input_tokens, output_tokens, cache_read_tokens, cache_write_tokens,
 		   reasoning_tokens, duration_ms, time_to_first_token_ms,
-		   effort, permission_mode, model, compactions)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		   effort, permission_mode, model, compactions, changed_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		 ON CONFLICT(repo_id, session) DO UPDATE SET
 		   agent_version=excluded.agent_version, last_seen=excluded.last_seen,
 		   user_messages=excluded.user_messages, agent_messages=excluded.agent_messages,
@@ -452,14 +499,33 @@ func (w *Writer) UpsertSession(s Session) error {
 		   effort=COALESCE(excluded.effort, sessions.effort),
 		   permission_mode=COALESCE(excluded.permission_mode, sessions.permission_mode),
 		   model=COALESCE(excluded.model, sessions.model),
-		   compactions=COALESCE(excluded.compactions, sessions.compactions)`,
+		   compactions=COALESCE(excluded.compactions, sessions.compactions),
+		   changed_at=excluded.changed_at
+		 WHERE sessions.agent_version IS NOT excluded.agent_version
+		    OR sessions.last_seen IS NOT excluded.last_seen
+		    OR sessions.user_messages IS NOT excluded.user_messages
+		    OR sessions.agent_messages IS NOT excluded.agent_messages
+		    OR sessions.tool_calls IS NOT excluded.tool_calls
+		    OR sessions.distinct_tools IS NOT excluded.distinct_tools
+		    OR sessions.mcp_calls IS NOT excluded.mcp_calls
+		    OR sessions.input_tokens IS NOT COALESCE(excluded.input_tokens, sessions.input_tokens)
+		    OR sessions.output_tokens IS NOT COALESCE(excluded.output_tokens, sessions.output_tokens)
+		    OR sessions.cache_read_tokens IS NOT COALESCE(excluded.cache_read_tokens, sessions.cache_read_tokens)
+		    OR sessions.cache_write_tokens IS NOT COALESCE(excluded.cache_write_tokens, sessions.cache_write_tokens)
+		    OR sessions.reasoning_tokens IS NOT COALESCE(excluded.reasoning_tokens, sessions.reasoning_tokens)
+		    OR sessions.duration_ms IS NOT COALESCE(excluded.duration_ms, sessions.duration_ms)
+		    OR sessions.time_to_first_token_ms IS NOT COALESCE(excluded.time_to_first_token_ms, sessions.time_to_first_token_ms)
+		    OR sessions.effort IS NOT COALESCE(excluded.effort, sessions.effort)
+		    OR sessions.permission_mode IS NOT COALESCE(excluded.permission_mode, sessions.permission_mode)
+		    OR sessions.model IS NOT COALESCE(excluded.model, sessions.model)
+		    OR sessions.compactions IS NOT COALESCE(excluded.compactions, sessions.compactions)`,
 		w.repoID, s.Session, s.Agent, s.AgentVersion,
 		s.FirstSeen.UnixNano(), s.LastSeen.UnixNano(),
 		s.UserMessages, s.AgentMessages, s.ToolCalls, s.DistinctTools, s.MCPCalls,
 		s.InputTokens, s.OutputTokens, s.CacheReadTokens, s.CacheWriteTokens,
 		s.ReasoningTokens, s.DurationMS, s.TimeToFirstTokenMS,
 		nullString(s.Effort), nullString(s.PermissionMode), nullString(s.Model),
-		s.Compactions)
+		s.Compactions, time.Now().UnixNano())
 	if err != nil {
 		return fmt.Errorf("journal: upsert session: %w", err)
 	}
@@ -483,6 +549,12 @@ func nullString(s string) any {
 
 // ReadSessions returns a repository's session activity.
 func ReadSessions(dataDir, repoID string) ([]Session, error) {
+	return ReadSessionsChangedSince(dataDir, repoID, time.Time{})
+}
+
+// ReadSessionsChangedSince returns sessions written or changed at or after
+// since. A zero since returns every session.
+func ReadSessionsChangedSince(dataDir, repoID string, since time.Time) ([]Session, error) {
 	if _, err := os.Stat(DBPath(dataDir)); os.IsNotExist(err) {
 		return nil, nil
 	}
@@ -498,7 +570,8 @@ func ReadSessions(dataDir, repoID string) ([]Session, error) {
 		        input_tokens, output_tokens, cache_read_tokens, cache_write_tokens,
 		        reasoning_tokens, duration_ms, time_to_first_token_ms,
 		        effort, permission_mode, model, compactions
-		 FROM sessions WHERE repo_id = ? ORDER BY first_seen`, repoID)
+		 FROM sessions WHERE repo_id = ? AND changed_at >= ? ORDER BY first_seen`,
+		repoID, sinceNanos(since))
 	if err != nil {
 		return nil, fmt.Errorf("journal: query sessions: %w", err)
 	}
@@ -645,8 +718,9 @@ func (w *Writer) AppendLines(hashes []uint64, ts time.Time) error {
 		ts = time.Now().UTC()
 	}
 
-	return insertHashes(w.db, `INSERT OR IGNORE INTO agent_lines (repo_id, line_hash, first_ts) VALUES (?, ?, ?)`,
-		hashes, func(h int64) []any { return []any{w.repoID, h, ts.UnixNano()} })
+	added := time.Now().UnixNano()
+	return insertHashes(w.db, `INSERT OR IGNORE INTO agent_lines (repo_id, line_hash, first_ts, added_at) VALUES (?, ?, ?, ?)`,
+		hashes, func(h int64) []any { return []any{w.repoID, h, ts.UnixNano(), added} })
 }
 
 // insertHashes inserts one row per hash in a single transaction. args builds
@@ -689,6 +763,110 @@ func ReadLineHashes(dataDir, repoID string, since time.Time) (map[uint64]struct{
 	return queryHashes(db,
 		`SELECT line_hash FROM agent_lines WHERE repo_id = ? AND first_ts >= ?`,
 		repoID, since.UnixNano())
+}
+
+// ReadLineHashesAddedSince returns line hashes recorded at or after since —
+// by when they were written to the journal, not by the entry's timestamp.
+// A zero since returns every hash.
+func ReadLineHashesAddedSince(dataDir, repoID string, since time.Time) (map[uint64]struct{}, error) {
+	if _, err := os.Stat(DBPath(dataDir)); os.IsNotExist(err) {
+		return nil, nil
+	}
+	db, err := open(dataDir)
+	if err != nil {
+		return nil, err
+	}
+	defer db.Close()
+
+	return queryHashes(db,
+		`SELECT line_hash FROM agent_lines WHERE repo_id = ? AND added_at >= ?`,
+		repoID, sinceNanos(since))
+}
+
+// StampUnmarked gives rows with no change time one, so an incremental sync
+// cannot skip them forever.
+//
+// Rows get changed_at/added_at 0 when an older dun wrote them: before the
+// columns existed, or after a downgrade, or from a hook still running the
+// previous binary. at is the start of the window the coming sync reads, so
+// the stamped rows go out in it. A zero at stamps nothing: a full read
+// includes them anyway, and leaving them at 0 lets the next incremental
+// sync stamp them into its own window rather than before it.
+func StampUnmarked(dataDir, repoID string, at time.Time) error {
+	if at.IsZero() {
+		return nil
+	}
+	if _, err := os.Stat(DBPath(dataDir)); os.IsNotExist(err) {
+		return nil
+	}
+	db, err := open(dataDir)
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+
+	ns := at.UnixNano()
+	for _, stmt := range []string{
+		`UPDATE entries SET changed_at = ? WHERE repo_id = ? AND changed_at = 0`,
+		`UPDATE sessions SET changed_at = ? WHERE repo_id = ? AND changed_at = 0`,
+		`UPDATE agent_lines SET added_at = ? WHERE repo_id = ? AND added_at = 0`,
+	} {
+		if _, err := db.Exec(stmt, ns, repoID); err != nil {
+			return fmt.Errorf("journal: stamp unmarked rows: %w", err)
+		}
+	}
+	return nil
+}
+
+// sinceNanos is since as a column bound. A zero time is 0, not
+// time.Time{}.UnixNano(), which is a large negative number that happens to
+// work and reads as a bug.
+func sinceNanos(since time.Time) int64 {
+	if since.IsZero() {
+		return 0
+	}
+	return since.UnixNano()
+}
+
+// SyncMark is when repoID last synced successfully to target. Zero when it
+// never has.
+func SyncMark(dataDir, repoID, target string) (time.Time, error) {
+	if _, err := os.Stat(DBPath(dataDir)); os.IsNotExist(err) {
+		return time.Time{}, nil
+	}
+	db, err := open(dataDir)
+	if err != nil {
+		return time.Time{}, err
+	}
+	defer db.Close()
+
+	var ns int64
+	err = db.QueryRow(`SELECT synced_at FROM sync_marks WHERE repo_id = ? AND target = ?`,
+		repoID, target).Scan(&ns)
+	if err == sql.ErrNoRows {
+		return time.Time{}, nil
+	}
+	if err != nil {
+		return time.Time{}, fmt.Errorf("journal: read sync mark: %w", err)
+	}
+	return time.Unix(0, ns).UTC(), nil
+}
+
+// SetSyncMark records a successful sync of repoID to target as of at.
+func SetSyncMark(dataDir, repoID, target string, at time.Time) error {
+	db, err := open(dataDir)
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+
+	_, err = db.Exec(`INSERT INTO sync_marks (repo_id, target, synced_at) VALUES (?, ?, ?)
+		ON CONFLICT(repo_id, target) DO UPDATE SET synced_at = excluded.synced_at`,
+		repoID, target, at.UnixNano())
+	if err != nil {
+		return fmt.Errorf("journal: write sync mark: %w", err)
+	}
+	return nil
 }
 
 // queryHashes runs a query selecting one line_hash column and returns the
@@ -736,7 +914,29 @@ func ReadRange(dataDir, repoID string, since, until time.Time) ([]Entry, error) 
 		args = append(args, until.UnixNano())
 	}
 	query += " ORDER BY ts ASC"
+	return queryEntries(db, query, args...)
+}
 
+// ReadChangedSince reads entries written or changed at or after since,
+// whatever their own timestamp. A zero since reads every entry.
+func ReadChangedSince(dataDir, repoID string, since time.Time) ([]Entry, error) {
+	if _, err := os.Stat(DBPath(dataDir)); os.IsNotExist(err) {
+		return nil, nil
+	}
+	db, err := open(dataDir)
+	if err != nil {
+		return nil, err
+	}
+	defer db.Close()
+
+	return queryEntries(db,
+		`SELECT ts, agent, agent_version, session, event, tool, file, lines_added, lines_removed, hunk_hash, spec_version, outcome, model, branch, mcp_server, user_modified
+		 FROM entries WHERE repo_id = ? AND changed_at >= ? ORDER BY ts ASC`,
+		repoID, sinceNanos(since))
+}
+
+// queryEntries runs a query selecting entry columns in ReadRange's order.
+func queryEntries(db *sql.DB, query string, args ...any) ([]Entry, error) {
 	rows, err := db.Query(query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("journal: query: %w", err)

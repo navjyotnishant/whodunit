@@ -7,7 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-11-23
+
+### Changed
+
+- **`dun sync` and the push hook send only what changed since the last successful sync.** Every sync used to send the whole journal. On one user's machine that was 29,496 rows per sync, almost all already in the lake, and on Windows the push hook stalled long enough that they turned it off. Events and sessions now go out when written or changed since the last sync to the same database, so a later `outcome` or a grown session is still sent. Line hashes go out when recorded. Commits, teams, identities and the baseline still go in full: they come from git and config and are a few hundred rows. Against a local lake, a sync with nothing new went from about 9 s to about 1.3 s and sent 0 events. The mark is per repository and per database address (no credentials stored), so pointing at a different lake starts from scratch. A lake with no rows for the repository, for example after `docker compose down -v`, gets everything automatically. `dun sync --full` sends everything again. **After restoring the lake from a backup, or deleting rows from it by hand, run `dun sync --full` on each machine that syncs.** A normal sync no longer re-sends what a restore rolled back. Backing up the lake is the team's job; whodunit does not do it. The first two syncs after upgrading both send everything once.
+
 ### Fixed
+
+- **The Adoption dashboard's "Commits · AI-assisted / total" tile showed "No commits in range" with commits in range.** Its query returns text (`6 / 331`), and the stat panel was set to show number fields only, so Grafana dropped the value. It now shows all fields. Re-import the dashboards to pick it up.
 
 - **A fresh datalake install no longer fails its first migration.** `setup-datalake.sh` pinned DevLake `v1.0.3-beta15`, which aborts on a new MySQL 8 database with `Error 1091 (42000): Can't DROP 'idx__tool_sonarqube_issue_code_blocks_component'` ([apache/devlake#9011](https://github.com/apache/devlake/issues/9011)). It now defaults to `v1.0.3-beta19`, which installed cleanly on a user's machine. beta19 has its own upstream bug: `/plugins/org/*` returns 404 ([apache/devlake#9327](https://github.com/apache/devlake/issues/9327)), so DevLake's `teams.csv` route does not work on it. Teams come from the `teams` map in `~/.whodunit/config.json`, which already took precedence. `--version v1.0.3-beta18` is the untested alternative if the CSV route is needed.
 - **The setup script no longer blames the DevLake version for a network failure.** `curl: (35) schannel: failed to receive handshake` on a locked-down Windows network ended in "check that the version is a real DevLake release", though the release was fine. It now tells HTTP errors (curl exit 22: the version may be wrong) from connection failures (anything else: network, proxy or TLS), and for the latter says which two files to download in a browser and where to put them, since files already present are kept.
@@ -293,7 +301,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Initial release.
 
-[Unreleased]: https://github.com/navjyotnishant/whodunit/compare/v0.8.1...HEAD
+[Unreleased]: https://github.com/navjyotnishant/whodunit/compare/v0.9.0...HEAD
+[0.9.0]: https://github.com/navjyotnishant/whodunit/compare/v0.8.1...v0.9.0
 [0.8.1]: https://github.com/navjyotnishant/whodunit/compare/v0.8.0...v0.8.1
 [0.8.0]: https://github.com/navjyotnishant/whodunit/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/navjyotnishant/whodunit/compare/v0.6.2...v0.7.0

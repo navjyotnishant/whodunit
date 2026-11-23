@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/navjyotnishant/whodunit/internal/config"
 )
@@ -13,7 +14,7 @@ import (
 func TestSyncPayloadCommitLinesOnlyWhenEnabled(t *testing.T) {
 	chdirToTestRepo(t)
 
-	p, err := buildPayload(50)
+	p, err := buildPayload(50, time.Time{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -38,7 +39,7 @@ func TestSyncPayloadCommitLinesOnlyWhenEnabled(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	p, err = buildPayload(50)
+	p, err = buildPayload(50, time.Time{})
 	if err != nil {
 		t.Fatal(err)
 	}

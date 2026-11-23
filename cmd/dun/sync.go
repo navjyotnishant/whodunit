@@ -23,6 +23,7 @@ func newSyncCmd() *cobra.Command {
 		dsn      string
 		limit    int
 		dryRun   bool
+		full     bool
 	)
 
 	cmd := &cobra.Command{
@@ -37,9 +38,12 @@ func newSyncCmd() *cobra.Command {
 			"What leaves this machine: commit metadata and trailers, the files an\n" +
 			"agent touched and when, and hashes of lines it produced. Not the\n" +
 			"lines themselves, not prompts, not file contents.\n\n" +
+			"Each sync sends only what changed since the last successful sync\n" +
+			"to the same database. --full sends everything again, for a lake\n" +
+			"that was restored or lost data.\n\n" +
 			"Use --dry-run first to see exactly what would be sent.",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runSync(cmd, dsn, limit, dryRun, repoFlag)
+			return runSync(cmd, dsn, limit, dryRun, full, repoFlag)
 		},
 		SilenceUsage: true,
 	}
@@ -48,10 +52,11 @@ func newSyncCmd() *cobra.Command {
 	cmd.Flags().StringVar(&dsn, "to", "", "database url, e.g. mysql://user:pass@host:3306/lake")
 	cmd.Flags().IntVar(&limit, "limit", 500, "number of recent commits to include")
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "show what would be sent without sending it")
+	cmd.Flags().BoolVar(&full, "full", false, "send everything, not only what changed since the last sync")
 	return cmd
 }
 
-func runSync(cmd *cobra.Command, dsn string, limit int, dryRun bool, repoFlag string) error {
+func runSync(cmd *cobra.Command, dsn string, limit int, dryRun, full bool, repoFlag string) error {
 	restore, err := enterRepo(repoFlag, "sync", "publish")
 	if err != nil {
 		return err
@@ -63,35 +68,50 @@ func runSync(cmd *cobra.Command, dsn string, limit int, dryRun bool, repoFlag st
 	// that exists to sync refuses to, and the advice it gave — pass --to —
 	// meant putting a password in a command line and therefore in shell
 	// history, undoing the point of storing it encrypted (NAV-80).
-	if dsn == "" && !dryRun {
+	//
+	// A dry run resolves it too when one is configured, so it can report
+	// what an incremental sync to that target would send. Without one it
+	// describes a full sync.
+	if dsn == "" {
 		cfg, err := config.Load()
 		if err != nil {
 			return err
 		}
-		if !cfg.Sync.Configured() {
+		switch {
+		case cfg.Sync.Configured():
+			resolved, err := cfg.Sync.Resolve()
+			if err != nil && !dryRun {
+				return err
+			}
+			dsn = resolved
+		case !dryRun:
 			return fmt.Errorf("no sync target: run `dun config datalake`, " +
 				"or pass --to (or --dry-run to see what would be sent)")
 		}
-		resolved, err := cfg.Sync.Resolve()
-		if err != nil {
-			return err
-		}
-		dsn = resolved
 	}
 
-	payload, err := buildPayload(limit)
+	repoID, err := currentRepoID()
+	if err != nil {
+		return err
+	}
+	start := time.Now().UTC()
+	since := time.Time{}
+	if !full && dsn != "" {
+		since = syncSince(repoID, dsn)
+	}
+
+	payload, err := buildPayload(limit, since)
 	if err != nil {
 		return err
 	}
 
 	w := cmd.OutOrStdout()
+	describeScope(w, since)
+	describePayload(w, payload)
 	if dryRun {
-		describePayload(w, payload)
 		fmt.Fprintln(w, "\nnothing was sent (--dry-run)")
 		return nil
 	}
-
-	describePayload(w, payload)
 
 	// Progress for the steps that wait on a network, not for the whole
 	// command. Sending a few thousand rows takes long enough that silence
@@ -128,6 +148,19 @@ func runSync(cmd *cobra.Command, dsn string, limit int, dryRun bool, repoFlag st
 	}
 	ok()
 
+	// A lake that has never seen this repository — new, or wiped with
+	// `docker compose down -v` — gets everything, whatever the local mark
+	// says. Otherwise a rebuilt lake would hold only what changed since.
+	if !since.IsZero() {
+		if last, err := sidecar.LastSync(db, repoID); err == nil && last.IsZero() {
+			since = time.Time{}
+			if payload, err = buildPayload(limit, since); err != nil {
+				return err
+			}
+			fmt.Fprintln(w, "the database has nothing for this repository yet, so sending everything")
+		}
+	}
+
 	bar := newProgressBar(w, "sending")
 	counts, err := sidecar.WriteProgress(db, payload, bar.Update)
 	bar.Done()
@@ -154,13 +187,76 @@ func runSync(cmd *cobra.Command, dsn string, limit int, dryRun bool, repoFlag st
 			counts.Commits, counts.Events, counts.Sessions, counts.Lines,
 			redactedTarget(dsn)))
 
+	recordSync(repoID, dsn, start, "sync")
 	afterSuccessfulSync("sync")
 	return nil
 }
 
-// buildPayload assembles everything this repository contributes, from the
-// same sources the local report and hooks use.
-func buildPayload(limit int) (sidecar.Payload, error) {
+// syncMarkSlack is subtracted from the mark when it is read back. A row
+// whose timestamp was taken just before a sync started, but whose write
+// committed just after the journal was read, would otherwise fall between
+// two syncs. Re-sending a minute of rows costs nothing: the target upserts.
+const syncMarkSlack = time.Minute
+
+// syncSince is where an incremental sync of repoID to dsn starts: the last
+// successful sync there, less the slack. Zero — send everything — when
+// there was none or the mark cannot be read.
+func syncSince(repoID, dsn string) time.Time {
+	dataDir, err := journalDataDir()
+	if err != nil {
+		return time.Time{}
+	}
+	mark, err := journal.SyncMark(dataDir, repoID, syncTarget(dsn))
+	if err != nil || mark.IsZero() {
+		return time.Time{}
+	}
+	return mark.Add(-syncMarkSlack)
+}
+
+// recordSync saves the mark after a successful write. start is when the
+// sync began, taken before the journal was read, so anything written while
+// it ran goes out next time. A mark that fails to save only means the next
+// sync sends more than it needs to.
+func recordSync(repoID, dsn string, start time.Time, hook string) {
+	dataDir, err := journalDataDir()
+	if err == nil {
+		err = journal.SetSyncMark(dataDir, repoID, syncTarget(dsn), start)
+	}
+	if err != nil {
+		logHook(hook, hooklog.LevelWarn, "sync", "could not save the sync mark: "+err.Error())
+	}
+}
+
+// syncTarget names a database for the sync mark: its address with no
+// credentials, so a changed password keeps the mark and no secret is
+// written into the journal.
+func syncTarget(dsn string) string {
+	u, err := url.Parse(dsn)
+	if err != nil {
+		return ""
+	}
+	u.User = nil
+	return u.String()
+}
+
+// describeScope says whether this sync sends everything or only changes.
+func describeScope(w io.Writer, since time.Time) {
+	if since.IsZero() {
+		fmt.Fprintln(w, "scope:        everything")
+		return
+	}
+	fmt.Fprintf(w, "scope:        changes since %s (--full sends everything)\n",
+		since.Add(syncMarkSlack).Local().Format("2006-01-02 15:04"))
+}
+
+// buildPayload assembles what this repository contributes, from the same
+// sources the local report and hooks use.
+//
+// since limits events, sessions and line hashes to rows written or changed
+// at or after it; zero means all of them. Commits, identities, teams and
+// the baseline always go in full: they come from git and config rather
+// than the journal, and are a few hundred rows at most.
+func buildPayload(limit int, since time.Time) (sidecar.Payload, error) {
 	var p sidecar.Payload
 
 	repoID, err := currentRepoID()
@@ -178,17 +274,20 @@ func buildPayload(limit int) (sidecar.Payload, error) {
 		return p, err
 	}
 
-	entries, err := journal.ReadRange(dataDir, repoID, time.Time{}, time.Time{})
+	if err := journal.StampUnmarked(dataDir, repoID, since); err != nil {
+		return p, err
+	}
+	entries, err := journal.ReadChangedSince(dataDir, repoID, since)
 	if err != nil {
 		return p, err
 	}
 
-	lines, err := journal.ReadLineHashes(dataDir, repoID, time.Time{})
+	lines, err := journal.ReadLineHashesAddedSince(dataDir, repoID, since)
 	if err != nil {
 		return p, err
 	}
 
-	sessions, err := journal.ReadSessions(dataDir, repoID)
+	sessions, err := journal.ReadSessionsChangedSince(dataDir, repoID, since)
 	if err != nil {
 		return p, err
 	}

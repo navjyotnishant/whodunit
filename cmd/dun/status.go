@@ -207,14 +207,9 @@ func statusFor(w io.Writer, dir, label string) error {
 
 // printSyncStatus reports what a sync would publish, and where.
 //
-// Deliberately not "unsynced since last time". Sync sends the whole journal
-// and the sidecar upserts, precisely so there is no local watermark to drift
-// out of agreement with the target after a restore. Inventing one here to
-// report a delta would reintroduce the state that design avoids.
-//
-// So the honest question is what the next push would send, which is also the
-// one worth answering: it tells you whether the shared dashboards are about
-// to gain anything.
+// It answers what the next push would send — changes since the last
+// successful sync to this target, or everything on the first — which tells
+// you whether the shared dashboards are about to gain anything.
 func printSyncStatus(w io.Writer, dir string) {
 	c := termcolor.New(w)
 
@@ -286,22 +281,29 @@ func printSyncStatus(w io.Writer, dir string) {
 			fmt.Sprintf("%s (%s)", humanAge(last), last.Format("2006-01-02 15:04")))
 	}
 
-	// What a sync actually transmits, which is the whole journal rather than
-	// the backlog: the write is an upsert, so it republishes everything and
-	// relies on the target to collapse the duplicates.
+	// What a sync actually transmits: rows changed since the local sync
+	// mark, which is not the same as the backlog above (that is counted
+	// from the target's own timestamp).
 	//
 	// Stated separately rather than folded into the line above, because the
 	// two answer different questions — "how far behind am I" and "what will
 	// this command push over the network" — and showing only the second is
 	// what made `dun status` read as though nothing had ever synced.
-	payload, err := buildPayload(defaultSyncLimit)
+	since := time.Time{}
+	if dsn, err := cfg.Sync.Resolve(); err == nil {
+		since = syncSince(repoID, dsn)
+	}
+	payload, err := buildPayload(defaultSyncLimit, since)
 	if err != nil {
 		return
 	}
+	scope := "everything — first sync to this target"
+	if !since.IsZero() {
+		scope = "changes since the last sync"
+	}
 	fmt.Fprintf(w, "  %-13s %s\n", c.S(termcolor.Muted, "sync sends"),
-		c.S(termcolor.Muted, fmt.Sprintf("%d commit(s), %d event(s), %d session(s) "+
-			"— the full history each time",
-			len(payload.Commits), len(payload.Events), len(payload.Sessions))))
+		c.S(termcolor.Muted, fmt.Sprintf("%d commit(s), %d event(s), %d session(s), %d line hash(es) — %s",
+			len(payload.Commits), len(payload.Events), len(payload.Sessions), len(payload.Lines), scope)))
 }
 
 // lastSyncedAll asks the target when each repository last published.
